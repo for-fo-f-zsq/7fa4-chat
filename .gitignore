@@ -5,11 +5,3 @@
 /node_modules/
 /.*/
 !/.github/
-
-# Apple 代码签名临时文件（私钥/CSR/p12，严禁提交）
-apple_key.pem
-apple.csr
-devid.pem
-Cert.p12
-csc_link.txt
-apple_api_key.txt
