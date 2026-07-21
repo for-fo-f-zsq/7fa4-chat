@@ -86,6 +86,7 @@
     },
     "mac": {
       "category": "public.app-category.utilities",
+      "icon": "icon/icon.png",
       "target": [
         {
           "target": "dmg",
