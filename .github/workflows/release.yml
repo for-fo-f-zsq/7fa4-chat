@@ -13,7 +13,7 @@ permissions:
   contents: write   # release job 需要写入 Release
 
 jobs:
-  # ============ 构建：Windows 与 Linux 并行 ============
+  # ============ 构建：Windows / Linux / macOS 并行 ============
   build:
     strategy:
       fail-fast: false
@@ -25,6 +25,9 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             artifact: dist-linux
+          - os: macos-latest
+            platform: mac
+            artifact: dist-mac
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -58,6 +61,7 @@ jobs:
             build/*.zip
             build/*.AppImage
             build/*.deb
+            build/*.dmg
             build/*.yml
             build/*.blockmap
             !build/builder-debug.yml
@@ -97,7 +101,7 @@ jobs:
 
           shopt -s nullglob
           FILES=()
-          for f in dist/*.exe dist/*.zip dist/*.AppImage dist/*.deb dist/*.yml dist/*.blockmap; do
+          for f in dist/*.exe dist/*.zip dist/*.AppImage dist/*.deb dist/*.dmg dist/*.yml dist/*.blockmap; do
             FILES+=("$f")
           done
           [ -f CHANGELOG ] && FILES+=("CHANGELOG")
@@ -149,6 +153,7 @@ jobs:
             dist/*.zip
             dist/*.AppImage
             dist/*.deb
+            dist/*.dmg
             dist/*.yml
             dist/*.blockmap
             CHANGELOG

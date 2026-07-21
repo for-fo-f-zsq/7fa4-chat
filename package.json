@@ -84,6 +84,26 @@
       "maintainer": "for_fo_f <15982878810@163.com>",
       "artifactName": "7FA4-Chat-${version}-${arch}.${ext}"
     },
+    "mac": {
+      "category": "public.app-category.utilities",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "artifactName": "7FA4-Chat-${version}-${arch}.${ext}"
+    },
     "msi": {
       "warningsAsErrors": false
     },
