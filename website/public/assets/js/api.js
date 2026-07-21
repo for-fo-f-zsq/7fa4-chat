@@ -33,7 +33,7 @@ window.GitLabAPI = (() => {
   return {
     BASE: '',
     API: '',
-    PROJECT_ID: 663,
+    PROJECT_ID: 886,
     fetchDownloads,
     fetchChangelog,
     fetchProjectMeta,

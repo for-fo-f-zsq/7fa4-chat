@@ -107,7 +107,7 @@
     "afterPack": "electron-builder-sandbox-fix",
     "publish": {
       "provider": "generic",
-      "url": "http://jx.7fa4.cn:9080/api/v4/projects/663/packages/generic/7FA4-Chat/latest"
+      "url": "http://jx.7fa4.cn:9080/api/v4/projects/886/packages/generic/7FA4-Chat/latest"
     }
   }
 }

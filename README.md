@@ -1,9 +1,9 @@
 # [下载安装包](http://jx.7fa4.cn:9080/zsq/7fa4-chat/-/packages)
 ```bash
 curl -sL -o latest-linux.yml \
-  "http://jx.7fa4.cn:9080/api/v4/projects/663/packages/generic/7FA4-Chat/latest/latest-linux.yml"
+  "http://jx.7fa4.cn:9080/api/v4/projects/886/packages/generic/7FA4-Chat/latest/latest-linux.yml"
 APPIMAGE=$(grep -E "^\s+- url:.*\.AppImage" latest-linux.yml | sed 's/.*url: *//')
-curl -L -O "http://jx.7fa4.cn:9080/api/v4/projects/663/packages/generic/7FA4-Chat/latest/${APPIMAGE}"
+curl -L -O "http://jx.7fa4.cn:9080/api/v4/projects/886/packages/generic/7FA4-Chat/latest/${APPIMAGE}"
 chmod +x "${APPIMAGE}"
 rm latest-linux.yml
 ./"${APPIMAGE}"

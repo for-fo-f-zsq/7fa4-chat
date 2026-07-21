@@ -24,10 +24,10 @@ website/
 
 | 数据 | 接口 |
 | --- | --- |
-| 全部版本号 | `GET /api/v4/projects/663/packages`（自动翻页） |
-| 每个版本的安装包 + 大小 + SHA-512 | `GET /api/v4/projects/663/packages/generic/7FA4-Chat/<ver>/latest*.yml` |
-| 更新日志 | `GET /api/v4/projects/663/repository/files/CHANGELOG/raw?ref=main` |
-| 项目信息（链接 / Star） | `GET /api/v4/projects/663` |
+| 全部版本号 | `GET /api/v4/projects/886/packages`（自动翻页） |
+| 每个版本的安装包 + 大小 + SHA-512 | `GET /api/v4/projects/886/packages/generic/7FA4-Chat/<ver>/latest*.yml` |
+| 更新日志 | `GET /api/v4/projects/886/repository/files/CHANGELOG/raw?ref=main` |
+| 项目信息（链接 / Star） | `GET /api/v4/projects/886` |
 
 GitLab 这几个接口都返回 `Access-Control-Allow-Origin: *`，浏览器可跨域直连，无需代理。
 版本列表与文件仓库是私有项目，所以用一个 **只读访问令牌**（`read_api`）放在 `api.js` 顶部。

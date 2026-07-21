@@ -12,7 +12,7 @@ echo "检测到版本号：$VERSION"
 
 # npm run dist
 
-GITLAB_API="http://jx.7fa4.cn:9080/api/v4/projects/663"
+GITLAB_API="http://jx.7fa4.cn:9080/api/v4/projects/886"
 GITLAB_URL="${GITLAB_API}/packages/generic/7FA4-Chat"
 GITLAB_TOKEN="${GITLAB_TOKEN:?请先设置环境变量 GITLAB_TOKEN，例如：export GITLAB_TOKEN=glpat-xxxx}"
 UPLOAD_COUNT=0

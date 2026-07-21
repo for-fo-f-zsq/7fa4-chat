@@ -382,7 +382,7 @@ let isDownloading = false;
 // 而不是打包时写死的旧地址（避免内网域名 in.7fa4.cn 在外网 502）。
 function applyUpdateFeedUrl() {
     if (!autoUpdater) return;
-    const feedUrl = `${currentApiUrl}:9080/api/v4/projects/663/packages/generic/7FA4-Chat/latest`;
+    const feedUrl = `${currentApiUrl}:9080/api/v4/projects/886/packages/generic/7FA4-Chat/latest`;
     autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl });
     console.log('[Updater] 更新源已设为:', feedUrl);
 }
@@ -563,7 +563,7 @@ ipcMain.handle('install-update', () => {
 // ========== 获取远程 CHANGELOG ==========
 ipcMain.handle('fetch-changelog', async () => {
     try {
-        const changelogUrl = `${currentApiUrl}:9080/api/v4/projects/663/packages/generic/7FA4-Chat/latest/CHANGELOG`;
+        const changelogUrl = `${currentApiUrl}:9080/api/v4/projects/886/packages/generic/7FA4-Chat/latest/CHANGELOG`;
         const html = await new Promise((resolve, reject) => {
             http.get(changelogUrl, { timeout: 10000 }, res => {
                 if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
