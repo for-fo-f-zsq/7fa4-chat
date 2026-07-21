@@ -1,0 +1,195 @@
+.emoji-picker {
+    border: 1px solid var(--border-3d-dark);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-emoji-picker), inset 0 1px 0 var(--border-3d-light);
+    margin-top: 6px;
+    flex: 1;
+    min-height: 340px;
+    overflow: hidden;
+    animation: ctxFade 0.15s ease;
+    backdrop-filter: blur(12px);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-primary);
+}
+.emoji-mode-switch {
+    display: flex;
+    border-bottom: 1px solid var(--border-light);
+    flex-shrink: 0;
+}
+.mode-btn {
+    flex: 1;
+    padding: 6px 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--font-size-small);
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-bottom 0.15s;
+    border-bottom: 2px solid transparent;
+}
+.mode-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-conversation-hover);
+}
+.mode-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    background: var(--accent-alpha);
+}
+.emoji-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border-light);
+    padding: 4px 2px;
+    gap: 2px;
+    flex-shrink: 0;
+}
+.emoji-tab {
+    flex: 1;
+    font-size: var(--font-size-large);
+    padding: 4px 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: background 0.15s;
+    line-height: 1;
+}
+.emoji-tab:hover {
+    background: var(--bg-conversation-hover);
+}
+.emoji-tab.active {
+    background: var(--accent-alpha);
+}
+.emoji-search {
+    padding: 4px 8px;
+    flex-shrink: 0;
+}
+.emoji-search input {
+    width: 100%;
+    padding: 4px 8px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: var(--font-size-small);
+    outline: none;
+}
+.emoji-search input:focus {
+    border-color: var(--accent);
+}
+.emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    padding: 8px 6px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    overscroll-behavior: contain;
+}
+.emoji-item {
+    font-size: 26px;
+    line-height: 1.2;
+    text-align: center;
+    cursor: pointer;
+    padding: 8px 4px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius);
+    transition: background 0.1s;
+    user-select: none;
+}
+.emoji-item:hover {
+    background: var(--bg-conversation-hover);
+}
+.sticker-toolbar {
+    padding: 6px 8px;
+    flex-shrink: 0;
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border-light);
+}
+.sticker-add-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: 1px dashed var(--border-light);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: var(--font-size-small);
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.sticker-add-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-alpha);
+}
+.sticker-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    padding: 8px 6px;
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    overscroll-behavior: contain;
+}
+.sticker-item {
+    position: relative;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: var(--radius);
+    transition: background 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.sticker-item:hover {
+    background: var(--bg-conversation-hover);
+}
+.sticker-item img {
+    height: 60px;
+    width: 90px;
+    object-fit: contain;
+    border-radius: 2px;
+}
+.sticker-del-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 16px;
+    height: 16px;
+    border: none;
+    border-radius: 50%;
+    background: var(--bg-conversation-hover);
+    color: var(--text-secondary);
+    font-size: var(--font-size-small);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.sticker-item:hover .sticker-del-btn {
+    opacity: 1;
+}
+.sticker-del-btn:hover {
+    background: var(--text-error);
+    color: var(--text-on-accent);
+}
+.sticker-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: var(--font-size-small);
+    padding: 20px 0;
+    line-height: 1.6;
+}

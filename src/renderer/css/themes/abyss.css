@@ -1,0 +1,97 @@
+.theme-abyss {
+        --bg-app: #050510;
+        --bg-sidebar: #020208;
+        --bg-sidebar-hover: #101028;
+        --bg-sidebar-active: #1A1A3A;
+        --bg-conversation-hover: #0C0C20;
+        --bg-conversation-active: #1A1A3A;
+        --bg-conversation-press: #242450;
+        --bg-input: #101028;
+        --bg-input-focus: #1A1A3A;
+        --bg-input-footer-focus: #050510;
+        --bg-code-block: rgba(0, 200, 255, 0.08);
+        --bg-code-inline: rgba(0, 200, 255, 0.12);
+        --bg-code-inline-self: rgba(0, 200, 255, 0.18);
+        --bg-token-badge: #101028;
+        --bg-token-badge-hover: rgba(0, 210, 255, 0.15);
+        --bg-settings-info: #050510;
+        --bg-about-content: #050510;
+        --bg-action-panel: #020208;
+        --bg-table-header: #020208;
+        --bg-role-owner: #201810;
+        --bg-role-admin: #082010;
+        --bg-role-member: #101028;
+        --bg-role-owner-hover: #302818;
+        --bg-role-admin-hover: #103020;
+        --bg-role-member-hover: #1A1A3A;
+        --bg-modal-overlay: rgba(0, 0, 0, 0.92);
+        --bg-group-detail: #050510;
+
+        --border-light: #1A1A3A;
+        --border-table: #141430;
+        --border-row: #101028;
+        --border-conversation-bottom: rgba(0, 200, 255, 0.05);
+
+        --text-primary: #E0F0FF;
+        --text-secondary: #6878A0;
+        --text-sidebar: #A0B0D0;
+        --text-link: #00D4FF;
+        --text-link-self: #00FFA0;
+        --text-placeholder: #303858;
+        --text-error: #FF3838;
+        --text-mute-warning: #FF3838;
+        --text-mute-normal: #00FFA0;
+        --text-hint: #6878A0;
+        --text-self-bubble-time: rgba(224, 240, 255, 0.6);
+        --text-blockquote: #5060A0;
+
+        --accent: #00D4FF;
+        --accent-hover: #33E0FF;
+        --accent-active: #00B0D8;
+        --accent-light: rgba(0, 212, 255, 0.12);
+        --accent-outline: rgba(0, 212, 255, 0.5);
+        --gradient-accent: rgba(0, 212, 255, 0.25);
+        --gradient-subtle: rgba(0, 212, 255, 0.08);
+
+        --message-self-bg: #081828;
+        --message-self-text: #00D4FF;
+        --message-other-bg: #0A0A1C;
+
+        --avatar-grad-default: #101028;
+        --avatar-icon-color: #A0B0D0;
+        --avatar-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+        --avatar-msg-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+
+        --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.5);
+        --shadow-card-hover: 0 4px 12px rgba(0, 212, 255, 0.1);
+        --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.85);
+        --shadow-btn-hover: 0 4px 12px rgba(0, 212, 255, 0.3);
+        --shadow-logout-hover: 0 4px 12px rgba(255, 56, 56, 0.4);
+        --shadow-bubble-hover: 0 2px 8px rgba(255, 255, 255, 0.03);
+        --shadow-input-focus: 0 0 0 3px rgba(0, 212, 255, 0.25);
+
+        --scrollbar-thumb: #141430;
+        --scrollbar-thumb-hover: #1E1E44;
+
+        --arrow-border-left: 6px solid var(--message-other-bg);
+        --arrow-border-right: 6px solid var(--message-self-bg);
+
+        --text-on-accent: #000000;
+        --text-unread-badge: #FF3838;
+        --text-role-owner: #FFD060;
+        --text-idle: #6878A0;
+        --border-self-bubble: rgba(0, 212, 255, 0.22);
+        --shadow-bubble-self: 0 2px 6px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 212, 255, 0.08);
+        --border-self-blockquote: rgba(0, 212, 255, 0.35);
+        --btn-ripple: rgba(0, 0, 0, 0.2);
+        --logout-hover-bg: #CC2020;
+
+        --bg-gradient-end: #0A0A28;
+        --border-3d-light: rgba(255, 255, 255, 0.15);
+        --border-3d-dark: rgba(0, 0, 0, 0.5);
+        --grade-x4: #e8b87a; --grade-x5: #d4994d; --grade-x6: #c07a20;
+        --grade-c1: #5cd4eb; --grade-c2: #3bbdd6; --grade-c3: #1aa6c1;
+        --grade-g1: #6ee09a; --grade-g2: #4cc878; --grade-g3: #2ab056;
+        --grade-d1: #94a8e8; --grade-d2: #7590d6; --grade-d3: #5678c4; --grade-d4: #3760b2;
+        --grade-by: #b0b0b0; --grade-jl: #f090b0; --grade-uk: #999999;
+}

@@ -1,0 +1,158 @@
+:root {
+        --bg-app: #FFFFFF;
+        --bg-sidebar: #F5F6F8;
+        --bg-sidebar-hover: #EBEDF0;
+        --bg-sidebar-active: #E0E3E7;
+        --bg-conversation-hover: #F0F2F5;
+        --bg-conversation-active: #E5E8EC;
+        --bg-conversation-press: #D8DBE0;
+        --bg-input: #F3F4F6;
+        --bg-input-focus: #ECEEF1;
+        --bg-input-footer-focus: #F8F9FA;
+        --bg-code-block: rgba(0, 0, 0, 0.04);
+        --bg-code-inline: rgba(0, 0, 0, 0.06);
+        --bg-code-inline-self: rgba(0, 0, 0, 0.1);
+        --bg-token-badge: #F0F0F0;
+        --bg-token-badge-hover: rgba(60, 140, 231, 0.1);
+        --bg-settings-info: #FFFFFF;
+        --bg-about-content: #FFFFFF;
+        --bg-action-panel: #F8F9FA;
+        --bg-table-header: #F8F9FA;
+        --bg-role-owner: #FFF3E0;
+        --bg-role-admin: #E3F2FD;
+        --bg-role-member: #F5F5F5;
+        --bg-role-owner-hover: #FFE0B2;
+        --bg-role-admin-hover: #BBDEFB;
+        --bg-role-member-hover: #EBEBEB;
+        --bg-modal-overlay: rgba(0, 0, 0, 0.45);
+        --bg-group-detail: #FFFFFF;
+
+        --border-light: #E2E4E8;
+        --border-table: #E2E4E8;
+        --border-row: #ECEEF1;
+        --border-conversation-bottom: rgba(0, 0, 0, 0.03);
+
+        --text-primary: #1A1A2E;
+        --text-secondary: #7C7E8A;
+        --text-sidebar: #5A5C66;
+        --text-link: #4A7AB5;
+        --text-link-self: #2B8BD4;
+        --text-placeholder: #B0B2B8;
+        --text-error: #FA5151;
+        --text-mute-warning: #FA5151;
+        --text-mute-normal: #3C8CE7;
+        --text-hint: #888888;
+        --text-self-bubble-time: rgba(0, 0, 0, 0.35);
+        --text-blockquote: #666666;
+        --text-on-accent: #FFFFFF;
+        --text-unread-badge: #FA5151;
+        --text-role-owner: #E68A4E;
+        --text-idle: #666666;
+
+        --accent: #3C8CE7;
+        --accent-hover: #2E78D0;
+        --accent-active: #2566B8;
+        --accent-light: rgba(60, 140, 231, 0.1);
+        --accent-outline: rgba(60, 140, 231, 0.3);
+        --gradient-accent: rgba(60, 140, 231, 0.25);
+        --gradient-subtle: rgba(60, 140, 231, 0.08);
+
+        --message-self-bg: #C0E0FF;
+        --message-self-text: #000000;
+        --message-other-bg: #FFFFFF;
+
+        --avatar-grad-default: #E8EAF0;
+        --avatar-icon-color: #5A5C66;
+        --avatar-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.06);
+        --avatar-msg-shadow: 0 2px 6px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.04);
+
+        /* ===== 3D立体感阴影系统 ===== */
+        /* 层级0: 基础平面 - 无阴影 */
+        /* 层级1: 微浮起 - 卡片、列表项 */
+        --shadow-card: 0 2px 4px rgba(0, 0, 0, 0.08), 0 4px 12px rgba(0, 0, 0, 0.06);
+        --shadow-card-hover: 0 6px 16px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.06);
+        /* 层级2: 中等浮起 - 弹窗、下拉菜单 */
+        --shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
+        /* 层级3: 高浮起 - 模态框 */
+        --shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.22), 0 6px 16px rgba(0, 0, 0, 0.1);
+        --shadow-modal-heavy: 0 24px 64px rgba(0, 0, 0, 0.32), 0 8px 24px rgba(0, 0, 0, 0.12);
+        /* 层级4: 特高浮起 - 预览弹窗 */
+        --shadow-elevated: 0 28px 72px rgba(0, 0, 0, 0.28), 0 10px 28px rgba(0, 0, 0, 0.12);
+        /* 按钮阴影 - 3D凸起按钮 */
+        --shadow-btn: 0 4px 8px rgba(60, 140, 231, 0.3), 0 2px 4px rgba(60, 140, 231, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        --shadow-btn-hover: 0 8px 20px rgba(60, 140, 231, 0.4), 0 4px 8px rgba(60, 140, 231, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        --shadow-btn-active: inset 0 2px 4px rgba(0, 0, 0, 0.15), 0 1px 1px rgba(60, 140, 231, 0.1);
+        --shadow-logout-hover: 0 8px 20px rgba(250, 81, 81, 0.4), 0 4px 8px rgba(250, 81, 81, 0.2);
+        /* 气泡阴影 - 3D凸起气泡 */
+        --shadow-bubble: 0 2px 6px rgba(0, 0, 0, 0.1), 0 4px 12px rgba(0, 0, 0, 0.06);
+        --shadow-bubble-hover: 0 6px 16px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.06);
+        --shadow-bubble-self: 0 2px 8px rgba(60, 140, 231, 0.2), 0 4px 12px rgba(60, 140, 231, 0.1);
+        /* 输入框阴影 - 3D凹陷效果 */
+        --shadow-input: inset 0 2px 4px rgba(0, 0, 0, 0.08), inset 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-input-focus: 0 0 0 3px rgba(60, 140, 231, 0.15), 0 4px 12px rgba(60, 140, 231, 0.12), inset 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-input-focus-ring: 0 0 0 3px rgba(60, 140, 231, 0.15);
+        /* 导航栏阴影 - 3D深度 */
+        --shadow-navbar: 4px 0 12px rgba(0, 0, 0, 0.08), 2px 0 4px rgba(0, 0, 0, 0.04);
+        /* 侧边栏分隔阴影 */
+        --shadow-sidebar-edge: 4px 0 12px rgba(0, 0, 0, 0.06), 2px 0 4px rgba(0, 0, 0, 0.03);
+        /* 标题栏底部阴影 */
+        --shadow-title-bar: 0 2px 6px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+        /* 聊天头部阴影 */
+        --shadow-chat-header: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04);
+        /* 输入区域顶部阴影 */
+        --shadow-input-top: 0 -2px 8px rgba(0, 0, 0, 0.06), 0 -1px 3px rgba(0, 0, 0, 0.03);
+        /* 其他阴影 */
+        --shadow-dot: 0 1px 3px rgba(0, 0, 0, 0.15);
+        --shadow-thumb: 0 1px 4px rgba(0, 0, 0, 0.15);
+        --shadow-avatar-hover: 0 6px 16px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.08);
+        --shadow-card-subtle: 0 2px 8px rgba(0, 0, 0, 0.06);
+        --shadow-context-menu: 0 12px 32px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.08);
+        --shadow-emoji-picker: 0 12px 36px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.08);
+        --shadow-badge: 0 2px 8px rgba(250, 81, 81, 0.4);
+        --shadow-scroll-btn: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.06);
+        /* 3D边框效果 */
+        --border-3d-light: rgba(255, 255, 255, 0.9);
+        --border-3d-dark: rgba(0, 0, 0, 0.1);
+
+        --scrollbar-thumb: #C8CAD0;
+        --scrollbar-thumb-hover: #A8AAB0;
+
+        --divider-bg: rgba(0, 0, 0, 0.08);
+        --arrow-border: 5px solid transparent;
+        --arrow-border-left: 6px solid var(--message-other-bg);
+        --arrow-border-right: 6px solid var(--message-self-bg);
+
+        --border-self-bubble: rgba(0, 0, 0, 0.12);
+        --border-self-blockquote: rgba(0, 0, 0, 0.2);
+        --btn-ripple: rgba(255, 255, 255, 0.2);
+        --logout-hover-bg: #E64340;
+
+        --bg-gradient-end: #EEF2F7;
+
+        --danger: #e74c3c;
+        --danger-hover: #c0392b;
+        --success: #4caf50;
+        --warning: #ff9800;
+        --notice: #e91e63;
+
+        --bg-search-highlight: rgba(255, 235, 59, 0.4);
+        --bg-mention-all: rgba(255, 193, 7, 0.2);
+        --text-mention-all: #ff9800;
+        --bg-toggle-knob: #FFFFFF;
+        --title-close-hover: #e81123;
+
+        --bg-upload-overlay: rgba(0, 0, 0, 0.45);
+
+        --btn-shine: rgba(255, 255, 255, 0.15);
+
+        --radius: 20px;
+
+        --duration-fast: 0.15s;
+        --duration-normal: 0.25s;
+        --duration-slow: 0.35s;
+        --grade-x4: #9a7240; --grade-x5: #7d5a2e; --grade-x6: #60421c;
+        --grade-c1: #2d8fa5; --grade-c2: #1f7a92; --grade-c3: #0f657f;
+        --grade-g1: #3d8a4e; --grade-g2: #2a7538; --grade-g3: #176025;
+        --grade-d1: #5568b0; --grade-d2: #43549e; --grade-d3: #32408c; --grade-d4: #212c7a;
+        --grade-by: #777777; --grade-jl: #c4587a; --grade-uk: #666666;
+}

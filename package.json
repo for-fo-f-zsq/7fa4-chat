@@ -1,0 +1,113 @@
+{
+  "name": "7fa4-chat",
+  "version": "3.1.1",
+  "description": "7FA4 Chat",
+  "main": "./out/main/index.js",
+  "desktopName": "7fa4-chat.desktop",
+  "scripts": {
+    "dev": "electron-vite dev -- --no-sandbox",
+    "build": "electron-vite build",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder"
+  },
+  "author": {
+    "name": "for_fo_f",
+    "email": "15982878810@163.com"
+  },
+  "homepage": "http://jx.7fa4.cn:9080/zsq/7fa4-chat",
+  "license": "MIT",
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.3",
+    "electron": "^41.7.1",
+    "electron-builder": "^26.8.1",
+    "electron-vite": "^5.0.0"
+  },
+  "dependencies": {
+    "electron-builder-sandbox-fix": "^1.1.1",
+    "electron-updater": "^6.8.9",
+    "express": "^5.2.1",
+    "http-proxy-middleware": "^3.0.5",
+    "katex": "^0.16.44",
+    "markdown-it": "^14.1.1",
+    "md5": "^2.3.0",
+    "vue": "^3.5.13"
+  },
+  "build": {
+    "appId": "com.7fa4.chat",
+    "productName": "7FA4 Chat",
+    "directories": {
+      "output": "build"
+    },
+    "win": {
+      "icon": "icon/icon.ico",
+      "artifactName": "7FA4-Chat-${version}-${arch}.${ext}",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": "icon/icon.ico",
+      "uninstallerIcon": "icon/icon.ico",
+      "buildUniversalInstaller": false
+    },
+    "linux": {
+      "icon": "icon/icon.png",
+      "syncDesktopName": true,
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "Utility",
+      "maintainer": "for_fo_f <15982878810@163.com>",
+      "artifactName": "7FA4-Chat-${version}-${arch}.${ext}"
+    },
+    "msi": {
+      "warningsAsErrors": false
+    },
+    "asar": true,
+    "files": [
+      "out/**/*",
+      "package.json",
+      "!node_modules/.cache",
+      "!src",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "icon/",
+        "to": "icon/",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "afterPack": "electron-builder-sandbox-fix",
+    "publish": {
+      "provider": "generic",
+      "url": "http://jx.7fa4.cn:9080/api/v4/projects/663/packages/generic/7FA4-Chat/latest"
+    }
+  }
+}

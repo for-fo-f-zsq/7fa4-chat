@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>7FA4 Chat — 跨平台学术交流客户端</title>
+  <meta name="description" content="7FA4 Chat 是一款基于 Electron + Vue3 构建的跨平台学术交流软件，支持 Markdown、公式、表情包、文件传输、多主题等丰富功能。" />
+  <meta property="og:title" content="7FA4 Chat" />
+  <meta property="og:description" content="基于 7FA4 Chat API 的跨平台学术交流软件 · Windows / macOS / Linux" />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="assets/icon.ico" />
+  <link rel="apple-touch-icon" href="assets/icon.png" />
+
+  <link rel="stylesheet" href="assets/vendor/fonts/fonts.css" />
+  <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <!-- ambient background -->
+  <div class="bg" aria-hidden="true">
+    <div class="bg-grid"></div>
+    <span class="orb orb-a"></span>
+    <span class="orb orb-b"></span>
+    <span class="orb orb-c"></span>
+  </div>
+
+  <!-- ============== NAV ============== -->
+  <header class="nav" id="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="#top" aria-label="7FA4 Chat">
+        <img src="assets/icon.png" alt="" class="brand-logo" />
+        <span class="brand-name">7FA4 <span class="brand-accent">Chat</span></span>
+      </a>
+      <nav class="nav-links" aria-label="主导航">
+        <a href="#features">功能</a>
+        <a href="#preview">预览</a>
+        <a href="#download">下载</a>
+        <a href="#changelog">更新日志</a>
+        <a href="#faq">常见问题</a>
+      </nav>
+      <div class="nav-actions">
+        <a class="btn btn-primary btn-sm" href="#download"><i class="fa-solid fa-download"></i> 下载</a>
+        <button class="nav-burger" id="navBurger" type="button" aria-label="菜单" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ============== HERO ============== -->
+    <section class="hero">
+      <div class="container hero-inner">
+        <div class="hero-copy reveal">
+          <span class="pill">
+            <span class="dot"></span>
+            v<span id="heroVersion">3.1.0</span> · 全平台可用
+          </span>
+          <h1 class="hero-title">
+            一款<span class="grad">轻巧、强大</span>的<br />
+            跨平台学术交流软件
+          </h1>
+          <p class="hero-sub">
+            基于 <strong>7FA4 Chat API</strong>，使用 Electron + Vue3 构建。
+            Markdown、公式、表情包、文件传输、多主题、通知、截图……一应俱全。
+          </p>
+          <div class="hero-cta">
+            <a class="btn btn-primary btn-lg" href="#download">
+              <i class="fa-solid fa-download"></i> 立即下载
+            </a>
+            <a class="btn btn-ghost btn-lg" id="detectOsBtn" href="#download">
+              <i class="fa-solid fa-computer"></i>
+              <span id="detectOsLabel">检测你的平台</span>
+            </a>
+          </div>
+          <ul class="hero-stats">
+            <li><strong id="statFeatures">50+</strong><span>项功能</span></li>
+            <li><strong>22</strong><span>款主题</span></li>
+            <li><strong>3</strong><span>大平台</span></li>
+            <li><strong id="statReleases">32</strong><span>个版本</span></li>
+          </ul>
+        </div>
+
+        <div class="hero-art reveal" data-delay="120">
+          <div class="hero-shot glass">
+            <img src="assets/img/shots/chat.png" alt="7FA4 Chat 学术交流界面预览" />
+          </div>
+          <div class="float-card glass" data-float="a"><i class="fa-solid fa-bell"></i><div><strong>实时通知</strong><small>新消息即时推送</small></div></div>
+          <div class="float-card glass" data-float="b"><i class="fa-solid fa-palette"></i><div><strong>22 款主题</strong><small>一键切换</small></div></div>
+        </div>
+      </div>
+      <div class="container hero-marquee reveal">
+        <div class="marquee">
+          <span>Markdown</span><i></i>
+          <span>KaTeX 公式</span><i></i>
+          <span>表情包</span><i></i>
+          <span>文件传输</span><i></i>
+          <span>多主题</span><i></i>
+          <span>系统通知</span><i></i>
+          <span>截图</span><i></i>
+          <span>消息搜索</span><i></i>
+          <span>多选转发</span><i></i>
+          <span>群管理</span><i></i>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== FEATURES ============== -->
+    <section class="section" id="features">
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="kicker">功能</span>
+          <h2>为你准备的<strong>一切</strong></h2>
+          <p>从日常交流到群组管理，覆盖完整学术协作体验。</p>
+        </div>
+        <div class="feature-grid" id="featureGrid"><!-- injected --></div>
+      </div>
+    </section>
+
+    <!-- ============== PREVIEW ============== -->
+    <section class="section section-preview" id="preview">
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="kicker">预览</span>
+          <h2>优雅，从<strong>每一个像素</strong>开始</h2>
+          <p>细腻的动画、玻璃拟态、深浅色多种主题……</p>
+        </div>
+        <div class="preview-stage glass reveal">
+          <div class="shot-grid">
+            <div class="shot"><img src="assets/img/shots/chat.png" alt="学术交流界面" /></div>
+            <div class="shot"><img src="assets/img/shots/theme.png" alt="设置 · 主题" /></div>
+            <div class="shot"><img src="assets/img/shots/group.png" alt="群操作" /></div>
+            <div class="shot"><img src="assets/img/shots/friend.png" alt="添加好友" /></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== DOWNLOAD ============== -->
+    <section class="section" id="download">
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="kicker">下载</span>
+          <h2>免费、开源、<strong>随时获取</strong></h2>
+          <p>选择你的平台立即下载，数据从官方 GitLab 包仓库直接分发。</p>
+        </div>
+
+        <div class="download-shell glass reveal">
+          <div class="download-head">
+            <div>
+              <span class="ver-badge">最新版本</span>
+              <h3 id="dlVersion">v3.1.0</h3>
+              <p id="dlDate" class="muted">发布于 —</p>
+            </div>
+            <div class="os-switch" id="osSwitch" role="tablist" aria-label="选择平台">
+              <button class="os-btn active" data-os="Windows" role="tab"><i class="fa-brands fa-windows"></i><span>Windows</span></button>
+              <button class="os-btn" data-os="macOS" role="tab"><i class="fa-brands fa-apple"></i><span>macOS</span></button>
+              <button class="os-btn" data-os="Linux" role="tab"><i class="fa-brands fa-linux"></i><span>Linux</span></button>
+            </div>
+          </div>
+          <div class="download-grid" id="downloadGrid"><!-- injected --></div>
+          <p class="download-note">
+            <i class="fa-solid fa-circle-info"></i>
+            所有下载均来自官方 GitLab Generic Package 仓库，附带 SHA-512 校验。
+            <a id="allVersionsLink" href="#" class="link">查看全部历史版本 →</a>
+          </p>
+        </div>
+
+        <!-- all versions -->
+        <div class="all-versions reveal" id="allVersions">
+          <h3><i class="fa-solid fa-clock-rotate-left"></i> 历史版本</h3>
+          <div class="versions-list glass" id="versionsList"><!-- injected --></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== CHANGELOG ============== -->
+    <section class="section" id="changelog">
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="kicker">更新</span>
+          <h2>每次更新都<strong>清晰可见</strong></h2>
+          <p>透明的版本记录，新功能、优化、修复一目了然。</p>
+        </div>
+        <div class="changelog reveal" id="changelogList"><!-- injected --></div>
+      </div>
+    </section>
+
+    <!-- ============== FAQ ============== -->
+    <section class="section" id="faq">
+      <div class="container narrow">
+        <div class="section-head reveal">
+          <span class="kicker">FAQ</span>
+          <h2>常见<strong>问题</strong></h2>
+        </div>
+        <div class="faq-list reveal" id="faqList">
+          <details class="faq-item">
+            <summary>7FA4 Chat 支持哪些平台？<i class="fa-solid fa-chevron-down"></i></summary>
+            <div class="faq-a">支持 Windows（x64 / ARM64，提供 exe 安装包与绿色 zip）、Linux（x64 / ARM64，提供 AppImage 与 deb）。macOS 包暂未发布到仓库。</div>
+          </details>
+          <details class="faq-item">
+            <summary>下载之后如何验证文件完整性？<i class="fa-solid fa-chevron-down"></i></summary>
+            <div class="faq-a">每个安装包都附带了 SHA-512 校验值。下载后可使用 <code>sha512sum 文件名</code>（Linux）或 <code>certutil -hashfile 文件名 SHA512</code>（Windows）对比。</div>
+          </details>
+          <details class="faq-item">
+            <summary>怎么更新到新版本？<i class="fa-solid fa-chevron-down"></i></summary>
+            <div class="faq-a">应用内置了 electron-updater 自动更新，启动后会检查新版本并提示安装；也可以在本页直接下载最新包覆盖安装。</div>
+          </details>
+          <details class="faq-item">
+            <summary>遇到 Bug 或有建议怎么办？<i class="fa-solid fa-chevron-down"></i></summary>
+            <div class="faq-a">欢迎前往项目的 <a class="link" id="faqIssues" href="#" target="_blank" rel="noopener">Issues</a> 页面提交问题，作者会持续跟进。</div>
+          </details>
+          <details class="faq-item">
+            <summary>消息和文件是如何发送的？<i class="fa-solid fa-chevron-down"></i></summary>
+            <div class="faq-a">文件通过 base64 直接发送，图片超过 102400 字符时会自动压缩，无需依赖额外的对象存储服务。</div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== CTA ============== -->
+    <section class="section cta-section">
+      <div class="container">
+        <div class="cta glass reveal">
+          <div>
+            <h2>准备好开始<strong>交流</strong>了吗？</h2>
+            <p>免费下载，开箱即用，全平台体验一致。</p>
+          </div>
+          <a class="btn btn-primary btn-lg" href="#download"><i class="fa-solid fa-download"></i> 立即下载</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============== FOOTER ============== -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <img src="assets/icon.png" alt="" class="brand-logo" />
+        <div>
+          <strong>7FA4 Chat</strong>
+          <p class="muted">基于 7FA4 Chat API 的跨平台学术交流软件</p>
+        </div>
+      </div>
+      <nav class="footer-links" aria-label="页脚导航">
+        <a href="#features">功能</a>
+        <a href="#download">下载</a>
+        <a href="#changelog">更新日志</a>
+        <a href="#faq">常见问题</a>
+      </nav>
+      <div class="footer-meta">
+        <a id="footerRepo" class="icon-btn" href="#" target="_blank" rel="noopener" title="GitLab 仓库"><i class="fa-brands fa-gitlab"></i></a>
+        <span class="muted">MIT License · <span id="footerYear">2026</span> · for_fo_f</span>
+      </div>
+    </div>
+  </footer>
+
+  <button class="to-top" id="toTop" type="button" aria-label="回到顶部"><i class="fa-solid fa-arrow-up"></i></button>
+
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/api.js?v=20260719"></script>
+  <script src="assets/js/main.js?v=20260719"></script>
+</body>
+</html>

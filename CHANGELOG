@@ -1,0 +1,130 @@
+<h2>3.1.1</h2>
+<ul>
+  <li><span class="change-tag fix">修复</span>校外无法访问in时自动更新错误的问题</li>
+  <li><span class="change-tag fix">修复</span>修复了校外无法访问in时登录状态显示错误的问题</li>
+  <li><span class="change-tag improve">优化</span>删除切换对话时的神秘滚动动画</li>
+  <li><span class="change-tag improve">优化</span>进入时添加消息加载动画</li>
+</ul>
+<h2>3.1.0</h2>
+<ul>
+  <li><span class="change-tag improve">通知</span>应mulab要求，删除gitlab文件传输、头像、消息加密等多个功能😭</li>
+  <li><span class="change-tag improve">优化</span>轮询下限提升至1s，上限10s</li>
+  <li><span class="change-tag improve">优化</span>使用base64发送文件，不再依赖gitlab API</li>
+  <li><span class="change-tag improve">优化</span>图片超过102400字自动压缩</li>
+  <li><span class="change-tag fix">修复</span>Windows下通知弹窗显示在屏幕外</li>
+  <li><span class="change-tag improve">优化</span>发送文件时显示压缩后的大小</li>
+  <li><span class="change-tag improve">通知</span>删除消息加密功能</li>
+</ul>
+<h2>3.0.1</h2>
+<ul>
+  <li><span class="change-tag improve">优化</span>css源码位置和逻辑</li>
+  <li><span class="change-tag improve">优化</span>动画效果</li>
+  <li><span class="change-tag fix">修复</span>多个已知问题</li>
+</ul>
+<h2>3.0.0</h2>
+<ul>
+  <li><span class="change-tag improve">优化</span>文件消息不再直接发送，而是在输入框显示并可以预览</li>
+  <li><span class="change-tag improve">优化</span>文件消息可以发送附带文字</li>
+  <li><span class="change-tag fix">修复</span>消息删除错误</li>
+  <li><span class="change-tag fix">修复</span>滚动条错误</li>
+  <li><span class="change-tag fix">修复</span>部分硬编码的css</li>
+</ul>
+<h2>v2.10.0</h2>
+<ul>
+  <li><span class="change-tag notice">通知</span>新版本可能存在BUG，遇到清前往gitlub提交issue</li>
+  <li><span class="change-tag new">新功能</span>输入草稿持久化：切换会话自动保存/恢复输入内容，会话列表显示草稿标识</li>
+  <li><span class="change-tag new">新功能</span>图片粘贴发送：输入框 Ctrl+V 粘贴剪贴板图片直接发送</li>
+  <li><span class="change-tag new">新功能</span>Markdown实时预览：输入框旁预览 Markdown 渲染效果</li>
+  <li><span class="change-tag new">新功能</span>未读消息计数：会话列表红点改为数字，任务栏图标显示总未读数</li>
+  <li><span class="change-tag new">新功能</span>标记已读/未读/标记全部已读</li>
+  <li><span class="change-tag new">新功能</span>删除聊天记录：右键可删除部分或所有本地聊天记录</li>
+  <li><span class="change-tag new">新功能</span>会话免打扰：右键菜单可设置免打扰，免打扰会话不触发通知</li>
+  <li><span class="change-tag new">新功能</span>通知免打扰时段：设置中配置免打扰时间段，时段内不弹通知</li>
+  <li><span class="change-tag new">新功能</span>通知声音：新消息通知时播放提示音</li>
+  <li><span class="change-tag new">新功能</span>消息多选，可批量转发/删除/收藏</li>
+  <li><span class="change-tag new">新功能</span>收藏消息：右键菜单可收藏任意消息，收藏后可在收藏面板查看</li>
+  <li><span class="change-tag new">新功能</span>网络状态检测：断网时顶部显示红色横幅提示，恢复后自动消失</li>
+  <li><span class="change-tag new">新功能</span>字体大小调节：设置中可调节消息字体大小</li>
+  <li><span class="change-tag new">新功能</span>数据缓存清理/备份/导入</li>
+  <li><span class="change-tag new">新功能</span>截图工具：快捷键 Ctrl+Shift+S 截屏并发送到当前会话</li>
+  <li><span class="change-tag improve">优化</span>合并私信和群聊</li>
+  <li><span class="change-tag improve">优化</span>Enter直接发送选项：设置中可切换 Enter/Ctrl+Enter 发送方式</li>
+  <li><span class="change-tag improve">优化</span>@所有人功能：群聊中输入 @ 可选择"所有人"，被提及者收到通知</li>
+  <li><span class="change-tag improve">优化</span>群聊最后消息发送者名称：会话列表显示"发送者: 消息内容"</li>
+  <li><span class="change-tag improve">优化</span>优化弹窗内容显示+添加自定义是否隐藏消息内容</li>
+  <li><span class="change-tag improve">优化</span>搜索面板可选跨会话搜索消息+搜索关键词高亮+搜索结果分页</li>
+  <li><span class="change-tag improve">优化</span>代码块复制按钮：鼠标悬停代码块显示一键复制按钮</li>
+  <li><span class="change-tag improve">优化</span>消息日期分组线：跨日消息间显示"今天/昨天/日期"分隔线</li>
+  <li><span class="change-tag fix">修复</span>大量已知的问题</li>
+</ul>
+<h2>v2.9.3</h2>
+<ul>
+  <li><span class="change-tag improve">优化</span>可以跨私信群聊拖动消息并转发</li>
+  <li><span class="change-tag fix">修复</span>群详情面板头像和表格的位置关系错误</li>
+  <li><span class="change-tag fix">修复</span>长markdown在消息列表中显示错误</li>
+  <li><span class="change-tag fix">修复</span>切换对话头像显示错误</li>
+</ul>
+<h2>v2.9.2</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>自动爬取ranklist获取昵称/用户名等信息</li>
+  <li><span class="change-tag new">新功能</span>添加新好友筛选功能</li>
+  <li><span class="change-tag fix">修复</span>修复了开启自动登录且不应在教室时大量重复登录的问题</li>
+</ul>
+<h2>v2.9.1</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>将群头像/个人头像功能，默认为浅灰色背景+首字符，可自定义</li>
+  <li><span class="change-tag new">新功能</span>快捷键功能，可自定义</li>
+  <li><span class="change-tag new">新功能</span>可以拖动消息，实现编辑/转发</li>
+  <li><span class="change-tag fix">修复</span>拍一拍在群列表中显示错误的问题</li>
+  <li><span class="change-tag fix">修复</span>小概率点击新消息弹窗没有显示窗口</li>
+  <li><span class="change-tag fix">修复</span>可以仅发送换行的问题</li>
+  <li><span class="change-tag fix">修复</span>退出登录后仍然可能弹出消息弹窗的问题</li>
+</ul>
+<h2>v2.9.0</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>导入better names数据库(数据截至时间2026/5/22)</li>
+  <li><span class="change-tag new">新功能</span>添加按年级显示颜色/自定义年级颜色功能</li>
+  <li><span class="change-tag fix">修复</span>自动更新显示错误的BUG</li>
+</ul>
+<h2>v2.8.5</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>双击头像/昵称拍一拍对方</li>
+  <li><span class="change-tag improve">优化</span>点击新消息弹窗后跳转到对应聊天窗口</li>
+  <li><span class="change-tag fix">修复</span>在无法登录时重复尝试登录的问题</li>
+  <li><span class="change-tag fix">修复</span>消息中链接点击跳转的问题</li>
+</ul>
+<h2>v2.8.4</h2>
+<ul>
+  <li><span class="change-tag notice">通知</span>欢迎大家参与设计主题/为现有主题投票</li>
+  <li><span class="change-tag new">新功能</span>给部分选择框添加了搜索功能</li>
+  <li><span class="change-tag fix">修复</span>屏蔽群聊不生效的问题</li>
+  <li><span class="change-tag improve">优化</span>重新设计并添加了多个主题</li>
+</ul>
+<h2>v2.8.3</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>屏蔽群聊：退出，检测到被拉入后自动退出</li>
+  <li><span class="change-tag new">新功能</span>删除群聊：删除已经退出的群聊</li>
+  <li><span class="change-tag new">新功能</span>可以直接收藏图片为表情/下载表情</li>
+  <li><span class="change-tag fix">修复</span>部分情况退出群聊后错误删除数据的问题</li>
+  <li><span class="change-tag fix">修复</span>自定义表情包无法被搜索的问题</li>
+  <li><span class="change-tag fix">修复</span>点击新消息弹窗没有显示聊天窗口</li>
+  <li><span class="change-tag fix">修复</span>文件/表情无法下载的问题</li>
+  <li><span class="change-tag improve">优化</span>用户信息窗口的css样式</li>
+</ul>
+<h2>v2.8.2</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>自定义表情包：支持添加本地图片/动图为自定义表情，收藏他人发送的表情，右键菜单收藏</li>
+  <li><span class="change-tag new">新功能</span>消息加密开关：可在设置中控制发送消息是否加密，关闭后发送明文消息</li>
+  <li><span class="change-tag improve">优化</span>设置面板布局：8个选项分为左右两列显示</li>
+</ul>
+<h2>v2.8.1</h2>
+<ul>
+  <li><span class="change-tag fix">修复</span>消息预览滚动条和标题深色模式下不可见的问题</li>
+  <li><span class="change-tag fix">修复</span>自动更新卡在"正在下载 0.0%"及安装失败</li>
+  <li><span class="change-tag fix">修复</span>请求解析与登录跳转逻辑</li>
+</ul>
+<h2>v2.8.0</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>自动更新、消息搜索、群聊解散、已退出群聊保留</li>
+  <li><span class="change-tag improve">优化</span>群设置面板、用户信息弹窗、输入禁用状态、上传脚本</li>
+</ul>

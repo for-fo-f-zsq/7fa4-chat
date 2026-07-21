@@ -1,0 +1,94 @@
+.theme-coral {
+        --bg-app: #FFFAF5;
+        --bg-sidebar: #F8EDE4;
+        --bg-sidebar-hover: #F0DDD0;
+        --bg-sidebar-active: #E8CDB8;
+        --bg-conversation-hover: #FCE8DC;
+        --bg-conversation-active: #E8CDB8;
+        --bg-conversation-press: #DDB8A0;
+        --bg-input: #FCE8DC;
+        --bg-input-focus: #F5D8C8;
+        --bg-input-footer-focus: #FFFAF5;
+        --bg-code-block: rgba(255, 127, 80, 0.06);
+        --bg-code-inline: rgba(255, 127, 80, 0.1);
+        --bg-code-inline-self: rgba(255, 127, 80, 0.14);
+        --bg-token-badge: #F0DDD0;
+        --bg-token-badge-hover: rgba(255, 127, 80, 0.1);
+        --bg-settings-info: #FFFAF5;
+        --bg-about-content: #FFFAF5;
+        --bg-action-panel: #F8EDE4;
+        --bg-table-header: #F8EDE4;
+        --bg-role-owner: #FFF3E0;
+        --bg-role-admin: #FCE8DC;
+        --bg-role-member: #F5D8C8;
+        --bg-role-owner-hover: #FFE0B2;
+        --bg-role-admin-hover: #F0D0C0;
+        --bg-role-member-hover: #E8CDB8;
+        --bg-modal-overlay: rgba(0, 0, 0, 0.5);
+        --bg-group-detail: #FFFAF5;
+
+        --border-light: #E8CDB8;
+        --border-table: #DDB8A0;
+        --border-row: #F0DDD0;
+        --border-conversation-bottom: rgba(255, 127, 80, 0.05);
+
+        --text-primary: #3D2010;
+        --text-secondary: #9A6850;
+        --text-sidebar: #7A4830;
+        --text-link: #E06838;
+        --text-link-self: #FF7F50;
+        --text-placeholder: #C09880;
+        --text-error: #D83030;
+        --text-mute-warning: #D83030;
+        --text-mute-normal: #FF7F50;
+        --text-hint: #9A6850;
+        --text-self-bubble-time: rgba(61, 32, 16, 0.35);
+        --text-blockquote: #8A5840;
+
+        --accent: #FF7F50;
+        --accent-hover: #E86838;
+        --accent-active: #D05828;
+        --accent-light: rgba(255, 127, 80, 0.1);
+        --accent-outline: rgba(255, 127, 80, 0.3);
+        --gradient-accent: rgba(255, 127, 80, 0.2);
+        --gradient-subtle: rgba(255, 127, 80, 0.06);
+
+        --message-self-bg: #F5C0A0;
+        --message-self-text: #3D2010;
+        --message-other-bg: #FFFFFF;
+
+        --avatar-grad-default: #F0DDD0;
+        --avatar-icon-color: #7A4830;
+        --avatar-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        --avatar-msg-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+
+        --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.04);
+        --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
+        --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.15);
+        --shadow-btn-hover: 0 4px 12px rgba(255, 127, 80, 0.3);
+        --shadow-logout-hover: 0 4px 12px rgba(216, 48, 48, 0.3);
+        --shadow-bubble-hover: 0 2px 8px rgba(0, 0, 0, 0.05);
+        --shadow-input-focus: 0 0 0 2px rgba(255, 127, 80, 0.12);
+
+        --scrollbar-thumb: #DDB8A0;
+        --scrollbar-thumb-hover: #C8A088;
+
+        --arrow-border-left: 6px solid var(--message-other-bg);
+        --arrow-border-right: 6px solid var(--message-self-bg);
+
+        --text-on-accent: #FFFFFF;
+        --text-unread-badge: #D83030;
+        --text-role-owner: #C88030;
+        --text-idle: #9A6850;
+        --border-self-bubble: rgba(0, 0, 0, 0.1);
+        --border-self-blockquote: rgba(0, 0, 0, 0.18);
+        --btn-ripple: rgba(255, 255, 255, 0.2);
+        --logout-hover-bg: #C82828;
+
+        --bg-gradient-end: #FCE8DC;
+        --grade-x4: #9a7240; --grade-x5: #7d5a2e; --grade-x6: #60421c;
+        --grade-c1: #2d8fa5; --grade-c2: #1f7a92; --grade-c3: #0f657f;
+        --grade-g1: #3d8a4e; --grade-g2: #2a7538; --grade-g3: #176025;
+        --grade-d1: #5568b0; --grade-d2: #43549e; --grade-d3: #32408c; --grade-d4: #212c7a;
+        --grade-by: #777777; --grade-jl: #c4587a; --grade-uk: #666666;
+}

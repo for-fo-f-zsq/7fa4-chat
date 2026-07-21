@@ -1,0 +1,154 @@
+name: Build & Release
+
+# 触发方式：
+#   1. 推送形如 v3.1.1 的 tag  -> 打包并发布到对应 GitHub Release
+#   2. 手动触发 (workflow_dispatch) -> 仅打包，产物在本次 Actions run 的 Artifacts 中下载
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # release job 需要写入 Release
+
+jobs:
+  # ============ 构建：Windows 与 Linux 并行 ============
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+            artifact: dist-win
+          - os: ubuntu-latest
+            platform: linux
+            artifact: dist-linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build renderer & main (electron-vite)
+        run: npm run build
+
+      - name: Package (${{ matrix.platform }})
+        run: npx electron-builder --${{ matrix.platform }} --publish never
+        env:
+          # 走直连拉取 electron / fpm / nsis 等二进制（GitHub runner 外网通畅）
+          ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/eb-cache
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            build/*.exe
+            build/*.zip
+            build/*.AppImage
+            build/*.deb
+            build/*.yml
+            build/*.blockmap
+            !build/builder-debug.yml
+
+  # ============ 发布：仅在 tag 推送时创建 GitHub Release ============
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (for CHANGELOG)
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+
+      - name: List collected files
+        run: ls -la dist
+
+      # ---- 额外：通过 API 上传到自建 GitLab 的 generic 包（供软件内自动更新使用）----
+      - name: Upload packages to GitLab (generic)
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GITLAB_TOKEN:-}" ]; then
+            echo "::error::缺少 secret GITLAB_TOKEN，请在仓库 Settings→Secrets→Actions 添加后重试"; exit 1
+          fi
+          VERSION="${GITHUB_REF_NAME#v}"
+          GITLAB_API="http://jx.7fa4.cn:9080/api/v4/projects/886"
+          GITLAB_URL="${GITLAB_API}/packages/generic/7FA4-Chat"
+          echo "上传版本：$VERSION -> $GITLAB_URL"
+
+          shopt -s nullglob
+          FILES=()
+          for f in dist/*.exe dist/*.zip dist/*.AppImage dist/*.deb dist/*.yml dist/*.blockmap; do
+            FILES+=("$f")
+          done
+          [ -f CHANGELOG ] && FILES+=("CHANGELOG")
+          if [ ${#FILES[@]} -eq 0 ]; then echo "::error::dist 下没有可上传的文件"; exit 1; fi
+          echo "共 ${#FILES[@]} 个文件待上传"
+
+          upload() {
+            local file="$1" dir="$2" name code
+            name=$(basename "$file")
+            echo "  上传 $name -> $dir/"
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+              --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+              --upload-file "$file" \
+              "${GITLAB_URL}/${dir}/${name}")
+            case "$code" in
+              20[013]) ;;
+              *) echo "::warning::$name 上传 $dir 返回 HTTP $code";;
+            esac
+          }
+
+          echo "== 归档到版本目录 $VERSION/ =="
+          for f in "${FILES[@]}"; do upload "$f" "$VERSION"; done
+
+          echo "== 清理旧 latest 包 =="
+          LATEST_ID=$(curl -sS --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+            "${GITLAB_API}/packages?package_name=7FA4-Chat&per_page=100" \
+            | python3 -c "import sys,json; pkgs=json.load(sys.stdin); ids=[p['id'] for p in pkgs if p.get('version')=='latest']; print(ids[0] if ids else '')" 2>/dev/null || true)
+          if [ -n "$LATEST_ID" ]; then
+            curl -sS -X DELETE --header "PRIVATE-TOKEN: ${GITLAB_TOKEN}" \
+              "${GITLAB_API}/packages/${LATEST_ID}" >/dev/null && echo "已删除旧 latest 包 (ID: $LATEST_ID)"
+          else
+            echo "无旧 latest 包，跳过删除"
+          fi
+
+          echo "== 上传到 latest/（electron-updater 检查更新用）=="
+          for f in "${FILES[@]}"; do upload "$f" "latest"; done
+          echo "GitLab 上传完成"
+
+      - name: Create / update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body_path: CHANGELOG
+          draft: false
+          prerelease: false
+          files: |
+            dist/*.exe
+            dist/*.zip
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.yml
+            dist/*.blockmap
+            CHANGELOG

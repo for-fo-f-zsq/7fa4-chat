@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>新消息</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: transparent;
+            font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            -webkit-app-region: no-drag;
+        }
+        .card {
+            margin: 8px;
+            height: calc(100% - 16px);
+            background: rgba(255, 255, 255, 0.97);
+            backdrop-filter: blur(12px);
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
+            padding: 12px 16px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .card:hover { background: #fff; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.06); }
+        .icon-circle {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #12B7F5, #0EA1DB);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            color: #fff;
+            font-size: var(--font-size-large, 16px);
+            font-weight: 600;
+        }
+        .msg-body { flex: 1; min-width: 0; }
+        .sender {
+            font-weight: 500;
+            font-size: var(--font-size-small, 13px);
+            color: #191919;
+            margin-bottom: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .content {
+            font-size: var(--font-size-small, 12px);
+            color: #888;
+            line-height: 1.4;
+            word-break: break-word;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            text-overflow: ellipsis;
+        }
+        .close-btn {
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            color: #bbb;
+            font-size: var(--font-size-base, 14px);
+            line-height: 1;
+            cursor: pointer;
+            z-index: 2;
+            transition: background 0.15s, color 0.15s;
+        }
+        .close-btn:hover { background: rgba(0, 0, 0, 0.06); color: #555; }
+    </style>
+</head>
+<body>
+    <div class="card" id="card">
+        <div class="close-btn" id="closeBtn">&times;</div>
+        <div class="icon-circle" id="iconCircle">M</div>
+        <div class="msg-body">
+            <div class="sender" id="senderName"></div>
+            <div class="content" id="messageContent"></div>
+        </div>
+    </div>
+    <script>
+        (function() {
+            const { ipcRenderer } = require('electron');
+            let sender = '未知';
+            let content = '';
+            let chatType = '';
+            let targetId = '';
+
+            // Apply font size from settings
+            ipcRenderer.invoke('load-setting').then(setting => {
+                if (setting && setting.fontSize) {
+                    const size = setting.fontSize;
+                    document.documentElement.style.setProperty('--font-size-base', size + 'px');
+                    document.documentElement.style.setProperty('--font-size-small', (size - 2) + 'px');
+                    document.documentElement.style.setProperty('--font-size-large', (size + 2) + 'px');
+                }
+            });
+
+            ipcRenderer.on('notif-data', (e, data) => {
+                sender = data.sender || '未知';
+                content = data.content || '';
+                chatType = data.chatType || '';
+                targetId = data.targetId || '';
+                document.getElementById('senderName').textContent = sender;
+                document.getElementById('messageContent').textContent = content;
+                document.getElementById('iconCircle').textContent = sender.charAt(0).toUpperCase();
+            });
+
+            function closeWindow() {
+                window.close();
+            }
+
+            document.getElementById('closeBtn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeWindow();
+            });
+
+            document.getElementById('card').addEventListener('click', () => {
+                ipcRenderer.invoke('show-mainwindow', chatType, targetId);
+                setTimeout(() => closeWindow(), 100);
+            });
+            setTimeout(() => closeWindow(), 10000);
+        })();
+    </script>
+</body>
+</html>

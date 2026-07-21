@@ -1,0 +1,127 @@
+.navbar {
+    width: 54px;
+    background: linear-gradient(180deg, var(--bg-sidebar), var(--bg-app));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 0 16px;
+    gap: 4px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border-3d-dark);
+    box-shadow: var(--shadow-navbar);
+    position: relative;
+    z-index: 2;
+}
+
+.navbar::after {
+    content: '';
+    position: absolute;
+    top: 5%;
+    right: -1px;
+    bottom: 5%;
+    width: 2px;
+    background: linear-gradient(180deg, transparent, var(--gradient-accent), var(--accent), var(--gradient-accent), transparent);
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 2;
+    animation: navGlowLine 3s ease-in-out infinite alternate;
+}
+@keyframes navGlowLine {
+    from { opacity: 0.3; }
+    to { opacity: 0.7; }
+}
+
+.nav-icon {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius);
+    color: var(--text-sidebar);
+    font-size: var(--font-size-small);
+    font-weight: 400;
+    transition: all var(--duration-normal) cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    gap: 2px;
+    position: relative;
+    overflow: visible;
+}
+
+.nav-icon i {
+    font-size: 20px;
+    transition: transform var(--duration-normal) cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    z-index: 1;
+}
+
+.nav-icon > span:not(.nav-badge) {
+    font-size: var(--font-size-small);
+    position: relative;
+    z-index: 1;
+    transition: color var(--duration-fast) ease;
+}
+
+.nav-icon.active {
+    background: var(--bg-sidebar-active);
+    color: var(--accent);
+    box-shadow: 0 3px 10px var(--gradient-accent), 0 1px 4px var(--gradient-subtle), inset 0 1px 0 var(--border-3d-light);
+    animation: activeGlow 2.5s ease-in-out infinite alternate;
+}
+@keyframes activeGlow {
+    from { box-shadow: 0 3px 8px var(--gradient-subtle), 0 1px 3px var(--gradient-accent), inset 0 1px 0 var(--border-3d-light); }
+    to { box-shadow: 0 4px 14px var(--gradient-accent), 0 2px 6px var(--gradient-subtle), inset 0 1px 0 var(--border-3d-light); }
+}
+
+.nav-icon.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 24px;
+    background: var(--accent);
+    border-radius: 0 3px 3px 0;
+    animation: indicatorSlide var(--duration-normal) cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 2;
+}
+@keyframes indicatorSlide {
+    from { height: 0; opacity: 0; }
+    to { height: 24px; opacity: 1; }
+}
+
+.nav-icon:active { transform: scale(0.95); }
+
+.nav-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 10px;
+    height: 10px;
+    background-color: var(--text-unread-badge);
+    border-radius: 50%;
+    border: 1.5px solid var(--bg-sidebar);
+    box-sizing: border-box;
+    z-index: 10;
+    pointer-events: none;
+    box-shadow: var(--shadow-badge), inset 0 1px 0 var(--border-3d-light);
+    animation: badgePulse 2s ease-in-out infinite;
+}
+@keyframes badgePulse {
+    0%, 100% { transform: scale(1); box-shadow: var(--shadow-badge), inset 0 1px 0 var(--border-3d-light); }
+    50% { transform: scale(1.15); box-shadow: 0 0 8px var(--text-unread-badge), var(--shadow-badge), inset 0 1px 0 var(--border-3d-light); }
+}
+
+.navbar .nav-icon:hover { transform: scale(1.1) translateY(-1px); box-shadow: 0 4px 12px var(--gradient-subtle), 0 2px 4px rgba(0, 0, 0, 0.04); }
+.navbar .nav-icon:hover i { transform: scale(1.1); }
+
+.nav-logo {
+    margin-bottom: 12px;
+}
+.nav-logo-img {
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius);
+}
