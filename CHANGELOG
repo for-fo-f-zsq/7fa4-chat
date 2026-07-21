@@ -1,3 +1,9 @@
+<h2>3.1.2</h2>
+<ul>
+  <li><span class="change-tag improve">优化</span>自动更新源迁移至新的 GitLab 项目（663 → 886）</li>
+  <li><span class="change-tag improve">优化</span>引入 GitHub Actions 自动构建与发布（Windows / Linux / macOS 三平台）</li>
+  <li><span class="change-tag fix">修复</span>修复 macOS 打包时图标尺寸不足（低于 512×512）导致的构建失败</li>
+</ul>
 <h2>3.1.1</h2>
 <ul>
   <li><span class="change-tag fix">修复</span>校外无法访问in时自动更新错误的问题</li>
