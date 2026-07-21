@@ -1,6 +1,6 @@
 {
   "name": "7fa4-chat",
-  "version": "3.1.1",
+  "version": "3.1.2",
   "description": "7FA4 Chat",
   "main": "./out/main/index.js",
   "desktopName": "7fa4-chat.desktop",
