@@ -63,7 +63,6 @@ jobs:
             build/*.deb
             build/*.dmg
             build/*.yml
-            build/*.blockmap
             !build/builder-debug.yml
 
   # ============ 发布：仅在 tag 推送时创建 GitHub Release ============
@@ -101,7 +100,7 @@ jobs:
 
           shopt -s nullglob
           FILES=()
-          for f in dist/*.exe dist/*.zip dist/*.AppImage dist/*.deb dist/*.dmg dist/*.yml dist/*.blockmap; do
+          for f in dist/*.exe dist/*.zip dist/*.AppImage dist/*.deb dist/*.dmg dist/*.yml; do
             FILES+=("$f")
           done
           [ -f CHANGELOG ] && FILES+=("CHANGELOG")
@@ -155,5 +154,4 @@ jobs:
             dist/*.deb
             dist/*.dmg
             dist/*.yml
-            dist/*.blockmap
             CHANGELOG
