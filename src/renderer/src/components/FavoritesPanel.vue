@@ -67,7 +67,7 @@ function formatMeta(fav) {
 
 function canDownload(fav) {
   const obj = parseMsgContent(fav.content);
-  return obj && (obj.type === 'file' || obj.type === 'sticker') && obj.url;
+  return obj && (obj.type === 'file' || obj.type === 'sticker') && obj.data;
 }
 
 function onPreview(fav) {

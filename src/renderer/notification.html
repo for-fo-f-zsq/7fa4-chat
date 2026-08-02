@@ -100,23 +100,23 @@
     </div>
     <script>
         (function() {
-            const { ipcRenderer } = require('electron');
+            const api = window.api;
             let sender = '未知';
             let content = '';
             let chatType = '';
             let targetId = '';
 
             // Apply font size from settings
-            ipcRenderer.invoke('load-setting').then(setting => {
+            api.loadSetting().then(setting => {
                 if (setting && setting.fontSize) {
                     const size = setting.fontSize;
                     document.documentElement.style.setProperty('--font-size-base', size + 'px');
                     document.documentElement.style.setProperty('--font-size-small', (size - 2) + 'px');
                     document.documentElement.style.setProperty('--font-size-large', (size + 2) + 'px');
                 }
-            });
+            }).catch(() => {});
 
-            ipcRenderer.on('notif-data', (e, data) => {
+            api.onNotifData((data) => {
                 sender = data.sender || '未知';
                 content = data.content || '';
                 chatType = data.chatType || '';
@@ -127,7 +127,7 @@
             });
 
             function closeWindow() {
-                window.close();
+                api.closeNotif();
             }
 
             document.getElementById('closeBtn').addEventListener('click', (e) => {
@@ -136,7 +136,7 @@
             });
 
             document.getElementById('card').addEventListener('click', () => {
-                ipcRenderer.invoke('show-mainwindow', chatType, targetId);
+                api.showMainWindow(chatType, targetId);
                 setTimeout(() => closeWindow(), 100);
             });
             setTimeout(() => closeWindow(), 10000);

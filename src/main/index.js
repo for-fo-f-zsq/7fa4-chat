@@ -1,8 +1,9 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog, session, clipboard, nativeTheme, desktopCapturer } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog, session, clipboard, nativeTheme, safeStorage } = require('electron');
 const fs = require('fs').promises;
 const fsCb = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 const express = require('express');
 const https = require('https');
 const http = require('http');
@@ -21,6 +22,29 @@ let currentApiUrl = 'http://jx.7fa4.cn';
 function startServer() {
     if (serverStarted) return;
     const serverApp = express();
+
+    // —— 本地代理安全防护 ——
+    // 仅放行本机页面/开发服务器的请求，阻止外部网页 CSRF 借道、DNS rebinding 与局域网滥用
+    const ALLOWED_HOSTS = new Set(['localhost:1145', '127.0.0.1:1145', '[::1]:1145']);
+    const ALLOWED_ORIGINS = new Set([
+        'http://localhost:1145', 'http://127.0.0.1:1145', 'http://[::1]:1145',
+        'http://localhost:5173', 'http://127.0.0.1:5173' // electron-vite dev server
+    ]);
+    serverApp.use((req, res, next) => {
+        const host = (req.headers.host || '').toLowerCase();
+        if (!ALLOWED_HOSTS.has(host)) return res.status(403).end('Forbidden');
+        const origin = req.headers.origin;
+        if (origin) {
+            let originOk = false;
+            try { originOk = ALLOWED_ORIGINS.has(new URL(origin).origin); } catch {}
+            if (!originOk) return res.status(403).end('Forbidden');
+        }
+        const fetchSite = req.headers['sec-fetch-site'];
+        if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none') {
+            return res.status(403).end('Forbidden');
+        }
+        next();
+    });
 
     serverApp.use('/api', createProxyMiddleware({
         target: currentApiUrl + ':8888/api',
@@ -157,9 +181,14 @@ if (!gotTheLock) {
     app.whenReady().then(async () => {
         try {
             const setting = await loadSettingFromFile();
+            // 迁移旧版明文密码：磁盘上仍是明文时立即加密重写
+            if (setting.loginPassword && !String(setting.loginPassword).startsWith(PWD_ENC_PREFIX)) {
+                await saveSettingToFile(setting);
+            }
             if (setting.minimizeToTray !== undefined) minimizeToTray = setting.minimizeToTray;
             if (setting.apiUrl) currentApiUrl = setting.apiUrl.replace(/\/$/, '');
-            if (setting.autoUpdate !== undefined) autoUpdateEnabled = setting.autoUpdate;
+            // 与设置面板默认值保持一致（面板默认勾选开启）
+            autoUpdateEnabled = setting.autoUpdate !== false;
             startServer();
             createWindow();
             createTray();
@@ -175,17 +204,56 @@ app.on('window-all-closed', () => {
     if (!minimizeToTray && process.platform !== 'darwin') app.quit();
 });
 
-ipcMain.handle('get-user-data-path', (event, filename) => path.join(app.getPath('userData'), filename));
+// 校验 userData 相对路径，拒绝路径穿越
+function safeUserDataPath(filename) {
+    if (typeof filename !== 'string' || !filename || filename.includes('\0')) throw new Error('非法路径');
+    const userData = path.resolve(app.getPath('userData'));
+    const resolved = path.resolve(userData, filename);
+    if (resolved !== userData && !resolved.startsWith(userData + path.sep)) throw new Error('路径越界');
+    return resolved;
+}
+
+ipcMain.handle('get-user-data-path', (event, filename) => {
+    try { return safeUserDataPath(filename); } catch { return null; }
+});
 
 ipcMain.handle('get-version', () => app.getVersion());
 
 let cachedSetting = null;
 
+// ========== 密码加密存储（safeStorage：Windows DPAPI / macOS Keychain / Linux keyring） ==========
+const PWD_ENC_PREFIX = 'enc7f:';
+
+function encryptPassword(value) {
+    if (typeof value !== 'string' || !value) return value;
+    try {
+        if (safeStorage.isEncryptionAvailable()) {
+            return PWD_ENC_PREFIX + safeStorage.encryptString(value).toString('base64');
+        }
+        console.warn('[setting] safeStorage 不可用，密码将以明文保存（Linux 无 keyring 时）');
+    } catch (e) {
+        console.error('[setting] 密码加密失败，回退明文:', e.message);
+    }
+    return value;
+}
+
+function decryptPassword(value) {
+    if (typeof value !== 'string' || !value.startsWith(PWD_ENC_PREFIX)) return value;
+    try {
+        return safeStorage.decryptString(Buffer.from(value.slice(PWD_ENC_PREFIX.length), 'base64'));
+    } catch (e) {
+        console.error('[setting] 密码解密失败（keyring 变化？）:', e.message);
+        return '';
+    }
+}
+
 async function loadSettingFromFile() {
     try {
         const filePath = path.join(app.getPath('userData'), 'setting.7c');
         const content = await fs.readFile(filePath, 'utf8');
-        cachedSetting = JSON.parse(content);
+        const parsed = JSON.parse(content);
+        if (parsed.loginPassword) parsed.loginPassword = decryptPassword(parsed.loginPassword);
+        cachedSetting = parsed;
     } catch { cachedSetting = {}; }
     return cachedSetting;
 }
@@ -194,7 +262,9 @@ async function saveSettingToFile(data) {
     cachedSetting = data;
     try {
         const filePath = path.join(app.getPath('userData'), 'setting.7c');
-        await fs.writeFile(filePath, JSON.stringify(data), 'utf8');
+        const toSave = { ...data };
+        if (toSave.loginPassword) toSave.loginPassword = encryptPassword(toSave.loginPassword);
+        await fs.writeFile(filePath, JSON.stringify(toSave), 'utf8');
         return true;
     } catch { return false; }
 }
@@ -243,7 +313,12 @@ ipcMain.handle('notify', (e, { sender, content, chatType, targetId }) => {
         width: 340, height: 100, frame: false, alwaysOnTop: true, transparent: true,
         x: isLinux ? width : width - 348,
         y: isLinux ? height : height - 108,
-        webPreferences: { sandbox: false, nodeIntegration: true, contextIsolation: false }
+        webPreferences: {
+            preload: path.join(__dirname, '../preload/notification.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true
+        }
     });
     notificationWin.on('closed', () => { notificationWin = null; });
     const notifPath = app.isPackaged
@@ -253,6 +328,10 @@ ipcMain.handle('notify', (e, { sender, content, chatType, targetId }) => {
     notificationWin.webContents.on('did-finish-load', () => {
         notificationWin.webContents.send('notif-data', { sender, content, chatType, targetId });
     });
+});
+
+ipcMain.handle('close-notification', () => {
+    if (notificationWin && !notificationWin.isDestroyed()) notificationWin.close();
 });
 
 ipcMain.handle('show-mainwindow', (e, chatType, targetId) => {
@@ -368,14 +447,20 @@ ipcMain.handle('clipboard-write-image', async (event, base64Data) => {
     } catch (e) { return { success: false, error: e.message }; }
 });
 
+const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 ipcMain.handle('open-external', (event, url) => {
+    try {
+        const parsed = new URL(url);
+        if (!SAFE_URL_PROTOCOLS.has(parsed.protocol)) return { success: false };
+    } catch { return { success: false }; }
     const { shell } = require('electron');
     shell.openExternal(url);
+    return { success: true };
 });
 
 ipcMain.handle('save-data-file', async (event, filename, content) => {
     try {
-        const filePath = path.join(app.getPath('userData'), filename);
+        const filePath = safeUserDataPath(filename);
         await fs.mkdir(path.dirname(filePath), { recursive: true });
         await fs.writeFile(filePath, content, 'utf8');
         return { success: true };
@@ -384,7 +469,7 @@ ipcMain.handle('save-data-file', async (event, filename, content) => {
 
 ipcMain.handle('load-data-file', async (event, filename) => {
     try {
-        const filePath = path.join(app.getPath('userData'), filename);
+        const filePath = safeUserDataPath(filename);
         const content = await fs.readFile(filePath, 'utf8');
         return { success: true, data: content };
     } catch (e) { return { success: false, error: e.message }; }
@@ -504,7 +589,7 @@ function initAutoUpdater() {
         console.error('[Updater] 检查更新失败:', err.message);
     });
 
-    // 定时检查更新（每 5 秒）
+    // 定时检查更新（每 30 秒）
     startUpdateCheckTimer();
 }
 
@@ -517,7 +602,7 @@ function startUpdateCheckTimer() {
                 console.error('[Updater] 定时检查更新失败:', err.message);
             });
         }
-    }, 5000);
+    }, 30000);
 }
 
 function stopUpdateCheckTimer() {
@@ -617,18 +702,6 @@ ipcMain.handle('set-badge-count', (event, count) => {
     catch (e) { return { success: false, error: e.message }; }
 });
 
-// 截图：截取主屏幕并保存到临时文件，返回路径
-ipcMain.handle('screenshot', async () => {
-    try {
-        const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 1920, height: 1080 } });
-        if (!sources.length) return { success: false, error: '未找到屏幕' };
-        const image = sources[0].thumbnail;
-        const pngBuffer = image.toPNG();
-        const base64Data = pngBuffer.toString('base64');
-        return { success: true, data: base64Data, size: pngBuffer.length, mime: 'image/png', name: `screenshot_${Date.now()}.png` };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
 // 导出数据到文件（备份）
 ipcMain.handle('export-data', async (event, data) => {
     try {
@@ -697,4 +770,176 @@ nativeTheme.on('updated', () => {
             shouldUseDarkColors: nativeTheme.shouldUseDarkColors
         });
     }
+});
+
+// ========== 工具：工作区（Markdown 编辑/预览） ==========
+let toolWorkspace = null;
+
+// ========== 用户姓名数据库（users.7c，AES-256-GCM 加密） ==========
+// 由 scripts/encrypt-users.mjs 生成；密钥与此处保持一致。
+// 主进程直接读取解密，不依赖 HTTP 静态服务（dev / 打包行为一致，避免 404）。
+const USERS_DB_PASSPHRASE = '7fa4-chat::users-db::v1';
+
+function getUsersDbPath() {
+    if (app.isPackaged) return path.join(__dirname, '../renderer/users.7c');
+    return path.join(app.getAppPath(), 'src/renderer/public/users.7c');
+}
+
+ipcMain.handle('load-users-db', async () => {
+    try {
+        const payload = JSON.parse(await fs.readFile(getUsersDbPath(), 'utf8'));
+        const key = crypto.createHash('sha256').update(USERS_DB_PASSPHRASE).digest();
+        const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(payload.iv, 'base64'));
+        decipher.setAuthTag(Buffer.from(payload.tag, 'base64'));
+        const dec = Buffer.concat([decipher.update(Buffer.from(payload.data, 'base64')), decipher.final()]);
+        return { success: true, data: JSON.parse(dec.toString('utf8')) };
+    } catch (e) {
+        return { success: false, error: e.message || '加载用户数据库失败' };
+    }
+});
+
+// 校验 relPath 必须落在 workspace 内，拒绝路径穿越
+function resolveInWorkspace(workspace, relPath) {
+    if (typeof workspace !== 'string' || !workspace) throw new Error('工作区未设置');
+    if (typeof relPath !== 'string' || !relPath || relPath.includes('\0')) throw new Error('无效路径');
+    const root = path.resolve(workspace);
+    const resolved = path.resolve(root, relPath);
+    if (resolved !== root && !resolved.startsWith(root + path.sep)) throw new Error('路径越界');
+    return resolved;
+}
+
+const TOOL_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'out', '.idea', '.vscode']);
+const TOOL_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB，防止大文件卡死
+const TOOL_MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 图片最大 20MB
+
+// 构建 VSCode 风格的目录树：目录在前、文件在后，按名称排序；跳过隐藏项与垃圾目录
+async function buildFileTree(dir, prefix) {
+    const node = { path: prefix || '', name: path.basename(dir) || dir, type: 'dir', children: [] };
+    let entries;
+    try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return node; }
+    const dirs = [];
+    const files = [];
+    for (const ent of entries) {
+        if (ent.name.startsWith('.')) continue;
+        if (ent.isDirectory()) {
+            if (TOOL_SKIP_DIRS.has(ent.name)) continue;
+            dirs.push(ent.name);
+        } else if (ent.isFile()) {
+            files.push(ent.name);
+        }
+    }
+    dirs.sort((a, b) => a.localeCompare(b));
+    files.sort((a, b) => a.localeCompare(b));
+    for (const name of dirs) {
+        const rel = prefix ? `${prefix}/${name}` : name;
+        const child = await buildFileTree(path.join(dir, name), rel);
+        node.children.push(child);
+    }
+    for (const name of files) {
+        const rel = prefix ? `${prefix}/${name}` : name;
+        let stat;
+        try { stat = await fs.stat(path.join(dir, name)); } catch { continue; }
+        // 所有文件均可点击打开：文本/代码走文本读取（二进制会被检测拦截），图片走画图编辑器
+        node.children.push({ path: rel, name, type: 'file', size: stat.size, mtime: stat.mtimeMs, openable: true });
+    }
+    return node;
+}
+
+// 系统默认工作区：文档文件夹
+ipcMain.handle('get-documents-path', () => app.getPath('documents'));
+
+// 弹出目录选择框（用户自选工作区）
+ipcMain.handle('select-workspace', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openDirectory', 'createDirectory'],
+        title: '选择 Markdown 工作区'
+    });
+    if (canceled || !filePaths.length) return { success: false, canceled: true };
+    try {
+        const dir = path.resolve(filePaths[0]);
+        const stat = await fs.stat(dir);
+        if (!stat.isDirectory()) return { success: false, error: '所选路径不是目录' };
+        toolWorkspace = dir;
+        return { success: true, path: dir };
+    } catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('tool-set-workspace', async (event, dir) => {
+    if (typeof dir !== 'string' || !dir) return { success: false, error: '无效路径' };
+    try {
+        const resolved = path.resolve(dir);
+        const stat = await fs.stat(resolved);
+        if (!stat.isDirectory()) return { success: false, error: '所选路径不是目录' };
+        toolWorkspace = resolved;
+        return { success: true, path: resolved };
+    } catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('tool-list-files', async (event, workspace) => {
+    try {
+        const root = path.resolve(workspace || toolWorkspace);
+        const stat = await fs.stat(root);
+        if (!stat.isDirectory()) return { success: false, error: '工作区不是目录' };
+        const tree = await buildFileTree(root, '');
+        return { success: true, tree, workspace: root };
+    } catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('tool-read-file', async (event, workspace, relPath) => {
+    try {
+        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
+        const buf = await fs.readFile(filePath);
+        if (buf.length > TOOL_MAX_FILE_SIZE) return { success: false, error: '文件过大（超过 10MB），暂不支持打开' };
+        if (buf.includes(0)) return { success: false, error: '该文件不是文本文件，无法解析' };
+        const content = buf.toString('utf8');
+        return { success: true, content };
+    } catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('tool-read-image-file', async (event, workspace, relPath) => {
+    try {
+        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
+        const buf = await fs.readFile(filePath);
+        if (buf.length > TOOL_MAX_IMAGE_SIZE) return { success: false, error: '图片过大（超过 20MB），暂不支持编辑' };
+        const mimeMap = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.bmp': 'image/bmp', '.webp': 'image/webp', '.ico': 'image/x-icon', '.svg': 'image/svg+xml' };
+        const mime = mimeMap[path.extname(filePath).toLowerCase()] || 'image/png';
+        return { success: true, data: buf.toString('base64'), mime };
+    } catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('tool-save-image', async (event, workspace, relPath, base64Data) => {
+    try {
+        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
+        if (typeof base64Data !== 'string' || !base64Data) throw new Error('数据无效');
+        await fs.writeFile(filePath, Buffer.from(base64Data, 'base64'));
+        return { success: true };
+    } catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('tool-write-file', async (event, workspace, relPath, content) => {
+    try {
+        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
+        if (typeof content !== 'string') throw new Error('内容无效');
+        await fs.writeFile(filePath, content, 'utf8');
+        return { success: true };
+    } catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('tool-create-file', async (event, workspace, relPath) => {
+    try {
+        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
+        if (fsCb.existsSync(filePath)) throw new Error('文件已存在');
+        await fs.writeFile(filePath, '', 'utf8');
+        return { success: true };
+    } catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('tool-delete-file', async (event, workspace, relPath) => {
+    try {
+        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
+        const stat = await fs.stat(filePath);
+        if (!stat.isFile()) throw new Error('只能删除文件');
+        await fs.unlink(filePath);
+        return { success: true };
+    } catch (e) { return { success: false, error: e.message }; }
 });

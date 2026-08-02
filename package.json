@@ -6,7 +6,7 @@
   "desktopName": "7fa4-chat.desktop",
   "scripts": {
     "dev": "electron-vite dev -- --no-sandbox",
-    "build": "electron-vite build",
+    "build": "electron-vite build && node scripts/build-jsc.mjs",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder"
   },
@@ -23,6 +23,7 @@
     "electron-vite": "^5.0.0"
   },
   "dependencies": {
+    "bytenode": "^1.6.0",
     "electron-builder-sandbox-fix": "^1.1.1",
     "electron-updater": "^6.8.9",
     "express": "^5.2.1",
@@ -30,6 +31,7 @@
     "katex": "^0.16.44",
     "markdown-it": "^14.1.1",
     "md5": "^2.3.0",
+    "monaco-editor": "^0.56.0",
     "vue": "^3.5.13"
   },
   "build": {
@@ -44,11 +46,17 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ]
     },
@@ -109,6 +117,9 @@
       "warningsAsErrors": false
     },
     "asar": true,
+    "extraMetadata": {
+      "main": "./out/main/loader.js"
+    },
     "files": [
       "out/**/*",
       "package.json",

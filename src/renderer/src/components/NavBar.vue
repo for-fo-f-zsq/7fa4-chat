@@ -22,6 +22,14 @@
     </div>
     <div
       class="nav-icon"
+      :class="{ active: pageType === 'tools' }"
+      @click="$emit('switch', 'tools')"
+    >
+      <i class="fas fa-wrench"></i>
+      <span>工具</span>
+    </div>
+    <div
+      class="nav-icon"
       :class="{ active: pageType === 'settings' }"
       @click="$emit('switch', 'settings')"
     >

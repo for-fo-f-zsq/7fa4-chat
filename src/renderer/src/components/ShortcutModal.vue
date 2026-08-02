@@ -56,8 +56,7 @@ const defaultShortcuts = {
   switchToFavorites: 'ctrl+2',
   switchToSettings: 'ctrl+3',
   switchToAbout: 'ctrl+4',
-  newConversation: 'ctrl+n',
-  screenshot: 'ctrl+shift+s'
+  newConversation: 'ctrl+n'
 }
 
 const shortcutItems = [
@@ -67,8 +66,7 @@ const shortcutItems = [
   { action: 'switchToFavorites', label: '切换到收藏' },
   { action: 'switchToSettings', label: '切换到设置' },
   { action: 'switchToAbout', label: '切换到关于' },
-  { action: 'newConversation', label: '新建会话' },
-  { action: 'screenshot', label: '截图' }
+  { action: 'newConversation', label: '新建会话' }
 ]
 
 const recordingAction = ref(null)

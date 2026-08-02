@@ -39,7 +39,6 @@ contextBridge.exposeInMainWorld('api', {
   fetchChangelog: () => ipcRenderer.invoke('fetch-changelog'),
   // --- 新增功能 IPC ---
   setBadgeCount: (count) => ipcRenderer.invoke('set-badge-count', count),
-  screenshot: () => ipcRenderer.invoke('screenshot'),
   exportData: (data) => ipcRenderer.invoke('export-data', data),
   importData: () => ipcRenderer.invoke('import-data'),
   getCacheSize: () => ipcRenderer.invoke('get-cache-size'),
@@ -50,4 +49,16 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('native-theme-changed', handler);
     return () => ipcRenderer.removeListener('native-theme-changed', handler);
   },
+  // --- 工具 ---
+  getDocumentsPath: () => ipcRenderer.invoke('get-documents-path'),
+  loadUsersDb: () => ipcRenderer.invoke('load-users-db'),
+  selectWorkspace: () => ipcRenderer.invoke('select-workspace'),
+  toolSetWorkspace: (dir) => ipcRenderer.invoke('tool-set-workspace', dir),
+  toolListFiles: (workspace) => ipcRenderer.invoke('tool-list-files', workspace),
+  toolReadFile: (workspace, relPath) => ipcRenderer.invoke('tool-read-file', workspace, relPath),
+  toolReadImageFile: (workspace, relPath) => ipcRenderer.invoke('tool-read-image-file', workspace, relPath),
+  toolSaveImage: (workspace, relPath, base64Data) => ipcRenderer.invoke('tool-save-image', workspace, relPath, base64Data),
+  toolWriteFile: (workspace, relPath, content) => ipcRenderer.invoke('tool-write-file', workspace, relPath, content),
+  toolCreateFile: (workspace, relPath) => ipcRenderer.invoke('tool-create-file', workspace, relPath),
+  toolDeleteFile: (workspace, relPath) => ipcRenderer.invoke('tool-delete-file', workspace, relPath),
 });

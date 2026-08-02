@@ -80,8 +80,7 @@
 <script setup>
 import { computed, ref, onMounted, nextTick } from 'vue'
 import { store } from '../store.js'
-import { displayName, getGradeColor, getGradeLabel } from '../utils.js'
-import usersJson from '../../public/users.json'
+import { displayName, getGradeColor, getGradeLabel, usersJson } from '../utils.js'
 
 const props = defineProps({
   uid: Number

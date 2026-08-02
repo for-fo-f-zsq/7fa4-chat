@@ -55,8 +55,6 @@
           </div>
           <div class="bubble-wrap bubble-wrap-self">
             <div class="bubble-header">
-              <span v-if="item.data.status === 'failed'" class="msg-status-icon failed" @click.stop="$emit('resend', item.data.id)" title="发送失败，点击重发"><i class="fas fa-exclamation-circle"></i></span>
-              <span v-else-if="item.data.status === 'pending'" class="msg-status-icon" title="发送中"><i class="fas fa-clock"></i></span>
               <span class="time">{{ gettime2(item.data.send_time) }}</span>
             </div>
             <div class="bubble" :class="{ collapsed: collapsedMsgs[item.data.id] }"
@@ -76,9 +74,7 @@
     :canCollect="msgCtx.canCollect"
     :canFavorite="msgCtx.canFavorite"
     :canDelete="msgCtx.canDelete"
-    :canResend="msgCtx.canResend"
     :isOwn="msgCtx.isOwn"
-    :isFailed="msgCtx.isFailed"
     @copy="copyMsg"
     @forward="startForward"
     @download="downloadMsg"
@@ -86,7 +82,6 @@
     @collect="collectMsg"
     @delete="deleteMsg"
     @favorite="favoriteMsg"
-    @resend="resendMsg"
     @multiselect="enterMultiSelect"
   />
 </template>
@@ -117,7 +112,6 @@ const emit = defineEmits([
   'forward',
   'delete',
   'favorite',
-  'resend',
   'batchForward',
   'batchDelete',
   'batchFavorite',
@@ -348,7 +342,7 @@ function isPatMsg(msg) {
 }
 
 // --- 消息右键菜单 ---
-const msgCtx = reactive({ show: false, x: 0, y: 0, msgId: null, msgContent: '', canDownload: false, canCollect: false, canFavorite: false, canDelete: false, canResend: false, isOwn: false, isFailed: false });
+const msgCtx = reactive({ show: false, x: 0, y: 0, msgId: null, msgContent: '', canDownload: false, canCollect: false, canFavorite: false, canDelete: false, isOwn: false });
 
 function onMsgMenu(e, msg) {
   e.preventDefault();
@@ -358,7 +352,6 @@ function onMsgMenu(e, msg) {
   const isSticker = obj && obj.type === 'sticker';
   const isImage = isFile && /^image\//.test(obj.mime || '');
   const isOwn = msg.sender == props.selfUid;
-  const isFailed = msg.status === 'failed';
   msgCtx.show = false;
   msgCtx.x = e.clientX;
   msgCtx.y = e.clientY;
@@ -368,9 +361,7 @@ function onMsgMenu(e, msg) {
   msgCtx.canCollect = isSticker || isImage;
   msgCtx.canFavorite = !!(obj && obj.type !== 'pat');
   msgCtx.canDelete = true;
-  msgCtx.canResend = isOwn && isFailed;
   msgCtx.isOwn = isOwn;
-  msgCtx.isFailed = isFailed;
   setTimeout(() => msgCtx.show = true, 1);
 }
 
@@ -429,7 +420,7 @@ function startForward() {
   msgCtx.show = false;
 }
 
-// --- 删除/收藏/重发 ---
+// --- 删除/收藏 ---
 function deleteMsg() {
   const msgId = msgCtx.msgId;
   msgCtx.show = false;
@@ -452,12 +443,6 @@ function favoriteMsg() {
       savedAt: Date.now()
     });
   }
-}
-
-function resendMsg() {
-  const msgId = msgCtx.msgId;
-  msgCtx.show = false;
-  emit('resend', msgId);
 }
 
 // --- 预览 ---

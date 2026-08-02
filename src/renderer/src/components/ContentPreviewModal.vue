@@ -38,7 +38,7 @@ defineEmits(['close', 'copy', 'forward', 'download'])
 const canDownload = computed(() => {
   if (!props.showActions || !props.rawContent) return false
   const obj = parseMsgContent(props.rawContent)
-  return obj && (obj.type === 'file' || obj.type === 'sticker') && obj.url
+  return obj && (obj.type === 'file' || obj.type === 'sticker') && obj.data
 })
 
 function onBodyClick(e) {

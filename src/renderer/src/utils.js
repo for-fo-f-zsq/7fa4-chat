@@ -1,7 +1,31 @@
 import MarkdownIt from 'markdown-it'
 import katex from 'katex'
+import { reactive } from 'vue'
 import { store } from './store.js';
-import usersJson from '../public/users.json';
+
+// ========== 用户姓名数据库（加密存储） ==========
+// 明文 users.json 已从仓库移除，改打包为 AES-256-GCM 加密的 users.7c，
+// 由主进程直接读取解密（IPC），不再依赖 HTTP 静态服务。密钥随客户端分发，属"混淆级"防护，
+// 目的是避免公开仓库直接包含实名映射；更强的方案是改为服务端按需下发。
+export const usersJson = reactive({});
+
+export async function loadUsersDb() {
+  try {
+    if (!window.api?.loadUsersDb) return false;
+    const r = await window.api.loadUsersDb()
+    if (!r.success) {
+      console.error('[users-db] 加载失败:', r.error)
+      return false
+    }
+    const obj = r.data
+    for (const k of Object.keys(usersJson)) delete usersJson[k];
+    Object.assign(usersJson, obj);
+    return true;
+  } catch (e) {
+    console.error('[users-db] 加载失败:', e);
+    return false;
+  }
+}
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 

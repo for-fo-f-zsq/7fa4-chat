@@ -80,7 +80,6 @@
         @openUserInfo="openuserinfo"
         @forward="startForward"
         @delete="deleteMsg"
-        @resend="resendMsg"
         @batchForward="batchForward"
         @batchDelete="batchDelete"
         @batchFavorite="batchFavorite"
@@ -105,6 +104,11 @@
       @forward="onFavForward"
       @copy="onFavCopy"
       @download="onFavDownload"
+    />
+    <MarkdownTool
+      v-if="pageType==='tools'"
+      class="fade-content"
+      :class="{ 'fade-out': contentFading }"
     />
     <SettingsPanel
       v-if="pageType==='settings'"
@@ -219,7 +223,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { safeFetch, esc, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage } from '../utils.js';
+import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage } from '../utils.js';
 
 import NavBar from '../components/NavBar.vue';
 import ConversationList from '../components/ConversationList.vue';
@@ -240,6 +244,7 @@ import AddFriendModal from '../components/AddFriendModal.vue';
 import GroupActionMenu from '../components/GroupActionMenu.vue';
 import SearchPanel from '../components/SearchPanel.vue';
 import FavoritesPanel from '../components/FavoritesPanel.vue';
+import MarkdownTool from '../components/MarkdownTool.vue';
 import { useWindowControls } from '../composables/useWindowControls.js';
 import { useMuteConfirm } from '../composables/useMuteConfirm.js';
 import { useCurrentMessages } from '../composables/useCurrentMessages.js';
@@ -575,7 +580,7 @@ async function sendPat(targetUid) {
   inputFooterRef.value.sending = false;
 }
 
-// --- 消息删除/重发/批量操作 ---
+// --- 消息删除/批量操作 ---
 function deleteMsg(msgId) {
   const msg = store.messages[msgId];
   if (!msg) return;
@@ -595,26 +600,6 @@ function deleteMsg(msgId) {
     }
   }
   saveData();
-}
-
-async function resendMsg(msgId) {
-  const msg = store.messages[msgId];
-  if (!msg || msg.status !== 'failed') return;
-  const obj = parseMsgContent(msg.content);
-  if (!obj) return;
-  msg.status = 'pending';
-  try {
-    const r = await sendChatMessage({ type: pageType.value, targetId: pageId.value, msgObj: obj });
-    if (r.success) {
-      deleteMsg(msgId);
-      const { tokenInfo } = applyChatToStore(r, pageType.value, pageId.value);
-      if (inputFooterRef.value) inputFooterRef.value.tokenInfo = tokenInfo;
-    } else {
-      msg.status = 'failed';
-    }
-  } catch {
-    msg.status = 'failed';
-  }
 }
 
 function batchForward() {
@@ -952,7 +937,7 @@ async function addfriend(q) {
 }
 
 // --- 快捷键 ---
-const DEFAULT_SHORTCUTS = { sendMessage: 'enter', search: 'ctrl+f', switchToChat: 'ctrl+1', switchToFavorites: 'ctrl+2', switchToSettings: 'ctrl+3', switchToAbout: 'ctrl+4', newConversation: 'ctrl+n', screenshot: 'ctrl+shift+s' };
+const DEFAULT_SHORTCUTS = { sendMessage: 'enter', search: 'ctrl+f', switchToChat: 'ctrl+1', switchToFavorites: 'ctrl+2', switchToSettings: 'ctrl+3', switchToAbout: 'ctrl+4', newConversation: 'ctrl+n' };
 function getShortcutValue(action) { return setting.value?.shortcuts?.[action] || DEFAULT_SHORTCUTS[action]; }
 function parseShortcut(shortcut) {
   const parts = shortcut.toLowerCase().split('+');
@@ -989,31 +974,12 @@ function handleGlobalShortcuts(e) {
     }
     return true;
   }
-  if (matchShortcut(e, getShortcutValue('screenshot'))) { e.preventDefault(); takeScreenshot(); return true; }
   if (matchShortcut(e, getShortcutValue('switchToChat'))) { e.preventDefault(); switchPage('chat'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToFavorites'))) { e.preventDefault(); switchPage('favorites'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToSettings'))) { e.preventDefault(); switchPage('settings'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToAbout'))) { e.preventDefault(); switchPage('about'); return true; }
   if (matchShortcut(e, getShortcutValue('newConversation'))) { e.preventDefault(); showAddFriendModal.value = true; return true; }
   return false;
-}
-
-// --- 截图工具 ---
-async function takeScreenshot() {
-  if (!window.api.screenshot) return;
-  try {
-    const r = await window.api.screenshot();
-    if (!r.success || !r.data) return;
-    if (inputFooterRef.value && inputFooterRef.value.pendingFiles) {
-      inputFooterRef.value.pendingFiles.push({
-        name: r.name || 'screenshot.png',
-        size: r.size,
-        data: r.data,
-        mime: r.mime || 'image/png',
-        isImage: true
-      });
-    }
-  } catch {}
 }
 
 // --- 设置 ---
@@ -1066,7 +1032,7 @@ async function update(result) {
   Object.assign(store.self, { uid: result.user.id, username: result.user.uid, nickname: result.user.nickname, realname: result.user.real_name, school: result.user.school, seat: result.user.seat });
   const friendsMap = Object.fromEntries(result.friends.map(f => {
     const old = store.users[f.id];
-    return [f.id, { uid: f.id, realname: esc(f.real_name), username: esc(f.username), nickname: esc(f.nickname), grade: f.grade, grade_class: f.grade_class, seat: f.seat, note: old ? old.note : '', message_ids: old ? old.message_ids : [], unread: old ? old.unread : 0, pinned: old ? old.pinned : false, _fetchedAt: old ? old._fetchedAt : undefined }];
+    return [f.id, { uid: f.id, realname: f.real_name, username: f.username, nickname: f.nickname, grade: f.grade, grade_class: f.grade_class, seat: f.seat, note: old ? old.note : '', message_ids: old ? old.message_ids : [], unread: old ? old.unread : 0, pinned: old ? old.pinned : false, _fetchedAt: old ? old._fetchedAt : undefined }];
   }));
   const hiddenUsers = Object.fromEntries(Object.entries(store.users).filter(([, u]) => u.show === false && !friendsMap[u.uid]));
   store.users = { ...friendsMap, ...hiddenUsers };
@@ -1074,7 +1040,7 @@ async function update(result) {
   const newGroupIds = new Set(result.groups.map(g => g.id));
   const newGroups = Object.fromEntries(result.groups.map(g => {
     const old = store.groups[g.id];
-    return [g.id, { gid: g.id, name: esc(g.title), mute: g.mute, users: g.users.map(({ user_id, type, mute }) => ({ user_id, type, mute })), message_ids: old ? old.message_ids : [], unread: old ? old.unread : 0, pinned: old ? old.pinned : false, mentioned: old ? old.mentioned : false, exited: false, blocked: old ? old.blocked : false }];
+    return [g.id, { gid: g.id, name: g.title, mute: g.mute, users: g.users.map(({ user_id, type, mute }) => ({ user_id, type, mute })), message_ids: old ? old.message_ids : [], unread: old ? old.unread : 0, pinned: old ? old.pinned : false, mentioned: old ? old.mentioned : false, exited: false, blocked: old ? old.blocked : false }];
   }));
   for (const [gid, oldGroup] of Object.entries(store.groups)) { if (!newGroupIds.has(Number(gid))) { oldGroup.exited = true; newGroups[gid] = oldGroup; } }
   for (const [gid, newGroup] of Object.entries(newGroups)) {
@@ -1119,6 +1085,7 @@ async function fetchMessages(type, end) {
                 : getNotifContent(msg.type === 'file' ? `📄 ${msg.name}` : msg.type === 'sticker' ? `🖼️ ${msg.name || '表情'}` : msg.content, setting.value);
               await window.api.notify(getUsername(c.sender_id, store.users), notifContent, chatType, targetId);
               if (setting.value?.notifSound !== false) playNotificationSound(msg.mentions?.includes(store.self.uid) ? 'mention' : 'default');
+              notifPendingCount[convoKey] = 0; // 已弹窗，聚合计数归零，避免 (+N) 无限累积
             }
           }
         }
@@ -1260,6 +1227,11 @@ function onDocClick(e) {
 function onOnline() { store.online = true; }
 function onOffline() { store.online = false; }
 
+// 窗口重新获得焦点时清空各会话的待通知计数
+function onWindowFocus() {
+  for (const k of Object.keys(notifPendingCount)) notifPendingCount[k] = 0;
+}
+
 // --- 生命周期 ---
 onMounted(async () => {
   store.initializing = true;
@@ -1276,6 +1248,7 @@ onMounted(async () => {
   // 网络状态监听
   window.addEventListener('online', onOnline);
   window.addEventListener('offline', onOffline);
+  window.addEventListener('focus', onWindowFocus);
   try {
     const initialInfo = await (await safeFetch('/chat/info')).json();
     if (initialInfo.success) Object.assign(store.self, { uid: initialInfo.user.id, username: initialInfo.user.uid, nickname: initialInfo.user.nickname, realname: initialInfo.user.real_name });
@@ -1301,6 +1274,7 @@ onUnmounted(() => {
   document.removeEventListener('click', onDocClick);
   window.removeEventListener('online', onOnline);
   window.removeEventListener('offline', onOffline);
+  window.removeEventListener('focus', onWindowFocus);
   if (unsubscribeNotifClick) unsubscribeNotifClick();
   if (unsubscribeUploadProgress) unsubscribeUploadProgress();
 });

@@ -58,8 +58,7 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { store } from '../store.js'
-import { getGradeColor, getGradeLabel, getAvatarInitial, GRADE_LABELS, ranklistOrder } from '../utils.js'
-import usersJson from '../../public/users.json'
+import { getGradeColor, getGradeLabel, getAvatarInitial, GRADE_LABELS, ranklistOrder, usersJson } from '../utils.js'
 
 const props = defineProps({
   visible: Boolean

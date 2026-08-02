@@ -15,6 +15,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { store } from './store.js';
 import LoginView from './views/LoginView.vue';
 import ChatView from './views/ChatView.vue';
+import { loadUsersDb } from './utils.js';
 
 const canvasEl = ref(null)
 let animId = 0
@@ -73,6 +74,7 @@ watch(showParticles, (show) => {
 })
 
 onMounted(() => {
+  loadUsersDb(); // 加载加密的用户姓名数据库（users.7c）
   const onMouseMove = (e) => {
     mousePos.x = e.clientX
     mousePos.y = e.clientY

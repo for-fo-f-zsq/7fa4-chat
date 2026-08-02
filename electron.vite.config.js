@@ -18,7 +18,8 @@ export default defineConfig({
       outDir: 'out/preload',
       rollupOptions: {
         input: {
-          index: resolve('src/preload/index.js')
+          index: resolve('src/preload/index.js'),
+          notification: resolve('src/preload/notification.js')
         }
       }
     }
