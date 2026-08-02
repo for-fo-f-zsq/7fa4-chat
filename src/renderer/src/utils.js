@@ -153,25 +153,6 @@ export function getGradeLabel(uid) {
   return GRADE_LABELS[colorKey] || ''
 }
 
-let _reloginAttempts = 0
-const MAX_RELOGIN_ATTEMPTS = 3
-
-async function doRelogin() {
-  try {
-    const setting = await window.api.loadSetting()
-    if (!setting.keepLogin || !setting.loginUsername || !setting.loginPassword) return false
-    const res = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ username: setting.loginUsername, password: setting.loginPassword }),
-      credentials: 'include'
-    })
-    if (!res.ok) return false
-    const data = await res.json()
-    return data.error_code === 1
-  } catch { return false }
-}
-
 export async function safeFetch(url, options = {}, timeout = 0) {
   try {
     let res
@@ -186,27 +167,20 @@ export async function safeFetch(url, options = {}, timeout = 0) {
     } else {
       res = await fetch(url, options)
     }
+    // 检测到返回 HTML（通常是会话失效被服务端重定向到登录页）：直接退出登录跳转到 login，不尝试重新登录
+    const _ctype = (res.headers.get('content-type') || '').toLowerCase()
+    if (_ctype.includes('text/html')) {
+      store.logined = false
+      return { json: async () => ({ success: false, err: { message: '会话已失效，请重新登录' } }) }
+    }
     if (!res.ok) return { json: async () => ({ success: false, err: { message: res.statusText } }) }
     try {
       const data = await res.json()
-      _reloginAttempts = 0
       return { json: async () => data }
     } catch {
-      if (_reloginAttempts < MAX_RELOGIN_ATTEMPTS&&store.logined) {
-        _reloginAttempts++
-        const ok = await doRelogin()
-        if (ok) return safeFetch(url, options)
-      }
-      _reloginAttempts = 0
-      try {
-        const s = await window.api.loadSetting()
-        s.keepLogin = false
-        s.loginUsername = ''
-        s.loginPassword = ''
-        await window.api.saveSetting(s)
-      } catch {}
+      // 非 JSON（即 HTML，会话失效）：直接退出登录，不尝试重新登录，也不清空已保存的密码
       store.logined = false
-      return { json: async () => ({ success: false, err: { message: '响应格式错误' } }) }
+      return { json: async () => ({ success: false, err: { message: '会话已失效，请重新登录' } }) }
     }
   } catch (e) {
     return { json: async () => ({ success: false, err: { message: e.message || '网络错误' } }) }

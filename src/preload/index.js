@@ -16,6 +16,11 @@ contextBridge.exposeInMainWorld('api', {
   windowMaximize: () => ipcRenderer.invoke('window-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),
   windowIsMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  onWindowMaximized: (callback) => {
+    const handler = (event, isMax) => callback(isMax);
+    ipcRenderer.on('window-maximized', handler);
+    return () => ipcRenderer.removeListener('window-maximized', handler);
+  },
   getWindowState: () => ipcRenderer.invoke('get-window-state'),
   clipboardWriteText: (text) => ipcRenderer.invoke('clipboard-write-text', text),
   // --- 文件操作 (base64) ---

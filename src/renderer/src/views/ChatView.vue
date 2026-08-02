@@ -31,7 +31,6 @@
       :style="{ width: listWidth + 'px' }"
       @select="onSelectConversation"
       @Targetmenu="onTargetMenu"
-      @dropForward="onDropForward"
       @dropFile="onDropFile"
       @markAllRead="markAllRead"
       @newConversation="onNewConversationFromList"
@@ -76,7 +75,6 @@
         :visibleCount="visibleCount"
         @sendPat="sendPat"
         @openGroupActionMenu="openGroupActionMenu"
-        @bubbleDragStart="onBubbleDragStart"
         @scrollToTop="onMessageAreaScrollToTop"
         @startReply="startReply"
         @openUserInfo="openuserinfo"
@@ -95,7 +93,6 @@
         :targetUser="targetUser"
         :targetGroup="targetGroup"
         :inputDisabled="inputDisabled"
-        @dropForward="onDropForward"
       @dropFile="onDropFile"
       @openPreview="onOpenPreview"
       />
@@ -457,7 +454,11 @@ function onMessageAreaScrollToTop(height, loadAll) {
     visibleCount.value += 20;
     const el = messageListRef.value?.messageAreaEl;
     if (el) {
-      setTimeout(() => { el.scrollTo({ top: el.scrollHeight - height, behavior: 'auto' }); }, 50);
+      // DOM 更新后第一时间修正滚动位置，缩短插入消息导致的闪烁窗口
+      nextTick(() => {
+        const target = el.scrollHeight - height;
+        el.scrollTop = target > 0 ? target : 0;
+      });
     }
   }
 }
@@ -534,11 +535,6 @@ async function doForward({ type, targetId, msgContent }) {
   forwardModalVisible.value = false;
 }
 
-function onDropForward({ targetType, targetId, msgData, msgContent }) {
-  const content = msgData ? msgData.content : msgContent;
-  forwardToTarget(targetType, targetId, content);
-}
-
 async function onDropFile({ targetType, targetId, file }) {
   if (!file) return;
   if (inputFooterRef.value) inputFooterRef.value.errorMessage = '';
@@ -558,19 +554,6 @@ async function onDropFile({ targetType, targetId, file }) {
   } catch {
     if (inputFooterRef.value) inputFooterRef.value.errorMessage = '发送失败';
   }
-}
-
-function onBubbleDragStart(e, msg) {
-  const obj = parseMsgContent(msg.content);
-  if (obj && obj.type === 'pat') { e.preventDefault(); return; }
-  const isText = obj && obj.type === 'text';
-  const dragData = { id: msg.id, content: msg.content, isText: !!isText };
-  e.dataTransfer.setData('application/x-chat-msg', JSON.stringify(dragData));
-  e.dataTransfer.effectAllowed = 'copy';
-  if (isText) e.dataTransfer.setData('text/plain', obj.content);
-  e.target.classList.add('dragging');
-  const onDragEnd = () => { e.target.classList.remove('dragging'); e.target.removeEventListener('dragend', onDragEnd); };
-  e.target.addEventListener('dragend', onDragEnd);
 }
 
 async function sendPat(targetUid) {

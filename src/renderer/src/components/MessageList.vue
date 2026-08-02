@@ -45,8 +45,6 @@
               <span class="time">{{ gettime2(item.data.send_time) }}</span>
             </div>
             <div class="bubble" :class="{ collapsed: collapsedMsgs[item.data.id] }"
-              :draggable="!store.multiSelectMode"
-              @dragstart="$emit('bubbleDragStart', $event, item.data)"
               @contextmenu.prevent="onMsgMenu($event, item.data)"><div class="bubble-content" v-html="renderContent(item.data.content, item.data.sender)"></div></div>
             <div class="expand-btn" v-if="collapsedMsgs[item.data.id]" @click="openMsgPreview(item.data)">查看更多</div>
           </div>
@@ -62,8 +60,6 @@
               <span class="time">{{ gettime2(item.data.send_time) }}</span>
             </div>
             <div class="bubble" :class="{ collapsed: collapsedMsgs[item.data.id] }"
-              :draggable="!store.multiSelectMode"
-              @dragstart="$emit('bubbleDragStart', $event, item.data)"
               @contextmenu.prevent="onMsgMenu($event, item.data)"><div class="bubble-content" v-html="renderContent(item.data.content, item.data.sender)"></div></div>
             <div class="expand-btn" v-if="collapsedMsgs[item.data.id]" @click="openMsgPreview(item.data)">查看更多</div>
           </div>
@@ -115,7 +111,6 @@ const props = defineProps({
 const emit = defineEmits([
   'sendPat',
   'openGroupActionMenu',
-  'bubbleDragStart',
   'scrollToTop',
   'startReply',
   'openUserInfo',
@@ -165,13 +160,24 @@ function onScroll() {
   const el = messageAreaEl.value;
   if (!el) return;
   isAtBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  // 向上加载更多：滚动位置修正回顶部附近（scrollTop > 0）后立即隐藏加载指示，避免固定延时闪烁
+  if (loadingMore.value && el.scrollTop > 0) {
+    loadingMore.value = false;
+  }
   if (el.scrollTop === 0 && hasOlderMessages.value && !loadingMore.value) {
     const height = el.scrollHeight;
     loadingMore.value = true;
     emit('scrollToTop', height);
-    setTimeout(() => { loadingMore.value = false; }, 400);
   }
 }
+
+// 加载完成（visibleCount 增加）或没有更早消息时，兜底隐藏加载指示
+watch(() => props.visibleCount, () => {
+  loadingMore.value = false;
+});
+watch(hasOlderMessages, () => {
+  if (!hasOlderMessages.value) loadingMore.value = false;
+});
 
 function renderContent(msg, senderId) {
   if (!msg) return '';

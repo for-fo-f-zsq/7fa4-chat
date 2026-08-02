@@ -102,7 +102,7 @@ const props = defineProps({
   messages: Object
 })
 
-const emit = defineEmits(['select', 'Targetmenu', 'dropForward', 'dropFile', 'markAllRead', 'newConversation'])
+const emit = defineEmits(['select', 'Targetmenu', 'dropFile', 'markAllRead', 'newConversation'])
 
 // --- 搜索 ---
 const searchQuery = ref('')
@@ -317,7 +317,7 @@ const dragOverType = ref('')
 const dragOverId = ref(null)
 
 function onListDragOver(e) {
-  if (e.dataTransfer?.types?.includes('application/x-chat-msg') || e.dataTransfer?.types?.includes('Files')) {
+  if (e.dataTransfer?.types?.includes('Files')) {
     e.dataTransfer.dropEffect = 'copy'
   }
 }
@@ -351,15 +351,11 @@ function onItemDrop(e, type, id) {
   dragOverType.value = ''
   dragOverId.value = null
 
-  if (e.dataTransfer?.files?.length > 0 && !e.dataTransfer?.types?.includes('application/x-chat-msg')) {
+  // 仅保留系统文件拖入（dropFile）
+  if (e.dataTransfer?.files?.length > 0) {
     const file = e.dataTransfer.files[0]
     emit('dropFile', { targetType: type, targetId: id, file })
-    return
   }
-
-  const msgData = e.dataTransfer?.getData('application/x-chat-msg')
-  if (!msgData) return
-  emit('dropForward', { targetType: type, targetId: id, msgData: JSON.parse(msgData) })
 }
 
 defineExpose({ focusSearch, navigateConversation })

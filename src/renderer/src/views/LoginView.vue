@@ -82,20 +82,22 @@ function showError(msg) {
 
 async function onSuccess(type) {
   if (type === 0 && remember.value) {
-    const hashedPwd = md5(password.value + 'syzoj2_xxx');
     const setting = await window.api.loadSetting();
     setting.keepLogin = true;
     setting.loginUsername = username.value;
-    setting.loginPassword = hashedPwd;
+    // 直接存原始密码到本地加密存储（setting.7c），不再做 md5
+    setting.loginPassword = password.value;
     await window.api.saveSetting(setting);
   }
   emit('login');
 }
 
-async function doLogin(user, pwd, type) {
+async function doLogin(user, rawPwd, type) {
   loading.value = true;
+  // 发往服务端仍需 md5（syzoj2 接口契约），存储侧已不再 +md5
+  const hashedPwd = md5(rawPwd + 'syzoj2_xxx');
   try {
-    const data = await tryLogin(user, pwd);
+    const data = await tryLogin(user, hashedPwd);
     loading.value = false;
     switch (data.error_code) {
       case 1001: showError('用户不存在'); break;
@@ -112,8 +114,7 @@ async function doLogin(user, pwd, type) {
 }
 
 function login() {
-  const hashedPwd = md5(password.value + 'syzoj2_xxx');
-  doLogin(username.value, hashedPwd, 0);
+  doLogin(username.value, password.value, 0);
 }
 
 function openApiSettings() {
@@ -138,8 +139,17 @@ onMounted(async () => {
       document.documentElement.classList.add(`theme-${setting.theme}`);
     }
     if (setting.apiUrl) apiUrl.value = setting.apiUrl;
-    if (setting.keepLogin && setting.loginUsername && setting.loginPassword) {
-      doLogin(setting.loginUsername, setting.loginPassword, 1);
+    // 旧版本存的是 md5 哈希（32 位十六进制），新版本改存明文，升级后清空、不自动填充
+    if (setting.loginPassword && /^[a-f0-9]{32}$/i.test(setting.loginPassword)) {
+      setting.keepLogin = false;
+      setting.loginUsername = '';
+      setting.loginPassword = '';
+      await window.api.saveSetting(setting);
+    } else if (setting.keepLogin && setting.loginUsername && setting.loginPassword) {
+      // 仅把保存的账号密码填回输入框，不自动登录，由用户手动点击登录
+      username.value = setting.loginUsername;
+      password.value = setting.loginPassword;
+      remember.value = true;
     }
   } catch {}
 });

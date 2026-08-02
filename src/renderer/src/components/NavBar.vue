@@ -7,9 +7,6 @@
       class="nav-icon"
       :class="{ active: pageType === 'chat' }"
       @click="$emit('switch', 'chat')"
-      @dragover.prevent="onNavDragOver($event, 'chat')"
-      @dragleave="onNavDragLeave"
-      @drop.prevent="onNavDrop('chat')"
     >
       <i class="fas fa-comment-dots"></i>
       <span>消息</span>
@@ -57,20 +54,4 @@ const chatUnread = computed(() =>
   Object.values(props.users || {}).some(u => u.unread > 0) ||
   Object.values(props.groups || {}).some(g => g.unread > 0 && !g.exited)
 )
-
-// --- 拖拽切换 pageType ---
-function onNavDragOver(e, type) {
-  if (e.dataTransfer?.types?.includes('application/x-chat-msg')) {
-    e.dataTransfer.dropEffect = 'copy'
-    if (props.pageType !== type) {
-      emit('switch', type)
-    }
-  }
-}
-
-function onNavDragLeave() {
-}
-
-function onNavDrop() {
-}
 </script>

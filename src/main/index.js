@@ -100,6 +100,25 @@ function createWindow() {
             mainWindow.hide();
         }
     });
+
+    // --- 最大化状态推送（按钮图标实时刷新） ---
+    const sendMaximizedState = () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('window-maximized', mainWindow.isMaximized());
+        }
+    };
+    mainWindow.on('maximize', sendMaximizedState);
+    mainWindow.on('unmaximize', sendMaximizedState);
+    // Aero Snap（拖到屏幕顶部）等场景可能不触发 maximize 事件，用防抖 resize 兜底
+    let _maxStateTimer = null;
+    mainWindow.on('resize', () => {
+        if (_maxStateTimer) clearTimeout(_maxStateTimer);
+        _maxStateTimer = setTimeout(() => {
+            _maxStateTimer = null;
+            sendMaximizedState();
+        }, 100);
+    });
+    mainWindow.webContents.once('did-finish-load', sendMaximizedState);
 }
 
 function createTray() {

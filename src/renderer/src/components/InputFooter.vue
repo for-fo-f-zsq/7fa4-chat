@@ -82,7 +82,7 @@ const props = defineProps({
   inputDisabled: { type: Boolean, default: false }
 });
 
-const emit = defineEmits(['dropForward', 'openPreview']);
+const emit = defineEmits(['openPreview']);
 
 const inputText = ref('');
 const inputEl = ref(null);
@@ -486,11 +486,9 @@ function applyMentionAll() {
   });
 }
 
-// --- 拖拽 ---
+// --- 拖拽（仅保留系统文件拖入） ---
 function onInputDragOver(e) {
-  const hasMsg = e.dataTransfer?.types?.includes('application/x-chat-msg');
-  const hasFiles = e.dataTransfer?.types?.includes('Files');
-  if (hasMsg || hasFiles) {
+  if (e.dataTransfer?.types?.includes('Files')) {
     e.dataTransfer.dropEffect = 'copy';
     inputDragOver.value = true;
   }
@@ -503,26 +501,10 @@ function onInputDragLeave() {
 async function onInputDrop(e) {
   inputDragOver.value = false;
 
-  if (e.dataTransfer?.files?.length > 0 && !e.dataTransfer?.types?.includes('application/x-chat-msg')) {
+  // 仅保留系统文件拖入（dropFile）
+  if (e.dataTransfer?.files?.length > 0) {
     const file = e.dataTransfer.files[0];
     await sendDroppedFile(file);
-    return;
-  }
-
-  const raw = e.dataTransfer?.getData('application/x-chat-msg');
-  if (!raw) return;
-  const dragData = JSON.parse(raw);
-  if (dragData.isText) {
-    const obj = parseMsgContent(dragData.content);
-    if (obj && obj.content) {
-      inputText.value = obj.content;
-      nextTick(() => {
-        inputEl.value?.focus();
-        autoResizeTextarea();
-      });
-    }
-  } else {
-    emit('dropForward', { targetType: props.pageType, targetId: props.pageId, msgContent: dragData.content });
   }
 }
 
