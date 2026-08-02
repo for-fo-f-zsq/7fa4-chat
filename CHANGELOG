@@ -1,8 +1,8 @@
 <h2>3.1.3</h2>
 <ul>
-  <li><span class="change-tag fix">修复</span>修复自动登录存在的问题（保存的账号密码改为回填输入框、不再自动登录；密码明文存于本地加密存储）</li>
-  <li><span class="change-tag fix">修复</span>修复消息拖动功能存在的问题（图片恢复原生拖动，气泡区域保持文本选择）</li>
-  <li><span class="change-tag fix">修复</span>修复向上加载更早消息时界面闪烁的问题</li>
+  <li><span class="change-tag fix">修复</span>修复自动登录存在的问题</li>
+  <li><span class="change-tag fix">修复</span>修复消息拖动功能存在的问题</li>
+  <li><span class="change-tag fix">修复</span>修复消息滚动时闪烁的问题</li>
 </ul>
 <h2>3.1.2</h2>
 <ul>
