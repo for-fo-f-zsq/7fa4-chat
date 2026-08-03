@@ -50,19 +50,9 @@ const panelHeight = ref(230)
 const stripText = ref('')
 const stripError = ref(false)
 
-const BUILD = 'v5'
-let baseStrip = ''
-let outBytes = 0
-
 function setStrip(text, isErr) {
-  baseStrip = text
   stripText.value = text
   stripError.value = !!isErr
-}
-
-function bumpOutput(bytes) {
-  outBytes += bytes
-  stripText.value = `${baseStrip} · 已收到输出 ${outBytes} 字节`
 }
 
 let term = null
@@ -72,7 +62,6 @@ let themeObserver = null
 let unsubOutput = null
 let unsubExit = null
 let disposed = false
-let diagDone = false
 const pendingBuf = new Map()
 
 function themeColors() {
@@ -156,42 +145,16 @@ function initTerm() {
   try { fitAddon.fit() } catch {}
 }
 
-// 启动后做一次字体自检：实测浏览器对配置字体栈的解析结果
-function writeFontDiag() {
-  if (diagDone || !term) return
-  diagDone = true
-  try {
-    const c = document.createElement('canvas')
-    const ctx = c.getContext('2d')
-    ctx.font = '13px ' + FONT_FAMILY
-    const wW = ctx.measureText('W').width.toFixed(1)
-    const wI = ctx.measureText('i').width.toFixed(1)
-    const wZ = ctx.measureText('中').width.toFixed(1)
-    const cs = term._core?._charSizeService
-    const cellW = cs?.width ?? '?'
-    const ok = Math.abs(parseFloat(wW) - parseFloat(wI)) < 0.5
-    setStrip(`构建 ${BUILD} · ${ok ? '等宽正常' : '非等宽!'} W=${wW} i=${wI} 中=${wZ} 单元格=${cellW}px · shell=${shellType.value} · ${term.cols}x${term.rows}`)
-    const line = ok
-      ? `\x1b[2m[字体自检] 等宽正常 W=${wW}px i=${wI}px 中=${wZ}px 单元格=${cellW}px\x1b[0m\r\n`
-      : `\x1b[33m[字体警告] 渲染为非等宽 W=${wW}px i=${wI}px 中=${wZ}px 单元格=${cellW}px\x1b[0m\r\n`
-    write(line)
-  } catch (e) {
-    setStrip(`构建 ${BUILD} · 字体自检失败: ${e.message}`, true)
-  }
-}
-
 async function restart() {
   running.value = false
   try { await window.api.termStop() } catch {}
   termId.value = 0
   clearTerm()
-  setStrip(`构建 ${BUILD} · 正在连接 ${shellType.value}…`)
   try {
     const cols = term ? term.cols : 80
     const rows = term ? term.rows : 24
     const r = await window.api.termStart(shellType.value, props.cwd, cols, rows)
     if (r?.success) {
-      setStrip(`构建 ${BUILD} · 已连接 (id=${r.id ?? '?'}) · 等待输出…`)
       if (!r.id) {
         write('\r\n\x1b[33m[提示] 检测到旧版主进程（term-start 未返回进程 ID），终端输出可能无法显示。请完全退出应用后重新启动。\x1b[0m\r\n')
       }
@@ -199,20 +162,18 @@ async function restart() {
       running.value = true
       const buf = pendingBuf.get(r.id)
       if (buf) { write(buf); pendingBuf.delete(r.id) }
-      writeFontDiag()
       nextTick(() => term?.focus())
     } else {
-      setStrip(`构建 ${BUILD} · 启动失败: ${r?.error || '未知错误'}`, true)
+      setStrip(`启动失败: ${r?.error || '未知错误'}`, true)
       write('\r\n[终端启动失败] ' + (r?.error || '未知错误') + '\r\n')
     }
   } catch (e) {
-    setStrip(`构建 ${BUILD} · 启动异常: ${e?.message || String(e)}`, true)
+    setStrip(`启动异常: ${e?.message || String(e)}`, true)
     write('\r\n[终端启动失败] ' + (e?.message || String(e)) + '\r\n')
   }
 }
 
 onMounted(() => {
-  setStrip(`构建 ${BUILD} · 正在初始化…`)
   try {
     window.api.loadSetting().then((s) => {
       if (typeof s?.ideTerminalHeight === 'number' && s.ideTerminalHeight >= 100) {
@@ -220,21 +181,18 @@ onMounted(() => {
       }
     }).catch(() => {})
     if (!window.api?.termStart || !window.api?.onTermOutput) {
-      setStrip(`构建 ${BUILD} · 错误：preload 缺少终端 API，请完全退出应用重启`, true)
+      setStrip('错误：preload 缺少终端 API，请完全退出应用重启', true)
       return
     }
     initTerm()
-    setStrip(`构建 ${BUILD} · xterm 已挂载 · 连接 shell…`)
     unsubOutput = window.api.onTermOutput((d) => {
       if (!d?.id) {
         // 兼容旧版主进程：输出事件不带 id，直接显示
         const data = d?.data || ''
         write(data)
-        if (data) bumpOutput(data.length)
       } else if (d.id === termId.value) {
         const data = d.data || ''
         write(data)
-        if (data) bumpOutput(data.length)
       } else if (pendingBuf.size < 8) {
         pendingBuf.set(d.id, (pendingBuf.get(d.id) || '') + (d.data || ''))
       }
@@ -242,12 +200,11 @@ onMounted(() => {
     unsubExit = window.api.onTermExit((d) => {
       if (!d?.id || d.id !== termId.value) return
       running.value = false
-      setStrip(`构建 ${BUILD} · 进程已退出 (code=${d.exitCode ?? '?'})`)
       if (d?.error) write('\r\n[终端错误] ' + d.error + '\r\n')
     })
     restart()
   } catch (e) {
-    setStrip(`构建 ${BUILD} · 初始化异常: ${e?.message || String(e)}`, true)
+    setStrip(`初始化异常: ${e?.message || String(e)}`, true)
   }
 })
 
