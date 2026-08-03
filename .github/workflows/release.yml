@@ -41,7 +41,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build node-pty from source (Linux: pty.node + spawn-helper)
+      - name: Build node-pty from source for Linux
         if: matrix.platform == 'linux'
         # node-pty 无 linux prebuild，且 electron-builder rebuild 只产出 pty.node、
         # 不产出 Unix 终端必需的 spawn-helper；此处显式全目标编译（N-API，无需 ABI 重编）
