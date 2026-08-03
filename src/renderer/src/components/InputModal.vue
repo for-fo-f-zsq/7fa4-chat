@@ -25,6 +25,7 @@ const props = defineProps({
   visible: Boolean,
   title: { type: String, default: '提示' },
   placeholder: { type: String, default: '' },
+  initialValue: { type: String, default: '' },
   confirmText: { type: String, default: '确定' },
   cancelText: { type: String, default: '取消' }
 })
@@ -37,9 +38,10 @@ const inputRef = ref(null)
 // 监听 visible 变化：打开时清空输入框并自动聚焦
 watch(() => props.visible, async (newVal) => {
   if (newVal) {
-    inputValue.value = ''
+    inputValue.value = props.initialValue || ''
     await nextTick()
     inputRef.value?.focus()
+    inputRef.value?.select()
   }
 })
 

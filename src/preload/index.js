@@ -21,6 +21,11 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('window-maximized', handler);
     return () => ipcRenderer.removeListener('window-maximized', handler);
   },
+  onAppCtrlW: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('app-ctrl-w', handler);
+    return () => ipcRenderer.removeListener('app-ctrl-w', handler);
+  },
   getWindowState: () => ipcRenderer.invoke('get-window-state'),
   clipboardWriteText: (text) => ipcRenderer.invoke('clipboard-write-text', text),
   // --- 文件操作 (base64) ---
@@ -57,7 +62,10 @@ contextBridge.exposeInMainWorld('api', {
   toolListFiles: (workspace) => ipcRenderer.invoke('tool-list-files', workspace),
   toolReadFile: (workspace, relPath) => ipcRenderer.invoke('tool-read-file', workspace, relPath),
   toolReadImageFile: (workspace, relPath) => ipcRenderer.invoke('tool-read-image-file', workspace, relPath),
+  toolReadRawFile: (workspace, relPath) => ipcRenderer.invoke('tool-read-raw-file', workspace, relPath),
+  toolRenameFile: (workspace, oldRel, newName) => ipcRenderer.invoke('tool-rename-file', workspace, oldRel, newName),
   toolSaveImage: (workspace, relPath, base64Data) => ipcRenderer.invoke('tool-save-image', workspace, relPath, base64Data),
+  toolExportMarkdownToPng: (workspace, relPath, html) => ipcRenderer.invoke('tool-export-markdown-to-png', workspace, relPath, html),
   toolWriteFile: (workspace, relPath, content) => ipcRenderer.invoke('tool-write-file', workspace, relPath, content),
   toolCreateFile: (workspace, relPath) => ipcRenderer.invoke('tool-create-file', workspace, relPath),
   toolDeleteFile: (workspace, relPath) => ipcRenderer.invoke('tool-delete-file', workspace, relPath),

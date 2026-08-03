@@ -60,10 +60,12 @@ onMounted(() => {
     automaticLayout: true,
     minimap: { enabled: false },
     fontSize: 14,
+    letterSpacing: 0.8,
+    lineHeight: 22,
     lineNumbers: 'on',
     scrollBeyondLastLine: false,
     wordWrap: 'on',
-    tabSize: 2,
+    tabSize: 4,
     padding: { top: 10, bottom: 10 },
     scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 }
   })

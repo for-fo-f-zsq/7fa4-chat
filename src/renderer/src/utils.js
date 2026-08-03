@@ -503,7 +503,7 @@ function preprocessKatexBlock(text) {
   return result.join('\n')
 }
 
-export function parseMarkdown(text) {
+export function renderMarkdown(text) {
   if (!text) return ''
   return md.render(preprocessKatexBlock(text)).replace(/\n+$/, '')
 }
@@ -516,9 +516,9 @@ export function formatSize(bytes) {
 }
 
 export function parseContent(raw, senderId) {
-  if (!raw) return parseMarkdown(raw || '')
+  if (!raw) return renderMarkdown(raw || '')
   const obj = parseMsgContent(raw)
-  if (!obj) return parseMarkdown(raw)
+  if (!obj) return renderMarkdown(raw)
   if (obj.type === 'file') {
     const isImage = /^image\//.test(obj.mime || '') || /\.(jpg|jpeg|png|gif|bmp|webp|ico)$/i.test(obj.name || '')
     let dataUri = ''
@@ -527,7 +527,7 @@ export function parseContent(raw, senderId) {
       ? `<img class="chat-image" src="${esc(dataUri)}" data-base64="${esc(obj.data || '')}" data-mime="${esc(obj.mime || '')}">`
       : `<div class="file-msg" data-base64="${esc(obj.data || '')}" data-name="${esc(obj.name)}" data-mime="${esc(obj.mime || '')}">📄 ${esc(obj.name)} <span class="file-size">(${formatSize(obj.size)})</span></div>`
     if (obj.content && obj.content.trim()) {
-      fileHtml += '<div class="file-text-content">' + parseMarkdown(obj.content) + '</div>'
+      fileHtml += '<div class="file-text-content">' + renderMarkdown(obj.content) + '</div>'
     }
     return fileHtml
   }
@@ -548,7 +548,7 @@ export function parseContent(raw, senderId) {
       const replyContent = esc(obj.reply_content || '').slice(0, 80)
       html += '<div class="reply-quote" data-reply-id="' + obj.reply_to + '"><i class="fas fa-quote-left reply-quote-icon"></i><span class="reply-quote-text">' + replyContent + '</span></div>'
     }
-    html += parseMarkdown(obj.content || '')
+    html += renderMarkdown(obj.content || '')
     if (obj.mentions && obj.mentions.length) {
       for (const uid of obj.mentions) {
         if (uid === 'all') {
@@ -560,7 +560,7 @@ export function parseContent(raw, senderId) {
     }
     return html
   }
-  return parseMarkdown(raw)
+  return renderMarkdown(raw)
 }
 
 // ========== 会话标识与免打扰 ==========

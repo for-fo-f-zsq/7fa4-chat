@@ -70,7 +70,7 @@
 <script setup>
 import { ref, computed, nextTick, watch } from 'vue';
 import { store } from '../store.js';
-import { displayName, parseMsgContent, parseMarkdown, applyChatToStore, sendChatMessage, getConvoKey, formatSize, compressImage, compressBase64Image } from '../utils.js';
+import { displayName, parseMsgContent, renderMarkdown, applyChatToStore, sendChatMessage, getConvoKey, formatSize, compressImage, compressBase64Image } from '../utils.js';
 import EmojiPicker from './EmojiPicker.vue';
 import '../css/input-footer.css';
 
@@ -268,7 +268,7 @@ async function onPaste(e) {
 
 // --- Markdown 预览 ---
 function renderMdPreview() {
-  return parseMarkdown(inputText.value);
+  return renderMarkdown(inputText.value);
 }
 
 async function onEmojiSelect(emoji) {

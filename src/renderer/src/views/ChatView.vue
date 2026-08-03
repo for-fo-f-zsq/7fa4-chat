@@ -105,10 +105,12 @@
       @copy="onFavCopy"
       @download="onFavDownload"
     />
-    <MarkdownTool
+    <ToolsPage
       v-if="pageType==='tools'"
       class="fade-content"
       :class="{ 'fade-out': contentFading }"
+      :current-tool="currentTool"
+      @open-tool="currentTool = $event"
     />
     <SettingsPanel
       v-if="pageType==='settings'"
@@ -244,7 +246,7 @@ import AddFriendModal from '../components/AddFriendModal.vue';
 import GroupActionMenu from '../components/GroupActionMenu.vue';
 import SearchPanel from '../components/SearchPanel.vue';
 import FavoritesPanel from '../components/FavoritesPanel.vue';
-import MarkdownTool from '../components/MarkdownTool.vue';
+import ToolsPage from '../tools/ToolsPage.vue';
 import { useWindowControls } from '../composables/useWindowControls.js';
 import { useMuteConfirm } from '../composables/useMuteConfirm.js';
 import { useCurrentMessages } from '../composables/useCurrentMessages.js';
@@ -283,6 +285,7 @@ const collapsedMsgs = reactive({});
 const visibleCount = ref(20);
 const setting = ref({});
 const version = ref('');
+const currentTool = ref('list');
 const showCreateGroupModal = ref(false);
 const showAddFriendModal = ref(false);
 const allThemes = ['default', 'wechat', 'aurora', 'abyss', 'rose', 'lavender', 'mint', 'peach', 'amber', 'coral', 'sage', 'slate', 'obsidian', 'crimson', 'emerald', 'carbon', 'plasma', 'nord', 'dracula', 'monokai', 'cyberpunk', 'solarized'];
@@ -393,6 +396,23 @@ function startListResize(e) {
 
 // --- 页面导航 ---
 function switchPage(type) {
+  // “工具”入口：点击时进入工具列表；已在工具页（可能正打开某个工具）则回到列表
+  if (type === 'tools') {
+    if (pageType.value === 'tools') {
+      if (currentTool.value !== 'list') currentTool.value = 'list';
+      return;
+    }
+    groupModal.show = false;
+    pageType.value = 'tools';
+    pageId.value = null;
+    currentTool.value = 'list';
+    if (inputFooterRef.value) {
+      inputFooterRef.value.mentionVisible = false;
+      inputFooterRef.value.emojiVisible = false;
+    }
+    closeSearch();
+    return;
+  }
   if (pageType.value === type) return;
   // 'chat' 页面切换时，如果当前已在聊天页面，保留 pageType 不变
   if (type === 'chat' && isChatPage.value) return;

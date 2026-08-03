@@ -24,6 +24,22 @@
     align-items: center;
     gap: 8px;
 }
+.md-back-btn {
+    border: none;
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: var(--font-size-base);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all var(--duration-fast) ease;
+}
+.md-back-btn:hover { background: var(--accent-light); color: var(--accent); }
 .md-tool-title i { color: var(--accent); }
 .md-tool-sep { color: var(--text-secondary); font-weight: 400; }
 
@@ -82,6 +98,71 @@
     flex-shrink: 0;
 }
 .md-tool-error i { flex-shrink: 0; }
+
+/* ---- 工具列表页 ---- */
+.tools-page {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: linear-gradient(160deg, var(--bg-app), var(--bg-gradient-end));
+}
+.tools-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-light);
+    flex-shrink: 0;
+}
+.tools-header h2 {
+    font-size: var(--font-size-large);
+    font-weight: 500;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.tools-header h2 i { color: var(--accent); }
+.tools-grid {
+    padding: 20px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    overflow-y: auto;
+}
+.tool-card {
+    width: 240px;
+    padding: 20px;
+    border-radius: 12px;
+    background: var(--bg-app);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-card);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: all var(--duration-normal) ease;
+}
+.tool-card:hover {
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-2px);
+    border-color: var(--accent);
+}
+.tool-card > i { font-size: 28px; color: var(--accent); }
+.tool-card-name {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+.tool-card-desc {
+    font-size: var(--font-size-small);
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.ide-host {
+    flex: 1;
+    min-height: 0;
+}
 
 .md-tool-body {
     flex: 1;
@@ -239,6 +320,88 @@
     overflow: hidden;
 }
 
+.md-editor-col {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---- 多标签栏（VSCode 风格） ---- */
+.md-tabs {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    padding: 6px 10px 0;
+    background: var(--bg-sidebar);
+    border-bottom: 1px solid var(--border-light);
+    overflow-x: auto;
+    flex-shrink: 0;
+}
+.md-tab-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 8px 8px 0 0;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: var(--font-size-small);
+    border: 1px solid transparent;
+    border-bottom: none;
+    max-width: 200px;
+    flex-shrink: 0;
+    transition: background var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+.md-tab-item:hover { background: var(--bg-conversation-hover); color: var(--text-primary); }
+.md-tab-item.active {
+    background: var(--bg-app);
+    color: var(--text-primary);
+    border-color: var(--border-light);
+}
+.md-tab-item > i { flex-shrink: 0; font-size: 12px; }
+.md-tab-item.active > i { color: var(--accent); }
+.md-tab-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.md-tab-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+}
+.md-tab-close {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    flex-shrink: 0;
+}
+.md-tab-close:hover { background: var(--bg-conversation-active); color: var(--text-primary); }
+
+.md-editors {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    position: relative;
+}
+.md-editor-pane {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+}
+
 .md-editor-toolbar {
     display: flex;
     align-items: center;
@@ -319,6 +482,19 @@
 }
 .md-save-btn:hover { box-shadow: var(--shadow-btn-hover); }
 .md-save-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+.md-export-btn {
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    background: linear-gradient(135deg, var(--success), #43a047);
+    color: var(--text-on-accent);
+    font-size: var(--font-size-small);
+    cursor: pointer;
+    transition: all var(--duration-fast) ease;
+    white-space: nowrap;
+}
+.md-export-btn:hover { box-shadow: var(--shadow-btn-hover); }
+.md-export-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
 
 .md-editor-content {
     flex: 1;
@@ -490,17 +666,15 @@
 .img-canvas-wrap {
     flex: 1;
     min-height: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: block;
     overflow: auto;
     background: repeating-conic-gradient(#e2e4e8 0% 25%, #ffffff 0% 50%) 0 0 / 16px 16px;
     position: relative;
 }
 
 .img-canvas {
-    max-width: 100%;
-    max-height: 100%;
+    display: block;
+    margin: 0 auto;
     background: #ffffff;
     box-shadow: var(--shadow-card);
     cursor: crosshair;
@@ -536,4 +710,47 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* ---- PDF 查看器 ---- */
+.pdf-viewer {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+.pdf-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-light);
+    flex-shrink: 0;
+}
+.pdf-page-ind,
+.pdf-zoom-ind {
+    font-size: var(--font-size-small);
+    color: var(--text-secondary);
+    min-width: 52px;
+    text-align: center;
+}
+.pdf-wrap {
+    background: var(--bg-gradient-end);
+}
+.pdf-pages {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 0;
+    width: 100%;
+}
+.pdf-page {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+.pdf-page-canvas {
+    background: #ffffff;
+    box-shadow: var(--shadow-card);
 }

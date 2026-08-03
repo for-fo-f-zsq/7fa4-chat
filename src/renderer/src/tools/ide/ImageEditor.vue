@@ -23,10 +23,11 @@
       <button class="img-tool-btn" title="清除本次绘制" @click="clearCanvas"><i class="fas fa-trash"></i></button>
     </div>
 
-    <div class="img-canvas-wrap">
+    <div ref="wrapEl" class="img-canvas-wrap">
       <canvas
         ref="canvasEl"
         class="img-canvas"
+        :style="{ width: canvasStyleW + 'px', height: canvasStyleH + 'px' }"
         @pointerdown="onPointerDown"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"
@@ -46,7 +47,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   workspace: { type: String, required: true },
@@ -63,10 +64,11 @@ const tools = [
   { id: 'ellipse', title: '椭圆', icon: 'fas fa-circle' }
 ]
 
-const MAX_EDIT_DIM = 2048 // 超过该尺寸的图片拒绝编辑，防内存爆炸
-const UNDO_DEPTH = 10
+const MAX_EDIT_PIXELS = 20 * 1024 * 1024 // 2000 万像素上限
+const MAX_EDIT_SIDE = 20000 // 单边极端防护
 
 const canvasEl = ref(null)
+const wrapEl = ref(null)
 const tool = ref('brush')
 const color = ref('#ff0000')
 const size = ref(4)
@@ -79,6 +81,10 @@ const canUndo = ref(false)
 const width = ref(0)
 const height = ref(0)
 const mime = ref('image/png')
+const zoomScale = ref(1)
+
+const canvasStyleW = computed(() => Math.round(width.value * zoomScale.value))
+const canvasStyleH = computed(() => Math.round(height.value * zoomScale.value))
 
 let displayCanvas = null // 显示用：底图 + 绘制层合成
 let displayCtx = null
@@ -86,6 +92,7 @@ let baseCanvas = null // 原始图片层（橡皮不触碰）
 let editCanvas = null // 本次绘制层（橡皮只擦这一层）
 let editCtx = null
 const undoStack = []
+let undoDepth = 10 // 按像素数动态调整，防内存爆炸
 let drawing = false
 let startPos = { x: 0, y: 0 }
 let lastPos = { x: 0, y: 0 }
@@ -98,6 +105,14 @@ function getPos(e) {
   }
 }
 
+// Ctrl + 滚轮缩放（0.2x – 4x）
+function onWheel(e) {
+  if (!e.ctrlKey) return
+  e.preventDefault()
+  const f = e.deltaY < 0 ? 1.1 : 0.9
+  zoomScale.value = Math.max(0.2, Math.min(4, zoomScale.value * f))
+}
+
 function render() {
   displayCtx.clearRect(0, 0, displayCanvas.width, displayCanvas.height)
   displayCtx.drawImage(baseCanvas, 0, 0)
@@ -106,7 +121,7 @@ function render() {
 
 function pushUndo() {
   undoStack.push(editCtx.getImageData(0, 0, editCanvas.width, editCanvas.height))
-  if (undoStack.length > UNDO_DEPTH) undoStack.shift()
+  if (undoStack.length > undoDepth) undoStack.shift()
   canUndo.value = undoStack.length > 0
 }
 
@@ -242,6 +257,7 @@ onMounted(async () => {
   emit('dirty', false)
   displayCanvas = canvasEl.value
   displayCtx = displayCanvas.getContext('2d')
+  wrapEl.value?.addEventListener('wheel', onWheel, { passive: false })
   baseCanvas = document.createElement('canvas')
   editCanvas = document.createElement('canvas')
   editCtx = editCanvas.getContext('2d')
@@ -253,11 +269,14 @@ onMounted(async () => {
     }
     const img = new Image()
     img.onload = () => {
-      if (img.naturalWidth > MAX_EDIT_DIM || img.naturalHeight > MAX_EDIT_DIM) {
+      const pixels = img.naturalWidth * img.naturalHeight
+      if (pixels > MAX_EDIT_PIXELS || img.naturalWidth > MAX_EDIT_SIDE || img.naturalHeight > MAX_EDIT_SIDE) {
         loadError.value = `图片过大（${img.naturalWidth}×${img.naturalHeight}），暂不支持编辑`
         loading.value = false
         return
       }
+      // 超大图减少撤销深度：≤400万像素 10 步，≤1200万 5 步，更大 3 步
+      undoDepth = pixels > 12e6 ? 3 : pixels > 4e6 ? 5 : 10
       mime.value = r.mime
       width.value = img.naturalWidth
       height.value = img.naturalHeight
@@ -270,6 +289,13 @@ onMounted(async () => {
       editCanvas.width = w
       editCanvas.height = h
       baseCanvas.getContext('2d').drawImage(img, 0, 0)
+      // 初始缩放：大图适配容器，小图保持原始大小
+      const wrap = wrapEl.value
+      if (wrap) {
+        const cw = wrap.clientWidth || 800
+        const ch = wrap.clientHeight || 600
+        zoomScale.value = Math.max(0.1, Math.min(cw / w, ch / h, 1))
+      }
       pushUndo()
       render()
       loading.value = false
@@ -287,6 +313,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown)
+  wrapEl.value?.removeEventListener('wheel', onWheel)
 })
 
 defineExpose({ save })

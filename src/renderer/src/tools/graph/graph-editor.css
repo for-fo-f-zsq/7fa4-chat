@@ -1,0 +1,321 @@
+.graph-tool-host {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.graph-tool {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-app);
+}
+
+.graph-tool-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-light);
+    flex-shrink: 0;
+}
+
+.graph-tool-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--font-size-large);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.graph-tool-title > i { color: var(--accent); }
+
+.graph-tool-sep {
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.graph-back-btn {
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 4px;
+}
+
+.graph-back-btn:hover {
+    background: var(--bg-sidebar-hover);
+    color: var(--accent);
+}
+
+.graph-tool-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+.graph-side {
+    width: 284px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-light);
+}
+
+.graph-panel {
+    background: var(--bg-app);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.graph-panel-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.graph-panel-title i { color: var(--accent); }
+
+.graph-field-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.graph-field-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.graph-field-row .graph-field-label {
+    flex: 1;
+}
+
+.graph-textarea {
+    width: 100%;
+    resize: vertical;
+    box-sizing: border-box;
+    background: var(--bg-input);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    color: var(--text-primary);
+    padding: 8px;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.graph-textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.graph-select {
+    flex: 1;
+    min-width: 0;
+    background: var(--bg-input);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    color: var(--text-primary);
+    padding: 5px 8px;
+    font-size: 12px;
+}
+
+.graph-select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.graph-input {
+    width: 76px;
+    flex-shrink: 0;
+    background: var(--bg-input);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    color: var(--text-primary);
+    padding: 5px 8px;
+    font-size: 12px;
+    box-sizing: border-box;
+}
+
+.graph-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.graph-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.graph-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.graph-check input {
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.graph-btn-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.graph-btn {
+    flex: 1;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all var(--duration-normal) ease;
+}
+
+.graph-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.graph-btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.graph-btn.primary:hover {
+    opacity: 0.88;
+}
+
+.graph-info {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    word-break: break-all;
+}
+
+.graph-canvas-col {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.graph-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-light);
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+.graph-tool-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.graph-tool-divider {
+    width: 1px;
+    height: 22px;
+    background: var(--border-light);
+    margin: 0 2px;
+}
+
+.graph-tool-spacer {
+    flex: 1;
+}
+
+.graph-tool-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 30px;
+    padding: 0 9px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all var(--duration-fast) ease;
+}
+
+.graph-tool-btn:hover {
+    background: var(--bg-sidebar-hover);
+    color: var(--text-primary);
+}
+
+.graph-tool-btn.active {
+    background: var(--bg-sidebar-active);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.graph-tool-text {
+    font-size: 12px;
+}
+
+.graph-canvas-wrap {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+.graph-canvas-wrap canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    touch-action: none;
+}
+
+.graph-hint {
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border-light);
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.graph-hint i { color: var(--accent); margin-right: 6px; }

@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const express = require('express');
 const https = require('https');
 const http = require('http');
+const { pathToFileURL } = require('url');
 let autoUpdater;
 try { ({ autoUpdater } = require('electron-updater')); } catch { autoUpdater = null; }
 
@@ -109,6 +110,28 @@ function createWindow() {
             nodeIntegration: false,
             webSecurity: true,
             backgroundThrottling: false
+        }
+    });
+
+    // 统一应用级页面缩放快捷键：Ctrl/Cmd + = / + 放大，Ctrl/Cmd + - 缩小，Ctrl/Cmd + 0 复位
+    // （Electron 默认菜单的放大加速键只认 Ctrl+Plus，主键盘 = 不匹配，这里手动接管保证一致）
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+        if (input.type !== 'keyDown') return
+        if (!input.control && !input.meta) return
+        const key = String(input.key || '').toLowerCase()
+        if (key === '=' || key === '+') {
+            event.preventDefault()
+            mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() + 1)
+        } else if (key === '-') {
+            event.preventDefault()
+            mainWindow.webContents.setZoomLevel(mainWindow.webContents.getZoomLevel() - 1)
+        } else if (key === '0') {
+            event.preventDefault()
+            mainWindow.webContents.setZoomLevel(0)
+        } else if (key === 'w') {
+            // Ctrl/Cmd+W：不关闭整个应用，转给渲染层关闭当前 IDE 标签
+            event.preventDefault()
+            mainWindow.webContents.send('app-ctrl-w')
         }
     });
 
@@ -358,7 +381,7 @@ ipcMain.handle('clipboard-write-text', async (event, text) => {
     return { success: true };
 });
 
-// --- 文件操作 (base64) ---
+  // --- 文件操作 (base64) ---
 ipcMain.handle('select-file', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], title: '选择要发送的文件' });
     if (canceled || !filePaths.length) return { success: false, canceled: true };
@@ -811,6 +834,17 @@ function resolveInWorkspace(workspace, relPath) {
 const TOOL_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'out', '.idea', '.vscode']);
 const TOOL_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB，防止大文件卡死
 const TOOL_MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 图片最大 20MB
+const TOOL_MIME_MAP = {
+    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
+    '.bmp': 'image/bmp', '.webp': 'image/webp', '.ico': 'image/x-icon', '.svg': 'image/svg+xml',
+    '.pdf': 'application/pdf',
+    '.txt': 'text/plain', '.md': 'text/markdown', '.json': 'application/json', '.csv': 'text/csv',
+    '.doc': 'application/msword', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xls': 'application/vnd.ms-excel', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.ppt': 'application/vnd.ms-powerpoint', '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    '.zip': 'application/zip', '.rar': 'application/x-rar-compressed', '.7z': 'application/x-7z-compressed',
+    '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.mp4': 'video/mp4'
+};
 
 // 构建 VSCode 风格的目录树：目录在前、文件在后，按名称排序；跳过隐藏项与垃圾目录
 async function buildFileTree(dir, prefix) {
@@ -907,6 +941,31 @@ ipcMain.handle('tool-read-image-file', async (event, workspace, relPath) => {
     } catch (e) { return { success: false, error: e.message }; }
 });
 
+// 读取任意文件为 base64（用于 PDF 查看、文件发送等）
+ipcMain.handle('tool-read-raw-file', async (event, workspace, relPath) => {
+    try {
+        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
+        const buf = await fs.readFile(filePath);
+        const mime = TOOL_MIME_MAP[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
+        return { success: true, data: buf.toString('base64'), size: buf.length, mime };
+    } catch (e) { return { success: false, error: e.message }; }
+});
+
+// 工作区内重命名文件（只能改文件名，不能改路径/越界）
+ipcMain.handle('tool-rename-file', async (event, workspace, oldRel, newName) => {
+    try {
+        const oldPath = resolveInWorkspace(workspace || toolWorkspace, oldRel);
+        if (typeof newName !== 'string' || !newName.trim()) throw new Error('文件名无效');
+        const name = newName.trim();
+        if (name.includes('/') || name.includes('\\') || name === '.' || name === '..') throw new Error('文件名不能包含路径分隔符');
+        const newRel = oldRel.split('/').slice(0, -1).concat(name).join('/');
+        const newPath = resolveInWorkspace(workspace || toolWorkspace, newRel);
+        if (fsCb.existsSync(newPath)) throw new Error('目标文件已存在');
+        await fs.rename(oldPath, newPath);
+        return { success: true, path: newRel };
+    } catch (e) { return { success: false, error: e.message }; }
+});
+
 ipcMain.handle('tool-save-image', async (event, workspace, relPath, base64Data) => {
     try {
         const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
@@ -914,6 +973,87 @@ ipcMain.handle('tool-save-image', async (event, workspace, relPath, base64Data) 
         await fs.writeFile(filePath, Buffer.from(base64Data, 'base64'));
         return { success: true };
     } catch (e) { return { success: false, error: e.message }; }
+});
+
+// Markdown 导出为 PNG：隐藏窗口渲染 + 原生截图，结果写入同目录（.md -> .png）
+ipcMain.handle('tool-export-markdown-to-png', async (event, workspace, relPath, html) => {
+    let exportWin = null;
+    let tmpHtml = null;
+    try {
+        if (typeof html !== 'string') throw new Error('内容无效');
+        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
+        if (!/\.(md|markdown)$/i.test(path.basename(filePath))) throw new Error('仅支持导出 Markdown 文件');
+        const outPath = filePath.replace(/\.(md|markdown)$/i, '.png');
+
+        const WIDTH = 900;
+        const PAD = 28;
+        // 引入 KaTeX 样式与字体，保证公式排版正确（file:// 相对 css 解析字体）
+        const katexCssUrl = pathToFileURL(path.join(app.getAppPath(), 'node_modules/katex/dist/katex.min.css')).href;
+        const template = `<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="${katexCssUrl}">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { width: ${WIDTH}px; padding: ${PAD}px; background: #ffffff; color: #1a1a2e;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px; line-height: 1.7; overflow: hidden; }
+#content { width: 100%; }
+#content h1, #content h2, #content h3, #content h4, #content h5, #content h6 {
+  color: #1a1a2e; margin: 1em 0 0.5em; line-height: 1.3; }
+#content h1 { font-size: 1.7em; border-bottom: 1px solid #e2e4e8; padding-bottom: 0.3em; }
+#content h2 { font-size: 1.4em; border-bottom: 1px solid #e2e4e8; padding-bottom: 0.25em; }
+#content h3 { font-size: 1.2em; }
+#content p { margin: 0.6em 0; }
+#content ul, #content ol { padding-left: 1.6em; margin: 0.6em 0; }
+#content li { margin: 0.2em 0; }
+#content a { color: #2b6cb0; }
+#content blockquote { border-left: 3px solid #d0d2d8; padding-left: 12px; margin: 0.8em 0; color: #5a5c66; }
+#content code { background: #eef0f3; padding: 2px 6px; border-radius: 4px;
+  font-family: Consolas, Monaco, monospace; font-size: 0.9em; color: inherit; }
+#content pre { background: #f6f8fa; padding: 12px 14px; border-radius: 8px;
+  overflow-x: auto; margin: 0.8em 0; color: #24292e; }
+#content pre code { background: transparent; padding: 0; }
+#content table { border-collapse: collapse; margin: 0.8em 0; }
+#content th, #content td { border: 1px solid #e2e4e8; padding: 6px 12px; }
+#content th { background: #f2f4f7; }
+#content img { max-width: 100%; }
+#content hr { border: none; border-top: 1px solid #e2e4e8; margin: 1.2em 0; }
+</style></head><body><div id="content"></div></body></html>`;
+
+        tmpHtml = path.join(app.getPath('temp'), `7fa4-md-export-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.html`);
+        await fs.writeFile(tmpHtml, template, 'utf8');
+        exportWin = new BrowserWindow({
+            width: WIDTH + PAD * 2,
+            height: 600,
+            show: false,
+            frame: false,
+            webPreferences: {
+                sandbox: true,
+                contextIsolation: true,
+                nodeIntegration: false,
+                paintWhenInitiallyHidden: true,
+                backgroundThrottling: false
+            }
+        });
+        await exportWin.loadFile(tmpHtml);
+        await exportWin.webContents.executeJavaScript(`document.getElementById('content').innerHTML = ${JSON.stringify(html)};`);
+        await new Promise(r => setTimeout(r, 150));
+        const dims = await exportWin.webContents.executeJavaScript(
+            `JSON.stringify({ w: document.getElementById('content').scrollWidth, h: document.documentElement.scrollHeight })`
+        );
+        const { w, h } = JSON.parse(dims);
+        exportWin.setContentSize(Math.max(Math.round(w + PAD * 2), 1), Math.max(Math.round(h), 1));
+        await new Promise(r => setTimeout(r, 150));
+        const image = await exportWin.webContents.capturePage({ x: 0, y: 0, width: Math.round(w + PAD * 2), height: Math.round(h) });
+        if (image.isEmpty()) throw new Error('截图失败');
+        await fs.writeFile(outPath, image.toPNG());
+        return { success: true, path: outPath };
+    } catch (e) {
+        return { success: false, error: e.message || '导出失败' };
+    } finally {
+        if (exportWin && !exportWin.isDestroyed()) exportWin.destroy();
+        if (tmpHtml) { try { await fs.unlink(tmpHtml); } catch {} }
+    }
 });
 
 ipcMain.handle('tool-write-file', async (event, workspace, relPath, content) => {

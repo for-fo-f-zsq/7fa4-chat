@@ -5,11 +5,12 @@
         class="mdtree-row"
         :class="{
           dir: node.type === 'dir',
-          'file-md': node.type === 'file' && isMd(node.name),
+          'file-md': node.type === 'file' && isMarkdown(node.name),
           active: node.type === 'file' && node.path === currentFile
         }"
         :style="{ paddingLeft: (depth * 16 + 8) + 'px' }"
         @click="onClick(node)"
+        @contextmenu.prevent="onContext($event, node)"
       >
         <span v-if="node.type === 'dir'" class="mdtree-chevron" :class="{ open: isExpanded(node.path) }">
           <i class="fas fa-chevron-right"></i>
@@ -23,7 +24,7 @@
         <i v-else class="mdtree-icon" :class="fileIcon(node.name)"></i>
         <span class="mdtree-name">{{ node.name }}</span>
         <span
-          v-if="node.type === 'file' && isMd(node.name)"
+          v-if="node.type === 'file'"
           class="mdtree-del"
           title="删除文件"
           @click.stop="$emit('delete', node.path)"
@@ -40,6 +41,7 @@
           :expanded="expanded"
           @open="$emit('open', $event)"
           @delete="$emit('delete', $event)"
+          @context="$emit('context', $event)"
           @toggle="$emit('toggle', $event)"
         />
       </div>
@@ -57,16 +59,16 @@ const props = defineProps({
   expanded: { type: Set, default: () => new Set() }
 })
 
-const emit = defineEmits(['open', 'delete', 'toggle'])
+const emit = defineEmits(['open', 'delete', 'toggle', 'context'])
 
-const MD_RE = /\.(md|markdown)$/i
+const MARKDOWN_RE = /\.(md|markdown)$/i
 
-function isMd(name) {
-  return MD_RE.test(name || '')
+function isMarkdown(name) {
+  return MARKDOWN_RE.test(name || '')
 }
 
 function fileIcon(name) {
-  if (isMd(name)) return 'fas fa-file-alt'
+  if (isMarkdown(name)) return 'fas fa-file-alt'
   if (/\.(png|jpe?g|gif|bmp|webp|ico|svg)$/i.test(name)) return 'fas fa-file-image'
   if (/\.(zip|rar|7z|tar|gz)$/i.test(name)) return 'fas fa-file-archive'
   if (/\.(js|ts|json|css|html|vue|py|java|c|cpp|sh|yml|yaml)$/i.test(name)) return 'fas fa-file-code'
@@ -83,5 +85,9 @@ function onClick(node) {
     return
   }
   emit('open', node.path)
+}
+
+function onContext(e, node) {
+  if (node.type === 'file') emit('context', { node, x: e.clientX, y: e.clientY })
 }
 </script>
