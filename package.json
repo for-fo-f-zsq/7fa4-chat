@@ -1,6 +1,6 @@
 {
   "name": "7fa4-chat",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "7FA4 Chat",
   "main": "./out/main/index.js",
   "desktopName": "7fa4-chat.desktop",
@@ -41,6 +41,7 @@
   "build": {
     "appId": "com.7fa4.chat",
     "productName": "7FA4 Chat",
+    "npmRebuild": false,
     "directories": {
       "output": "build"
     },
