@@ -1,3 +1,7 @@
+<h2>3.2.2</h2>
+<ul>
+  <li><span class="change-tag fix">修复</span>修复 Linux 内置终端在 NOI Linux（Ubuntu 20.04）等旧系统上无法启动的问题</li>
+</ul>
 <h2>3.2.1</h2>
 <ul>
   <li><span class="change-tag fix">修复</span>修复 Linux 版内置终端无法启动的问题</li>

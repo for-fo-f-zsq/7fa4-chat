@@ -43,9 +43,12 @@ jobs:
 
       - name: Build node-pty from source for Linux
         if: matrix.platform == 'linux'
-        # node-pty 无 linux prebuild，且 electron-builder rebuild 只产出 pty.node、
-        # 不产出 Unix 终端必需的 spawn-helper；此处显式全目标编译（N-API，无需 ABI 重编）
-        run: npm rebuild node-pty --build-from-source
+        # node-pty 无 linux prebuild，需本地编译；且须在旧 glibc 环境编译，
+        # 否则 pty.node 依赖 glibc 2.34（ubuntu-latest=24.04），NOI Linux(20.04, glibc 2.31) 加载失败。
+        # node:22-bullseye = Debian 11 / glibc 2.31，产物兼容 20.04+。
+        run: |
+          docker run --rm -v "$PWD":/src -w /src node:22-bullseye bash -c \
+            "apt-get update -qq && apt-get install -y -qq python3 make g++ >/dev/null 2>&1 && npm rebuild node-pty --build-from-source"
 
       - name: Build renderer & main (electron-vite)
         run: npm run build
