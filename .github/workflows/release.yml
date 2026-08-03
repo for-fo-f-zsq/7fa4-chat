@@ -43,6 +43,9 @@ jobs:
 
       - name: Build renderer & main (electron-vite)
         run: npm run build
+        env:
+          # renderer 含 Monaco/pdfjs 等大依赖，默认 2GB 堆不够（mac/Linux runner 曾 OOM），放大堆上限
+          NODE_OPTIONS: --max-old-space-size=8192
 
       - name: Package (${{ matrix.platform }})
         run: npx electron-builder --${{ matrix.platform }} --publish never
