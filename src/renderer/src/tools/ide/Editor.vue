@@ -10,6 +10,7 @@
         </template>
         <span v-else-if="activeTab?.type === 'image'" class="md-plain-tag"><i class="fas fa-image"></i> 图片编辑</span>
         <span v-else-if="activeTab?.type === 'pdf'" class="md-plain-tag"><i class="fas fa-file-pdf"></i> PDF 查看</span>
+        <span v-else-if="activeTab?.type === 'cpp'" class="md-plain-tag"><i class="fas fa-code"></i> C++</span>
         <span v-else-if="activeTab" class="md-plain-tag"><i class="fas fa-file-code"></i> 纯文本</span>
       </div>
       <div class="md-editor-actions">
@@ -43,7 +44,7 @@
           :workspace="workspace"
           :rel-path="t.path"
         />
-        <div v-else class="md-editor-content" :class="{ split: t.type === 'md' && viewMode === 'both' }">
+        <div v-else class="md-editor-content" :class="{ split: t.type === 'md' && viewMode === 'both', 'cpp-layout': t.type === 'cpp' }">
           <div
             v-if="t.type !== 'md' || viewMode !== 'preview'"
             class="md-editor-monaco"
@@ -58,6 +59,21 @@
           </div>
           <div v-if="t.type === 'md' && viewMode === 'both'" class="md-split-resizer" @mousedown="startSplitResize"></div>
           <div v-if="t.type === 'md' && viewMode !== 'edit'" class="md-preview" v-html="renderMarkdown(t.content)"></div>
+          <CppRunner
+            v-if="t.type === 'cpp'"
+            v-show="cppVisible"
+            :style="{ width: cppWidth + 'px' }"
+            :source="t.content"
+            :tests="t.tests"
+            @update:tests="(v) => (t.tests = v)"
+          />
+          <div
+            v-if="t.type === 'cpp'"
+            class="cpp-resizer"
+            :class="{ collapsed: !cppVisible }"
+            title="拖动调整宽度（拖到最左隐藏，隐藏后向右拖回展开）"
+            @mousedown="startCppResize"
+          ></div>
         </div>
       </div>
       <div v-if="!tabs.length" class="md-no-file">
@@ -74,6 +90,7 @@ import { renderMarkdown } from '../../utils.js'
 import MonacoEditor from './MonacoEditor.vue'
 import ImageEditor from './ImageEditor.vue'
 import PDFViewer from './PDFViewer.vue'
+import CppRunner from './CppRunner.vue'
 import './ide-tool.css'
 
 const props = defineProps({
@@ -89,6 +106,8 @@ const activeTab = computed(() => tabs.value.find(t => t.path === activePath.valu
 const anyDirty = computed(() => tabs.value.some(t => t.dirty || t.imageDirty))
 const viewMode = ref('both')
 const splitLeftPct = ref(50)
+const cppWidth = ref(260)
+const cppVisible = ref(true)
 
 const IMAGE_RE = /\.(png|jpe?g|gif|bmp|webp|ico|svg)$/i
 const MARKDOWN_FILE_RE = /\.(md|markdown)$/i
@@ -110,6 +129,7 @@ const LANG_MAP = {
 function fileType(p) {
   if (IMAGE_RE.test(p)) return 'image'
   if (/\.pdf$/i.test(p)) return 'pdf'
+  if (/\.(cpp|cc|cxx|c\+\+)$/i.test(p)) return 'cpp'
   if (MARKDOWN_FILE_RE.test(p)) return 'md'
   return 'text'
 }
@@ -132,9 +152,10 @@ async function openFile(path) {
     type,
     content: '',
     dirty: false,
-    imageDirty: false
+    imageDirty: false,
+    tests: [{ input: '', expected: '' }]
   })
-  if (type === 'text' || type === 'md') {
+  if (type === 'text' || type === 'md' || type === 'cpp') {
     const r = await window.api.toolReadFile(props.workspace, path)
     if (!r.success) {
       alert('读取失败：' + r.error)
@@ -168,7 +189,7 @@ function setActivePath(path) {
 
 function saveActiveTab() {
   const t = activeTab.value
-  if (t && (t.type === 'text' || t.type === 'md')) saveTab(t)
+  if (t && (t.type === 'text' || t.type === 'md' || t.type === 'cpp')) saveTab(t)
 }
 
 async function saveTab(t) {
@@ -248,6 +269,50 @@ function startSplitResize(e) {
   document.addEventListener('mouseup', onUp)
 }
 
+function startCppResize(e) {
+  e.preventDefault()
+  const wasHidden = !cppVisible.value
+  const startX = e.clientX
+  const startW = cppVisible.value ? cppWidth.value : 0
+  const onMove = (ev) => {
+    const dx = ev.clientX - startX
+    if (wasHidden) {
+      // 隐藏态：向右拖出面板
+      if (dx > 20) {
+        cppVisible.value = true
+        cppWidth.value = Math.max(220, Math.min(520, 240 + dx))
+      }
+    } else {
+      const w = startW + dx
+      if (w < 150) {
+        cppVisible.value = false
+      } else {
+        cppVisible.value = true
+        cppWidth.value = Math.max(180, Math.min(520, w))
+      }
+    }
+  }
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    document.body.style.userSelect = ''
+    saveCppWidth()
+  }
+  document.body.style.userSelect = 'none'
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+}
+
+async function saveCppWidth() {
+  try {
+    const s = await window.api.loadSetting()
+    s.ideCppWidth = cppWidth.value
+    s.ideCppVisible = cppVisible.value
+    await window.api.saveSetting(s)
+  } catch {}
+}
+
+
 function onKeydown(e) {
   const t = activeTab.value
   // 图片/PDF 不由文本编辑器管理
@@ -263,6 +328,14 @@ let unsubCtrlW = null
 onMounted(() => {
   document.addEventListener('keydown', onKeydown)
   if (window.api?.onAppCtrlW) unsubCtrlW = window.api.onAppCtrlW(closeActiveTab)
+  window.api.loadSetting().then((s) => {
+    if (typeof s?.ideCppWidth === 'number' && s.ideCppWidth >= 180) {
+      cppWidth.value = s.ideCppWidth
+    }
+    if (typeof s?.ideCppVisible === 'boolean') {
+      cppVisible.value = s.ideCppVisible
+    }
+  }).catch(() => {})
 })
 
 onBeforeUnmount(() => {

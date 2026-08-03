@@ -12,6 +12,7 @@
         <span class="md-workspace-path" :title="workspace">{{ workspace || '尚未选择工作区' }}</span>
         <button class="md-ws-btn" @click="selectWorkspace"><i class="fas fa-exchange-alt"></i> 更换工作区</button>
         <button class="md-ws-btn" @click="refreshFiles" title="刷新文件列表"><i class="fas fa-sync-alt"></i> 刷新</button>
+        <button class="md-ws-btn" :class="{ active: terminalVisible }" title="内置终端（PowerShell / CMD）" @click="terminalVisible = !terminalVisible"><i class="fas fa-terminal"></i> 终端</button>
       </div>
     </div>
 
@@ -70,6 +71,8 @@
         />
       </div>
     </div>
+
+    <TerminalPanel v-if="terminalVisible" :cwd="workspace" @close="terminalVisible = false" />
   </div>
 
   <ContextMenu
@@ -108,6 +111,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { sendChatMessage } from '../../utils.js'
 import MdFileTree from './MdFileTree.vue'
 import Editor from './Editor.vue'
+import TerminalPanel from './TerminalPanel.vue'
 import ContextMenu from '../../components/ContextMenu.vue'
 import ForwardModal from '../../components/ForwardModal.vue'
 import InputModal from '../../components/InputModal.vue'
@@ -122,6 +126,7 @@ const treeWidth = ref(240)
 const treeVisible = ref(true)
 const apiMissing = ref(false)
 const editorRef = ref(null)
+const terminalVisible = ref(false)
 
 const fileCtx = reactive({ show: false, x: 0, y: 0, node: null })
 const forwardModalVisible = ref(false)
@@ -215,7 +220,14 @@ function startTreeResize(e) {
   const startX = e.clientX
   const startW = treeWidth.value
   const onMove = (ev) => {
-    treeWidth.value = Math.max(160, Math.min(420, startW + (ev.clientX - startX)))
+    const w = startW + (ev.clientX - startX)
+    if (w < 140) {
+      // 拖到最左：隐藏文件树
+      treeVisible.value = false
+    } else {
+      treeVisible.value = true
+      treeWidth.value = Math.max(160, Math.min(420, w))
+    }
   }
   const onUp = () => {
     document.removeEventListener('mousemove', onMove)

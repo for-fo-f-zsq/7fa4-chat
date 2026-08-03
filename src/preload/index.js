@@ -69,4 +69,20 @@ contextBridge.exposeInMainWorld('api', {
   toolWriteFile: (workspace, relPath, content) => ipcRenderer.invoke('tool-write-file', workspace, relPath, content),
   toolCreateFile: (workspace, relPath) => ipcRenderer.invoke('tool-create-file', workspace, relPath),
   toolDeleteFile: (workspace, relPath) => ipcRenderer.invoke('tool-delete-file', workspace, relPath),
+  runCppTests: (source, tests, timeLimitMs, gppPath) => ipcRenderer.invoke('cpp-run', { source, tests, timeLimitMs, gppPath }),
+  getCppGppPath: (customPath) => ipcRenderer.invoke('cpp-gpp-path', customPath),
+  termStart: (shellType, cwd, cols, rows) => ipcRenderer.invoke('term-start', shellType, cwd, cols, rows),
+  termWrite: (text) => ipcRenderer.invoke('term-write', text),
+  termResize: (cols, rows) => ipcRenderer.invoke('term-resize', cols, rows),
+  termStop: () => ipcRenderer.invoke('term-stop'),
+  onTermOutput: (callback) => {
+    const handler = (event, data) => callback(data);
+    ipcRenderer.on('term-output', handler);
+    return () => ipcRenderer.removeListener('term-output', handler);
+  },
+  onTermExit: (callback) => {
+    const handler = (event, data) => callback(data);
+    ipcRenderer.on('term-exit', handler);
+    return () => ipcRenderer.removeListener('term-exit', handler);
+  },
 });

@@ -8,7 +8,7 @@
         <div class="tool-card" @click="$emit('openTool', 'ide')">
           <i class="fas fa-wrench"></i>
           <div class="tool-card-name">IDE</div>
-          <div class="tool-card-desc">文件浏览与管理，Markdown 编辑/预览，图片编辑，PDF 阅读</div>
+          <div class="tool-card-desc">文件浏览与管理；Monaco 代码编辑；Markdown 编辑/预览/导出；图片编辑；PDF 阅读；C++ 本地编译判题</div>
         </div>
         <div class="tool-card" @click="$emit('openTool', 'graph_editor')">
           <i class="fas fa-project-diagram"></i>

@@ -7,7 +7,10 @@ const crypto = require('crypto');
 const express = require('express');
 const https = require('https');
 const http = require('http');
+const { spawn } = require('child_process');
 const { pathToFileURL } = require('url');
+let ptyLib = null;
+try { ptyLib = require('node-pty'); } catch (e) { ptyLib = null; }
 let autoUpdater;
 try { ({ autoUpdater } = require('electron-updater')); } catch { autoUpdater = null; }
 
@@ -1082,4 +1085,233 @@ ipcMain.handle('tool-delete-file', async (event, workspace, relPath) => {
         await fs.unlink(filePath);
         return { success: true };
     } catch (e) { return { success: false, error: e.message }; }
+});
+
+// ---------------- C++ 本地编译判题 (cph-ng 核心能力) ----------------
+function findGpp() {
+    const pathEnv = process.env.PATH || '';
+    const isWin = process.platform === 'win32';
+    const exts = isWin ? ['.exe', '.bat', '.cmd', ''] : [''];
+    for (const dir of pathEnv.split(path.delimiter)) {
+        if (!dir) continue;
+        for (const ext of exts) {
+            const p = path.join(dir, 'g++' + ext);
+            if (fsCb.existsSync(p)) return p;
+        }
+    }
+    const common = isWin ? [
+        'C:\\Program Files\\RedPanda-Cpp\\mingw64\\bin\\g++.exe',
+        'C:\\Program Files\\CodeBlocks\\MinGW\\bin\\g++.exe',
+        'C:\\MinGW\\bin\\g++.exe',
+        'C:\\msys64\\mingw64\\bin\\g++.exe',
+        'C:\\msys64\\ucrt64\\bin\\g++.exe',
+        'C:\\TDM-GCC-64\\bin\\g++.exe',
+        'C:\\Program Files\\mingw-w64\\x86_64-8.1.0-posix-seh-rt_v6-rev0\\mingw64\\bin\\g++.exe',
+        'C:\\Program Files\\mingw-w64\\x86_64-posix-seh-rt_v6-rev0\\mingw64\\bin\\g++.exe'
+    ] : ['/usr/bin/g++', '/usr/local/bin/g++', '/opt/homebrew/bin/g++'];
+    for (const p of common) if (fsCb.existsSync(p)) return p;
+    return null;
+}
+
+// 解析 g++ 路径：customPath 非空则校验该路径，否则自动查找
+function resolveGpp(customPath) {
+    if (typeof customPath === 'string' && customPath.trim()) {
+        const p = customPath.trim();
+        if (!fsCb.existsSync(p)) {
+            return { ok: false, error: '指定的 g++ 路径不存在: ' + p };
+        }
+        return { ok: true, gpp: p };
+    }
+    const gpp = findGpp();
+    if (!gpp) return { ok: false, error: '未找到 g++ 编译器。请安装 MinGW-w64（如 RedPanda C++ / Code::Blocks / MSYS2），或在上方手动指定 g++ 路径。' };
+    return { ok: true, gpp };
+}
+
+ipcMain.handle('cpp-gpp-path', (event, customPath) => {
+    const r = resolveGpp(customPath);
+    return r.ok ? { success: true, gpp: r.gpp } : { success: false, error: r.error };
+});
+
+function runProcess(exe, args, input, timeoutMs) {
+    return new Promise((resolve) => {
+        const child = spawn(exe, args, {
+            windowsHide: true,
+            stdio: ['pipe', 'pipe', 'pipe']
+        });
+        let stdout = '';
+        let stderr = '';
+        let timedOut = false;
+        const timer = setTimeout(() => {
+            timedOut = true;
+            try { child.kill('SIGKILL'); } catch {}
+        }, timeoutMs);
+        child.stdout.on('data', d => { stdout += d.toString('utf8'); });
+        child.stderr.on('data', d => { stderr += d.toString('utf8'); });
+        child.on('error', err => {
+            clearTimeout(timer);
+            resolve({ timedOut, error: err.message, stdout, stderr });
+        });
+        child.on('close', (code) => {
+            clearTimeout(timer);
+            resolve({ timedOut, code, stdout, stderr });
+        });
+        if (input) child.stdin.write(input);
+        child.stdin.end();
+    });
+}
+
+// 判题输出比较：去掉每行行尾空白与文件末尾空行，其余逐字节比较（OI/ACM 惯例）
+function normalizeOutput(s) {
+    return String(s || '')
+        .replace(/\r\n/g, '\n')
+        .split('\n')
+        .map(l => l.replace(/\s+$/, ''))
+        .join('\n')
+        .replace(/\n+$/, '');
+}
+
+ipcMain.handle('cpp-run', async (event, payload) => {
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), '7fa4-cph-'));
+    try {
+        if (!payload || typeof payload.source !== 'string') {
+            return { success: false, error: '源代码无效' };
+        }
+        const tests = Array.isArray(payload.tests) ? payload.tests : [];
+        if (!tests.length) {
+            return { success: false, error: '请至少添加一个测试用例' };
+        }
+        const gppRes = resolveGpp(payload.gppPath);
+        if (!gppRes.ok) return { success: false, error: gppRes.error };
+        const gpp = gppRes.gpp;
+        const srcPath = path.join(tmpDir, 'main.cpp');
+        const exePath = path.join(tmpDir, process.platform === 'win32' ? 'main.exe' : 'main');
+        await fs.writeFile(srcPath, payload.source, 'utf8');
+
+        // 编译（带 30s 超时）
+        const compileArgs = ['-std=c++17', '-O2', '-Wall', srcPath, '-o', exePath];
+        const compileRes = await runProcess(gpp, compileArgs, null, 30000);
+        if (compileRes.error) {
+            return { success: false, error: '无法启动编译器: ' + compileRes.error };
+        }
+        if (compileRes.timedOut) {
+            return { success: false, error: '编译超时（30 秒）' };
+        }
+        if (compileRes.code !== 0) {
+            return { success: true, gpp, compileError: compileRes.stdout + compileRes.stderr };
+        }
+
+        // 逐样例运行
+        const results = [];
+        const timeLimit = Math.max(500, Math.min(10000, Number(payload.timeLimitMs) || 2000));
+        for (let i = 0; i < tests.length; i++) {
+            const t = tests[i] || {};
+            const input = String(t.input || '');
+            const expected = String(t.expected || '');
+            const start = Date.now();
+            const run = await runProcess(exePath, [], input, timeLimit);
+            const timeMs = Date.now() - start;
+            const actual = run.stdout;
+            let status;
+            if (run.timedOut) status = 'TLE';
+            else if (run.error || run.code !== 0) status = 'RE';
+            else if (normalizeOutput(actual) === normalizeOutput(expected)) status = 'AC';
+            else status = 'WA';
+            results.push({
+                status,
+                timeMs,
+                actual,
+                expected,
+                exitCode: run.code,
+                stderr: run.stderr
+            });
+        }
+        return { success: true, gpp, results };
+    } catch (e) {
+        return { success: false, error: e.message || '运行失败' };
+    } finally {
+        try { await fs.rm(tmpDir, { recursive: true, force: true }); } catch {}
+    }
+});
+
+// ---------------- 内置终端 (node-pty 真终端：PowerShell / CMD / Bash) ----------------
+let termPty = null;
+let termPtyIdCounter = 0;
+
+function getTermShell(type) {
+    const isWin = process.platform === 'win32';
+    const t = String(type || '').toLowerCase();
+    if (t === 'powershell') return isWin ? { file: 'powershell.exe', args: [] } : { file: 'pwsh', args: [] };
+    if (t === 'cmd') return { file: 'cmd.exe', args: [] };
+    if (t === 'zsh') return { file: 'zsh', args: [] };
+    if (t === 'bash') return { file: 'bash', args: [] };
+    return isWin ? { file: 'cmd.exe', args: [] } : { file: 'bash', args: [] };
+}
+
+function broadcastToWindows(channel, data) {
+    for (const w of BrowserWindow.getAllWindows()) {
+        if (!w.isDestroyed()) w.webContents.send(channel, data);
+    }
+}
+
+function stopTermPty() {
+    if (termPty) {
+        try { termPty.kill(); } catch {}
+        termPty = null;
+    }
+}
+
+function startTermPty(shellType, cwd, cols, rows) {
+    stopTermPty();
+    if (!ptyLib) return { success: false, error: 'node-pty 未加载，无法启动终端' };
+    const id = ++termPtyIdCounter;
+    const { file, args } = getTermShell(shellType);
+    let p;
+    try {
+        p = ptyLib.spawn(file, args, {
+            name: 'xterm-256color',
+            cols: Math.max(20, Math.min(300, Number(cols) || 80)),
+            rows: Math.max(5, Math.min(100, Number(rows) || 24)),
+            cwd: (typeof cwd === 'string' && fsCb.existsSync(cwd)) ? cwd : os.homedir(),
+            env: process.env
+        });
+    } catch (e) {
+        return { success: false, error: '无法启动终端: ' + e.message };
+    }
+    termPty = p;
+    p.onData((data) => broadcastToWindows('term-output', { id, data }));
+    p.onExit(({ exitCode, signal }) => {
+        broadcastToWindows('term-exit', { id, exitCode, signal });
+        if (termPty === p) termPty = null;
+    });
+    return { success: true, id };
+}
+
+ipcMain.handle('term-start', (event, shellType, cwd, cols, rows) => startTermPty(shellType, cwd, cols, rows));
+
+ipcMain.handle('term-write', (event, text) => {
+    if (!termPty) return { success: false, error: '终端未启动' };
+    try {
+        termPty.write(String(text));
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+    return { success: true };
+});
+
+ipcMain.handle('term-resize', (event, cols, rows) => {
+    if (!termPty) return { success: false, error: '终端未启动' };
+    try {
+        termPty.resize(
+            Math.max(20, Math.min(300, Number(cols) || 80)),
+            Math.max(5, Math.min(100, Number(rows) || 24))
+        );
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+    return { success: true };
+});
+
+ipcMain.handle('term-stop', () => {
+    stopTermPty();
+    return { success: true };
 });

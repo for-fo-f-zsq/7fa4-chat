@@ -1,3 +1,10 @@
+<h2>3.2.0</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>新增「工具」板块</li>
+  <li><span class="change-tag new">新功能</span>新增「工具」:IDE</li>
+  <li><span class="change-tag new">新功能</span>新增「工具」:Graph Editor</li>
+  <li><span class="change-tag new">新功能</span>新增「工具」:计算器</li>
+</ul>
 <h2>3.1.3</h2>
 <ul>
   <li><span class="change-tag fix">修复</span>修复自动登录存在的问题</li>

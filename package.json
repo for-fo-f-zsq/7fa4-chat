@@ -1,6 +1,6 @@
 {
   "name": "7fa4-chat",
-  "version": "3.1.3",
+  "version": "3.2.0",
   "description": "7FA4 Chat",
   "main": "./out/main/index.js",
   "desktopName": "7fa4-chat.desktop",
@@ -23,6 +23,8 @@
     "electron-vite": "^5.0.0"
   },
   "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "bytenode": "^1.6.0",
     "electron-builder-sandbox-fix": "^1.1.1",
     "electron-updater": "^6.8.9",
@@ -32,6 +34,7 @@
     "markdown-it": "^14.1.1",
     "md5": "^2.3.0",
     "monaco-editor": "^0.56.0",
+    "node-pty": "^1.1.0",
     "pdfjs-dist": "^6.2.108",
     "vue": "^3.5.13"
   },
@@ -118,6 +121,9 @@
       "warningsAsErrors": false
     },
     "asar": true,
+    "asarUnpack": [
+      "node_modules/node-pty/prebuilds/**/*"
+    ],
     "extraMetadata": {
       "main": "./out/main/loader.js"
     },
@@ -125,6 +131,7 @@
       "out/**/*",
       "package.json",
       "!node_modules/.cache",
+      "!node_modules/node-pty/prebuilds/**/*.pdb",
       "!src",
       "node_modules/**/*"
     ],
