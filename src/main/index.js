@@ -54,6 +54,10 @@ function startServer() {
         target: currentApiUrl + ':8888/api',
         changeOrigin: true
     }));
+    serverApp.use('/logout', createProxyMiddleware({
+        target: currentApiUrl + ':8888/logout',
+        changeOrigin: true
+    }));
     serverApp.use('/chat', createProxyMiddleware({
         target: currentApiUrl + ':8888/chat',
         changeOrigin: true
@@ -842,6 +846,18 @@ function encryptVisitPayload(info) {
         data: data.toString('base64')
     });
 }
+
+// 退出登录：清除会话 cookie（含 HttpOnly），渲染进程 document.cookie 无法删除 HttpOnly cookie
+ipcMain.handle('clear-session-cookies', async () => {
+    try {
+        const ses = session.defaultSession;
+        if (ses) {
+            await ses.cookies.flushStore();
+            await ses.clearStorageData({ storages: ['cookies'] });
+        }
+        return { success: true };
+    } catch (e) { return { success: false, error: e.message || '清除失败' }; }
+});
 
 ipcMain.handle('report-visit', async (event, info) => {
     try {

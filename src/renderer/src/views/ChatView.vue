@@ -225,7 +225,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, startVisitReport, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage } from '../utils.js';
+import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, startVisitReport, stopVisitReport, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage } from '../utils.js';
 
 import NavBar from '../components/NavBar.vue';
 import ConversationList from '../components/ConversationList.vue';
@@ -1176,15 +1176,20 @@ async function saveData() {
 }
 
 async function logout() {
-  // 先停止轮询，防止异步操作继续往 store 写数据
+  // 先停止轮询与后台任务，防止异步操作继续往 store 写数据
   infoLoopRunning = false;
   if (pollTimer) clearInterval(pollTimer);
   if (autoSaveTimer) clearInterval(autoSaveTimer);
+  stopRanklistFetch(); // 停止 ranklist 轮询（退登结束，重新登录后自动重启）
+  stopVisitReport();   // 停止访问统计上报定时器
   // 等待可能正在执行的异步操作完成
   await new Promise(r => setTimeout(r, 100));
   // 退出前先保存当前数据
   await saveData();
-  document.cookie = '';
+  // 服务端登出：POST /logout 销毁服务器会话，并由服务器返回 Set-Cookie 删除有效 cookie
+  try { await fetch('/logout', { method: 'POST' }) } catch {}
+  // 本地兜底：清除会话 cookie（含 HttpOnly，渲染进程 document.cookie 无法删除）
+  try { await window.api.clearSessionCookies(); } catch {}
   const s = await window.api.loadSetting();
   s.keepLogin = false;
   s.loginUsername = '';

@@ -358,6 +358,14 @@ export function startVisitReport() {
   _visitTimer = setInterval(_reportVisit, 10 * 60 * 1000)
 }
 
+// 退出登录：停止上报定时器，重新登录后 startVisitReport 可再次启动
+export function stopVisitReport() {
+  if (_visitTimer) {
+    clearInterval(_visitTimer)
+    _visitTimer = null
+  }
+}
+
 // ========== 用户信息爬取（ranklist） ==========
 let _ranklistFetching = false
 let _ranklistTimer = null
@@ -367,6 +375,15 @@ export function startRanklistFetch() {
   if (_ranklistTimer) return
   _doFetchRanklist()
   _ranklistTimer = setInterval(_doFetchRanklist, 10 * 60 * 1000)
+}
+
+// 退出登录：停止 ranklist 轮询，重新登录后 startRanklistFetch 可再次启动
+export function stopRanklistFetch() {
+  if (_ranklistTimer) {
+    clearInterval(_ranklistTimer)
+    _ranklistTimer = null
+  }
+  _ranklistFetching = false
 }
 
 async function _doFetchRanklist() {

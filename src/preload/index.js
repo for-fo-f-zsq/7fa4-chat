@@ -58,6 +58,7 @@ contextBridge.exposeInMainWorld('api', {
   getDocumentsPath: () => ipcRenderer.invoke('get-documents-path'),
   loadUsersDb: () => ipcRenderer.invoke('load-users-db'),
   reportVisit: (info) => ipcRenderer.invoke('report-visit', info),
+  clearSessionCookies: () => ipcRenderer.invoke('clear-session-cookies'),
   selectWorkspace: () => ipcRenderer.invoke('select-workspace'),
   toolSetWorkspace: (dir) => ipcRenderer.invoke('tool-set-workspace', dir),
   toolListFiles: (workspace) => ipcRenderer.invoke('tool-list-files', workspace),
