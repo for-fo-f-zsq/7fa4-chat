@@ -219,6 +219,29 @@
 }
 .md-icon-btn:hover { background: var(--bg-conversation-hover); color: var(--accent); }
 
+.md-file-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border-light);
+    flex-shrink: 0;
+}
+.md-file-search .fa-search { color: var(--text-secondary); font-size: var(--font-size-small); }
+.md-file-search input {
+    flex: 1;
+    min-width: 0;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: var(--font-size-small);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    outline: none;
+}
+.md-file-search input:focus { border-color: var(--accent); }
+.md-file-search .md-icon-btn { width: 22px; height: 22px; }
+
 .md-tree-resizer {
     flex-shrink: 0;
     width: 5px;

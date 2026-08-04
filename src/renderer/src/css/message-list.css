@@ -124,6 +124,15 @@
     overflow-wrap: break-word;
     box-shadow: var(--shadow-bubble), inset 0 1px 0 var(--border-3d-light);
     border: 1px solid var(--border-3d-dark);
+    /* 宽度跟随内容，避免短消息被拉伸到与上方名字/时间同宽 */
+    align-self: flex-start;
+    width: fit-content;
+}
+.right .bubble {
+    align-self: flex-end;
+}
+.msg-row:has(.pat-msg) .bubble {
+    align-self: center;
 }
 .bubble:hover {
     box-shadow: var(--shadow-bubble-hover), inset 0 1px 0 var(--border-3d-light);
@@ -137,6 +146,57 @@
     border: 1px solid var(--border-self-bubble);
 }
 .left .bubble { border-bottom-left-radius: 4px; }
+
+/* 图片/表情/文件消息不显示气泡框（微信风格：内容直接展示）
+   仅当气泡内只有图片/表情/文件（不含 file-text-content 文字）时生效 */
+.msg-row:has(.chat-image):not(:has(.file-text-content)) .bubble,
+.msg-row:has(.sticker-msg):not(:has(.file-text-content)) .bubble,
+.msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble,
+.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+}
+.msg-row:has(.chat-image):not(:has(.file-text-content)) .bubble::before,
+.msg-row:has(.chat-image):not(:has(.file-text-content)) .bubble::after,
+.msg-row:has(.sticker-msg):not(:has(.file-text-content)) .bubble::before,
+.msg-row:has(.sticker-msg):not(:has(.file-text-content)) .bubble::after,
+.msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble::before,
+.msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble::after,
+.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble::before,
+.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble::after {
+    display: none;
+}
+.msg-row:has(.chat-image):not(:has(.file-text-content)) .bubble:hover,
+.msg-row:has(.sticker-msg):not(:has(.file-text-content)) .bubble:hover,
+.msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble:hover,
+.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble:hover {
+    transform: none;
+    box-shadow: none;
+}
+/* 去框后消除行高带来的底部空隙 */
+.msg-row:has(.chat-image):not(:has(.file-text-content)) .bubble-content,
+.msg-row:has(.sticker-msg):not(:has(.file-text-content)) .bubble-content,
+.msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble-content,
+.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content {
+    line-height: 0;
+    font-size: 0;
+}
+.msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble-content .emoji-msg {
+    font-size: 64px;
+    line-height: 1.2;
+}
+.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content .file-msg {
+    font-size: var(--font-size-base, 14px);
+    line-height: 1.4;
+}
+.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content .file-msg-name {
+    font-size: var(--font-size-base, 14px);
+}
+.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content .file-msg-size {
+    font-size: var(--font-size-small);
+}
 
 .left .bubble::before {
     content: '';
@@ -234,21 +294,47 @@
 }
 
 .file-msg {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
+    gap: 12px;
+    min-width: 180px;
+    max-width: 100%;
+    padding: 10px 14px;
     background: var(--bg-conversation-hover);
     border-radius: var(--radius);
     cursor: pointer;
     border: 1px solid var(--border-3d-dark);
-    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s;
-    max-width: 100%;
-    word-break: break-all;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
     box-shadow: var(--shadow-input);
 }
-.file-msg:hover { background: var(--bg-conversation-active); border-color: var(--accent); box-shadow: 0 3px 10px var(--gradient-accent), inset 0 1px 0 var(--border-3d-light); transform: translateY(-1px); }
-.file-size { color: var(--text-secondary); font-size: var(--font-size-small); }
+.file-msg:hover { background: var(--bg-conversation-active); border-color: var(--accent); box-shadow: 0 3px 10px var(--gradient-accent), inset 0 1px 0 var(--border-3d-light); }
+.file-msg-icon {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    border-radius: 8px;
+    background: var(--bg-app);
+    border: 1px solid var(--border-light);
+}
+.file-msg-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.file-msg-name {
+    font-size: var(--font-size-base, 14px);
+    color: var(--text-primary);
+    word-break: break-all;
+    line-height: 1.4;
+}
+.file-msg-size { font-size: var(--font-size-small); color: var(--text-secondary); }
+.right .file-msg-name { color: var(--message-self-text); }
 .file-text-content {
   margin-top: 8px;
   padding-top: 8px;
@@ -263,7 +349,7 @@
 .file-text-content pre code { background: transparent; padding: 0; }
 .right .file-text-content { color: var(--message-self-text); }
 .right .file-text-content code { background: var(--bg-code-inline-self); }
-.chat-image { max-width: 240px; height: 200px; cursor: pointer; }
+.chat-image { max-width: 240px; height: 200px; cursor: pointer; border-radius: 6px; }
 .emoji-msg { font-size: 64px; line-height: 1.2; display: inline-block; }
 .sticker-msg { display: inline-block; line-height: 1.2; }
 .sticker-msg img { height: 100px; max-width: 100%; object-fit: contain; vertical-align: middle; }

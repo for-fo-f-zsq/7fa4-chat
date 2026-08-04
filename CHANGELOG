@@ -1,3 +1,9 @@
+<h2>3.2.3</h2>
+<ul>
+  <li><span class="change-tag improve">优化</span>优化消息样式</li>
+  <li><span class="change-tag improve">优化</span>优化文件树功能</li>
+  <li><span class="change-tag improve">更新</span>成员年级信息更新</li>
+</ul>
 <h2>3.2.2</h2>
 <ul>
   <li><span class="change-tag fix">修复</span>修复 Linux 内置终端在 NOI Linux（Ubuntu 20.04）等旧系统上无法启动的问题</li>

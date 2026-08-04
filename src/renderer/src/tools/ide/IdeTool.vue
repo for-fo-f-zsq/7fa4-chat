@@ -26,19 +26,28 @@
         <div class="md-file-list-header">
           <span class="md-file-list-title">文件 ({{ fileCount }})</span>
           <div class="md-file-list-actions">
-            <button class="md-icon-btn" title="新建文件" @click="createFile"><i class="fas fa-plus"></i></button>
+            <button class="md-icon-btn" title="新建文件" @click="createFile()"><i class="fas fa-plus-square"></i></button>
+            <button class="md-icon-btn" title="新建文件夹" @click="createFolder()"><i class="fas fa-folder-plus"></i></button>
+            <button class="md-icon-btn" title="展开全部" @click="expandAll(true)"><i class="fas fa-chevron-circle-down"></i></button>
+            <button class="md-icon-btn" title="折叠全部" @click="expandAll(false)"><i class="fas fa-chevron-circle-up"></i></button>
             <button class="md-icon-btn" title="隐藏文件树" @click="toggleTree(false)"><i class="fas fa-bars"></i></button>
           </div>
         </div>
-        <div class="md-file-scroll">
-          <div v-if="!tree.length" class="md-file-empty">工作区为空</div>
+        <div class="md-file-search">
+          <i class="fas fa-search"></i>
+          <input v-model="searchQ" placeholder="搜索文件…（Ctrl+F）" spellcheck="false" />
+          <button v-if="searchQ" class="md-icon-btn" title="清空搜索" @click="searchQ = ''"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="md-file-scroll" @contextmenu.prevent="onBlankContext($event)">
+          <div v-if="!filteredTree.length" class="md-file-empty">{{ searchQ ? '无匹配文件' : '工作区为空' }}</div>
           <MdFileTree
-            :nodes="tree"
+            :nodes="filteredTree"
             :depth="0"
             :expanded="expanded"
+            :force-expand="!!searchQ"
             @open="onOpenFile"
             @toggle="toggleDir"
-            @delete="deleteFile"
+            @delete="deleteNode"
             @context="onFileContext"
           />
         </div>
@@ -93,13 +102,20 @@
   <InputModal
     v-model:visible="newFileModal"
     title="新建文件"
-    placeholder="文件名"
+    :placeholder="newFileTargetDir ? '在 ' + newFileTargetDir + ' 下创建，输入文件名' : '文件名'"
     confirm-text="创建"
     @confirm="onCreateFile"
   />
   <InputModal
+    v-model:visible="newFolderModal"
+    title="新建文件夹"
+    :placeholder="newFolderTargetDir ? '在 ' + newFolderTargetDir + ' 下创建，输入文件夹名' : '文件夹名'"
+    confirm-text="创建"
+    @confirm="onCreateFolder"
+  />
+  <InputModal
     v-model:visible="renameModal"
-    title="重命名文件"
+    title="重命名"
     :initial-value="renameTarget?.name || ''"
     confirm-text="确定"
     @confirm="onRenameConfirm"
@@ -132,14 +148,88 @@ const fileCtx = reactive({ show: false, x: 0, y: 0, node: null })
 const forwardModalVisible = ref(false)
 const forwardMsgContent = ref('')
 const newFileModal = ref(false)
+const newFolderModal = ref(false)
 const renameModal = ref(false)
 const renameTarget = ref(null)
+const newFileTargetDir = ref('')
+const newFolderTargetDir = ref('')
+const searchQ = ref('')
+const clipboard = ref(null) // { mode: 'copy' | 'cut', rel }
 
-const fileCtxItems = computed(() => [
-  { value: 'rename', label: '重命名', icon: 'fas fa-i-cursor' },
-  { value: 'send', label: '发送', icon: 'fas fa-paper-plane' },
-  { value: 'delete', label: '删除', icon: 'fas fa-trash' }
-])
+function parentDir(rel) {
+  const i = (rel || '').lastIndexOf('/')
+  return i > 0 ? rel.slice(0, i) : ''
+}
+
+function targetDirOf(node) {
+  return node.type === 'dir' ? node.path : parentDir(node.path)
+}
+
+const fileCtxItems = computed(() => {
+  const node = fileCtx.node
+  if (!node) {
+    // 文件树空白区（根目录）
+    const items = [
+      { value: 'newfile', label: '新建文件', icon: 'fas fa-plus-square' },
+      { value: 'newfolder', label: '新建文件夹', icon: 'fas fa-folder-plus' }
+    ]
+    if (clipboard.value) items.push({ value: 'paste', label: '粘贴到根目录', icon: 'fas fa-clipboard' })
+    return items
+  }
+  const isFile = node.type === 'file'
+  const items = []
+  if (isFile) items.push({ value: 'open', label: '打开', icon: 'fas fa-external-link-alt' })
+  items.push({ value: 'newfile', label: isFile ? '新建文件（此目录）' : '在此新建文件', icon: 'fas fa-plus-square' })
+  if (!isFile) items.push({ value: 'newfolder', label: '在此新建文件夹', icon: 'fas fa-folder-plus' })
+  items.push({ value: 'rename', label: '重命名', icon: 'fas fa-i-cursor' })
+  items.push({ value: 'copy', label: '复制', icon: 'fas fa-copy' })
+  items.push({ value: 'cut', label: '剪切', icon: 'fas fa-cut' })
+  if (clipboard.value) items.push({ value: 'paste', label: '粘贴到此' + (isFile ? '目录' : ''), icon: 'fas fa-clipboard' })
+  items.push({ value: 'copypath', label: '复制路径', icon: 'fas fa-link' })
+  items.push({ value: 'delete', label: '删除', icon: 'fas fa-trash' })
+  if (isFile) items.push({ value: 'send', label: '发送', icon: 'fas fa-paper-plane' })
+  return items
+})
+
+// 搜索过滤：命中文件保留，目录保留命中项或命中自身的子结构
+function filterTree(nodes, q) {
+  const out = []
+  for (const n of nodes || []) {
+    const hit = n.name.toLowerCase().includes(q)
+    if (n.type === 'dir') {
+      const kids = filterTree(n.children, q)
+      if (hit || kids.length) out.push({ ...n, children: kids })
+    } else if (hit) {
+      out.push(n)
+    }
+  }
+  return out
+}
+
+const filteredTree = computed(() => {
+  const q = searchQ.value.trim().toLowerCase()
+  if (!q) return tree.value
+  return filterTree(tree.value, q)
+})
+
+function collectDirs(nodes, out) {
+  for (const n of nodes || []) {
+    if (n.type === 'dir') {
+      out.push(n.path)
+      collectDirs(n.children, out)
+    }
+  }
+}
+
+function expandAll(expand) {
+  if (expand) {
+    const dirs = []
+    collectDirs(tree.value, dirs)
+    expanded.value = new Set(dirs)
+  } else {
+    expanded.value = new Set()
+  }
+}
 
 function countFiles(nodes) {
   let n = 0
@@ -244,7 +334,7 @@ function onOpenFile(path) {
   editorRef.value?.openFile(path)
 }
 
-// ---- 右键 / 重命名 / 删除 / 发送 ----
+// ---- 右键 / 重命名 / 删除 / 发送 / 复制粘贴 ----
 function onFileContext(e) {
   fileCtx.node = e.node
   fileCtx.x = e.x
@@ -253,13 +343,56 @@ function onFileContext(e) {
   setTimeout(() => { fileCtx.show = true }, 1)
 }
 
+function onBlankContext(e) {
+  // 仅文件树空白区本身触发；行内右键已 stopPropagation（双保险）
+  if (e.target !== e.currentTarget) return
+  fileCtx.node = null
+  fileCtx.x = e.clientX
+  fileCtx.y = e.clientY
+  fileCtx.show = false
+  setTimeout(() => { fileCtx.show = true }, 1)
+}
+
 async function onFileCtxSelect(value) {
   const node = fileCtx.node
   fileCtx.show = false
-  if (!node || node.type !== 'file') return
-  if (value === 'rename') renameFile(node)
+  if (value === 'newfile') { createFile(node ? targetDirOf(node) : ''); return }
+  if (value === 'newfolder') { createFolder(node ? targetDirOf(node) : ''); return }
+  if (value === 'paste') { paste(node ? targetDirOf(node) : ''); return }
+  if (!node) return
+  if (value === 'open') onOpenFile(node.path)
+  else if (value === 'rename') renameFile(node)
+  else if (value === 'copy') { clipboard.value = { mode: 'copy', rel: node.path }; flashClipboard() }
+  else if (value === 'cut') { clipboard.value = { mode: 'cut', rel: node.path }; flashClipboard() }
+  else if (value === 'copypath') {
+    try { await navigator.clipboard.writeText(node.path) } catch {}
+  }
+  else if (value === 'delete') deleteNode(node)
   else if (value === 'send') sendFile(node)
-  else if (value === 'delete') deleteFile(node.path)
+}
+
+function flashClipboard() {
+  // 轻提示：复制/剪切成功（用文件树标题闪烁提示）
+  const el = document.querySelector('.md-file-list-title')
+  if (!el) return
+  el.textContent = clipboard.value.mode === 'copy' ? '已复制' : '已剪切'
+  setTimeout(() => { el.textContent = '文件 (' + fileCount.value + ')' }, 900)
+}
+
+async function paste(targetDir) {
+  const cb = clipboard.value
+  if (!cb) return
+  const name = cb.rel.split('/').pop()
+  const dstRel = (targetDir ? targetDir + '/' : '') + name
+  if (dstRel === cb.rel) return // 粘贴到自身所在位置
+  const r = cb.mode === 'copy'
+    ? await window.api.toolCopy(workspace.value, cb.rel, dstRel)
+    : await window.api.toolMove(workspace.value, cb.rel, dstRel)
+  if (!r.success) { alert('粘贴失败：' + r.error); return }
+  if (cb.mode === 'cut') clipboard.value = null
+  const parent = parentDir(dstRel)
+  if (parent) expanded.value.add(parent)
+  await refreshFiles()
 }
 
 async function renameFile(node) {
@@ -282,14 +415,15 @@ async function onRenameConfirm(name) {
   await refreshFiles()
 }
 
-async function deleteFile(rel) {
-  if (!confirm(`确定删除 ${rel} ？此操作不可恢复。`)) return
-  const r = await window.api.toolDeleteFile(workspace.value, rel)
+async function deleteNode(node) {
+  const dirWarn = node.type === 'dir' ? '\n目录内容将全部删除！' : ''
+  if (!confirm(`确定删除 ${node.path} ？${dirWarn}此操作不可恢复。`)) return
+  const r = await window.api.toolDeleteFile(workspace.value, node.path)
   if (!r.success) {
     alert('删除失败：' + r.error)
     return
   }
-  editorRef.value?.onFileDeleted(rel)
+  editorRef.value?.onFileDeleted(node.path)
   await refreshFiles()
 }
 
@@ -322,20 +456,46 @@ async function onForwardFile({ type, targetId, msgContent }) {
 }
 
 // ---- 新建 ----
-function createFile() {
+function createFile(targetDir = '') {
+  newFileTargetDir.value = targetDir || ''
   newFileModal.value = true
 }
 
 async function onCreateFile(name) {
-  const rel = name.trim()
-  if (!rel) return
+  const trimmed = name.trim()
+  const targetDir = newFileTargetDir.value
+  newFileTargetDir.value = ''
+  if (!trimmed) return
+  const rel = (targetDir ? targetDir + '/' : '') + trimmed
   const r = await window.api.toolCreateFile(workspace.value, rel)
   if (!r.success) {
     alert('创建失败：' + r.error)
     return
   }
+  if (targetDir) expanded.value.add(targetDir)
   await refreshFiles()
   await onOpenFile(rel)
+}
+
+function createFolder(targetDir = '') {
+  newFolderTargetDir.value = targetDir || ''
+  newFolderModal.value = true
+}
+
+async function onCreateFolder(name) {
+  const trimmed = name.trim()
+  const targetDir = newFolderTargetDir.value
+  newFolderTargetDir.value = ''
+  if (!trimmed) return
+  const rel = (targetDir ? targetDir + '/' : '') + trimmed
+  const r = await window.api.toolMkdir(workspace.value, rel)
+  if (!r.success) {
+    alert('创建失败：' + r.error)
+    return
+  }
+  const parent = parentDir(rel)
+  if (parent) expanded.value.add(parent)
+  await refreshFiles()
 }
 
 onMounted(() => {

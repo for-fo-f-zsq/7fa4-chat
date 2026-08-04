@@ -24,10 +24,9 @@
         <i v-else class="mdtree-icon" :class="fileIcon(node.name)"></i>
         <span class="mdtree-name">{{ node.name }}</span>
         <span
-          v-if="node.type === 'file'"
           class="mdtree-del"
-          title="删除文件"
-          @click.stop="$emit('delete', node.path)"
+          title="删除"
+          @click.stop="$emit('delete', node)"
         ><i class="fas fa-trash"></i></span>
       </div>
       <div
@@ -39,6 +38,7 @@
           :depth="depth + 1"
           :current-file="currentFile"
           :expanded="expanded"
+          :force-expand="forceExpand"
           @open="$emit('open', $event)"
           @delete="$emit('delete', $event)"
           @context="$emit('context', $event)"
@@ -56,7 +56,8 @@ const props = defineProps({
   nodes: { type: Array, default: () => [] },
   depth: { type: Number, default: 0 },
   currentFile: { type: String, default: '' },
-  expanded: { type: Set, default: () => new Set() }
+  expanded: { type: Set, default: () => new Set() },
+  forceExpand: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['open', 'delete', 'toggle', 'context'])
@@ -76,7 +77,7 @@ function fileIcon(name) {
 }
 
 function isExpanded(path) {
-  return props.expanded.has(path)
+  return props.forceExpand || props.expanded.has(path)
 }
 
 function onClick(node) {
@@ -88,6 +89,7 @@ function onClick(node) {
 }
 
 function onContext(e, node) {
-  if (node.type === 'file') emit('context', { node, x: e.clientX, y: e.clientY })
+  e.stopPropagation() // 阻止冒泡到外层空白区处理，避免 node 被覆盖
+  emit('context', { node, x: e.clientX, y: e.clientY })
 }
 </script>

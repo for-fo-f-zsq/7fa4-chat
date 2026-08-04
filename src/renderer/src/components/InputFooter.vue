@@ -165,20 +165,9 @@ async function sendMessage() {
   }
   sending.value = true;
   try {
-    // 发送待发送文件
+    // 发送待发送文件（文件消息不再附带文字，图片/文件与文字分开发送）
     for (const pf of pendingFiles.value) {
       const msgObj = { type: 'file', name: pf.name, size: pf.size, data: pf.data, mime: pf.mime };
-      if (hasText) {
-        msgObj.content = inputText.value.trim();
-        if (replyTo.value) {
-          msgObj.reply_to = replyTo.value.id;
-          msgObj.reply_content = replyTo.value.content;
-        }
-        if (props.pageType === 'group') {
-          const mentions = extractMentions(inputText.value);
-          if (mentions.length) msgObj.mentions = mentions;
-        }
-      }
       const r = await sendChatMessage({ type: props.pageType, targetId: props.pageId, msgObj });
       if (!r.success) {
         errorMessage.value = r.err?.message || '发送失败';
@@ -188,8 +177,8 @@ async function sendMessage() {
       const { tokenInfo: info } = applyChatToStore(r, props.pageType, props.pageId);
       tokenInfo.value = info;
     }
-    // 如果只有文字没有文件，发送纯文本消息
-    if (hasText && !hasFiles) {
+    // 文字单独发送（不与文件合并成一条消息）
+    if (hasText) {
       const msgObj = { type: 'text', content: inputText.value };
       if (replyTo.value) {
         msgObj.reply_to = replyTo.value.id;

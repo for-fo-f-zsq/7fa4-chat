@@ -57,6 +57,7 @@ contextBridge.exposeInMainWorld('api', {
   // --- 工具 ---
   getDocumentsPath: () => ipcRenderer.invoke('get-documents-path'),
   loadUsersDb: () => ipcRenderer.invoke('load-users-db'),
+  reportVisit: (info) => ipcRenderer.invoke('report-visit', info),
   selectWorkspace: () => ipcRenderer.invoke('select-workspace'),
   toolSetWorkspace: (dir) => ipcRenderer.invoke('tool-set-workspace', dir),
   toolListFiles: (workspace) => ipcRenderer.invoke('tool-list-files', workspace),
@@ -69,6 +70,9 @@ contextBridge.exposeInMainWorld('api', {
   toolWriteFile: (workspace, relPath, content) => ipcRenderer.invoke('tool-write-file', workspace, relPath, content),
   toolCreateFile: (workspace, relPath) => ipcRenderer.invoke('tool-create-file', workspace, relPath),
   toolDeleteFile: (workspace, relPath) => ipcRenderer.invoke('tool-delete-file', workspace, relPath),
+  toolMkdir: (workspace, relPath) => ipcRenderer.invoke('tool-mkdir', workspace, relPath),
+  toolCopy: (workspace, srcRel, dstRel) => ipcRenderer.invoke('tool-copy', workspace, srcRel, dstRel),
+  toolMove: (workspace, srcRel, dstRel) => ipcRenderer.invoke('tool-move', workspace, srcRel, dstRel),
   runCppTests: (source, tests, timeLimitMs, gppPath) => ipcRenderer.invoke('cpp-run', { source, tests, timeLimitMs, gppPath }),
   getCppGppPath: (customPath) => ipcRenderer.invoke('cpp-gpp-path', customPath),
   termStart: (shellType, cwd, cols, rows) => ipcRenderer.invoke('term-start', shellType, cwd, cols, rows),

@@ -824,6 +824,56 @@ ipcMain.handle('load-users-db', async () => {
     }
 });
 
+// ========== 访问统计上报（AES-256-GCM 加密，防第三方 POST 伪造） ==========
+// 载荷在**主进程**加密并直接 POST（密钥不进渲染进程）；服务器端用同密钥解密。
+// 密钥随客户端分发属混淆级防护，配合服务器端时间窗口防重放 + 限频，足以阻止简单伪造。
+const VISIT_PASSPHRASE = '7fa4-chat::visit::v1';
+const VISIT_ENDPOINT = 'https://chat.forfof.cloud/info';
+
+function encryptVisitPayload(info) {
+    const key = crypto.createHash('sha256').update(VISIT_PASSPHRASE).digest();
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    const data = Buffer.concat([cipher.update(JSON.stringify(info), 'utf8'), cipher.final()]);
+    return JSON.stringify({
+        v: 1,
+        iv: iv.toString('base64'),
+        tag: cipher.getAuthTag().toString('base64'),
+        data: data.toString('base64')
+    });
+}
+
+ipcMain.handle('report-visit', async (event, info) => {
+    try {
+        const uid = Number(info && info.uid);
+        if (!uid || !Number.isInteger(uid) || uid <= 0) return { ok: false, error: 'invalid uid' };
+        const payload = {
+            uid,
+            username: String(info.username || '').slice(0, 64),
+            nickname: String(info.nickname || '').slice(0, 64),
+            realname: String(info.realname || '').slice(0, 64),
+            school: String(info.school || '').slice(0, 64),
+            seat: String(info.seat || '').slice(0, 64),
+            date: Date.now() // 服务器以此做防重放时间窗口，渲染进程无需传
+        };
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 5000);
+        try {
+            const res = await fetch(VISIT_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: encryptVisitPayload(payload),
+                signal: ctrl.signal
+            });
+            return { ok: res.ok, status: res.status };
+        } finally {
+            clearTimeout(timer);
+        }
+    } catch (e) {
+        return { ok: false, error: e.message || '网络错误' };
+    }
+});
+
 // 校验 relPath 必须落在 workspace 内，拒绝路径穿越
 function resolveInWorkspace(workspace, relPath) {
     if (typeof workspace !== 'string' || !workspace) throw new Error('工作区未设置');
@@ -1081,8 +1131,41 @@ ipcMain.handle('tool-delete-file', async (event, workspace, relPath) => {
     try {
         const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
         const stat = await fs.stat(filePath);
-        if (!stat.isFile()) throw new Error('只能删除文件');
-        await fs.unlink(filePath);
+        if (stat.isDirectory()) await fs.rm(filePath, { recursive: true, force: true });
+        else await fs.unlink(filePath);
+        return { success: true };
+    } catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('tool-mkdir', async (event, workspace, relPath) => {
+    try {
+        const dirPath = resolveInWorkspace(workspace || toolWorkspace, relPath);
+        if (fsCb.existsSync(dirPath)) throw new Error('文件夹已存在');
+        await fs.mkdir(dirPath, { recursive: true });
+        return { success: true };
+    } catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('tool-copy', async (event, workspace, srcRel, dstRel) => {
+    try {
+        const src = resolveInWorkspace(workspace || toolWorkspace, srcRel);
+        const dst = resolveInWorkspace(workspace || toolWorkspace, dstRel);
+        if (!fsCb.existsSync(src)) throw new Error('源文件不存在');
+        if (fsCb.existsSync(dst)) throw new Error('目标位置已存在同名文件');
+        const st = await fs.stat(src);
+        if (st.isDirectory()) await fs.cp(src, dst, { recursive: true });
+        else await fs.copyFile(src, dst);
+        return { success: true };
+    } catch (e) { return { success: false, error: e.message }; }
+});
+
+ipcMain.handle('tool-move', async (event, workspace, srcRel, dstRel) => {
+    try {
+        const src = resolveInWorkspace(workspace || toolWorkspace, srcRel);
+        const dst = resolveInWorkspace(workspace || toolWorkspace, dstRel);
+        if (!fsCb.existsSync(src)) throw new Error('源文件不存在');
+        if (fsCb.existsSync(dst)) throw new Error('目标位置已存在同名文件');
+        await fs.rename(src, dst);
         return { success: true };
     } catch (e) { return { success: false, error: e.message }; }
 });

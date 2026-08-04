@@ -323,6 +323,41 @@ export function displayName(user) {
   return nick
 }
 
+// ========== 访问统计上报（chat.forfof.cloud/info） ==========
+// 上报用户公开信息（ranklist 页公开字段），供服务器按 uid 记录最近访问时间与个人信息，
+// 用于分析使用情况；纯统计用途，失败静默，不影响主流程。
+// 载荷经主进程 AES-256-GCM 加密后发出（密钥不进渲染进程），防止第三方 POST 伪造。
+let _reporting = false
+async function _reportVisit() {
+  if (_reporting) return
+  const s = store.self
+  if (!s || !s.uid) return
+  _reporting = true
+  try {
+    if (!window.api?.reportVisit) return
+    await window.api.reportVisit({
+      uid: s.uid,
+      username: s.username || '',
+      nickname: s.nickname || '',
+      realname: s.realname || '',
+      school: s.school || '',
+      seat: s.seat || ''
+    })
+  } catch (e) {
+    console.error('[visit] 上报失败:', e)
+  }
+  _reporting = false
+}
+
+// 独立上报定时器：登录成功后启动（update 中调用），与 ranklist 轮询完全解耦——
+// 即使 ranklist 抓取挂起/失败，访问统计上报也不会漏。
+let _visitTimer = null
+export function startVisitReport() {
+  if (_visitTimer) return
+  _reportVisit() // 立即上报一次
+  _visitTimer = setInterval(_reportVisit, 10 * 60 * 1000)
+}
+
 // ========== 用户信息爬取（ranklist） ==========
 let _ranklistFetching = false
 let _ranklistTimer = null
@@ -515,6 +550,77 @@ export function formatSize(bytes) {
   return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 2) + ' ' + units[i]
 }
 
+// 文件后缀 → 图标 + 颜色（微信风格文件卡片）
+// 注意：本项目 Font Awesome 5，fa-file-alt/fa-file-archive/fa-cogs/fa-mobile-alt
+const FILE_EXT_ICONS = {
+  // 文档
+  pdf: { icon: 'fa-file-pdf', color: '#e2574c' },
+  doc: { icon: 'fa-file-word', color: '#2b579a' },
+  docx: { icon: 'fa-file-word', color: '#2b579a' },
+  xls: { icon: 'fa-file-excel', color: '#217346' },
+  xlsx: { icon: 'fa-file-excel', color: '#217346' },
+  csv: { icon: 'fa-file-excel', color: '#217346' },
+  ppt: { icon: 'fa-file-powerpoint', color: '#d24726' },
+  pptx: { icon: 'fa-file-powerpoint', color: '#d24726' },
+  txt: { icon: 'fa-file-alt', color: '#8a8f98' },
+  md: { icon: 'fa-file-alt', color: '#8a8f98' },
+  rtf: { icon: 'fa-file-alt', color: '#8a8f98' },
+  // 压缩包
+  zip: { icon: 'fa-file-archive', color: '#c9a227' },
+  rar: { icon: 'fa-file-archive', color: '#c9a227' },
+  '7z': { icon: 'fa-file-archive', color: '#c9a227' },
+  tar: { icon: 'fa-file-archive', color: '#c9a227' },
+  gz: { icon: 'fa-file-archive', color: '#c9a227' },
+  // 代码
+  js: { icon: 'fa-file-code', color: '#e8a33d' },
+  ts: { icon: 'fa-file-code', color: '#3178c6' },
+  jsx: { icon: 'fa-file-code', color: '#e8a33d' },
+  tsx: { icon: 'fa-file-code', color: '#3178c6' },
+  html: { icon: 'fa-file-code', color: '#e44d26' },
+  css: { icon: 'fa-file-code', color: '#264de4' },
+  scss: { icon: 'fa-file-code', color: '#cd6799' },
+  json: { icon: 'fa-file-code', color: '#5c8a3f' },
+  py: { icon: 'fa-file-code', color: '#3572a5' },
+  java: { icon: 'fa-file-code', color: '#e76f00' },
+  c: { icon: 'fa-file-code', color: '#555555' },
+  cpp: { icon: 'fa-file-code', color: '#f34b7d' },
+  h: { icon: 'fa-file-code', color: '#555555' },
+  hpp: { icon: 'fa-file-code', color: '#f34b7d' },
+  sh: { icon: 'fa-terminal', color: '#4eaa25' },
+  bash: { icon: 'fa-terminal', color: '#4eaa25' },
+  sql: { icon: 'fa-database', color: '#e38c00' },
+  yml: { icon: 'fa-file-code', color: '#8a8f98' },
+  yaml: { icon: 'fa-file-code', color: '#8a8f98' },
+  xml: { icon: 'fa-file-code', color: '#8a8f98' },
+  // 多媒体
+  mp3: { icon: 'fa-file-audio', color: '#e91e63' },
+  wav: { icon: 'fa-file-audio', color: '#e91e63' },
+  flac: { icon: 'fa-file-audio', color: '#e91e63' },
+  aac: { icon: 'fa-file-audio', color: '#e91e63' },
+  ogg: { icon: 'fa-file-audio', color: '#e91e63' },
+  mp4: { icon: 'fa-file-video', color: '#9c27b0' },
+  avi: { icon: 'fa-file-video', color: '#9c27b0' },
+  mkv: { icon: 'fa-file-video', color: '#9c27b0' },
+  mov: { icon: 'fa-file-video', color: '#9c27b0' },
+  webm: { icon: 'fa-file-video', color: '#9c27b0' },
+  wmv: { icon: 'fa-file-video', color: '#9c27b0' },
+  // 安装包
+  exe: { icon: 'fa-cogs', color: '#4a4a4a' },
+  msi: { icon: 'fa-cogs', color: '#4a4a4a' },
+  deb: { icon: 'fa-cogs', color: '#a81c1c' },
+  rpm: { icon: 'fa-cogs', color: '#a81c1c' },
+  dmg: { icon: 'fa-cogs', color: '#8a8f98' },
+  apk: { icon: 'fa-mobile-alt', color: '#3ddc84' },
+  appimage: { icon: 'fa-cogs', color: '#8a8f98' },
+  // 其他
+  iso: { icon: 'fa-compact-disc', color: '#8a8f98' },
+  log: { icon: 'fa-file-alt', color: '#8a8f98' }
+}
+function getFileIconInfo(name) {
+  const ext = (name.split('.').pop() || '').toLowerCase()
+  return FILE_EXT_ICONS[ext] || { icon: 'fa-file', color: '#8a8f98' }
+}
+
 export function parseContent(raw, senderId) {
   if (!raw) return renderMarkdown(raw || '')
   const obj = parseMsgContent(raw)
@@ -523,9 +629,20 @@ export function parseContent(raw, senderId) {
     const isImage = /^image\//.test(obj.mime || '') || /\.(jpg|jpeg|png|gif|bmp|webp|ico)$/i.test(obj.name || '')
     let dataUri = ''
     if (obj.data && obj.mime) dataUri = `data:${obj.mime};base64,${obj.data}`
-    let fileHtml = isImage
-      ? `<img class="chat-image" src="${esc(dataUri)}" data-base64="${esc(obj.data || '')}" data-mime="${esc(obj.mime || '')}">`
-      : `<div class="file-msg" data-base64="${esc(obj.data || '')}" data-name="${esc(obj.name)}" data-mime="${esc(obj.mime || '')}">📄 ${esc(obj.name)} <span class="file-size">(${formatSize(obj.size)})</span></div>`
+    let fileHtml = ''
+    if (isImage) {
+      fileHtml = `<img class="chat-image" src="${esc(dataUri)}" data-base64="${esc(obj.data || '')}" data-mime="${esc(obj.mime || '')}">`
+    } else {
+      // 微信风格文件卡片：左侧后缀图标，右侧文件名 + 大小
+      const fi = getFileIconInfo(obj.name || '')
+      fileHtml = `<div class="file-msg" data-base64="${esc(obj.data || '')}" data-name="${esc(obj.name)}" data-mime="${esc(obj.mime || '')}">
+  <div class="file-msg-icon" style="color:${fi.color}"><i class="fas ${fi.icon}"></i></div>
+  <div class="file-msg-info">
+    <div class="file-msg-name">${esc(obj.name)}</div>
+    <div class="file-msg-size">${formatSize(obj.size)}</div>
+  </div>
+</div>`
+    }
     if (obj.content && obj.content.trim()) {
       fileHtml += '<div class="file-text-content">' + renderMarkdown(obj.content) + '</div>'
     }

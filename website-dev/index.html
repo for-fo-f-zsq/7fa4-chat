@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>7FA4-Chat 用户分析</title>
+<style>
+  :root {
+    --brand: #07c160;
+    --brand-dark: #06ad56;
+    --bg: #f7f8fa;
+    --card: #ffffff;
+    --text: #1a1a1a;
+    --text-sub: #888888;
+    --border: #ececec;
+    --radius: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    padding: 24px 16px 48px;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 20px; flex-wrap: wrap; gap: 8px;
+  }
+  header h1 { font-size: 22px; font-weight: 700; }
+  header h1 .dot { color: var(--brand); }
+  .meta { color: var(--text-sub); font-size: 13px; }
+  .meta button {
+    margin-left: 10px; border: none; background: var(--brand); color: #fff;
+    padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 13px;
+  }
+  .meta button:hover { background: var(--brand-dark); }
+  .meta .err { color: #e64340; margin-left: 10px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .kpi { background: var(--card); border-radius: var(--radius); padding: 18px 20px; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+  .kpi .label { color: var(--text-sub); font-size: 13px; margin-bottom: 8px; }
+  .kpi .num { font-size: 30px; font-weight: 700; color: var(--text); }
+  .kpi .num small { font-size: 14px; color: var(--text-sub); font-weight: 400; margin-left: 2px; }
+  .kpi .trend { font-size: 12px; margin-top: 6px; color: var(--text-sub); }
+  .kpi .trend b { color: var(--brand); font-weight: 600; }
+  .panel { background: var(--card); border-radius: var(--radius); box-shadow: 0 1px 4px rgba(0,0,0,.05); margin-bottom: 20px; overflow: hidden; }
+  .panel h2 { font-size: 15px; padding: 16px 20px 0; }
+  .panel h2 small { color: var(--text-sub); font-weight: 400; margin-left: 8px; font-size: 12px; }
+  .chart-box { padding: 12px 16px 8px; }
+  #chart { width: 100%; height: 280px; display: block; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { background: #fafafa; color: var(--text-sub); font-weight: 500; text-align: left; padding: 10px 20px; border-bottom: 1px solid var(--border); }
+  tbody td { padding: 10px 20px; border-bottom: 1px solid #f5f5f5; }
+  tbody tr:hover { background: #f6fdf9; }
+  tbody tr:last-child td { border-bottom: none; }
+  .sub { color: var(--text-sub); }
+  .empty { padding: 40px; text-align: center; color: var(--text-sub); }
+  .up { color: #e64340; font-weight: 600; }
+  .down { color: #07c160; font-weight: 600; }
+  .flat { color: #999999; }
+  footer { text-align: center; color: #bbb; font-size: 12px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="dot">●</span> 7FA4-Chat 用户分析</h1>
+    <div class="meta">
+      <span id="updated">加载中…</span>
+      <button onclick="load()">刷新</button>
+      <span class="err" id="err"></span>
+    </div>
+  </header>
+
+  <div class="kpis">
+    <div class="kpi"><div class="label">累计访问用户</div><div class="num" id="k-total">–</div><div class="trend">全部有效上报</div></div>
+    <div class="kpi"><div class="label">今日活跃</div><div class="num" id="k-today">–</div><div class="trend">按北京时间</div></div>
+    <div class="kpi"><div class="label">昨日活跃</div><div class="num" id="k-yest">–</div><div class="trend" id="k-yest-trend"></div></div>
+    <div class="kpi"><div class="label">近7日日均活跃</div><div class="num" id="k-avg7">–</div><div class="trend" id="k-avg7-trend"></div></div>
+  </div>
+
+  <div class="panel">
+    <h2>近 30 天活跃趋势<small>每日有访问上报的用户数</small></h2>
+    <div class="chart-box"><canvas id="chart"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <h2>近 30 天每日活跃明细<small>环比 = 较前一日变化</small></h2>
+    <div id="daily-table"></div>
+  </div>
+
+  <div class="panel">
+    <h2>用户明细<small id="user-count"></small></h2>
+    <div id="user-table"></div>
+  </div>
+
+  <footer>数据来自客户端匿名上报（公开信息） · 仅供使用情况分析</footer>
+</div>
+<script src="/dev/stats.js"></script>
+</body>
+</html>
