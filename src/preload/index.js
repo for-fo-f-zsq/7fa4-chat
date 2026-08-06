@@ -59,35 +59,5 @@ contextBridge.exposeInMainWorld('api', {
   loadUsersDb: () => ipcRenderer.invoke('load-users-db'),
   reportVisit: (info) => ipcRenderer.invoke('report-visit', info),
   clearSessionCookies: () => ipcRenderer.invoke('clear-session-cookies'),
-  selectWorkspace: () => ipcRenderer.invoke('select-workspace'),
-  toolSetWorkspace: (dir) => ipcRenderer.invoke('tool-set-workspace', dir),
-  toolListFiles: (workspace) => ipcRenderer.invoke('tool-list-files', workspace),
-  toolReadFile: (workspace, relPath) => ipcRenderer.invoke('tool-read-file', workspace, relPath),
-  toolReadImageFile: (workspace, relPath) => ipcRenderer.invoke('tool-read-image-file', workspace, relPath),
-  toolReadRawFile: (workspace, relPath) => ipcRenderer.invoke('tool-read-raw-file', workspace, relPath),
-  toolRenameFile: (workspace, oldRel, newName) => ipcRenderer.invoke('tool-rename-file', workspace, oldRel, newName),
-  toolSaveImage: (workspace, relPath, base64Data) => ipcRenderer.invoke('tool-save-image', workspace, relPath, base64Data),
-  toolExportMarkdownToPng: (workspace, relPath, html) => ipcRenderer.invoke('tool-export-markdown-to-png', workspace, relPath, html),
-  toolWriteFile: (workspace, relPath, content) => ipcRenderer.invoke('tool-write-file', workspace, relPath, content),
-  toolCreateFile: (workspace, relPath) => ipcRenderer.invoke('tool-create-file', workspace, relPath),
-  toolDeleteFile: (workspace, relPath) => ipcRenderer.invoke('tool-delete-file', workspace, relPath),
-  toolMkdir: (workspace, relPath) => ipcRenderer.invoke('tool-mkdir', workspace, relPath),
-  toolCopy: (workspace, srcRel, dstRel) => ipcRenderer.invoke('tool-copy', workspace, srcRel, dstRel),
-  toolMove: (workspace, srcRel, dstRel) => ipcRenderer.invoke('tool-move', workspace, srcRel, dstRel),
-  runCppTests: (source, tests, timeLimitMs, gppPath) => ipcRenderer.invoke('cpp-run', { source, tests, timeLimitMs, gppPath }),
-  getCppGppPath: (customPath) => ipcRenderer.invoke('cpp-gpp-path', customPath),
-  termStart: (shellType, cwd, cols, rows) => ipcRenderer.invoke('term-start', shellType, cwd, cols, rows),
-  termWrite: (text) => ipcRenderer.invoke('term-write', text),
-  termResize: (cols, rows) => ipcRenderer.invoke('term-resize', cols, rows),
-  termStop: () => ipcRenderer.invoke('term-stop'),
-  onTermOutput: (callback) => {
-    const handler = (event, data) => callback(data);
-    ipcRenderer.on('term-output', handler);
-    return () => ipcRenderer.removeListener('term-output', handler);
-  },
-  onTermExit: (callback) => {
-    const handler = (event, data) => callback(data);
-    ipcRenderer.on('term-exit', handler);
-    return () => ipcRenderer.removeListener('term-exit', handler);
-  },
+  exportMarkdownPng: (suggestedName, html) => ipcRenderer.invoke('export-markdown-png', suggestedName, html),
 });

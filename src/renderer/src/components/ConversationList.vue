@@ -46,7 +46,7 @@
           active: item.type === activeType && pageId === item.id,
           pinned: item.pinned,
           unread: item.unread > 0,
-          inactive: item.type === 'user' && !item.realname,
+          inactive: item.type === 'user' && !item.watcher,
           exited: item.type === 'group' && item.exited,
           blocked: item.type === 'group' && item.blocked,
           'nav-highlight': navIndex >= 0 && filteredConversations[navIndex]?.key === item.key,
@@ -159,13 +159,14 @@ const sortedConversations = computed(() => {
       unread: u.unread,
       message_ids: u.message_ids,
       realname: u.realname,
+      watcher: u.watcher === true,
       displayName: displayName(u),
       groupName: null,
       mentioned: false,
       exited: false,
       blocked: false,
       _sortTime: getLastMessageTime(u.message_ids, props.messages),
-      _hasRealname: u.realname ? 1 : 0,
+      _hasWatcher: u.watcher === true ? 1 : 0,
       _exited: 0
     }))
 
@@ -178,7 +179,8 @@ const sortedConversations = computed(() => {
       pinned: g.pinned,
       unread: g.unread,
       message_ids: g.message_ids,
-      realname: true,
+      realname: null,
+      watcher: true,
       displayName: null,
       groupName: g.name,
       mentioned: g.mentioned || false,
@@ -193,8 +195,8 @@ const sortedConversations = computed(() => {
     if (a.pinned !== b.pinned) return b.pinned - a.pinned
     // 未退出优先（群聊已退出的排后面）
     if (a._exited !== b._exited) return a._exited - b._exited
-    // 有真名优先（仅私信之间比较，群聊之间无差异）
-    if (a.type === 'user' && b.type === 'user' && a._hasRealname !== b._hasRealname) return b._hasRealname - a._hasRealname
+    // 对方关注我（可联系）优先（仅私信之间比较，群聊之间无差异）
+    if (a.type === 'user' && b.type === 'user' && a._hasWatcher !== b._hasWatcher) return b._hasWatcher - a._hasWatcher
     // 最后消息时间倒序
     return b._sortTime - a._sortTime
   })
@@ -250,7 +252,7 @@ function onListClick() {
 function onContextMenu(e, item) {
   if (item.type === 'user') {
     const u = props.users[item.id]
-    if (u && u.realname) {
+    if (u && u.watcher) {
       emit('Targetmenu', e, 'user', item.id)
     }
   } else {

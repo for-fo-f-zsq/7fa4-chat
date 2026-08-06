@@ -50,7 +50,7 @@ const selectedId = ref(null);
 const searchQuery = ref('');
 const searchInput = ref(null);
 
-const forwardTargets = computed(() => Object.values(store.users || {}).filter(u => u.realname));
+const forwardTargets = computed(() => Object.values(store.users || {}).filter(u => u.watcher));
 const forwardGroups = computed(() => Object.values(store.groups || {}).filter(g => !g.exited));
 
 const searchedTargets = computed(() => {

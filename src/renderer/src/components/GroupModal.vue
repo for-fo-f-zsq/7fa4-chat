@@ -280,8 +280,9 @@ const userActions = ['add_member', 'del_member', 'mute_member', 'add_administrat
 
 const userFilterFns = {
   add_member: () => {
+    // 群拉人资格同私信：可拉关注我的人（watcher），无需我关注对方
     return Object.values(store.users || {})
-      .filter(u => u.realname && !group.value.users.find(gu => String(gu.user_id) === String(u.uid)))
+      .filter(u => u.watcher && !group.value.users.find(gu => String(gu.user_id) === String(u.uid)))
       .map(u => ({ id: u.uid, name: getUsername(u.uid, store.users) }))
   },
   del_member: () => {

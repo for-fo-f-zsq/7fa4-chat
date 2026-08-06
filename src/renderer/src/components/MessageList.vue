@@ -89,7 +89,7 @@
 <script setup>
 import { ref, reactive, computed, onUpdated, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay } from '../utils.js';
+import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown } from '../utils.js';
 import MsgMenu from './MsgMenu.vue';
 import { useCurrentMessages } from '../composables/useCurrentMessages.js';
 import '../css/message-list.css';
@@ -464,7 +464,7 @@ function openPreview(obj) {
       src: src,
       text: ''
     });
-  } else if (obj.type === 'file' && obj.data) {
+    } else if (obj.type === 'file' && obj.data) {
     const isImage = /^image\//.test(obj.mime || '');
     if (isImage) {
       emit('openPreview', {
@@ -473,14 +473,27 @@ function openPreview(obj) {
         src: `data:${obj.mime};base64,${obj.data}`,
         text: ''
       });
+    } else if (/\.pdf$/i.test(obj.name || '')) {
+      // PDF：内嵌 iframe 预览（Chromium 内置 PDF 查看器）
+      emit('openPreview', {
+        type: 'pdf',
+        title: obj.name || 'PDF 预览',
+        src: `data:application/pdf;base64,${obj.data}`,
+        text: ''
+      });
     } else if (/\.(txt|md|json|js|ts|css|html|xml|csv|log|py|java|c|cpp|h|sh|bat|yaml|yml|ini|cfg|conf|toml)$/i.test(obj.name || '')) {
       try {
-        const decoded = atob(obj.data);
+        // atob 返回 Latin-1 二进制字符串，直接当文本会中文乱码（mojibake）；须按 UTF-8 解码
+        const binary = atob(obj.data);
+        const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+        const decoded = new TextDecoder('utf-8').decode(bytes);
+        const isMd = /\.md$/i.test(obj.name || '');
         emit('openPreview', {
-          type: 'text',
+          type: isMd ? 'html' : 'text',
           title: obj.name || '文本预览',
           src: '',
-          text: decoded
+          // markdown 文件渲染为 HTML（支持公式/代码块），其余按纯文本
+          text: isMd ? renderMarkdown(decoded) : decoded
         });
       } catch {
         emit('openPreview', { type: 'error', title: '', src: '', text: '' });

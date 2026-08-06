@@ -14,6 +14,7 @@
         <img v-if="type === 'image'" :src="src" class="preview-image" />
         <pre v-else-if="type === 'text'" class="preview-text">{{ text }}</pre>
         <div v-else-if="type === 'html'" class="preview-html" v-html="text"></div>
+        <iframe v-else-if="type === 'pdf'" :src="src" class="preview-pdf" title="PDF 预览"></iframe>
         <div v-else class="preview-error">无法解析为图片或文字</div>
       </div>
     </div>

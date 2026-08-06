@@ -186,6 +186,10 @@ function powOp(a, b, M) {
     return fastPow(base % M, exp, M)
   }
   if (typeof a === 'bigint' && typeof b === 'bigint' && b >= 0n) {
+    // 无模 BigInt 幂：估算结果位数，过大时报错提示用取模模式（避免超大整数卡死/内存爆炸）
+    const numA = Number(a)
+    const digits = Number(b) * Math.log10(numA > 0 ? numA : -numA)
+    if (digits > 5e6) throw new Error('幂结果过大（超过 500 万位），请使用取模模式（底部模数框）')
     return fastPow(a, b, null)
   }
   if (
@@ -238,6 +242,11 @@ function callFunc(name, args, M) {
     case 'sin': return realOnly((x) => Math.sin(Number(x)), 'sin')
     case 'cos': return realOnly((x) => Math.cos(Number(x)), 'cos')
     case 'tan': return realOnly((x) => Math.tan(Number(x)), 'tan')
+    case 'cot': return realOnly((x) => {
+      const t = Math.tan(Number(x))
+      if (Math.abs(t) < 1e-12) throw new Error('cot 在此处无定义（tan 接近 0）')
+      return 1 / t
+    }, 'cot')
     case 'asin': return realOnly((x) => Math.asin(Number(x)), 'asin')
     case 'acos': return realOnly((x) => Math.acos(Number(x)), 'acos')
     case 'atan': return realOnly((x) => Math.atan(Number(x)), 'atan')
@@ -458,6 +467,10 @@ export function evaluate(expr, mod = null) {
       } else if (c === '%') {
         pos++
         v = modOp(v, parseFactor())
+      } else if (s.slice(pos, pos + 3).toLowerCase() === 'mod' && !/[a-zA-Z0-9_]/.test(s[pos + 3] || '')) {
+        // 中缀 mod 运算符（与 % 同级），如 a ** b mod m
+        pos += 3
+        v = modOp(v, parseFactor())
       } else {
         break
       }
@@ -527,7 +540,9 @@ export function evaluate(expr, mod = null) {
       }
       while (pos < s.length && /[0-9]/.test(s[pos])) pos++
       const tok = s.slice(start, pos)
-      if (M !== null && /^\d+$/.test(tok)) return BigInt(tok)
+      // 纯整数一律用 BigInt（统一类型，避免 bigint/number 混合时降级为 Number 丢精度）
+      if (/^\d+$/.test(tok)) return BigInt(tok)
+      if (M !== null) throw new Error('取模模式下仅支持整数运算')
       const n = Number(tok)
       if (isNaN(n)) throw new Error(`数字无效：${tok}`)
       return n

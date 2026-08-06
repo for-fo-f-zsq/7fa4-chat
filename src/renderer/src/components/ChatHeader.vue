@@ -6,6 +6,15 @@
           <div class="avatar-placeholder-sm">{{ getAvatarInitial(targetUser.uid) }}</div>
         </div>
         <h3 :style="{ color: getGradeColor(targetUser.uid) }">{{ displayName(targetUser) }}</h3>
+        <div
+          class="header-watch-btn"
+          :class="{ watched: targetUser.watchee === true }"
+          :title="targetUser.watchee === true ? '已关注' : '加关注'"
+          @click.stop="onWatchClick"
+        >
+          <i v-if="targetUser.watchee === true" class="fas fa-check"></i>
+          <i v-else class="fas fa-plus"></i>
+        </div>
       </div>
       <div class="header-actions">
         <div class="nav-icon button group-settings-icon" @click="$emit('toggleSearch')"><i class="fas fa-search"></i></div>
@@ -31,12 +40,17 @@
 <script setup>
 import { displayName, getGradeColor, getAvatarInitial } from '../utils.js';
 
-defineProps({
+const props = defineProps({
   pageType: { type: String, required: true },
   pageId: { type: [Number, String], default: null },
   targetUser: { type: Object, default: null },
   targetGroup: { type: Object, default: null }
 });
 
-defineEmits(['openUserInfo', 'openGroupSettings', 'toggleSearch']);
+const emit = defineEmits(['openUserInfo', 'openGroupSettings', 'toggleSearch', 'addfriend']);
+
+function onWatchClick() {
+  if (props.targetUser?.watchee) return // 已关注
+  emit('addfriend', props.targetUser.uid)
+}
 </script>

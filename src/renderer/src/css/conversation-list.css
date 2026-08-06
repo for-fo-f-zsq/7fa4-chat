@@ -373,6 +373,22 @@
 .inputModal-ok:hover { opacity: 0.9; }
 .inputModal-cancel { background: var(--bg-sidebar); color: var(--text-secondary); }
 .inputModal-cancel:hover { background: var(--bg-sidebar-hover); }
+.saveconfirm-message {
+    color: var(--text-secondary);
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+    margin-bottom: 4px;
+}
+.saveconfirm-discard {
+    padding: 6px 16px;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: var(--font-size-small);
+    background: transparent;
+    color: var(--text-error);
+}
+.saveconfirm-discard:hover { background: var(--bg-conversation-hover); }
 
 /* 新建会话菜单 */
 .new-convo-menu {

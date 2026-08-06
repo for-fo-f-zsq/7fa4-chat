@@ -51,11 +51,57 @@
 
 .input-actions {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
     gap: 2px;
     flex-shrink: 0;
-    align-self: flex-end;
+}
+.favorites-picker {
+    position: absolute;
+    left: 6px;
+    bottom: calc(100% + 4px);
+    width: 280px;
+    max-height: 300px;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-app);
+    border: 1px solid var(--border-3d-dark);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-modal);
+    z-index: 9999;
+    overflow: hidden;
+}
+.favorites-picker-title {
+    padding: 8px 12px;
+    font-size: var(--font-size-small);
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-light);
+    flex-shrink: 0;
+}
+.favorites-picker-list {
+    overflow-y: auto;
+    max-height: 250px;
+    padding: 4px 6px;
+}
+.favorites-picker-empty {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: var(--font-size-small);
+}
+.favorites-picker-item {
+    padding: 7px 10px;
+    border-radius: var(--radius);
+    font-size: var(--font-size-small);
+    color: var(--text-primary);
+    cursor: pointer;
+    line-height: 1.4;
+    word-break: break-all;
+}
+.favorites-picker-item:hover {
+    background: var(--bg-conversation-hover);
+    color: var(--accent);
 }
 .input-actions button {
     background: none;
@@ -145,6 +191,9 @@
     margin-top: 6px;
     gap: 8px;
     font-size: var(--font-size-small);
+    position: relative;
+    padding: 0 6px;
+}
     color: var(--text-secondary);
     transition: color var(--duration-fast) ease;
 }
@@ -166,6 +215,49 @@
     font-size: var(--font-size-small);
     color: var(--text-secondary);
     margin-left: auto;
+    position: relative;
+    cursor: default;
+    user-select: none;
+}
+.token-info-warn {
+    color: var(--text-error);
+    font-weight: 600;
+}
+.token-tip-icon {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 4px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    cursor: help;
+    vertical-align: -1px;
+}
+.token-tip-icon:hover { color: var(--accent); }
+.token-tooltip {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 6px);
+    min-width: 150px;
+    padding: 6px 0;
+    background: var(--bg-app);
+    border: 1px solid var(--border-3d-dark);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-modal);
+    z-index: 9999;
+    font-size: var(--font-size-small);
+    color: var(--text-primary);
+}
+.token-tooltip-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 3px 12px;
+    white-space: nowrap;
+}
+.token-tooltip-time {
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    font-weight: 600;
 }
 
 @keyframes errorShake {

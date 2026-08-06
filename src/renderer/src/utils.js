@@ -160,8 +160,32 @@ export function getAvatarInitial(uid) {
   return String(uid).charAt(0)
 }
 
+// 年级文本（ranklist 同步）→ colorKey（年级分组键）。users.7c 的 colorKey 仅作兜底，
+// 年级信息以 ranklist 实时同步为准（getGradeColor / getGradeLabel 优先使用）。
+function gradeToColorKey(grade) {
+  const map = {
+    '小四': 'x4', '小五': 'x5', '小六': 'x6',
+    '初一': 'c1', '初二': 'c2', '初三': 'c3',
+    '高一': 'g1', '高二': 'g2', '高三': 'g3',
+    '大一': 'd1', '大二': 'd2', '大三': 'd3', '大四': 'd4',
+    '毕业': 'by', '教练': 'jl'
+  }
+  return map[grade] || ''
+}
+
+function colorKeyOf(uid) {
+  let colorKey = usersJson?.[uid]?.colorKey
+  // ranklist 同步的年级优先（用户要求年级直接在 ranklist 中获取）
+  const g = store.users?.[uid]?.grade
+  if (g) {
+    const derived = gradeToColorKey(g)
+    if (derived) colorKey = derived
+  }
+  return colorKey || ''
+}
+
 export function getGradeColor(uid) {
-  const colorKey = usersJson?.[uid]?.colorKey
+  const colorKey = colorKeyOf(uid)
   if (!colorKey) return ''
   // 优先级：自定义 > 主题CSS变量 > 硬编码默认
   const customPalette = store.setting?.gradeColors || {}
@@ -172,12 +196,12 @@ export function getGradeColor(uid) {
 }
 
 export function getGradeLabel(uid) {
-  const colorKey = usersJson?.[uid]?.colorKey
+  const colorKey = colorKeyOf(uid)
   if (!colorKey) return ''
   return GRADE_LABELS[colorKey] || ''
 }
 
-export async function safeFetch(url, options = {}, timeout = 0) {
+export async function safeFetch(url, options = {}, timeout = 10000) {
   try {
     let res
     if (timeout > 0) {
@@ -212,14 +236,15 @@ export async function safeFetch(url, options = {}, timeout = 0) {
 }
 
 export async function tryLogin(user, pwd) {
-  const res = await fetch('/api/login', {
+  const res = await safeFetch('/api/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ username: user, password: pwd }),
     credentials: 'include'
-  })
-  if (!res.ok) return { error_code: -1 }
-  try { return await res.json() } catch { return { error_code: -1 } }
+  }, 10000)
+  const data = await res.json()
+  if (!data || !data.success) return { error_code: -1 }
+  return data
 }
 
 export function esc(s) {
@@ -268,7 +293,7 @@ export async function sendChatMessage({ type, targetId, msgObj }) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ type, target_id: targetId, content: content })
-  })).json()
+  }, 60000)).json()
 }
 
 export function gettime1(date) {
@@ -328,6 +353,12 @@ export function displayName(user) {
 // 用于分析使用情况；纯统计用途，失败静默，不影响主流程。
 // 载荷经主进程 AES-256-GCM 加密后发出（密钥不进渲染进程），防止第三方 POST 伪造。
 let _reporting = false
+let _appVersion = null
+async function _getAppVersion() {
+  if (_appVersion !== null) return _appVersion
+  try { _appVersion = (await window.api.getVersion()) || '' } catch { _appVersion = '' }
+  return _appVersion
+}
 async function _reportVisit() {
   if (_reporting) return
   const s = store.self
@@ -341,7 +372,8 @@ async function _reportVisit() {
       nickname: s.nickname || '',
       realname: s.realname || '',
       school: s.school || '',
-      seat: s.seat || ''
+      seat: s.seat || '',
+      version: await _getAppVersion() // 上报应用版本，供 /dev 分析页展示
     })
   } catch (e) {
     console.error('[visit] 上报失败:', e)
@@ -394,7 +426,17 @@ async function _doFetchRanklist() {
     let page = 1
     let lastFirstUid = null
     while (true) {
-      const res = await fetch(`/ranklist?page=${page}`)
+      // ranklist 用原生 fetch + 10s 超时（学校网络无法访问时快速失败，避免卡住）
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), 10000)
+      let res
+      try {
+        res = await fetch(`/ranklist?page=${page}`, { signal: ctrl.signal })
+      } catch {
+        clearTimeout(timer)
+        break
+      }
+      clearTimeout(timer)
       if (!res.ok) break
       const html = await res.text()
       const parser = new DOMParser()
@@ -413,6 +455,8 @@ async function _doFetchRanklist() {
         const nickname = tds[2]?.textContent.trim() || ''
         const username = tds[3]?.textContent.trim() || ''
         if (!nickname && !username) continue
+        // 年级列：tds[5]（如"高二"），tds[4] 为入学年份
+        const gradeText = tds[5]?.textContent.trim() || ''
         ranklistOrder.push(uid)
         const old = store.users[uid]
         const newData = {
@@ -420,7 +464,7 @@ async function _doFetchRanklist() {
           realname: old?.realname || '',
           username: username || old?.username || '',
           nickname: nickname || old?.nickname || '',
-          grade: old?.grade || '',
+          grade: gradeText || old?.grade || '',
           grade_class: old?.grade_class || '',
           seat: old?.seat || '',
           note: old?.note || '',
@@ -428,9 +472,11 @@ async function _doFetchRanklist() {
           unread: old?.unread || false,
           pinned: old?.pinned || false,
           show: old ? old.show : false,
+          watchee: old?.watchee === true,
+          watcher: old?.watcher === true,
           _fetchedAt: new Date().toISOString()
         }
-        if (old && old.username === newData.username && old.nickname === newData.nickname && old.seat === newData.seat && old._fetchedAt) {
+        if (old && old.username === newData.username && old.nickname === newData.nickname && old.seat === newData.seat && old.grade === newData.grade && old._fetchedAt) {
           old._fetchedAt = newData._fetchedAt
           continue
         }
@@ -491,6 +537,9 @@ const katexBlockRule = /^\$\$([\s\S]+?)\$\$/
 const katexInlineRule = /\$\$([^\$\n]+?)\$\$|\$([^\$\n]+?)\$/
 
 md.inline.ruler.after('escape', 'katex_inline', function (state, silent) {
+  // 关键：仅在当前位置就是 $ 时才尝试公式匹配，
+  // 否则会从当前位置向后误匹配后面的 $...$，导致中间文本（如 **最小**）被错误跳过
+  if (state.src[state.pos] !== '$') return false
   const match = katexInlineRule.exec(state.src.slice(state.pos))
   if (!match) return false
   if (!silent) {
@@ -521,12 +570,13 @@ md.block.ruler.before('paragraph', 'katex_block', function (state, startLine, en
 
 md.renderer.rules.katex_inline = function (tokens, idx) {
   const displayMode = tokens[idx].meta && tokens[idx].meta.displayMode
-  try { return katex.renderToString(tokens[idx].content, { throwOnError: false, displayMode }) }
+  // output:'html'：仅输出视觉层，避免 KaTeX 默认 MathML+HTML 双份导致复制/转 markdown 时文本重复
+  try { return katex.renderToString(tokens[idx].content, { throwOnError: false, displayMode, output: 'html' }) }
   catch { return esc(tokens[idx].content) }
 }
 
 md.renderer.rules.katex_block = function (tokens, idx) {
-  try { return '<p>' + katex.renderToString(tokens[idx].content, { throwOnError: false, displayMode: true }) + '</p>' }
+  try { return '<p>' + katex.renderToString(tokens[idx].content, { throwOnError: false, displayMode: true, output: 'html' }) + '</p>' }
   catch { return '<p>' + esc(tokens[idx].content) + '</p>' }
 }
 
@@ -553,6 +603,24 @@ function preprocessKatexBlock(text) {
     i++
   }
   return result.join('\n')
+}
+
+// 给块级元素注入 data-line（markdown 源码行号，1-based），供分屏同步滚动按顶部行对齐
+const LINE_MAP_BLOCK_TYPES = new Set([
+  'paragraph_open', 'heading_open', 'bullet_list_open', 'ordered_list_open',
+  'list_item_open', 'blockquote_open', 'fence', 'table_open', 'hr', 'code_block'
+])
+for (const type of LINE_MAP_BLOCK_TYPES) {
+  const orig = md.renderer.rules[type]
+  md.renderer.rules[type] = function (tokens, idx, options, env, self) {
+    const html = orig ? orig(tokens, idx, options, env, self) : self.renderToken(tokens, idx, options)
+    const t = tokens[idx]
+    if (t.map && typeof html === 'string') {
+      const line = t.map[0] + 1
+      return html.replace(/^<([a-zA-Z][^ >]*)/, (m, tag) => `<${tag} data-line="${line}"`)
+    }
+    return html
+  }
 }
 
 export function renderMarkdown(text) {

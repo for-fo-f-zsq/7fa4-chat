@@ -75,7 +75,7 @@ const modOn = computed(() => /^\d+$/.test(modValue.value.trim()))
 
 const padKeys = ['AC', '⌫', '(', ')', '÷', '7', '8', '9', '×', '**', '4', '5', '6', '−', '!', '1', '2', '3', '+', '%', '0', '.', 'π', 'e', '=']
 const bitKeys = ['&', '|', '^', '~', '<<', '>>']
-const funcKeys = ['√', 'x²', 'x³', 'log2', 'log10', 'ln', 'abs', 'fact', 'gcd', 'lcm', 'C', 'A', 'inv', 'factor', 'min', 'max']
+const funcKeys = ['√', 'x²', 'x³', 'sin', 'cos', 'tan', 'cot', 'log2', 'log10', 'ln', 'abs', 'fact', 'gcd', 'lcm', 'C', 'A', 'inv', 'factor', 'min', 'max']
 
 function press(k) {
   if (k === 'AC') {

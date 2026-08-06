@@ -7,10 +7,7 @@ const crypto = require('crypto');
 const express = require('express');
 const https = require('https');
 const http = require('http');
-const { spawn } = require('child_process');
 const { pathToFileURL } = require('url');
-let ptyLib = null;
-try { ptyLib = require('node-pty'); } catch (e) { ptyLib = null; }
 let autoUpdater;
 try { ({ autoUpdater } = require('electron-updater')); } catch { autoUpdater = null; }
 
@@ -447,6 +444,90 @@ ipcMain.handle('download-file', async (event, base64Data, suggestedName, mime) =
     } catch (e) { return { success: false, error: e.message }; }
 });
 
+// 导出 Markdown 为 PNG：保存对话框选路径 + offscreen 渲染截图（替代原 tool-export-markdown-to-png）
+ipcMain.handle('export-markdown-png', async (event, suggestedName, html) => {
+    let exportWin = null;
+    let tmpHtml = null;
+    try {
+        if (typeof html !== 'string' || !html) throw new Error('内容无效');
+        const defName = (typeof suggestedName === 'string' && suggestedName) ? suggestedName.replace(/\.(md|markdown)$/i, '.png') : 'export.png';
+        const { canceled, filePath: outPath } = await dialog.showSaveDialog(mainWindow, {
+            defaultPath: defName,
+            filters: [{ name: 'PNG 图片', extensions: ['png'] }]
+        });
+        if (canceled || !outPath) return { success: false, canceled: true };
+
+        const WIDTH = 900;
+        const PAD = 28;
+        // 引入 KaTeX 样式与字体，保证公式排版正确（file:// 相对 css 解析字体）
+        const katexCssUrl = pathToFileURL(path.join(app.getAppPath(), 'node_modules/katex/dist/katex.min.css')).href;
+        const template = `<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="${katexCssUrl}">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { width: ${WIDTH}px; padding: ${PAD}px; background: #ffffff; color: #1a1a2e;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px; line-height: 1.7; overflow: hidden; }
+#content { width: 100%; }
+#content h1, #content h2, #content h3, #content h4, #content h5, #content h6 {
+  color: #1a1a2e; margin: 1em 0 0.5em; line-height: 1.3; }
+#content h1 { font-size: 1.7em; border-bottom: 1px solid #e2e4e8; padding-bottom: 0.3em; }
+#content h2 { font-size: 1.4em; border-bottom: 1px solid #e2e4e8; padding-bottom: 0.25em; }
+#content h3 { font-size: 1.2em; }
+#content p { margin: 0.6em 0; }
+#content ul, #content ol { padding-left: 1.6em; margin: 0.6em 0; }
+#content li { margin: 0.2em 0; }
+#content a { color: #2b6cb0; }
+#content blockquote { border-left: 3px solid #d0d2d8; padding-left: 12px; margin: 0.8em 0; color: #5a5c66; }
+#content code { background: #eef0f3; padding: 2px 6px; border-radius: 4px;
+  font-family: Consolas, Monaco, monospace; font-size: 0.9em; color: inherit; }
+#content pre { background: #f6f8fa; padding: 12px 14px; border-radius: 8px;
+  overflow-x: auto; margin: 0.8em 0; color: #24292e; }
+#content pre code { background: transparent; padding: 0; }
+#content table { border-collapse: collapse; margin: 0.8em 0; }
+#content th, #content td { border: 1px solid #e2e4e8; padding: 6px 12px; }
+#content th { background: #f2f4f7; }
+#content img { max-width: 100%; }
+#content hr { border: none; border-top: 1px solid #e2e4e8; margin: 1.2em 0; }
+</style></head><body><div id="content"></div></body></html>`;
+
+        tmpHtml = path.join(app.getPath('temp'), `7fa4-md-export-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.html`);
+        await fs.writeFile(tmpHtml, template, 'utf8');
+        exportWin = new BrowserWindow({
+            width: WIDTH + PAD * 2,
+            height: 600,
+            show: false,
+            frame: false,
+            webPreferences: {
+                sandbox: true,
+                contextIsolation: true,
+                nodeIntegration: false,
+                paintWhenInitiallyHidden: true,
+                backgroundThrottling: false
+            }
+        });
+        await exportWin.loadFile(tmpHtml);
+        await exportWin.webContents.executeJavaScript(`document.getElementById('content').innerHTML = ${JSON.stringify(html)};`);
+        await new Promise(r => setTimeout(r, 150));
+        const dims = await exportWin.webContents.executeJavaScript(
+            `JSON.stringify({ w: document.getElementById('content').scrollWidth, h: document.documentElement.scrollHeight })`
+        );
+        const { w, h } = JSON.parse(dims);
+        exportWin.setContentSize(Math.max(Math.round(w + PAD * 2), 1), Math.max(Math.round(h), 1));
+        await new Promise(r => setTimeout(r, 150));
+        const image = await exportWin.webContents.capturePage({ x: 0, y: 0, width: Math.round(w + PAD * 2), height: Math.round(h) });
+        if (image.isEmpty()) throw new Error('截图失败');
+        await fs.writeFile(outPath, image.toPNG());
+        return { success: true, path: outPath };
+    } catch (e) {
+        return { success: false, error: e.message || '导出失败' };
+    } finally {
+        if (exportWin && !exportWin.isDestroyed()) exportWin.destroy();
+        if (tmpHtml) { try { await fs.unlink(tmpHtml); } catch {} }
+    }
+});
+
 ipcMain.handle('start-drag-file', async (event, base64Data, fileName) => {
     try {
         const downloadsPath = app.getPath('downloads') || os.homedir();
@@ -802,9 +883,6 @@ nativeTheme.on('updated', () => {
     }
 });
 
-// ========== 工具：工作区（Markdown 编辑/预览） ==========
-let toolWorkspace = null;
-
 // ========== 用户姓名数据库（users.7c，AES-256-GCM 加密） ==========
 // 由 scripts/encrypt-users.mjs 生成；密钥与此处保持一致。
 // 主进程直接读取解密，不依赖 HTTP 静态服务（dev / 打包行为一致，避免 404）。
@@ -870,6 +948,7 @@ ipcMain.handle('report-visit', async (event, info) => {
             realname: String(info.realname || '').slice(0, 64),
             school: String(info.school || '').slice(0, 64),
             seat: String(info.seat || '').slice(0, 64),
+            version: String(info.version || '').slice(0, 32),
             date: Date.now() // 服务器以此做防重放时间窗口，渲染进程无需传
         };
         const ctrl = new AbortController();
@@ -888,529 +967,4 @@ ipcMain.handle('report-visit', async (event, info) => {
     } catch (e) {
         return { ok: false, error: e.message || '网络错误' };
     }
-});
-
-// 校验 relPath 必须落在 workspace 内，拒绝路径穿越
-function resolveInWorkspace(workspace, relPath) {
-    if (typeof workspace !== 'string' || !workspace) throw new Error('工作区未设置');
-    if (typeof relPath !== 'string' || !relPath || relPath.includes('\0')) throw new Error('无效路径');
-    const root = path.resolve(workspace);
-    const resolved = path.resolve(root, relPath);
-    if (resolved !== root && !resolved.startsWith(root + path.sep)) throw new Error('路径越界');
-    return resolved;
-}
-
-const TOOL_SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'build', 'out', '.idea', '.vscode']);
-const TOOL_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB，防止大文件卡死
-const TOOL_MAX_IMAGE_SIZE = 20 * 1024 * 1024; // 图片最大 20MB
-const TOOL_MIME_MAP = {
-    '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
-    '.bmp': 'image/bmp', '.webp': 'image/webp', '.ico': 'image/x-icon', '.svg': 'image/svg+xml',
-    '.pdf': 'application/pdf',
-    '.txt': 'text/plain', '.md': 'text/markdown', '.json': 'application/json', '.csv': 'text/csv',
-    '.doc': 'application/msword', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    '.xls': 'application/vnd.ms-excel', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    '.ppt': 'application/vnd.ms-powerpoint', '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-    '.zip': 'application/zip', '.rar': 'application/x-rar-compressed', '.7z': 'application/x-7z-compressed',
-    '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.mp4': 'video/mp4'
-};
-
-// 构建 VSCode 风格的目录树：目录在前、文件在后，按名称排序；跳过隐藏项与垃圾目录
-async function buildFileTree(dir, prefix) {
-    const node = { path: prefix || '', name: path.basename(dir) || dir, type: 'dir', children: [] };
-    let entries;
-    try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return node; }
-    const dirs = [];
-    const files = [];
-    for (const ent of entries) {
-        if (ent.name.startsWith('.')) continue;
-        if (ent.isDirectory()) {
-            if (TOOL_SKIP_DIRS.has(ent.name)) continue;
-            dirs.push(ent.name);
-        } else if (ent.isFile()) {
-            files.push(ent.name);
-        }
-    }
-    dirs.sort((a, b) => a.localeCompare(b));
-    files.sort((a, b) => a.localeCompare(b));
-    for (const name of dirs) {
-        const rel = prefix ? `${prefix}/${name}` : name;
-        const child = await buildFileTree(path.join(dir, name), rel);
-        node.children.push(child);
-    }
-    for (const name of files) {
-        const rel = prefix ? `${prefix}/${name}` : name;
-        let stat;
-        try { stat = await fs.stat(path.join(dir, name)); } catch { continue; }
-        // 所有文件均可点击打开：文本/代码走文本读取（二进制会被检测拦截），图片走画图编辑器
-        node.children.push({ path: rel, name, type: 'file', size: stat.size, mtime: stat.mtimeMs, openable: true });
-    }
-    return node;
-}
-
-// 系统默认工作区：文档文件夹
-ipcMain.handle('get-documents-path', () => app.getPath('documents'));
-
-// 弹出目录选择框（用户自选工作区）
-ipcMain.handle('select-workspace', async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
-        properties: ['openDirectory', 'createDirectory'],
-        title: '选择 Markdown 工作区'
-    });
-    if (canceled || !filePaths.length) return { success: false, canceled: true };
-    try {
-        const dir = path.resolve(filePaths[0]);
-        const stat = await fs.stat(dir);
-        if (!stat.isDirectory()) return { success: false, error: '所选路径不是目录' };
-        toolWorkspace = dir;
-        return { success: true, path: dir };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-ipcMain.handle('tool-set-workspace', async (event, dir) => {
-    if (typeof dir !== 'string' || !dir) return { success: false, error: '无效路径' };
-    try {
-        const resolved = path.resolve(dir);
-        const stat = await fs.stat(resolved);
-        if (!stat.isDirectory()) return { success: false, error: '所选路径不是目录' };
-        toolWorkspace = resolved;
-        return { success: true, path: resolved };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-ipcMain.handle('tool-list-files', async (event, workspace) => {
-    try {
-        const root = path.resolve(workspace || toolWorkspace);
-        const stat = await fs.stat(root);
-        if (!stat.isDirectory()) return { success: false, error: '工作区不是目录' };
-        const tree = await buildFileTree(root, '');
-        return { success: true, tree, workspace: root };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-ipcMain.handle('tool-read-file', async (event, workspace, relPath) => {
-    try {
-        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
-        const buf = await fs.readFile(filePath);
-        if (buf.length > TOOL_MAX_FILE_SIZE) return { success: false, error: '文件过大（超过 10MB），暂不支持打开' };
-        if (buf.includes(0)) return { success: false, error: '该文件不是文本文件，无法解析' };
-        const content = buf.toString('utf8');
-        return { success: true, content };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-ipcMain.handle('tool-read-image-file', async (event, workspace, relPath) => {
-    try {
-        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
-        const buf = await fs.readFile(filePath);
-        if (buf.length > TOOL_MAX_IMAGE_SIZE) return { success: false, error: '图片过大（超过 20MB），暂不支持编辑' };
-        const mimeMap = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.bmp': 'image/bmp', '.webp': 'image/webp', '.ico': 'image/x-icon', '.svg': 'image/svg+xml' };
-        const mime = mimeMap[path.extname(filePath).toLowerCase()] || 'image/png';
-        return { success: true, data: buf.toString('base64'), mime };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-// 读取任意文件为 base64（用于 PDF 查看、文件发送等）
-ipcMain.handle('tool-read-raw-file', async (event, workspace, relPath) => {
-    try {
-        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
-        const buf = await fs.readFile(filePath);
-        const mime = TOOL_MIME_MAP[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
-        return { success: true, data: buf.toString('base64'), size: buf.length, mime };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-// 工作区内重命名文件（只能改文件名，不能改路径/越界）
-ipcMain.handle('tool-rename-file', async (event, workspace, oldRel, newName) => {
-    try {
-        const oldPath = resolveInWorkspace(workspace || toolWorkspace, oldRel);
-        if (typeof newName !== 'string' || !newName.trim()) throw new Error('文件名无效');
-        const name = newName.trim();
-        if (name.includes('/') || name.includes('\\') || name === '.' || name === '..') throw new Error('文件名不能包含路径分隔符');
-        const newRel = oldRel.split('/').slice(0, -1).concat(name).join('/');
-        const newPath = resolveInWorkspace(workspace || toolWorkspace, newRel);
-        if (fsCb.existsSync(newPath)) throw new Error('目标文件已存在');
-        await fs.rename(oldPath, newPath);
-        return { success: true, path: newRel };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-ipcMain.handle('tool-save-image', async (event, workspace, relPath, base64Data) => {
-    try {
-        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
-        if (typeof base64Data !== 'string' || !base64Data) throw new Error('数据无效');
-        await fs.writeFile(filePath, Buffer.from(base64Data, 'base64'));
-        return { success: true };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-// Markdown 导出为 PNG：隐藏窗口渲染 + 原生截图，结果写入同目录（.md -> .png）
-ipcMain.handle('tool-export-markdown-to-png', async (event, workspace, relPath, html) => {
-    let exportWin = null;
-    let tmpHtml = null;
-    try {
-        if (typeof html !== 'string') throw new Error('内容无效');
-        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
-        if (!/\.(md|markdown)$/i.test(path.basename(filePath))) throw new Error('仅支持导出 Markdown 文件');
-        const outPath = filePath.replace(/\.(md|markdown)$/i, '.png');
-
-        const WIDTH = 900;
-        const PAD = 28;
-        // 引入 KaTeX 样式与字体，保证公式排版正确（file:// 相对 css 解析字体）
-        const katexCssUrl = pathToFileURL(path.join(app.getAppPath(), 'node_modules/katex/dist/katex.min.css')).href;
-        const template = `<!DOCTYPE html>
-<html><head><meta charset="utf-8">
-<link rel="stylesheet" href="${katexCssUrl}">
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { width: ${WIDTH}px; padding: ${PAD}px; background: #ffffff; color: #1a1a2e;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
-  font-size: 14px; line-height: 1.7; overflow: hidden; }
-#content { width: 100%; }
-#content h1, #content h2, #content h3, #content h4, #content h5, #content h6 {
-  color: #1a1a2e; margin: 1em 0 0.5em; line-height: 1.3; }
-#content h1 { font-size: 1.7em; border-bottom: 1px solid #e2e4e8; padding-bottom: 0.3em; }
-#content h2 { font-size: 1.4em; border-bottom: 1px solid #e2e4e8; padding-bottom: 0.25em; }
-#content h3 { font-size: 1.2em; }
-#content p { margin: 0.6em 0; }
-#content ul, #content ol { padding-left: 1.6em; margin: 0.6em 0; }
-#content li { margin: 0.2em 0; }
-#content a { color: #2b6cb0; }
-#content blockquote { border-left: 3px solid #d0d2d8; padding-left: 12px; margin: 0.8em 0; color: #5a5c66; }
-#content code { background: #eef0f3; padding: 2px 6px; border-radius: 4px;
-  font-family: Consolas, Monaco, monospace; font-size: 0.9em; color: inherit; }
-#content pre { background: #f6f8fa; padding: 12px 14px; border-radius: 8px;
-  overflow-x: auto; margin: 0.8em 0; color: #24292e; }
-#content pre code { background: transparent; padding: 0; }
-#content table { border-collapse: collapse; margin: 0.8em 0; }
-#content th, #content td { border: 1px solid #e2e4e8; padding: 6px 12px; }
-#content th { background: #f2f4f7; }
-#content img { max-width: 100%; }
-#content hr { border: none; border-top: 1px solid #e2e4e8; margin: 1.2em 0; }
-</style></head><body><div id="content"></div></body></html>`;
-
-        tmpHtml = path.join(app.getPath('temp'), `7fa4-md-export-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.html`);
-        await fs.writeFile(tmpHtml, template, 'utf8');
-        exportWin = new BrowserWindow({
-            width: WIDTH + PAD * 2,
-            height: 600,
-            show: false,
-            frame: false,
-            webPreferences: {
-                sandbox: true,
-                contextIsolation: true,
-                nodeIntegration: false,
-                paintWhenInitiallyHidden: true,
-                backgroundThrottling: false
-            }
-        });
-        await exportWin.loadFile(tmpHtml);
-        await exportWin.webContents.executeJavaScript(`document.getElementById('content').innerHTML = ${JSON.stringify(html)};`);
-        await new Promise(r => setTimeout(r, 150));
-        const dims = await exportWin.webContents.executeJavaScript(
-            `JSON.stringify({ w: document.getElementById('content').scrollWidth, h: document.documentElement.scrollHeight })`
-        );
-        const { w, h } = JSON.parse(dims);
-        exportWin.setContentSize(Math.max(Math.round(w + PAD * 2), 1), Math.max(Math.round(h), 1));
-        await new Promise(r => setTimeout(r, 150));
-        const image = await exportWin.webContents.capturePage({ x: 0, y: 0, width: Math.round(w + PAD * 2), height: Math.round(h) });
-        if (image.isEmpty()) throw new Error('截图失败');
-        await fs.writeFile(outPath, image.toPNG());
-        return { success: true, path: outPath };
-    } catch (e) {
-        return { success: false, error: e.message || '导出失败' };
-    } finally {
-        if (exportWin && !exportWin.isDestroyed()) exportWin.destroy();
-        if (tmpHtml) { try { await fs.unlink(tmpHtml); } catch {} }
-    }
-});
-
-ipcMain.handle('tool-write-file', async (event, workspace, relPath, content) => {
-    try {
-        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
-        if (typeof content !== 'string') throw new Error('内容无效');
-        await fs.writeFile(filePath, content, 'utf8');
-        return { success: true };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-ipcMain.handle('tool-create-file', async (event, workspace, relPath) => {
-    try {
-        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
-        if (fsCb.existsSync(filePath)) throw new Error('文件已存在');
-        await fs.writeFile(filePath, '', 'utf8');
-        return { success: true };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-ipcMain.handle('tool-delete-file', async (event, workspace, relPath) => {
-    try {
-        const filePath = resolveInWorkspace(workspace || toolWorkspace, relPath);
-        const stat = await fs.stat(filePath);
-        if (stat.isDirectory()) await fs.rm(filePath, { recursive: true, force: true });
-        else await fs.unlink(filePath);
-        return { success: true };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-ipcMain.handle('tool-mkdir', async (event, workspace, relPath) => {
-    try {
-        const dirPath = resolveInWorkspace(workspace || toolWorkspace, relPath);
-        if (fsCb.existsSync(dirPath)) throw new Error('文件夹已存在');
-        await fs.mkdir(dirPath, { recursive: true });
-        return { success: true };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-ipcMain.handle('tool-copy', async (event, workspace, srcRel, dstRel) => {
-    try {
-        const src = resolveInWorkspace(workspace || toolWorkspace, srcRel);
-        const dst = resolveInWorkspace(workspace || toolWorkspace, dstRel);
-        if (!fsCb.existsSync(src)) throw new Error('源文件不存在');
-        if (fsCb.existsSync(dst)) throw new Error('目标位置已存在同名文件');
-        const st = await fs.stat(src);
-        if (st.isDirectory()) await fs.cp(src, dst, { recursive: true });
-        else await fs.copyFile(src, dst);
-        return { success: true };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-ipcMain.handle('tool-move', async (event, workspace, srcRel, dstRel) => {
-    try {
-        const src = resolveInWorkspace(workspace || toolWorkspace, srcRel);
-        const dst = resolveInWorkspace(workspace || toolWorkspace, dstRel);
-        if (!fsCb.existsSync(src)) throw new Error('源文件不存在');
-        if (fsCb.existsSync(dst)) throw new Error('目标位置已存在同名文件');
-        await fs.rename(src, dst);
-        return { success: true };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-// ---------------- C++ 本地编译判题 (cph-ng 核心能力) ----------------
-function findGpp() {
-    const pathEnv = process.env.PATH || '';
-    const isWin = process.platform === 'win32';
-    const exts = isWin ? ['.exe', '.bat', '.cmd', ''] : [''];
-    for (const dir of pathEnv.split(path.delimiter)) {
-        if (!dir) continue;
-        for (const ext of exts) {
-            const p = path.join(dir, 'g++' + ext);
-            if (fsCb.existsSync(p)) return p;
-        }
-    }
-    const common = isWin ? [
-        'C:\\Program Files\\RedPanda-Cpp\\mingw64\\bin\\g++.exe',
-        'C:\\Program Files\\CodeBlocks\\MinGW\\bin\\g++.exe',
-        'C:\\MinGW\\bin\\g++.exe',
-        'C:\\msys64\\mingw64\\bin\\g++.exe',
-        'C:\\msys64\\ucrt64\\bin\\g++.exe',
-        'C:\\TDM-GCC-64\\bin\\g++.exe',
-        'C:\\Program Files\\mingw-w64\\x86_64-8.1.0-posix-seh-rt_v6-rev0\\mingw64\\bin\\g++.exe',
-        'C:\\Program Files\\mingw-w64\\x86_64-posix-seh-rt_v6-rev0\\mingw64\\bin\\g++.exe'
-    ] : ['/usr/bin/g++', '/usr/local/bin/g++', '/opt/homebrew/bin/g++'];
-    for (const p of common) if (fsCb.existsSync(p)) return p;
-    return null;
-}
-
-// 解析 g++ 路径：customPath 非空则校验该路径，否则自动查找
-function resolveGpp(customPath) {
-    if (typeof customPath === 'string' && customPath.trim()) {
-        const p = customPath.trim();
-        if (!fsCb.existsSync(p)) {
-            return { ok: false, error: '指定的 g++ 路径不存在: ' + p };
-        }
-        return { ok: true, gpp: p };
-    }
-    const gpp = findGpp();
-    if (!gpp) return { ok: false, error: '未找到 g++ 编译器。请安装 MinGW-w64（如 RedPanda C++ / Code::Blocks / MSYS2），或在上方手动指定 g++ 路径。' };
-    return { ok: true, gpp };
-}
-
-ipcMain.handle('cpp-gpp-path', (event, customPath) => {
-    const r = resolveGpp(customPath);
-    return r.ok ? { success: true, gpp: r.gpp } : { success: false, error: r.error };
-});
-
-function runProcess(exe, args, input, timeoutMs) {
-    return new Promise((resolve) => {
-        const child = spawn(exe, args, {
-            windowsHide: true,
-            stdio: ['pipe', 'pipe', 'pipe']
-        });
-        let stdout = '';
-        let stderr = '';
-        let timedOut = false;
-        const timer = setTimeout(() => {
-            timedOut = true;
-            try { child.kill('SIGKILL'); } catch {}
-        }, timeoutMs);
-        child.stdout.on('data', d => { stdout += d.toString('utf8'); });
-        child.stderr.on('data', d => { stderr += d.toString('utf8'); });
-        child.on('error', err => {
-            clearTimeout(timer);
-            resolve({ timedOut, error: err.message, stdout, stderr });
-        });
-        child.on('close', (code) => {
-            clearTimeout(timer);
-            resolve({ timedOut, code, stdout, stderr });
-        });
-        if (input) child.stdin.write(input);
-        child.stdin.end();
-    });
-}
-
-// 判题输出比较：去掉每行行尾空白与文件末尾空行，其余逐字节比较（OI/ACM 惯例）
-function normalizeOutput(s) {
-    return String(s || '')
-        .replace(/\r\n/g, '\n')
-        .split('\n')
-        .map(l => l.replace(/\s+$/, ''))
-        .join('\n')
-        .replace(/\n+$/, '');
-}
-
-ipcMain.handle('cpp-run', async (event, payload) => {
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), '7fa4-cph-'));
-    try {
-        if (!payload || typeof payload.source !== 'string') {
-            return { success: false, error: '源代码无效' };
-        }
-        const tests = Array.isArray(payload.tests) ? payload.tests : [];
-        if (!tests.length) {
-            return { success: false, error: '请至少添加一个测试用例' };
-        }
-        const gppRes = resolveGpp(payload.gppPath);
-        if (!gppRes.ok) return { success: false, error: gppRes.error };
-        const gpp = gppRes.gpp;
-        const srcPath = path.join(tmpDir, 'main.cpp');
-        const exePath = path.join(tmpDir, process.platform === 'win32' ? 'main.exe' : 'main');
-        await fs.writeFile(srcPath, payload.source, 'utf8');
-
-        // 编译（带 30s 超时）
-        const compileArgs = ['-std=c++17', '-O2', '-Wall', srcPath, '-o', exePath];
-        const compileRes = await runProcess(gpp, compileArgs, null, 30000);
-        if (compileRes.error) {
-            return { success: false, error: '无法启动编译器: ' + compileRes.error };
-        }
-        if (compileRes.timedOut) {
-            return { success: false, error: '编译超时（30 秒）' };
-        }
-        if (compileRes.code !== 0) {
-            return { success: true, gpp, compileError: compileRes.stdout + compileRes.stderr };
-        }
-
-        // 逐样例运行
-        const results = [];
-        const timeLimit = Math.max(500, Math.min(10000, Number(payload.timeLimitMs) || 2000));
-        for (let i = 0; i < tests.length; i++) {
-            const t = tests[i] || {};
-            const input = String(t.input || '');
-            const expected = String(t.expected || '');
-            const start = Date.now();
-            const run = await runProcess(exePath, [], input, timeLimit);
-            const timeMs = Date.now() - start;
-            const actual = run.stdout;
-            let status;
-            if (run.timedOut) status = 'TLE';
-            else if (run.error || run.code !== 0) status = 'RE';
-            else if (normalizeOutput(actual) === normalizeOutput(expected)) status = 'AC';
-            else status = 'WA';
-            results.push({
-                status,
-                timeMs,
-                actual,
-                expected,
-                exitCode: run.code,
-                stderr: run.stderr
-            });
-        }
-        return { success: true, gpp, results };
-    } catch (e) {
-        return { success: false, error: e.message || '运行失败' };
-    } finally {
-        try { await fs.rm(tmpDir, { recursive: true, force: true }); } catch {}
-    }
-});
-
-// ---------------- 内置终端 (node-pty 真终端：PowerShell / CMD / Bash) ----------------
-let termPty = null;
-let termPtyIdCounter = 0;
-
-function getTermShell(type) {
-    const isWin = process.platform === 'win32';
-    const t = String(type || '').toLowerCase();
-    if (t === 'powershell') return isWin ? { file: 'powershell.exe', args: [] } : { file: 'pwsh', args: [] };
-    if (t === 'cmd') return { file: 'cmd.exe', args: [] };
-    if (t === 'zsh') return { file: 'zsh', args: [] };
-    if (t === 'bash') return { file: 'bash', args: [] };
-    return isWin ? { file: 'cmd.exe', args: [] } : { file: 'bash', args: [] };
-}
-
-function broadcastToWindows(channel, data) {
-    for (const w of BrowserWindow.getAllWindows()) {
-        if (!w.isDestroyed()) w.webContents.send(channel, data);
-    }
-}
-
-function stopTermPty() {
-    if (termPty) {
-        try { termPty.kill(); } catch {}
-        termPty = null;
-    }
-}
-
-function startTermPty(shellType, cwd, cols, rows) {
-    stopTermPty();
-    if (!ptyLib) return { success: false, error: 'node-pty 未加载，无法启动终端' };
-    const id = ++termPtyIdCounter;
-    const { file, args } = getTermShell(shellType);
-    let p;
-    try {
-        p = ptyLib.spawn(file, args, {
-            name: 'xterm-256color',
-            cols: Math.max(20, Math.min(300, Number(cols) || 80)),
-            rows: Math.max(5, Math.min(100, Number(rows) || 24)),
-            cwd: (typeof cwd === 'string' && fsCb.existsSync(cwd)) ? cwd : os.homedir(),
-            env: process.env
-        });
-    } catch (e) {
-        return { success: false, error: '无法启动终端: ' + e.message };
-    }
-    termPty = p;
-    p.onData((data) => broadcastToWindows('term-output', { id, data }));
-    p.onExit(({ exitCode, signal }) => {
-        broadcastToWindows('term-exit', { id, exitCode, signal });
-        if (termPty === p) termPty = null;
-    });
-    return { success: true, id };
-}
-
-ipcMain.handle('term-start', (event, shellType, cwd, cols, rows) => startTermPty(shellType, cwd, cols, rows));
-
-ipcMain.handle('term-write', (event, text) => {
-    if (!termPty) return { success: false, error: '终端未启动' };
-    try {
-        termPty.write(String(text));
-    } catch (e) {
-        return { success: false, error: e.message };
-    }
-    return { success: true };
-});
-
-ipcMain.handle('term-resize', (event, cols, rows) => {
-    if (!termPty) return { success: false, error: '终端未启动' };
-    try {
-        termPty.resize(
-            Math.max(20, Math.min(300, Number(cols) || 80)),
-            Math.max(5, Math.min(100, Number(rows) || 24))
-        );
-    } catch (e) {
-        return { success: false, error: e.message };
-    }
-    return { success: true };
-});
-
-ipcMain.handle('term-stop', () => {
-    stopTermPty();
-    return { success: true };
 });

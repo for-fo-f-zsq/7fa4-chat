@@ -1,3 +1,27 @@
+<h2>3.3.0</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>「工具」板块重构：Markdown 编辑、图片编辑独立为两个工具</li>
+  <li><span class="change-tag new">新功能</span>Markdown 编辑支持打开 / 新建 / 保存 / 导出图片，编辑预览分屏联动</li>
+  <li><span class="change-tag new">新功能</span>图片编辑支持画布尺寸调整、新建画布、缩放与撤销增强</li>
+  <li><span class="change-tag new">新功能</span>Graph Editor 新增树形布局与导出为图片</li>
+  <li><span class="change-tag new">新功能</span>计算器新增三角函数 sin / cos / tan / cot</li>
+  <li><span class="change-tag new">新功能</span>访问统计上报客户端版本，分析页可查看用户使用版本</li>
+  <li><span class="change-tag new">新功能</span>token 余额提示：显示剩余数量与恢复倒计时</li>
+  <li><span class="change-tag new">新功能</span>文件预览支持 Markdown 渲染与 PDF 阅读，扩展更多文件类型</li>
+  <li><span class="change-tag new">新功能</span>输入栏新增收藏夹入口，可从收藏中直接选择发送</li>
+  <li><span class="change-tag new">新功能</span>聊天顶部新增关注按钮与单方面关注提示</li>
+  <li><span class="change-tag new">新功能</span>关于页新增 GitHub 项目入口，左上角 Logo 可点击前往官网</li>
+  <li><span class="change-tag improve">优化</span>表情包改为微信式：点击插入输入框，单表情直接发送</li>
+  <li><span class="change-tag improve">优化</span>好友关系改为基于 watchee / watcher 判断，仅展示有关联的会话</li>
+  <li><span class="change-tag improve">优化</span>年级信息改为从排行榜实时同步</li>
+  <li><span class="change-tag improve">优化</span>Graph Editor 力导向布局优化：增大节点间距，拖动时其余节点联动</li>
+  <li><span class="change-tag improve">优化</span>Markdown 输入框支持编辑预览分屏与同步滚动</li>
+  <li><span class="change-tag fix">修复</span> Markdown 公式渲染错误与复制重复的问题</li>
+  <li><span class="change-tag fix">修复</span>文本文件预览中文乱码的问题</li>
+  <li><span class="change-tag fix">修复</span>群聊消息通知误显示为私信的问题</li>
+  <li><span class="change-tag fix">修复</span>部分网络环境下启动卡死数分钟的问题</li>
+  <li><span class="change-tag fix">修复</span>计算器大数运算精度丢失的问题</li>
+</ul>
 <h2>3.2.3</h2>
 <ul>
   <li><span class="change-tag improve">优化</span>优化消息样式</li>

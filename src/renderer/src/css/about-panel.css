@@ -79,6 +79,17 @@
     color: var(--text-secondary);
     font-size: var(--font-size-small);
 }
+.about-github-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 25px;
+    height: 25px;
+    color: var(--text-secondary);
+    font-size: 22px;
+    text-decoration: none;
+}
+.about-github-link:hover { color: var(--accent); }
 .about-tech {
     display: flex;
     flex-wrap: wrap;

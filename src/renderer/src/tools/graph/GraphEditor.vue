@@ -141,6 +141,15 @@
             <button class="graph-tool-btn" title="重新随机排布并自动布局" @click="restartLayout">
               <i class="fas fa-magic"></i>
             </button>
+            <button
+              class="graph-tool-btn"
+              :class="{ active: treeMode }"
+              title="树形布局：点击一个节点作为根，按 DFS 树边分层排布"
+              @click="toggleTreeMode"
+            >
+              <i class="fas fa-sitemap"></i>
+              <span class="graph-tool-text">树形</span>
+            </button>
           </div>
           <div class="graph-tool-divider"></div>
           <div class="graph-tool-group">
@@ -153,6 +162,10 @@
             <button class="graph-tool-btn" title="放大" @click="zoomIn"><i class="fas fa-search-plus"></i></button>
             <button class="graph-tool-btn" title="缩小" @click="zoomOut"><i class="fas fa-search-minus"></i></button>
             <button class="graph-tool-btn" title="适应画布" @click="fitView"><i class="fas fa-expand"></i></button>
+          </div>
+          <div class="graph-tool-divider"></div>
+          <div class="graph-tool-group">
+            <button class="graph-tool-btn" title="导出为 PNG 图片" @click="exportImg"><i class="fas fa-file-image"></i></button>
           </div>
         </div>
 
@@ -395,6 +408,8 @@ function clearGraph(syncInput = true) {
   selected = null
   edgeStart = null
   dragNode = null
+  treeEdgeSet = new Set()
+  treeRoot = null
   stopLayout()
   view.x = canvasW / 2
   view.y = canvasH / 2
@@ -451,6 +466,48 @@ function syncInputFromGraph() {
 }
 
 // ---------- 导出 ----------
+// 导出整个图为 PNG：计算节点包围盒 → 离屏 canvas（≤2 倍清晰度）→ 复用 drawEdges/drawNodes 绘制 → 保存对话框
+function exportImg() {
+  if (!nodes.length) { alert('画布为空，无可导出的图'); return }
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const n of nodes) {
+    if (n.x < minX) minX = n.x
+    if (n.y < minY) minY = n.y
+    if (n.x > maxX) maxX = n.x
+    if (n.y > maxY) maxY = n.y
+  }
+  const PAD = 60
+  minX -= PAD; minY -= PAD; maxX += PAD; maxY += PAD
+  const w = Math.max(10, maxX - minX)
+  const h = Math.max(10, maxY - minY)
+  const scale = Math.min(2, 2400 / w, 2400 / h)
+  const off = document.createElement('canvas')
+  off.width = Math.max(1, Math.round(w * scale))
+  off.height = Math.max(1, Math.round(h * scale))
+  const offCtx = off.getContext('2d')
+  // 临时替换全局 ctx 与交互态（导出干净版，不带 hover/选中高亮）
+  const savedCtx = ctx
+  const saved = { hoverNode, hoverEdge, selected, edgeStart, dragNode }
+  hoverNode = null; hoverEdge = null; selected = null; edgeStart = null; dragNode = null
+  ctx = offCtx
+  offCtx.fillStyle = theme.bg
+  offCtx.fillRect(0, 0, off.width, off.height)
+  offCtx.save()
+  offCtx.translate(-minX * scale, -minY * scale)
+  offCtx.scale(scale, scale)
+  drawEdges()
+  drawNodes()
+  offCtx.restore()
+  ctx = savedCtx
+  hoverNode = saved.hoverNode; hoverEdge = saved.hoverEdge; selected = saved.selected
+  edgeStart = saved.edgeStart; dragNode = saved.dragNode
+  const base64 = off.toDataURL('image/png').split(',')[1]
+  window.api.downloadFile(base64, 'graph.png', 'image/png').then(r => {
+    if (r.success) alert('已导出图片')
+    else if (!r.canceled) alert('导出失败：' + (r.error || '未知错误'))
+  }).catch(() => alert('导出失败'))
+}
+
 function edgesText() {
   const off = offset.value === 0 ? -1 : 0
   const lines = []
@@ -514,7 +571,7 @@ function runLayout() {
   const maxIter = 3000
   let iter = 0
   const step = () => {
-    if (locked.value || !nodes.length || dragNode) {
+    if (locked.value || !nodes.length) {
       stopLayout()
       return
     }
@@ -522,6 +579,7 @@ function runLayout() {
     const dt = 0.035
     for (let i = 0; i < nodes.length; i++) {
       const a = nodes[i]
+      if (a === dragNode) continue // 拖拽中的节点由鼠标控制，其余节点继续力导向运动
       let fx = 0, fy = 0
       for (let j = 0; j < nodes.length; j++) {
         if (i === j) continue
@@ -534,7 +592,8 @@ function runLayout() {
           d2 = dx * dx + dy * dy
         }
         const d = Math.sqrt(d2) || 1
-        const f = 2400 / d2
+        // 斥力：反平方，clamp 上限（700）防止距离过近时爆炸式弹飞；系数增大以拉开节点间距
+        const f = Math.min(2800 / d2, 700)
         fx += (dx / d) * f
         fy += (dy / d) * f
       }
@@ -545,21 +604,27 @@ function runLayout() {
         if (!b) continue
         let dx = b.x - a.x, dy = b.y - a.y
         const d = Math.hypot(dx, dy) || 1
-        const f = 0.06 * (d - 120)
+        const f = 0.07 * (d - 150)
         fx += (dx / d) * f
         fy += (dy / d) * f
       }
       fx -= a.x * 0.0015
       fy -= a.y * 0.0015
-      a.vx = (a.vx || 0) * 0.85 + fx * dt
-      a.vy = (a.vy || 0) * 0.85 + fy * dt
+      let nvx = (a.vx || 0) * 0.85 + fx * dt
+      let nvy = (a.vy || 0) * 0.85 + fy * dt
+      // 速度上限：防止单帧飞离画面
+      const VMAX = 60
+      nvx = Math.max(-VMAX, Math.min(VMAX, nvx))
+      nvy = Math.max(-VMAX, Math.min(VMAX, nvy))
+      a.vx = nvx
+      a.vy = nvy
       a.x += a.vx
       a.y += a.vy
       moved += Math.abs(a.vx) + Math.abs(a.vy)
     }
     iter++
     draw()
-    if (moved > 0.02 && iter < maxIter && !dragNode) {
+    if (moved > 0.02 && iter < maxIter) {
       layoutRaf = requestAnimationFrame(step)
     } else {
       stopLayout()
@@ -579,6 +644,97 @@ function restartLayout() {
   placeCircle()
   fitView()
   runLayout()
+}
+
+// ---------- 树形布局（DFS 树） ----------
+const treeMode = ref(false)
+let treeEdgeSet = new Set()
+let treeRoot = null
+
+function toggleTreeMode() {
+  treeMode.value = !treeMode.value
+  if (treeMode.value) {
+    hint.value = '树形布局：点击一个节点作为根，将按 DFS 树边分层排布（点击本按钮可取消）'
+    edgeStart = null
+  } else {
+    treeEdgeSet = new Set()
+    treeRoot = null
+    hint.value = HINTS[mode.value]
+    invalidate()
+  }
+}
+
+// 选根后：DFS 生成树边 → 分层布局（根在顶部，叶从左到右，父节点在子树中心）
+function treeLayout(rootId) {
+  const root = byId(rootId)
+  if (!root) return
+  const parent = new Map() // child -> parent
+  const treeChildren = new Map() // node -> [children]
+  const depth = new Map()
+  const visited = new Set()
+  visited.add(rootId)
+  depth.set(rootId, 0)
+  const st = [[rootId, 0]]
+  while (st.length) {
+    const [u, d] = st.pop()
+    for (const e of edges) {
+      let v = null
+      if (e.u === u) v = e.v
+      else if (e.v === u) v = e.u
+      if (v == null || visited.has(v)) continue
+      visited.add(v)
+      parent.set(v, u)
+      depth.set(v, d + 1)
+      if (!treeChildren.has(u)) treeChildren.set(u, [])
+      treeChildren.get(u).push(v)
+      st.push([v, d + 1])
+    }
+  }
+  // 未从根到达的节点（孤立/其他连通分量）：深度 0，各自成树
+  for (const n of nodes) {
+    if (!visited.has(n.id)) {
+      visited.add(n.id)
+      depth.set(n.id, 0)
+    }
+  }
+  // 后序分配 x：叶节点从左到右，父节点取子节点中点
+  const x = new Map()
+  let leaf = 0
+  const XGAP = 60
+  const post = (node) => {
+    const ch = treeChildren.get(node) || []
+    if (!ch.length) {
+      x.set(node, leaf * XGAP)
+      leaf++
+      return
+    }
+    for (const c of ch) post(c)
+    const xs = ch.map((c) => x.get(c))
+    x.set(node, (Math.min(...xs) + Math.max(...xs)) / 2)
+  }
+  post(rootId)
+  for (const n of nodes) if (!parent.has(n.id) && n.id !== rootId) post(n.id)
+  // 应用坐标：根 x 归零居中，逐层下移
+  const rootX = x.get(rootId) ?? 0
+  const LAYER_H = 110
+  for (const n of nodes) {
+    const d = depth.get(n.id) ?? 0
+    n.x = (x.get(n.id) ?? 0) - rootX
+    n.y = d * LAYER_H
+    n.vx = 0
+    n.vy = 0
+  }
+  // 树边集合（高亮用）：每条 parent->child 匹配一条实际边
+  treeEdgeSet = new Set()
+  for (const [child, par] of parent) {
+    for (const e of edges) {
+      if ((e.u === par && e.v === child) || (e.u === child && e.v === par)) {
+        treeEdgeSet.add(e)
+        break
+      }
+    }
+  }
+  treeRoot = rootId
 }
 
 // ---------- 随机图 ----------
@@ -1031,6 +1187,14 @@ function drawEdges() {
     } else if (spTree.has(e)) {
       color = theme.accent
       lw = 2.2
+    } else if (treeEdgeSet.has(e)) {
+      color = theme.accent
+      lw = 3
+    } else if (treeEdgeSet.size && !treeEdgeSet.has(e)) {
+      // 树布局已执行：非树边（回边/重边）淡化为虚线
+      color = theme.edge
+      lw = 1.2
+      dash = [5, 4]
     } else if (bridgeSet.has(e)) {
       color = theme.danger
       lw = 2.4
@@ -1282,6 +1446,19 @@ function onMouseDown(e) {
     else if (ed) deleteEdge(ed)
     return
   }
+  if (treeMode.value) {
+    // 树形布局：点击节点作为根
+    if (n) {
+      treeLayout(n.id)
+      fitView()
+      stopLayout()
+      locked.value = true // 树布局后锁定，避免力导向打乱
+      treeMode.value = false
+      hint.value = HINTS[mode.value]
+      invalidate()
+    }
+    return
+  }
   if (n) {
     if (mode.value === 'edge') {
       if (edgeStart) {
@@ -1299,7 +1476,7 @@ function onMouseDown(e) {
     dragOffset = { x: w.x - n.x, y: w.y - n.y }
     dragMoved = false
     dragStartWorld = { x: w.x, y: w.y }
-    stopLayout()
+    // 拖拽时不再停止布局：其余节点继续力导向运动，只有被拖节点由鼠标控制
     invalidate()
     return
   }

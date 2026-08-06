@@ -20,4 +20,5 @@ export const store = reactive({
   online: true,         // 网络在线状态
   multiSelectMode: false, // 多选模式
   selectedMsgIds: [],   // 多选选中的消息ID
+  tokenLimit: null,     // /chat/info 的 limit：{ time_limit(秒=恢复周期), count_limit(最大token数), ... }
 });

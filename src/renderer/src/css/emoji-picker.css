@@ -4,7 +4,8 @@
     box-shadow: var(--shadow-emoji-picker), inset 0 1px 0 var(--border-3d-light);
     margin-top: 6px;
     flex: 1;
-    min-height: 340px;
+    min-height: 200px;
+    max-height: 320px;
     overflow: hidden;
     animation: ctxFade 0.15s ease;
     backdrop-filter: blur(12px);

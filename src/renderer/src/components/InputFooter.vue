@@ -24,14 +24,10 @@
       </div>
     </div>
     <div class="input-row">
-      <div class="input-actions">
-        <button id="emoji_btn" @click.stop="toggleEmoji" :disabled="sending || inputDisabled"><i class="fas fa-smile"></i></button>
-        <button id="file_btn" @click="sendFileMessage" :disabled="sending || inputDisabled"><i class="fas fa-paperclip"></i></button>
-      </div>
       <div class="input-split">
         <div class="input-split-left" :style="splitLeftWidth ? { width: splitLeftWidth + 'px', flex: 'none' } : {}">
           <div class="textarea-wrap">
-            <textarea v-model="inputText" :placeholder="sendPlaceholder" @keydown="onInputKeydown" @input="onInputChange" @paste="onPaste" :disabled="sending || inputDisabled" ref="inputEl"></textarea>
+            <textarea v-model="inputText" :placeholder="sendPlaceholder" @keydown="onInputKeydown" @input="onInputChange" @paste="onPaste" @scroll="syncPreviewFromInput" :disabled="sending || inputDisabled" ref="inputEl"></textarea>
             <div class="mention-popup" v-if="mentionVisible" :style="mentionPopupStyle">
               <div class="mention-item mention-all-item" :class="{ active: mentionIndex === 0 }" @click="applyMentionAll" v-if="pageType === 'group'">
                 <i class="fas fa-users"></i> 所有人
@@ -45,15 +41,43 @@
         <div class="input-split-divider" @mousedown="onSplitDragStart"></div>
         <div class="input-split-right">
           <div class="input-preview-label">预览</div>
-          <div class="input-preview-content" v-if="inputText.trim()" v-html="renderMdPreview()"></div>
+          <div class="input-preview-content" ref="inputPreviewRef" v-if="inputText.trim()" v-html="renderMdPreview()" @scroll="syncInputFromPreview"></div>
           <div class="input-preview-empty" v-else>输入内容后在此预览</div>
         </div>
       </div>
       <button id="send" @click="sendMessage" :disabled="sending || inputDisabled">发送</button>
     </div>
     <div class="counter-line">
+      <div class="input-actions">
+        <button id="emoji_btn" @click.stop="toggleEmoji" :disabled="sending || inputDisabled"><i class="fas fa-smile"></i></button>
+        <button id="file_btn" @click="sendFileMessage" :disabled="sending || inputDisabled"><i class="fas fa-paperclip"></i></button>
+        <button class="favorites-btn" title="从收藏中选择发送" @click="favoritesVisible = !favoritesVisible"><i class="fas fa-star"></i></button>
+      </div>
       <span class="error" v-if="errorMessage">{{ errorMessage }}</span>
-      <span class="token-info" v-if="tokenInfo">剩余 {{ tokenInfo.remain }} / {{ tokenInfo.total }} token</span>
+      <span class="token-info" :class="{ 'token-info-warn': tokenInfo && tokenInfo.remain <= 2 }" v-if="tokenInfo">
+        剩余 {{ tokenInfo.remain }} / {{ tokenInfo.total }} token
+        <span class="token-tip-icon" title="token 恢复倒计时" @mouseenter="onTokenHover(true)" @mouseleave="onTokenHover(false)">
+          <i class="fas fa-question-circle"></i>
+        </span>
+        <span class="token-tooltip" v-if="tokenTipVisible">
+          <template v-if="tokenRecovery.length">
+            <div v-for="(r, i) in tokenRecovery" :key="i" class="token-tooltip-row">
+              <span class="token-tooltip-time">{{ fmtLeft(r.left) }}</span>
+              <span>{{ i === 0 ? '+1 token' : '再 +1 token' }}</span>
+            </div>
+          </template>
+          <div v-else class="token-tooltip-row">全部 token 可用</div>
+        </span>
+      </span>
+      <div class="favorites-picker" v-if="favoritesVisible">
+        <div class="favorites-picker-title">选择收藏消息发送</div>
+        <div class="favorites-picker-list">
+          <div v-if="!store.favorites.length" class="favorites-picker-empty">暂无收藏</div>
+          <div v-for="(fav, idx) in store.favorites" :key="idx" class="favorites-picker-item" @click="sendFavorite(fav)">
+            {{ previewFavorite(fav) }}
+          </div>
+        </div>
+      </div>
     </div>
     <EmojiPicker
       v-if="emojiVisible"
@@ -68,7 +92,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch } from 'vue';
+import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
 import { store } from '../store.js';
 import { displayName, parseMsgContent, renderMarkdown, applyChatToStore, sendChatMessage, getConvoKey, formatSize, compressImage, compressBase64Image } from '../utils.js';
 import EmojiPicker from './EmojiPicker.vue';
@@ -89,6 +113,61 @@ const inputEl = ref(null);
 const sending = ref(false);
 const errorMessage = ref('');
 const tokenInfo = ref(null);
+// ---- token 恢复（滑动窗口）：每条消息发送后 recoverySeconds 秒恢复该条 token ----
+const TOKEN_SENDS_KEY = 'token_sends';
+const tokenTipVisible = ref(false);
+const tokenRecovery = ref([]); // 未恢复的发送记录：[{ time, left(秒) }] 按发送时间排序
+let tokenTipTimer = null;
+
+function loadTokenSends() {
+  try { return JSON.parse(localStorage.getItem(TOKEN_SENDS_KEY) || '[]') } catch { return [] }
+}
+
+function recordTokenSend() {
+  const arr = loadTokenSends();
+  arr.push({ time: Date.now() });
+  if (arr.length > 50) arr.splice(0, arr.length - 50);
+  try { localStorage.setItem(TOKEN_SENDS_KEY, JSON.stringify(arr)) } catch {}
+}
+
+function refreshRecovery() {
+  const sec = (tokenInfo.value && tokenInfo.value.recoverySeconds) || store.tokenLimit?.time_limit || 2400;
+  const now = Date.now();
+  const pending = loadTokenSends()
+    .map(s => ({ time: s.time, left: Math.max(0, (s.time + sec * 1000 - now) / 1000) }))
+    .filter(s => s.left > 0)
+    .sort((a, b) => a.time - b.time);
+  tokenRecovery.value = pending;
+}
+
+function onTokenHover(show) {
+  tokenTipVisible.value = show;
+  clearInterval(tokenTipTimer);
+  if (show) {
+    refreshRecovery();
+    tokenTipTimer = setInterval(refreshRecovery, 1000);
+  }
+}
+
+function fmtLeft(sec) {
+  const s = Math.max(0, Math.ceil(sec));
+  const m = Math.floor(s / 60);
+  const ss = s % 60;
+  return String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+}
+
+// token 数量变化：remain 减少 = 发送消耗 → 记录发送时间（滑动窗口恢复起点）；
+// 同时用服务器 limit 校准 total 与恢复周期
+watch(tokenInfo, (v, old) => {
+  if (!v) return;
+  if (store.tokenLimit?.count_limit) v.total = store.tokenLimit.count_limit;
+  if (!v.recoverySeconds) v.recoverySeconds = store.tokenLimit?.time_limit || 2400;
+  if (old && old.remain != null && v.remain < old.remain) recordTokenSend();
+});
+
+onUnmounted(() => {
+  clearInterval(tokenTipTimer);
+});
 const replyTo = ref(null);
 const emojiVisible = ref(false);
 const mentionVisible = ref(false);
@@ -156,6 +235,50 @@ function extractMentions(text) {
   return [...uids];
 }
 
+// --- 收藏选择发送 ---
+const favoritesVisible = ref(false);
+
+function previewFavorite(fav) {
+  const obj = parseMsgContent(fav.content);
+  if (!obj) {
+    const s = (fav.content || '').replace(/\s+/g, ' ').trim();
+    return s.length > 40 ? s.slice(0, 40) + '…' : s;
+  }
+  if (obj.type === 'text') {
+    const s = (obj.content || '').replace(/\s+/g, ' ').trim();
+    return s.length > 40 ? s.slice(0, 40) + '…' : s;
+  }
+  if (obj.type === 'emoji') return obj.content || '表情';
+  if (obj.type === 'file') return '📄 ' + (obj.name || '文件');
+  if (obj.type === 'sticker') return '🖼️ ' + (obj.name || '表情');
+  return '消息';
+}
+
+// 从收藏中选一条发送到当前会话（按收藏内容类型重建消息）
+async function sendFavorite(fav) {
+  const obj = parseMsgContent(fav.content);
+  if (!obj) { errorMessage.value = '收藏内容无效'; return; }
+  let msgObj = null;
+  if (obj.type === 'text') msgObj = { type: 'text', content: obj.content || '' };
+  else if (obj.type === 'emoji') msgObj = { type: 'emoji', content: obj.content || '' };
+  else if (obj.type === 'file') msgObj = { type: 'file', name: obj.name, size: obj.size, data: obj.data, mime: obj.mime };
+  else if (obj.type === 'sticker') msgObj = { type: 'sticker', data: obj.data, mime: obj.mime, name: obj.name };
+  else { errorMessage.value = '该类型收藏不支持发送'; return; }
+  favoritesVisible.value = false;
+  try {
+    const r = await sendChatMessage({ type: props.pageType, targetId: props.pageId, msgObj });
+    if (!r.success) {
+      errorMessage.value = r.err?.message || '发送失败';
+    } else {
+      errorMessage.value = '';
+      const { tokenInfo: info } = applyChatToStore(r, props.pageType, props.pageId);
+      tokenInfo.value = info;
+    }
+  } catch {
+    errorMessage.value = '发送失败';
+  }
+}
+
 async function sendMessage() {
   const hasText = inputText.value.trim().length > 0;
   const hasFiles = pendingFiles.value.length > 0;
@@ -177,9 +300,13 @@ async function sendMessage() {
       const { tokenInfo: info } = applyChatToStore(r, props.pageType, props.pageId);
       tokenInfo.value = info;
     }
-    // 文字单独发送（不与文件合并成一条消息）
+    // 文字单独发送（不与文件合并成一条消息）；单表情时发送为 emoji 消息（微信风格）
     if (hasText) {
-      const msgObj = { type: 'text', content: inputText.value };
+      const trimmed = inputText.value.trim()
+      const singleEmojiMsg = isSingleEmoji(trimmed)
+      const msgObj = singleEmojiMsg
+        ? { type: 'emoji', content: trimmed }
+        : { type: 'text', content: inputText.value };
       if (replyTo.value) {
         msgObj.reply_to = replyTo.value.id;
         msgObj.reply_content = replyTo.value.content;
@@ -255,25 +382,155 @@ async function onPaste(e) {
   }
 }
 
-// --- Markdown 预览 ---
+// --- Markdown 预览（全量渲染 + 块内插值定位，同步滚动） ---
 function renderMdPreview() {
   return renderMarkdown(inputText.value);
 }
 
-async function onEmojiSelect(emoji) {
-  const msgObj = { type: 'emoji', content: emoji };
-  try {
-    const r = await sendChatMessage({ type: props.pageType, targetId: props.pageId, msgObj });
-    if (!r.success) {
-      errorMessage.value = r.err?.message || '发送失败';
-    } else {
-      errorMessage.value = '';
-      const { tokenInfo: info } = applyChatToStore(r, props.pageType, props.pageId);
-      tokenInfo.value = info;
-    }
-  } catch {
-    errorMessage.value = '发送失败';
+const inputPreviewRef = ref(null);
+let inputScrollSyncing = false;
+let inputScrollSyncTimer = null;
+let inputPendingLine = null;
+let inputRafPending = false;
+
+function lockInputScroll() {
+  inputScrollSyncing = true;
+  clearTimeout(inputScrollSyncTimer);
+  inputScrollSyncTimer = setTimeout(() => { inputScrollSyncing = false }, 120);
+}
+
+function taLineHeight() {
+  const ta = inputEl.value;
+  if (!ta) return 22;
+  const lh = parseFloat(getComputedStyle(ta).lineHeight);
+  return Number.isFinite(lh) && lh > 0 ? lh : 22;
+}
+
+// 元素在滚动容器内的可视偏移（getBoundingClientRect 差值，不依赖 offsetParent）
+function elOffsetIn(el, container) {
+  return el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+}
+
+// 源码行 line → 预览滚动位置：找包含 line 的块，按行号比例在块内插值
+function locatePreviewLine(line) {
+  const pv = inputPreviewRef.value;
+  if (!pv) return null;
+  const blocks = pv.querySelectorAll('[data-line]');
+  if (!blocks.length) return null;
+  let cur = null;
+  for (const b of blocks) {
+    if (Number(b.dataset.line) <= line) cur = b;
+    else break;
   }
+  if (!cur) return Math.round(elOffsetIn(blocks[0], pv));
+  const curStart = Number(cur.dataset.line);
+  let top = elOffsetIn(cur, pv);
+  let next = null;
+  for (const b of blocks) {
+    if (Number(b.dataset.line) > curStart) { next = b; break }
+  }
+  if (next) {
+    const nextTop = elOffsetIn(next, pv);
+    const height = Math.max(nextTop - top, 1);
+    const span = Math.max(Number(next.dataset.line) - curStart, 1);
+    const ratio = Math.min(Math.max((line - curStart) / span, 0), 0.99);
+    top += height * ratio;
+  }
+  return Math.round(top);
+}
+
+// 预览顶部 → 对应源码行（locatePreviewLine 的逆运算）
+function previewVisibleLine() {
+  const pv = inputPreviewRef.value;
+  if (!pv) return null;
+  const blocks = pv.querySelectorAll('[data-line]');
+  if (!blocks.length) return null;
+  let best = null;
+  for (const b of blocks) {
+    if (elOffsetIn(b, pv) <= pv.scrollTop + 8) best = b;
+    else break;
+  }
+  if (!best) return 1;
+  const curStart = Number(best.dataset.line);
+  const top = elOffsetIn(best, pv);
+  let line = curStart;
+  let next = null;
+  for (const b of blocks) {
+    if (Number(b.dataset.line) > curStart) { next = b; break }
+  }
+  if (next) {
+    const nextTop = elOffsetIn(next, pv);
+    const height = Math.max(nextTop - top, 1);
+    const span = Math.max(Number(next.dataset.line) - curStart, 1);
+    const ratio = Math.min(Math.max((pv.scrollTop - top) / height, 0), 0.99);
+    line = curStart + Math.round(ratio * span);
+  }
+  return line;
+}
+
+function syncPreviewFromInput() {
+  const ta = inputEl.value;
+  if (!ta || inputScrollSyncing) return;
+  const line = Math.floor(ta.scrollTop / taLineHeight()) + 1;
+  inputPendingLine = line;
+  if (inputRafPending) return;
+  inputRafPending = true;
+  requestAnimationFrame(() => {
+    inputRafPending = false;
+    if (!inputPendingLine) return;
+    const target = locatePreviewLine(inputPendingLine);
+    inputPendingLine = null;
+    if (target === null || target === undefined) return;
+    lockInputScroll();
+    const pv = inputPreviewRef.value;
+    if (pv) pv.scrollTop = target;
+  });
+}
+
+function syncInputFromPreview() {
+  const ta = inputEl.value;
+  const pv = inputPreviewRef.value;
+  if (!ta || !pv || inputScrollSyncing) return;
+  const line = previewVisibleLine();
+  if (!line) return;
+  lockInputScroll();
+  ta.scrollTop = Math.round((line - 1) * taLineHeight());
+}
+
+// 内容变化：预览全量重渲染，按 textarea 当前顶部行重新定位（保持对齐）
+watch(inputText, () => {
+  nextTick(() => {
+    const ta = inputEl.value;
+    const pv = inputPreviewRef.value;
+    if (!ta || !pv || inputScrollSyncing) return;
+    const line = Math.floor(ta.scrollTop / taLineHeight()) + 1;
+    const target = locatePreviewLine(line);
+    if (target !== null && target !== undefined) pv.scrollTop = target;
+  });
+});
+
+// 判断文本是否为单个 emoji（仅含 emoji 字符序列，无其他文本）
+function isSingleEmoji(text) {
+  const t = (text || '').trim()
+  if (!t) return false
+  if (!/[\p{Extended_Pictographic}]/u.test(t)) return false
+  const stripped = t.replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}\u{1F3FB}-\u{1F3FF}]/gu, '').trim()
+  return stripped === ''
+}
+
+// 微信风格：点击表情仅在输入框光标位置插入，不直接发送
+function onEmojiSelect(emoji) {
+  const el = inputEl.value
+  const cur = inputText.value
+  const start = el?.selectionStart ?? cur.length
+  const end = el?.selectionEnd ?? start
+  inputText.value = cur.slice(0, start) + emoji + cur.slice(end)
+  nextTick(() => {
+    el?.focus()
+    const pos = start + emoji.length
+    el?.setSelectionRange?.(pos, pos)
+    autoResizeTextarea()
+  })
 }
 
 async function onStickerSelect(sticker) {

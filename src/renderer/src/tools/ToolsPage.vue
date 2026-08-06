@@ -5,10 +5,15 @@
         <h2><i class="fas fa-toolbox"></i> 工具</h2>
       </div>
       <div class="tools-grid">
-        <div class="tool-card" @click="$emit('openTool', 'ide')">
-          <i class="fas fa-wrench"></i>
-          <div class="tool-card-name">IDE</div>
-          <div class="tool-card-desc">文件浏览与管理；Monaco 代码编辑；Markdown 编辑/预览/导出；图片编辑；PDF 阅读；C++ 本地编译判题</div>
+        <div class="tool-card" @click="$emit('openTool', 'markdown')">
+          <i class="fas fa-file-alt"></i>
+          <div class="tool-card-name">Markdown 编辑</div>
+          <div class="tool-card-desc">Markdown 编写与预览；打开文件 / 新建 / 保存到文件 / 导出为图片</div>
+        </div>
+        <div class="tool-card" @click="$emit('openTool', 'image')">
+          <i class="fas fa-paint-brush"></i>
+          <div class="tool-card-name">图片编辑</div>
+          <div class="tool-card-desc">画笔/橡皮/直线/矩形/椭圆；撤销；新建画布；保存到文件</div>
         </div>
         <div class="tool-card" @click="$emit('openTool', 'graph_editor')">
           <i class="fas fa-project-diagram"></i>
@@ -22,8 +27,21 @@
         </div>
       </div>
     </template>
-    <template v-else-if="currentTool === 'ide'">
-      <IdeTool class="ide-host" @back="$emit('openTool', 'list')" />
+    <template v-else-if="currentTool === 'markdown'">
+      <MarkdownTool
+        ref="markdownToolRef"
+        class="ide-host"
+        @back="$emit('openTool', 'list')"
+        @dirty-change="$emit('dirty-change', $event)"
+      />
+    </template>
+    <template v-else-if="currentTool === 'image'">
+      <ImageTool
+        ref="imageToolRef"
+        class="ide-host"
+        @back="$emit('openTool', 'list')"
+        @dirty-change="$emit('dirty-change', $event)"
+      />
     </template>
     <template v-else-if="currentTool === 'graph_editor'">
       <GraphTool class="ide-host" @back="$emit('openTool', 'list')" />
@@ -35,7 +53,9 @@
 </template>
 
 <script setup>
-import IdeTool from './ide/IdeTool.vue'
+import { ref } from 'vue'
+import MarkdownTool from './MarkdownTool.vue'
+import ImageTool from './ImageTool.vue'
 import GraphTool from './graph/GraphTool.vue'
 import CalculatorTool from './calculator/CalculatorTool.vue'
 
@@ -43,5 +63,14 @@ defineProps({
   currentTool: { type: String, default: 'list' }
 })
 
-defineEmits(['openTool'])
+const emit = defineEmits(['openTool', 'dirty-change'])
+
+const imageToolRef = ref(null)
+const markdownToolRef = ref(null)
+
+// 供父级在切换页面时调用（未保存拦截：保存后再离开）
+defineExpose({
+  imageSave: () => imageToolRef.value?.save(),
+  markdownSave: () => markdownToolRef.value?.save()
+})
 </script>

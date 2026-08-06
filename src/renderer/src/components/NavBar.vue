@@ -1,6 +1,6 @@
 <template>
   <div class="navbar">
-    <div class="nav-logo">
+    <div class="nav-logo" title="前往官网 chat.forfof.cloud" @click="openSite">
       <img src="../../icon/icon.ico" class="nav-logo-img" />
     </div>
     <div
@@ -62,4 +62,9 @@ const chatUnread = computed(() =>
   Object.values(props.users || {}).some(u => u.unread > 0) ||
   Object.values(props.groups || {}).some(g => g.unread > 0 && !g.exited)
 )
+
+// 左上角标识：点击打开官网
+function openSite() {
+  window.api.openExternal('https://chat.forfof.cloud')
+}
 </script>

@@ -93,7 +93,7 @@ const filteredUsers = computed(() => {
     const name = jsonInfo?.name || ''
     const username = user?.username || ''
     const nickname = user?.nickname || ''
-    const isFriend = user && user.show !== false
+    const isFriend = user?.watchee === true // 是否已关注（watchee）
 
     if (gf) {
       const colorKey = jsonInfo?.colorKey || ''

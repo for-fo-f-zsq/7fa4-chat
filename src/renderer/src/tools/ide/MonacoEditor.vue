@@ -28,7 +28,7 @@ const props = defineProps({
   language: { type: String, default: 'plaintext' }
 })
 
-const emit = defineEmits(['update:modelValue', 'dirty', 'save', 'ready'])
+const emit = defineEmits(['update:modelValue', 'dirty', 'save', 'ready', 'scroll'])
 
 const container = ref(null)
 let editor = null
@@ -79,6 +79,14 @@ onMounted(() => {
   // Ctrl/Cmd + S 保存
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => emit('save'))
 
+  // 滚动 → 上报顶部可见行号（供分屏同步按行对齐）
+  editor.onDidScrollChange(() => {
+    if (!editor) return
+    const ranges = editor.getVisibleRanges()
+    const topLine = ranges && ranges.length ? ranges[0].startLineNumber : 1
+    emit('scroll', topLine)
+  })
+
   // 跟随应用主题切换（监听 documentElement 的 class 变化）
   observer = new MutationObserver(applyTheme)
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
@@ -106,6 +114,11 @@ onBeforeUnmount(() => {
 
 defineExpose({
   getValue: () => (editor ? editor.getValue() : ''),
-  focus: () => editor?.focus()
+  focus: () => editor?.focus(),
+  // 外部同步滚动：滚动到指定源码行（顶部对齐）
+  setScrollLine: (line) => {
+    if (!editor || !line) return
+    editor.setScrollTop(editor.getTopForPosition(line, 1))
+  }
 })
 </script>

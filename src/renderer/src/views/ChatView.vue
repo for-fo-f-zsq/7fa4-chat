@@ -56,7 +56,9 @@
         @openUserInfo="openuserinfo"
         @openGroupSettings="openGroupSettings"
         @toggleSearch="toggleSearch"
+        @addfriend="addfriend"
       />
+      <div v-if="watchWarnText" class="chat-watch-warn">{{ watchWarnText }}</div>
       <SearchPanel
         ref="searchPanelRef"
         :visible="searchVisible"
@@ -94,6 +96,7 @@
         :inputDisabled="inputDisabled"
       @dropFile="onDropFile"
       @openPreview="onOpenPreview"
+      @openFavorites="switchPage('favorites')"
       />
     </div>
     <FavoritesPanel
@@ -107,10 +110,12 @@
     />
     <ToolsPage
       v-if="pageType==='tools'"
+      ref="toolsPageRef"
       class="fade-content"
       :class="{ 'fade-out': contentFading }"
       :current-tool="currentTool"
       @open-tool="currentTool = $event"
+      @dirty-change="toolsDirty = $event"
     />
     <SettingsPanel
       v-if="pageType==='settings'"
@@ -177,6 +182,14 @@
     :setting="setting"
     @close="shortcutModal = false"
     @settingChange="onSettingChange"
+  />
+  <SaveConfirmModal
+    v-model:visible="saveConfirmVisible"
+    title="未保存的修改"
+    message="当前内容尚未保存，是否保存后再离开？"
+    @save="onSaveConfirmSave"
+    @discard="onSaveConfirmDiscard"
+    @cancel="pendingSwitch = null"
   />
   <UserInfoModal
     v-if="userinfo.show"
@@ -247,6 +260,7 @@ import GroupActionMenu from '../components/GroupActionMenu.vue';
 import SearchPanel from '../components/SearchPanel.vue';
 import FavoritesPanel from '../components/FavoritesPanel.vue';
 import ToolsPage from '../tools/ToolsPage.vue';
+import SaveConfirmModal from '../components/SaveConfirmModal.vue';
 import { useWindowControls } from '../composables/useWindowControls.js';
 import { useMuteConfirm } from '../composables/useMuteConfirm.js';
 import { useCurrentMessages } from '../composables/useCurrentMessages.js';
@@ -273,6 +287,11 @@ import '../../css/font-awesome/css/all.min.css';
 // --- 页面状态 ---
 const pageType = ref('chat');
 const pageId = ref(null);
+const currentTool = ref('list');
+const toolsPageRef = ref(null);
+const toolsDirty = ref(false); // 图片编辑未保存标记（ImageTool 上报）
+const saveConfirmVisible = ref(false);
+let pendingSwitch = null; // 被未保存拦截的切换动作（保存/不保存后执行）
 const isChatPage = computed(() => pageType.value === 'chat' || pageType.value === 'user' || pageType.value === 'group');
 const navPageType = computed(() => isChatPage.value ? 'chat' : pageType.value);
 const contentFading = ref(false);
@@ -285,7 +304,6 @@ const collapsedMsgs = reactive({});
 const visibleCount = ref(20);
 const setting = ref({});
 const version = ref('');
-const currentTool = ref('list');
 const showCreateGroupModal = ref(false);
 const showAddFriendModal = ref(false);
 const allThemes = ['default', 'wechat', 'aurora', 'abyss', 'rose', 'lavender', 'mint', 'peach', 'amber', 'coral', 'sage', 'slate', 'obsidian', 'crimson', 'emerald', 'carbon', 'plasma', 'nord', 'dracula', 'monokai', 'cyberpunk', 'solarized'];
@@ -312,8 +330,18 @@ const previewData = reactive({ show: false, type: '', title: '', src: '', text: 
 // --- computed ---
 const targetUser = computed(() => store.users?.[pageId.value] || null);
 const targetGroup = computed(() => store.groups?.[pageId.value] || null);
+// 单方面关注关系的提示栏（仅私信会话；群聊 pageId 可能与某用户 uid 相同，必须限定 pageType）
+const watchWarnText = computed(() => {
+  if (pageType.value !== 'user') return ''
+  const u = targetUser.value
+  if (!u) return ''
+  if (u.watchee !== true && u.watcher === true) return '未关注对方，无法接收对方消息'
+  if (u.watchee === true && u.watcher !== true) return '对方没有关注你，无法给对方发消息'
+  return ''
+});
 const inputDisabled = computed(() => {
-  if (pageType.value === 'user') return !targetUser.value?.realname;
+  // API 契约：可给关注我的人（watcher）发消息，无需我关注对方
+  if (pageType.value === 'user') return !targetUser.value?.watcher;
   if (pageType.value === 'group') return !!targetGroup.value?.exited;
   return false;
 });
@@ -396,6 +424,12 @@ function startListResize(e) {
 
 // --- 页面导航 ---
 function switchPage(type) {
+  // 未保存的工具内容（图片/Markdown）：离开工具前先确认（保存/不保存/取消）
+  if (toolsDirty.value && pageType.value === 'tools' && currentTool.value !== 'list') {
+    pendingSwitch = { type };
+    saveConfirmVisible.value = true;
+    return;
+  }
   // “工具”入口：点击时进入工具列表；已在工具页（可能正打开某个工具）则回到列表
   if (type === 'tools') {
     if (pageType.value === 'tools') {
@@ -425,6 +459,32 @@ function switchPage(type) {
   }
   closeSearch();
   if (type === 'settings') updateSettingsPanel();
+}
+
+// 未保存拦截弹窗：保存后离开
+async function onSaveConfirmSave() {
+  saveConfirmVisible.value = false;
+  // 按当前打开的工具调用对应保存
+  if (currentTool.value === 'image') await toolsPageRef.value?.imageSave();
+  else if (currentTool.value === 'markdown') await toolsPageRef.value?.markdownSave();
+  // 保存成功后 dirty=false → emit 更新 toolsDirty=false；失败/取消则留在页面
+  if (!toolsDirty.value && pendingSwitch) {
+    const t = pendingSwitch.type;
+    pendingSwitch = null;
+    switchPage(t);
+  } else {
+    pendingSwitch = null;
+  }
+}
+
+// 未保存拦截弹窗：不保存直接离开
+function onSaveConfirmDiscard() {
+  saveConfirmVisible.value = false;
+  if (pendingSwitch) {
+    const t = pendingSwitch.type;
+    pendingSwitch = null;
+    switchPage(t);
+  }
 }
 
 function onSelectConversation({ type, id }) {
@@ -1049,11 +1109,15 @@ const notifPendingCount = {};
 
 async function update(result) {
   if (!infoLoopRunning) return;
+  // token 限制（滑动窗口恢复周期/容量）：/chat/info limit { time_limit, count_limit, ... }
+  if (result.limit && typeof result.limit === 'object') store.tokenLimit = result.limit;
   Object.assign(store.self, { uid: result.user.id, username: result.user.uid, nickname: result.user.nickname, realname: result.user.real_name, school: result.user.school, seat: result.user.seat });
-  const friendsMap = Object.fromEntries(result.friends.map(f => {
-    const old = store.users[f.id];
-    return [f.id, { uid: f.id, realname: f.real_name, username: f.username, nickname: f.nickname, grade: f.grade, grade_class: f.grade_class, seat: f.seat, note: old ? old.note : '', message_ids: old ? old.message_ids : [], unread: old ? old.unread : 0, pinned: old ? old.pinned : false, _fetchedAt: old ? old._fetchedAt : undefined }];
-  }));
+  const friendsMap = Object.fromEntries(result.friends
+    .filter(f => f.watchee === true || f.watcher === true) // 既非我关注、也非关注我的关系条目不显示
+    .map(f => {
+      const old = store.users[f.id];
+      return [f.id, { uid: f.id, realname: f.real_name, username: f.username, nickname: f.nickname, grade: f.grade, grade_class: f.grade_class, seat: f.seat, watchee: f.watchee === true, watcher: f.watcher === true, note: old ? old.note : '', message_ids: old ? old.message_ids : [], unread: old ? old.unread : 0, pinned: old ? old.pinned : false, _fetchedAt: old ? old._fetchedAt : undefined }];
+    }));
   const hiddenUsers = Object.fromEntries(Object.entries(store.users).filter(([, u]) => u.show === false && !friendsMap[u.uid]));
   store.users = { ...friendsMap, ...hiddenUsers };
   startRanklistFetch();
@@ -1104,7 +1168,14 @@ async function fetchMessages(type, end) {
               const notifContent = notifPendingCount[convoKey] > 1
                 ? `${getNotifContent(msg.type === 'file' ? '📄 ' + msg.name : msg.type === 'sticker' ? '🖼️ ' + (msg.name || '表情') : msg.content, setting.value)} (+${notifPendingCount[convoKey] - 1})`
                 : getNotifContent(msg.type === 'file' ? `📄 ${msg.name}` : msg.type === 'sticker' ? `🖼️ ${msg.name || '表情'}` : msg.content, setting.value);
-              await window.api.notify(getUsername(c.sender_id, store.users), notifContent, chatType, targetId);
+              // 标题：群聊显示群名（避免误判私信），私信显示发送者；正文：群聊前置发送者名
+              const notifTitle = chatType === 'group'
+                ? (store.groups[targetId]?.name || '群聊')
+                : getUsername(c.sender_id, store.users);
+              const notifBody = chatType === 'group'
+                ? `${getUsername(c.sender_id, store.users)}：${notifContent}`
+                : notifContent;
+              await window.api.notify(notifTitle, notifBody, chatType, targetId);
               if (setting.value?.notifSound !== false) playNotificationSound(msg.mentions?.includes(store.self.uid) ? 'mention' : 'default');
               notifPendingCount[convoKey] = 0; // 已弹窗，聚合计数归零，避免 (+N) 无限累积
             }
@@ -1187,7 +1258,7 @@ async function logout() {
   // 退出前先保存当前数据
   await saveData();
   // 服务端登出：POST /logout 销毁服务器会话，并由服务器返回 Set-Cookie 删除有效 cookie
-  try { await fetch('/logout', { method: 'POST' }) } catch {}
+  try { await safeFetch('/logout', { method: 'POST' }, 10000) } catch {}
   // 本地兜底：清除会话 cookie（含 HttpOnly，渲染进程 document.cookie 无法删除）
   try { await window.api.clearSessionCookies(); } catch {}
   const s = await window.api.loadSetting();
@@ -1202,9 +1273,15 @@ async function logout() {
 async function startInfoLoop() {
   if (!store.logined) return;
   infoLoopRunning = true;
+  let failCount = 0;
   while (infoLoopRunning && store.logined) {
-    try { const result = await (await safeFetch('/chat/info')).json(); if (!infoLoopRunning) break; if (result.success) await update(result); } catch {}
+    try { const result = await (await safeFetch('/chat/info')).json(); if (!infoLoopRunning) break; if (result.success) { await update(result); failCount = 0; } else failCount++; } catch { failCount++; }
     if (!infoLoopRunning) break;
+    if (failCount >= 3) {
+      // 连续失败（如无法访问 jx）：退避到 10s，避免高频空转
+      await new Promise(r => setTimeout(r, 10000));
+      continue;
+    }
     try { await updateMessagesData(); } catch {}
     if (!infoLoopRunning) break;
     try {

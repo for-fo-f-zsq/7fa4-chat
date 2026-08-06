@@ -15,9 +15,9 @@
           />
         </div>
         <div class="user-note-wrapper" v-else>
-          <h3 class="editable-name" :class="{ 'editable': user && user.show !== false }" @click="startEditName">
+          <h3 class="editable-name" :class="{ 'editable': user && user.watcher === true }" @click="startEditName">
             {{ displayName(user || { uid }) }}
-            <i v-if="user && user.show !== false" class="fas fa-pencil-alt edit-icon"></i>
+            <i v-if="user && user.watcher === true" class="fas fa-pencil-alt edit-icon"></i>
           </h3>
         </div>
         <div class="userinfo-actions">
@@ -27,7 +27,7 @@
           <button class="userinfo-action-btn disabled" v-if="isFriend">
             <i class="fas fa-check"></i>
           </button>
-          <button class="userinfo-action-btn" v-if="isFriend" @click="startChat">
+          <button class="userinfo-action-btn" v-if="user?.watcher === true" @click="startChat">
             <i class="fas fa-comment"></i>
           </button>
           <button class="userinfo-close" @click="$emit('close')">
@@ -90,7 +90,7 @@ const emit = defineEmits(['close', 'addfriend', 'switchToChat'])
 
 const user = computed(() => store.users?.[props.uid] || null)
 
-const isFriend = computed(() => user.value && user.value.show !== false)
+const isFriend = computed(() => user.value?.watchee === true) // 是否已关注 TA（watchee）
 
 const realName = computed(() => {
   if (user.value?.realname) return user.value.realname
@@ -142,7 +142,7 @@ function startChat() {
 }
 
 function startEditName() {
-  if (!isFriend.value) return
+  if (user.value?.watcher !== true) return // 仅对方关注我（正常关系）可编辑备注
   tempName.value = user.value.note || user.value.nickname
   editingName.value = true
   nextTick(() => {

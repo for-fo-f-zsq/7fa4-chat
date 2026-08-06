@@ -119,7 +119,10 @@
 
 .nav-logo {
     margin-bottom: 12px;
+    cursor: pointer;
+    transition: opacity var(--duration-fast, 0.15s) ease;
 }
+.nav-logo:hover { opacity: 0.8; }
 .nav-logo-img {
     width: 36px;
     height: 36px;

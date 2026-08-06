@@ -155,10 +155,18 @@ function renderUsers(records) {
   if (!records.length) { box.innerHTML = '<div class="empty">暂无数据</div>'; return; }
   const rows = records.slice(0, 300).map(r => {
     const t = r.last_seen_text || '';
-    return '<tr><td>' + r.uid + '</td><td>' + esc(r.nickname || '') + '</td><td class="sub">' + esc(r.realname || '') + '</td><td class="sub">' + esc(r.school || '') + '</td><td class="sub">' + esc(r.seat || '') + '</td><td class="sub">' + t + '</td></tr>';
+    // 版本：未上报（老客户端）按当前版本显示，灰色标注
+    const ver = r.version || CURRENT_VERSION;
+    const verTd = r.version
+      ? '<td>' + esc(ver) + '</td>'
+      : '<td class="sub" title="未上报版本，按当前版本显示">' + esc(ver) + '</td>';
+    return '<tr><td>' + r.uid + '</td><td>' + esc(r.nickname || '') + '</td><td class="sub">' + esc(r.realname || '') + '</td><td class="sub">' + esc(r.school || '') + '</td><td class="sub">' + esc(r.seat || '') + '</td>' + verTd + '<td class="sub">' + t + '</td></tr>';
   }).join('');
-  box.innerHTML = '<table><thead><tr><th>UID</th><th>昵称</th><th>姓名</th><th>学校</th><th>座位</th><th>最近活跃</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  box.innerHTML = '<table><thead><tr><th>UID</th><th>昵称</th><th>姓名</th><th>学校</th><th>座位</th><th>版本</th><th>最近活跃</th></tr></thead><tbody>' + rows + '</tbody></table>';
 }
+
+// 当前版本：老客户端未上报版本时按此显示（发版时同步 package.json 版本）
+const CURRENT_VERSION = '3.2.3';
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

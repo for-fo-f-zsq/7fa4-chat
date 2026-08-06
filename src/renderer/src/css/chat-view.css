@@ -58,6 +58,46 @@
 .user-info .nav-icon { width: auto; height: auto; background: none; }
 .user-info h3 { font-size: 1rem; font-weight: 500; color: var(--text-primary); }
 
+/* 会话头部：关注 / 已关注按钮（与 UserInfoModal 的 userinfo-action-btn 一致） */
+.header-watch-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius);
+    background: var(--accent-light);
+    color: var(--accent);
+    border: none;
+    cursor: pointer;
+    font-size: var(--font-size-base);
+    transition: all 0.2s;
+}
+.header-watch-btn:hover {
+    background: var(--accent);
+    color: var(--text-on-accent);
+    transform: scale(1.1);
+    box-shadow: var(--shadow-btn-hover);
+}
+.header-watch-btn:active { transform: scale(0.95); }
+.header-watch-btn.watched {
+    pointer-events: none;
+    cursor: default;
+    opacity: 0.5;
+}
+
+/* 单方面关注关系提示栏 */
+.chat-watch-warn {
+    padding: 6px 12px;
+    background: #fff7e6;
+    color: #d48806;
+    font-size: var(--font-size-small);
+    text-align: center;
+    border-bottom: 1px solid #ffe7ba;
+    flex-shrink: 0;
+}
+
 .group-settings-icon { cursor: pointer; transition: transform 0.2s ease; }
 .group-settings-icon:hover { transform: scale(1.15); color: var(--accent); }
 
@@ -190,6 +230,13 @@
     line-height: 1.6; word-break: break-word;
     max-height: 70vh; overflow: auto;
     user-select: text;
+}
+.preview-pdf {
+    width: 100%;
+    height: 70vh;
+    border: none;
+    border-radius: var(--radius);
+    background: #fff;
 }
 .preview-html pre { background: var(--bg-code-block); padding: 10px 14px; border-radius: var(--radius); overflow-x: auto; margin: 6px 0; user-select: text; }
 .preview-html code { background: var(--bg-code-inline); padding: 2px 6px; border-radius: var(--radius); font-family: 'Consolas', 'Monaco', monospace; font-size: 0.9em; user-select: text; }

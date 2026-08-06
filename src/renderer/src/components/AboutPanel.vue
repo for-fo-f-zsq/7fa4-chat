@@ -1,7 +1,7 @@
 <template>
   <div class="about-panel">
     <div class="about-header">
-      <a href="#" @click.prevent="openLink('http://jx.7fa4.cn:9080/zsq/7fa4-chat')">
+      <a href="#" @click.prevent="openLink('http://jx.7fa4.cn:9080/zsq/7fa4-chat')" title="GitLab 项目主页">
         <svg class="tanuki-logo" width="25" height="24" viewBox="0 0 25 24" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path class="tanuki-shape tanuki" d="m24.507 9.5-.034-.09L21.082.562a.896.896 0 0 0-1.694.091l-2.29 7.01H7.825L5.535.653a.898.898 0 0 0-1.694-.09L.451 9.411.416 9.5a6.297 6.297 0 0 0 2.09 7.278l.012.01.03.022 5.16 3.867 2.56 1.935 1.554 1.176a1.051 1.051 0 0 0 1.268 0l1.555-1.176 2.56-1.935 5.197-3.89.014-.01A6.297 6.297 0 0 0 24.507 9.5Z" fill="#E24329"></path>
           <path class="tanuki-shape right-cheek" d="m24.507 9.5-.034-.09a11.44 11.44 0 0 0-4.56 2.051l-7.447 5.632 4.742 3.584 5.197-3.89.014-.01A6.297 6.297 0 0 0 24.507 9.5Z" fill="#FC6D26"></path>
@@ -9,12 +9,15 @@
           <path class="tanuki-shape left-cheek" d="M5.01 11.461a11.43 11.43 0 0 0-4.56-2.05L.416 9.5a6.297 6.297 0 0 0 2.09 7.278l.012.01.03.022 5.16 3.867 4.745-3.584-7.444-5.632Z" fill="#FC6D26"></path>
         </svg>
       </a>
+      <a href="#" class="about-github-link" @click.prevent="openLink('https://github.com/for-fo-f-zsq/7fa4-chat')" title="GitHub 项目主页">
+        <i class="fab fa-github"></i>
+      </a>
       <h2>7FA4 Chat</h2>
     </div>
     <div class="about-content">
       <div class="about-row"><span class="label">版本</span><span class="value">{{ version }}</span></div>
       <div class="about-row"><span class="label">框架</span><span class="value">Electron + Vue 3</span></div>
-      <div class="about-row"><span class="label">作者</span><span class="value">for_fo_f / GLM-5.1</span></div>
+      <div class="about-row"><span class="label">作者</span><span class="value">for_fo_f / deepseek-v4-flash-0731</span></div>
 
       <div class="update-section">
         <div class="update-status-row">
@@ -49,7 +52,7 @@
 
       <div class="about-desc">
         <p>7FA4 Chat 是一款基于 Vue 3 与 Electron 构建的跨平台即时通讯应用。</p>
-        <p>你可以前往gitlab查询更多信息</p>
+        <p>你可以前往顶部 GitLab / GitHub 图标查看项目主页与源码</p>
       </div>
       <div class="about-tech">
         <span class="tech-tag">Vue 3</span>
@@ -93,6 +96,11 @@ const updateStatus = ref('idle') // idle, checking, available, not-available, do
 const updateInfo = ref(null)
 const downloadProgress = ref(0)
 const updateError = ref('')
+
+// 用系统默认浏览器打开外部链接
+function openLink(url) {
+  window.api.openExternal(url)
+}
 
 const updateStatusText = computed(() => {
   switch (updateStatus.value) {
