@@ -163,6 +163,21 @@
     border-color: var(--accent);
 }
 
+/* 布局参数滑块 */
+.graph-slider {
+    flex: 1;
+    min-width: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+.graph-slider-val {
+    flex-shrink: 0;
+    width: 38px;
+    text-align: right;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
 .graph-input:disabled {
     opacity: 0.5;
     cursor: not-allowed;

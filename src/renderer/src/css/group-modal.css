@@ -369,6 +369,48 @@
     color: var(--text-secondary);
     text-align: center;
 }
+/* 多选 + 全选 */
+.group-detail-card .custom-select-option input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.group-detail-card .select-all-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-table);
+    background: var(--accent-light);
+    transition: background 0.15s;
+}
+.group-detail-card .select-all-option:hover {
+    background: var(--accent-alpha);
+}
+.group-detail-card .select-all-option input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.group-select-error {
+    margin-top: 8px;
+    padding: 6px 10px;
+    font-size: var(--font-size-small);
+    color: var(--text-error);
+    background: var(--accent-alpha);
+    border: 1px solid var(--border-error, var(--accent));
+    border-radius: var(--radius);
+}
 
 .mute-input, .name-input {
     flex: 1;

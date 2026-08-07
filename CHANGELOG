@@ -1,3 +1,9 @@
+<h2>3.3.1</h2>
+<ul>
+  <li><span class="change-tag fix">修复</span>修复无法登录的问题</li>
+  <li><span class="change-tag fix">修复</span>修复连续多个表情被误解析为单个表情的问题</li>
+  <li><span class="change-tag improve">优化</span>群聊成员操作支持多选批量处理</li>
+</ul>
 <h2>3.3.0</h2>
 <ul>
   <li><span class="change-tag new">新功能</span>「工具」板块重构：Markdown 编辑、图片编辑独立为两个工具</li>

@@ -1,6 +1,7 @@
 /build/
 /clean/
 /out/
+/out-tmp/
 /package-lock.json
 /node_modules/
 /src/renderer/public/users.json

@@ -101,14 +101,20 @@
               <div class="custom-select-search" @click.stop>
                 <input class="custom-select-search-input" v-model="userSearchQuery" placeholder="搜索用户..." ref="userSearchInput" />
               </div>
+              <div class="select-all-option" v-if="multiSelect && searchedUsers.length" @click.stop="toggleSelectAll">
+                <input type="checkbox" :checked="allSearchedSelected" @click.stop.prevent="toggleSelectAll" />
+                <span>全选（已选 {{ selectedUsers.length }}）</span>
+              </div>
               <div class="custom-select-options">
-                <div class="custom-select-option" v-for="u in searchedUsers" :key="u.id" :class="{ active: targetUser === u.id }" @click.stop="selectUser(u.id)">
+                <div class="custom-select-option" v-for="u in searchedUsers" :key="u.id" :class="{ active: selectedUsers.includes(String(u.id)) }" @click.stop="toggleUser(u.id)">
+                  <input type="checkbox" :checked="selectedUsers.includes(String(u.id))" @click.stop.prevent="toggleUser(u.id)" />
                   <span>{{ u.name }}</span>
                 </div>
                 <div v-if="!searchedUsers.length" class="custom-select-empty">无匹配结果</div>
               </div>
             </div>
           </div>
+          <div class="group-select-error" v-if="selectError">{{ selectError }}</div>
           <input v-if="showMuteTime" v-model.number="muteMinutes" type="number" class="mute-input" placeholder="禁言分钟" min="1" />
           <input v-if="showNewName" v-model="newName" type="text" class="name-input" placeholder="新群名" />
           <button class="execute-btn" @click="executeAction">执行</button>
@@ -165,7 +171,8 @@ const nowSeconds = useNowSeconds()
 
 // ----- 底部操作面板状态（原有）-----
 const actionType = ref('leave')
-const targetUser = ref('')
+const selectedUsers = ref([])
+const selectError = ref('')
 const muteMinutes = ref(60)
 const newName = ref('')
 const actionOpen = ref(false)
@@ -392,7 +399,8 @@ function muteClass(member) {
 }
 
 function onActionChange() {
-  targetUser.value = ''
+  selectedUsers.value = []
+  selectError.value = ''
   muteMinutes.value = 60
   newName.value = ''
 }
@@ -401,10 +409,19 @@ const currentActionLabel = computed(() => {
   return availableActions.value.find(a => a.value === actionType.value)?.label || ''
 })
 
+const singleSelectActions = ['give_owner']
+const multiSelect = computed(() => !singleSelectActions.includes(actionType.value))
+const allSearchedSelected = computed(() => {
+  const ids = searchedUsers.value.map(u => String(u.id))
+  return ids.length > 0 && ids.every(id => selectedUsers.value.includes(id))
+})
 const currentUserLabel = computed(() => {
-  if (!targetUser.value) return '选择用户'
-  const found = filteredUsers.value.find(u => String(u.id) === String(targetUser.value))
-  return found?.name || '选择用户'
+  if (selectedUsers.value.length === 0) return '选择用户'
+  if (!multiSelect.value) {
+    const found = filteredUsers.value.find(u => String(u.id) === selectedUsers.value[0])
+    return found?.name || '选择用户'
+  }
+  return `已选 ${selectedUsers.value.length} 人`
 })
 
 function selectAction(value) {
@@ -413,15 +430,43 @@ function selectAction(value) {
   onActionChange()
 }
 
-function selectUser(value) {
-  userOpen.value = false
-  targetUser.value = value
+function toggleUser(id) {
+  id = String(id)
+  selectError.value = ''
+  if (!multiSelect.value) {
+    selectedUsers.value = [id]
+    userOpen.value = false
+    return
+  }
+  const idx = selectedUsers.value.indexOf(id)
+  if (idx >= 0) selectedUsers.value.splice(idx, 1)
+  else selectedUsers.value.push(id)
+}
+
+function toggleSelectAll() {
+  selectError.value = ''
+  const ids = searchedUsers.value.map(u => String(u.id))
+  if (!ids.length) return
+  const allSelected = ids.every(id => selectedUsers.value.includes(id))
+  if (allSelected) {
+    selectedUsers.value = selectedUsers.value.filter(id => !ids.includes(id))
+  } else {
+    const set = new Set(selectedUsers.value)
+    ids.forEach(id => set.add(id))
+    selectedUsers.value = Array.from(set)
+  }
 }
 
 function executeAction() {
+  if (userActions.includes(actionType.value) && selectedUsers.value.length === 0) {
+    selectError.value = '请至少选择一名成员'
+    return
+  }
+  selectError.value = ''
   const action = {
     type: actionType.value,
-    targetId: targetUser.value,
+    targetIds: selectedUsers.value,
+    targetId: '',
     muteMinutes: muteMinutes.value,
     title: newName.value
   }

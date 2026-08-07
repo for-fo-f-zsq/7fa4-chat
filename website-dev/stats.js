@@ -166,7 +166,7 @@ function renderUsers(records) {
 }
 
 // 当前版本：老客户端未上报版本时按此显示（发版时同步 package.json 版本）
-const CURRENT_VERSION = '3.2.3';
+const CURRENT_VERSION = '3.3.1';
 
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

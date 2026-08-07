@@ -243,7 +243,9 @@ export async function tryLogin(user, pwd) {
     credentials: 'include'
   }, 10000)
   const data = await res.json()
-  if (!data || !data.success) return { error_code: -1 }
+  // 登录接口正常响应必带 error_code（1=成功，1001~1004=各类失败）；
+  // 缺省说明是 fetch 层失败（会话失效/网络错误），回落到 -1。不再依赖 success 字段。
+  if (!data || data.error_code === undefined) return { error_code: -1 }
   return data
 }
 

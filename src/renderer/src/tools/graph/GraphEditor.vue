@@ -72,6 +72,25 @@
         </div>
 
         <div class="graph-panel">
+          <div class="graph-panel-title"><i class="fas fa-sliders-h"></i> 布局参数</div>
+          <div class="graph-field-row">
+            <span class="graph-field-label">排斥力</span>
+            <input type="range" min="0.2" max="20" step="0.5" v-model.number="repulsion" class="graph-slider" @change="onForceChange" />
+            <span class="graph-slider-val">{{ repulsion.toFixed(1) }}x</span>
+          </div>
+          <div class="graph-field-row">
+            <span class="graph-field-label">拉力（边）</span>
+            <input type="range" min="0.2" max="20" step="0.5" v-model.number="spring" class="graph-slider" @change="onForceChange" />
+            <span class="graph-slider-val">{{ spring.toFixed(1) }}x</span>
+          </div>
+          <div class="graph-field-row">
+            <span class="graph-field-label">向心力</span>
+            <input type="range" min="0" max="50" step="1" v-model.number="centripetal" class="graph-slider" @change="onForceChange" />
+            <span class="graph-slider-val">{{ centripetal.toFixed(1) }}x</span>
+          </div>
+        </div>
+
+        <div class="graph-panel">
           <div class="graph-panel-title"><i class="fas fa-project-diagram"></i> 分析</div>
           <div class="graph-field-label">高亮</div>
           <select v-model="highlight" class="graph-select">
@@ -246,6 +265,10 @@ const randWeighted = ref(false)
 const randMode = ref('graph')
 const algoSrc = ref(1)
 const algoSink = ref(0)
+// 力导向参数倍率（布局参数面板可调）：排斥力 / 边拉力 / 向心力
+const repulsion = ref(1)
+const spring = ref(1)
+const centripetal = ref(1)
 
 const nodes = reactive([])
 const edges = reactive([])
@@ -592,8 +615,8 @@ function runLayout() {
           d2 = dx * dx + dy * dy
         }
         const d = Math.sqrt(d2) || 1
-        // 斥力：反平方，clamp 上限（700）防止距离过近时爆炸式弹飞；系数增大以拉开节点间距
-        const f = Math.min(2800 / d2, 700)
+        // 斥力：反平方，clamp 上限防距离过近时弹飞；基准系数整体放大（×2），随「排斥力」倍率缩放
+        const f = Math.min((5600 * repulsion.value) / d2, 1400 * repulsion.value)
         fx += (dx / d) * f
         fy += (dy / d) * f
       }
@@ -604,12 +627,15 @@ function runLayout() {
         if (!b) continue
         let dx = b.x - a.x, dy = b.y - a.y
         const d = Math.hypot(dx, dy) || 1
-        const f = 0.07 * (d - 150)
+        // 拉力（边）：严格按边长计算——力与边实际长度成正比（f ∝ d），长边拉回强、短边弱；
+        // 系数 0.004 使默认 1x 下平衡间距约 110px（拉力=排斥力处），避免图被拉成一团
+        const f = 0.004 * spring.value * d
         fx += (dx / d) * f
         fy += (dy / d) * f
       }
-      fx -= a.x * 0.0015
-      fy -= a.y * 0.0015
+      // 向心力：把整个图拉回原点，避免节点漂散；强度随「向心力」倍率缩放
+      fx -= a.x * 0.0015 * centripetal.value
+      fy -= a.y * 0.0015 * centripetal.value
       let nvx = (a.vx || 0) * 0.85 + fx * dt
       let nvy = (a.vy || 0) * 0.85 + fy * dt
       // 速度上限：防止单帧飞离画面
@@ -643,6 +669,12 @@ function restartLayout() {
   if (locked.value) return
   placeCircle()
   fitView()
+  runLayout()
+}
+
+// 布局参数滑块调整：未锁定且存在节点时立即用新参数重新布局
+function onForceChange() {
+  if (locked.value || !nodes.length) return
   runLayout()
 }
 

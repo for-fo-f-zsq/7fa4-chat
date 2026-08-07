@@ -300,7 +300,7 @@ async function sendMessage() {
       const { tokenInfo: info } = applyChatToStore(r, props.pageType, props.pageId);
       tokenInfo.value = info;
     }
-    // 文字单独发送（不与文件合并成一条消息）；单表情时发送为 emoji 消息（微信风格）
+    // 文字单独发送（不与文件合并成一条消息）；仅单个 emoji 时发为 emoji 消息（微信风格放大），多个表情按普通文本 content 发送
     if (hasText) {
       const trimmed = inputText.value.trim()
       const singleEmojiMsg = isSingleEmoji(trimmed)
@@ -509,13 +509,14 @@ watch(inputText, () => {
   });
 });
 
-// 判断文本是否为单个 emoji（仅含 emoji 字符序列，无其他文本）
+// 判断文本是否为「单个」emoji（恰好一个 emoji 字符/组合，不含其它文本）——微信风格放大仅限单表情
 function isSingleEmoji(text) {
-  const t = (text || '').trim()
+  const t = (text || '').replace(/\s+/g, '')
   if (!t) return false
-  if (!/[\p{Extended_Pictographic}]/u.test(t)) return false
-  const stripped = t.replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}\u{1F3FB}-\u{1F3FF}]/gu, '').trim()
-  return stripped === ''
+  // 匹配完整 emoji 单元（含 ZWJ 组合、变体选择符 \uFE0F、肤色修饰符 \u1F3FB-\u1F3FF）
+  const m = t.match(/\p{Extended_Pictographic}(?:\u{200D}\p{Extended_Pictographic}|[\u{FE0F}\u{1F3FB}-\u{1F3FF}])*/gu)
+  if (!m || m.length !== 1) return false
+  return m[0] === t
 }
 
 // 微信风格：点击表情仅在输入框光标位置插入，不直接发送

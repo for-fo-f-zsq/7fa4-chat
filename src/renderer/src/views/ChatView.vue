@@ -986,16 +986,30 @@ async function submitGroupAction(action, gidOverride) {
     }
     action = { ...action, type: 'leave' };
   }
-  const body = { type: action.type, group_id: gid, target_id: action.targetId, title: action.title };
-  if (action.type === 'mute_member' || action.type === 'mute_group') {
-    body.mute = Math.floor(Date.now() / 1000 + action.muteMinutes * 60);
+  // 支持批量选人：targetIds 数组优先，否则回退单 targetId
+  const targets = (action.targetIds && action.targetIds.length)
+    ? action.targetIds.map(String)
+    : [action.targetId];
+  if (action.type === 'give_owner' && targets.length > 1) { alert('转让群主只能选择一名成员'); return; }
+  if (targets.length === 0) { alert('请选择成员'); return; }
+  let failed = false;
+  for (const tid of targets) {
+    const body = { type: action.type, group_id: gid, target_id: tid, title: action.title };
+    if (action.type === 'mute_member' || action.type === 'mute_group') {
+      body.mute = Math.floor(Date.now() / 1000 + action.muteMinutes * 60);
+    }
+    try {
+      const r = await postGroup(body);
+      if (!r.success) {
+        failed = true;
+        const msg = r.err?.message || '操作失败';
+        if (targets.length === 1) { alert(msg); return; }
+      }
+    } catch { failed = true; if (targets.length === 1) { alert('操作失败，请重试'); return; } }
   }
-  try {
-    const r = await postGroup(body);
-    if (!r.success) { alert(r.err?.message || '操作失败'); return; }
-    if (action.type === 'leave') { const group = store.groups[gid]; if (group) group.exited = true; groupModal.show = false; }
-    await refreshInfo();
-  } catch {}
+  if (failed && targets.length > 1) alert('部分成员操作失败，请重试');
+  if (action.type === 'leave') { const group = store.groups[gid]; if (group) group.exited = true; groupModal.show = false; }
+  await refreshInfo();
 }
 
 async function createGroup(title) {
