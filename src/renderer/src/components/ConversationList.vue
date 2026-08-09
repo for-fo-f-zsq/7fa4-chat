@@ -63,8 +63,8 @@
           <div class="avatar-placeholder-sm">{{ getAvatarInitial(item.id) }}</div>
         </div>
         <!-- 群聊头像 -->
-        <div v-else class="conv-avatar conv-avatar-group">
-          <div class="avatar-placeholder-sm avatar-group-initial">{{ item.groupName ? item.groupName.charAt(0) : '群' }}</div>
+        <div v-else class="conv-avatar">
+          <div class="avatar-placeholder-sm">{{ item.groupName ? item.groupName.charAt(0) : '群' }}</div>
         </div>
         <div class="conv-info">
           <!-- 私信名称 -->

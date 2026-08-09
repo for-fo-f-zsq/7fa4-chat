@@ -180,7 +180,15 @@
 /* ---- Markdown 编辑工具 ---- */
 .md-md-host { flex: 1; min-width: 0; }
 .md-md-host .monaco-host { width: 100%; height: 100%; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border-light); }
-.md-preview-fill { flex: 1; min-width: 0; overflow-y: auto; overflow-x: hidden; padding: 12px 20px; background: var(--bg-card, #fff); border: 1px solid var(--border-light); border-radius: var(--radius); }
+/* Monaco 编辑器背景强制跟随主题（vs/vs-dark 兜底，防深色主题下仍为白底） */
+.monaco-host .monaco-editor,
+.monaco-host .monaco-editor-background,
+.monaco-host .margin,
+.monaco-host .glyph-margin {
+    background-color: var(--bg-app) !important;
+}
+.monaco-host .monaco-editor { color: var(--text-primary); }
+.md-preview-fill { flex: 1; min-width: 0; overflow-y: auto; overflow-x: hidden; padding: 12px 20px; background: var(--bg-app); color: var(--text-primary); border: 1px solid var(--border-light); border-radius: var(--radius); }
 /* markdown 渲染内部元素：禁止撑出横向滚动（长代码/宽表格/大图在各自容器内滚动或收缩） */
 .md-preview-fill pre { background: var(--bg-code-block); padding: 8px 12px; border-radius: var(--radius); overflow-x: auto; margin: 4px 0; max-width: 100%; }
 .md-preview-fill code { background: var(--bg-code-inline); padding: 2px 6px; border-radius: var(--radius); font-family: 'Consolas', 'Monaco', monospace; font-size: 0.9em; word-break: break-word; }
@@ -752,7 +760,7 @@
     padding: 2px 6px;
     border: 1px solid var(--border-light);
     border-radius: 6px;
-    background: var(--bg-card, #fff);
+    background: var(--bg-input);
 }
 .img-resize-input {
     width: 52px;

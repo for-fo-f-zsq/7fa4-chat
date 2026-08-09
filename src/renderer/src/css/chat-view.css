@@ -44,6 +44,19 @@
     z-index: 1;
 }
 
+.header-left {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    flex-shrink: 1;
+}
+.chat-header .back-icon {
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+.chat-header .back-icon:hover {
+    background: var(--bg-sidebar-hover);
+}
 .chat-header::after {
     content: '';
     position: absolute;
@@ -134,9 +147,6 @@
     font-weight: 600;
     border-radius: 40%;
     background: var(--avatar-grad-default);
-}
-.avatar-group-initial {
-    background: var(--avatar-grad-group) !important;
 }
 
 /* 预览弹窗 - 模态框 */

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GeoGebra</title>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #fff; }
+    #ggb-element { width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="ggb-element"></div>
+  <script src="deployggb.js"></script>
+  <script>
+    var params = {
+      "appName": "graphing",
+      "width": 800,
+      "height": 600,
+      "showToolBar": true,
+      "showAlgebraInput": true,
+      "showMenuBar": true,
+      "showResetIcon": true,
+      "enableRightClick": true,
+      "language": "zh"
+    };
+    var applet = new GGBApplet(params, true);
+    var ggb = null;
+    function fillViewport() {
+      try {
+        if (ggb && ggb.setSize) {
+          ggb.setSize(window.innerWidth, window.innerHeight);
+        }
+      } catch (e) { /* ignore */ }
+    }
+    window.addEventListener("resize", fillViewport);
+    window.addEventListener("load", function () {
+      applet.setHTML5Codebase("HTML5/5.0/web3d/");
+      applet.inject("ggb-element");
+      // 等 applet 初始化完成后获取实例并填满视口
+      var tries = 0;
+      var timer = setInterval(function () {
+        tries++;
+        try {
+          ggb = applet.getAppletObject();
+          if (ggb && ggb.setSize) {
+            clearInterval(timer);
+            fillViewport();
+          }
+        } catch (e) { /* not ready */ }
+        if (tries > 100) clearInterval(timer);
+      }, 100);
+    });
+  </script>
+</body>
+</html>

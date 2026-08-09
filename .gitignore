@@ -2,12 +2,12 @@
 /clean/
 /out/
 /out-tmp/
-/package-lock.json
 /node_modules/
 /src/renderer/public/users.json
 /del_out.json
 /patch_out.json
 /rel_body.json
 /up_out.json
+/tmp/
 /.*/
 !/.github/

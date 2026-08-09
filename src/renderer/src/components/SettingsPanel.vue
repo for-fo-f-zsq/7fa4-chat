@@ -195,21 +195,31 @@ async function clearCache() {
 // ========== 备份/恢复 ==========
 async function exportData() {
   try {
+    const uid = store.self.uid
+    if (!uid) { alert('未登录，无法备份'); return }
+    // 从 SQLite 全量导出（含所有历史消息，内存可能只加载了活跃会话）
+    const r = await window.api.storeExportAll(uid)
+    if (!r.success) { alert('备份失败：' + (r.error || '存储不可用')); return }
     const data = JSON.stringify({
-      users: store.users,
-      groups: store.groups,
-      messages: store.messages,
-      stickers: store.stickers,
-      drafts: store.drafts,
-      favorites: store.favorites
+      users: r.users,
+      groups: r.groups,
+      messages: r.messages,
+      drafts: (r.prefs && r.prefs.drafts) || {},
+      favorites: (r.prefs && r.prefs.favorites) || [],
+      stickers: (r.prefs && r.prefs.stickers) || [],
+      mutedConvos: (r.prefs && r.prefs.mutedConvos) || {},
+      hiddenConvos: (r.prefs && r.prefs.hiddenConvos) || {},
+      deletedMsgIds: (r.prefs && r.prefs.deletedMsgIds) || []
     })
-    const r = await window.api.exportData(data)
-    if (r.success) alert('备份成功：' + r.path)
+    const saveR = await window.api.exportData(data)
+    if (saveR.success) alert('备份成功：' + saveR.path)
   } catch (e) { alert('备份失败：' + e.message) }
 }
 
 async function importData() {
   try {
+    const uid = store.self.uid
+    if (!uid) { alert('未登录，无法恢复'); return }
     const r = await window.api.importData()
     if (!r.success || !r.data) return
     const loaded = JSON.parse(r.data)
@@ -219,6 +229,12 @@ async function importData() {
     if (loaded.stickers) store.stickers = loaded.stickers
     if (loaded.drafts) store.drafts = loaded.drafts
     if (loaded.favorites) store.favorites = loaded.favorites
+    if (loaded.mutedConvos) store.mutedConvos = loaded.mutedConvos
+    if (loaded.hiddenConvos) store.hiddenConvos = loaded.hiddenConvos
+    if (loaded.deletedMsgIds) store.deletedMsgIds = loaded.deletedMsgIds
+    // 同步写入 SQLite（消息按会话归属，事务批量）
+    const imp = await window.api.storeImportAll(uid, loaded)
+    if (!imp.success) { alert('恢复警告：写入本地存储失败（' + (imp.error || '') + '）'); return }
     alert('恢复成功')
   } catch (e) { alert('恢复失败：' + e.message) }
 }

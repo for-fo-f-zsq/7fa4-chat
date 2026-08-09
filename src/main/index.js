@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog, session, clipboard, nativeTheme, safeStorage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog, session, clipboard, nativeTheme, safeStorage, protocol, net } = require('electron');
 const fs = require('fs').promises;
 const fsCb = require('fs');
 const path = require('path');
@@ -11,7 +11,22 @@ const { pathToFileURL } = require('url');
 let autoUpdater;
 try { ({ autoUpdater } = require('electron-updater')); } catch { autoUpdater = null; }
 
+// —— GeoGebra 本地资源协议（geo://）——
+// 必须在 app ready 之前注册 scheme 特权
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'geo',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
+  }
+]);
+// 资源根：打包后 resources/geogebra，开发时项目 resources/geogebra
+function geogebraRoot() {
+  if (app.isPackaged) return path.join(process.resourcesPath, 'geogebra');
+  return path.resolve(__dirname, '../../resources/geogebra');
+}
+
 const { createProxyMiddleware } = require('http-proxy-middleware');
+const { UserStore, migrateLegacy, importLegacyData } = require('./storage');
 
 let mainWindow;
 let tray = null;
@@ -19,6 +34,7 @@ let serverStarted = false;
 let serverInstance = null;
 let minimizeToTray = true;
 let currentApiUrl = 'http://jx.7fa4.cn';
+let userStore = null; // SQLite 用户数据存储（whenReady 初始化）
 
 function startServer() {
     if (serverStarted) return;
@@ -207,6 +223,27 @@ if (!gotTheLock) {
 
     app.whenReady().then(async () => {
         try {
+            // 注册 geo:// 协议：映射到本地 GeoGebra 资源（防路径穿越）
+            protocol.handle('geo', (request) => {
+                try {
+                    const url = new URL(request.url);
+                    const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+                    const root = geogebraRoot();
+                    const resolved = path.resolve(root, rel);
+                    if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+                        return new Response('Forbidden', { status: 403 });
+                    }
+                    return net.fetch(pathToFileURL(resolved).toString());
+                } catch (err) {
+                    return new Response('Not Found', { status: 404 });
+                }
+            });
+            // 初始化 SQLite 用户数据存储
+            try {
+                userStore = new UserStore(path.join(app.getPath('userData'), 'data.db')).init();
+            } catch (e) {
+                console.error('[Store] SQLite 初始化失败:', e.message);
+            }
             const setting = await loadSettingFromFile();
             // 迁移旧版明文密码：磁盘上仍是明文时立即加密重写
             if (setting.loginPassword && !String(setting.loginPassword).startsWith(PWD_ENC_PREFIX)) {
@@ -586,6 +623,84 @@ ipcMain.handle('load-data-file', async (event, filename) => {
     } catch (e) { return { success: false, error: e.message }; }
 });
 
+// ========== SQLite 用户数据存储（data.db，AES-256-GCM 加密） ==========
+// 取代旧的单文件 data/<uid>.7c：拆分 convos/messages/prefs/kv 四表 + 事务写入 + 加密
+function storeReady() {
+    if (userStore) return true;
+    console.error('[Store] 存储未初始化');
+    return false;
+}
+
+// 初始化当前用户：迁移旧版单文件（幂等）
+ipcMain.handle('store-init', async (event, uid) => {
+    if (!storeReady()) return { success: false, error: '存储未初始化' };
+    if (uid == null) return { success: false, error: '缺少 uid' };
+    try {
+        const legacyPath = path.join(app.getPath('userData'), 'data', `${uid}.7c`);
+        const r = migrateLegacy(userStore, legacyPath, Number(uid));
+        return r;
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+});
+
+ipcMain.handle('store-load-convos', async (event, uid) => {
+    if (!storeReady()) return { success: false, error: '存储未初始化' };
+    return userStore.loadConvos(Number(uid));
+});
+
+ipcMain.handle('store-save-convos', async (event, uid, convos) => {
+    if (!storeReady()) return { success: false, error: '存储未初始化' };
+    if (!Array.isArray(convos)) return { success: false, error: 'convos 需为数组' };
+    return userStore.saveConvos(Number(uid), convos);
+});
+
+ipcMain.handle('store-load-messages', async (event, uid, kind, cid, limit, before) => {
+    if (!storeReady()) return { success: false, error: '存储未初始化' };
+    return userStore.loadMessages(Number(uid), kind, Number(cid), limit, before);
+});
+
+// 每个会话最新一条消息（会话列表预览/排序）
+ipcMain.handle('store-load-last-messages', async (event, uid) => {
+    if (!storeReady()) return { success: false, error: '存储未初始化' };
+    return userStore.loadLastMessages(Number(uid));
+});
+
+ipcMain.handle('store-save-messages', async (event, uid, kind, cid, msgs) => {
+    if (!storeReady()) return { success: false, error: '存储未初始化' };
+    if (!Array.isArray(msgs)) return { success: false, error: 'msgs 需为数组' };
+    return userStore.saveMessages(Number(uid), kind, Number(cid), msgs);
+});
+
+ipcMain.handle('store-clean-messages', async (event, uid, keepPerConvo) => {
+    if (!storeReady()) return { success: false, error: '存储未初始化' };
+    return userStore.cleanMessages(Number(uid), keepPerConvo || 2000);
+});
+
+ipcMain.handle('store-load-prefs', async (event, uid) => {
+    if (!storeReady()) return { success: false, error: '存储未初始化' };
+    return userStore.loadPrefs(Number(uid));
+});
+
+ipcMain.handle('store-save-prefs', async (event, uid, entries) => {
+    if (!storeReady()) return { success: false, error: '存储未初始化' };
+    if (!entries || typeof entries !== 'object') return { success: false, error: 'entries 需为对象' };
+    return userStore.savePrefs(Number(uid), entries);
+});
+
+// 全量导出（备份）：所有会话元数据 + 全部消息（解密）+ 偏好
+ipcMain.handle('store-export-all', async (event, uid) => {
+    if (!storeReady()) return { success: false, error: '存储未初始化' };
+    return userStore.exportAll(Number(uid));
+});
+
+// 恢复备份：把备份 JSON 写入 SQLite（消息按会话归属，事务批量）
+ipcMain.handle('store-import-all', async (event, uid, data) => {
+    if (!storeReady()) return { success: false, error: '存储未初始化' };
+    if (!data || typeof data !== 'object') return { success: false, error: '备份数据格式异常' };
+    return importLegacyData(userStore, Number(uid), data);
+});
+
 // ========== 自动更新 ==========
 let updateDownloaded = false;
 let autoUpdateEnabled = false;
@@ -855,15 +970,20 @@ ipcMain.handle('get-cache-size', async () => {
             }
         }
         try { await calcDir(dataDir); } catch {}
+        // 加上 SQLite 数据文件（data.db 及 WAL/SHM）
+        for (const f of ['data.db', 'data.db-wal', 'data.db-shm']) {
+            try { totalSize += (await fs.stat(path.join(app.getPath('userData'), f))).size; } catch {}
+        }
         return { success: true, size: totalSize };
     } catch (e) { return { success: false, error: e.message }; }
 });
 
-// 清理本地缓存（删除 data 目录下所有文件）
+// 清理本地缓存（删除旧 data 目录 + 清空 SQLite 消息表，保留会话元数据与偏好）
 ipcMain.handle('clear-cache', async () => {
     try {
         const dataDir = path.join(app.getPath('userData'), 'data');
         await fs.rm(dataDir, { recursive: true, force: true });
+        if (userStore) userStore.clearAllMessages();
         return { success: true };
     } catch (e) { return { success: false, error: e.message }; }
 });

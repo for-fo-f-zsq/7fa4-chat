@@ -24,7 +24,7 @@
     width: 550px;
     max-height: 85vh;
     background-color: var(--bg-group-detail);
-    border-radius: var(--radius);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-modal), inset 0 1px 0 var(--border-3d-light);
     border: 1px solid var(--border-3d-dark);
     padding: 20px 24px;
@@ -304,9 +304,13 @@
     border-radius: 0 0 var(--radius) var(--radius);
     box-shadow: 0 4px 12px var(--shadow-dropdown);
     z-index: 100;
-    overflow: hidden;
+    overflow-y: auto; /* 内容超出时滚动显示，避免被裁掉 */
     animation: groupDropdownSlideIn 0.2s ease;
     max-height: 240px;
+}
+/* 成员选择下拉：包含搜索/全选/列表，扩容避免截断 */
+.group-detail-card .custom-select-dropdown.user-dropdown {
+    max-height: 360px;
 }
 @keyframes groupDropdownSlideIn {
     from { opacity: 0; transform: translateY(-6px); }

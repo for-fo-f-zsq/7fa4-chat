@@ -340,6 +340,38 @@ export function getUsername(uid, users) {
   return real ? nickname + '(' + real + ')' : nickname || uid
 }
 
+/**
+ * 判断文本是否为「单个」emoji（恰好一个 emoji 字符/组合，不含其它文本）。
+ * 微信风格放大仅限单表情；发送端与渲染端共用（渲染端用于防 API 伪造多字符）。
+ */
+export function isSingleEmoji(text) {
+  const t = (text || '').replace(/\s+/g, '')
+  if (!t) return false
+  // 匹配完整 emoji 单元（含 ZWJ 组合、变体选择符 \uFE0F、肤色修饰符 \u1F3FB-\u1F3FF）
+  const m = t.match(/\p{Extended_Pictographic}(?:\u{200D}\p{Extended_Pictographic}|[\u{FE0F}\u{1F3FB}-\u{1F3FF}])*/gu)
+  if (!m || m.length !== 1) return false
+  return m[0] === t
+}
+
+/**
+ * 发送时从文本解析被 @ 的用户 uid 列表（含 'all'）。
+ * 输入框插入的是 @UID（昵称可能重名，用 uid 唯一标识），发送时直接提取数字 uid；
+ * 与拍一拍同模式：发送/存储用 uid，渲染时再补全为昵称+姓名。
+ */
+export function extractMentions(text) {
+  const uids = new Set()
+  if (!text || typeof text !== 'string' || !text.includes('@')) return []
+  const re = /@(\d+)(?![0-9])/g
+  let m
+  while ((m = re.exec(text)) !== null) {
+    const uid = Number(m[1])
+    // 仅保留存在的用户（输入框只能选列表内用户；防 @12 误收 @123 的前缀）
+    if (store.users[uid]) uids.add(uid)
+  }
+  if (text.includes('@所有人')) uids.add('all')
+  return [...uids]
+}
+
 export function displayName(user) {
   if (!user) return ''
   const uid = user.uid
@@ -740,11 +772,28 @@ export function parseContent(raw, senderId) {
     if (obj.data && obj.mime) dataUri = `data:${obj.mime};base64,${obj.data}`
     return `<span class="sticker-msg"><img src="${esc(dataUri)}" alt="${esc(obj.name || '')}" data-base64="${esc(obj.data || '')}" data-mime="${esc(obj.mime || '')}"></span>`
   }
-  if (obj.type === 'emoji') return '<span class="emoji-msg">' + esc(obj.content || '') + '</span>'
+  if (obj.type === 'emoji') {
+    const emojiText = String(obj.content || '').trim()
+    // 渲染时再次校验：仅单个 emoji 才放大显示，否则按普通文本 content 处理（防 API 伪造多字符）
+    if (isSingleEmoji(emojiText)) {
+      return '<span class="emoji-msg">' + esc(emojiText) + '</span>'
+    }
+    return renderMarkdown(obj.content || '')
+  }
   if (obj.type === 'pat') {
     const senderName = senderId ? getUsername(senderId, store.users) : ''
     const targetName = obj.target ? getUsername(obj.target, store.users) : ''
-    return '<div class="pat-msg">' + esc(senderName) + ' 拍了拍 ' + esc(targetName) + '</div>'
+    // 仅当用户信息可解析（store.users 或姓名库有记录）时才渲染可点击名字；
+    // 解析失败显示 User_xxx 兜底名时不可点击（点开 userinfo 也没有意义）
+    const senderKnown = senderId ? !!(store.users?.[senderId] || usersJson?.[senderId]) : false
+    const targetKnown = obj.target ? !!(store.users?.[obj.target] || usersJson?.[obj.target]) : false
+    const senderHtml = senderId
+      ? (senderKnown ? `<span class="pat-user" data-uid="${senderId}">${esc(senderName)}</span>` : esc(senderName))
+      : ''
+    const targetHtml = obj.target
+      ? (targetKnown ? `<span class="pat-user" data-uid="${obj.target}">${esc(targetName)}</span>` : esc(targetName))
+      : ''
+    return '<div class="pat-msg">' + senderHtml + ' 拍了拍 ' + targetHtml + '</div>'
   }
   if (obj.type === 'text') {
     let html = ''
@@ -753,13 +802,17 @@ export function parseContent(raw, senderId) {
       html += '<div class="reply-quote" data-reply-id="' + obj.reply_to + '"><i class="fas fa-quote-left reply-quote-icon"></i><span class="reply-quote-text">' + replyContent + '</span></div>'
     }
     html += renderMarkdown(obj.content || '')
+    // @提及 渲染：文本中是 @UID（输入框插入），渲染时补全为 昵称(姓名) 标签
     if (obj.mentions && obj.mentions.length) {
-      for (const uid of obj.mentions) {
-        if (uid === 'all') {
-          html = html.replace(/@all(?![0-9])/g, '<span class="mention-tag mention-all" data-uid="all">@所有人</span>')
-        } else {
-          html = html.replace(new RegExp('@' + uid + '(?![0-9])', 'g'), '<span class="mention-tag" data-uid="' + uid + '">@' + uid + '</span>')
-        }
+      if (obj.mentions.includes('all')) {
+        html = html.replace(/@所有人/g, '<span class="mention-tag mention-all" data-uid="all">@所有人</span>')
+      }
+      const ids = obj.mentions.filter((u) => u !== 'all')
+      if (ids.length) {
+        const pattern = new RegExp('@(' + ids.map(String).join('|') + ')(?![0-9])', 'g')
+        html = html.replace(pattern, (match, uid) => {
+          return '<span class="mention-tag" data-uid="' + uid + '">@' + getUsername(Number(uid), store.users) + '</span>'
+        })
       }
     }
     return html

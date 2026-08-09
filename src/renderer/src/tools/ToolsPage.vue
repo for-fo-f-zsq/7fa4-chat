@@ -25,6 +25,11 @@
           <div class="tool-card-name">计算器</div>
           <div class="tool-card-desc">科学计算器：表达式求值、阶乘、快速幂、对数、组合排列、gcd/lcm、质因数分解、模逆元</div>
         </div>
+        <div class="tool-card" @click="$emit('openTool', 'math')">
+          <i class="fas fa-chart-line"></i>
+          <div class="tool-card-name">GeoGebra</div>
+          <div class="tool-card-desc">GeoGebra 官方绘图计算器（本地离线版）：函数图像、几何画板、滑动条动画、测量、变换、轨迹、CAS 等全部二维功能</div>
+        </div>
       </div>
     </template>
     <template v-else-if="currentTool === 'markdown'">
@@ -49,6 +54,14 @@
     <template v-else-if="currentTool === 'calculator'">
       <CalculatorTool class="ide-host" @back="$emit('openTool', 'list')" />
     </template>
+    <template v-else-if="currentTool === 'math'">
+      <MathTool
+        ref="mathToolRef"
+        class="ide-host"
+        @back="$emit('openTool', 'list')"
+        @dirty-change="$emit('dirty-change', $event)"
+      />
+    </template>
   </div>
 </template>
 
@@ -58,6 +71,7 @@ import MarkdownTool from './MarkdownTool.vue'
 import ImageTool from './ImageTool.vue'
 import GraphTool from './graph/GraphTool.vue'
 import CalculatorTool from './calculator/CalculatorTool.vue'
+import MathTool from './math/MathTool.vue'
 
 defineProps({
   currentTool: { type: String, default: 'list' }
@@ -67,10 +81,12 @@ const emit = defineEmits(['openTool', 'dirty-change'])
 
 const imageToolRef = ref(null)
 const markdownToolRef = ref(null)
+const mathToolRef = ref(null)
 
 // 供父级在切换页面时调用（未保存拦截：保存后再离开）
 defineExpose({
   imageSave: () => imageToolRef.value?.save(),
-  markdownSave: () => markdownToolRef.value?.save()
+  markdownSave: () => markdownToolRef.value?.save(),
+  mathSave: () => mathToolRef.value?.save()
 })
 </script>

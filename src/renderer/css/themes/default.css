@@ -145,7 +145,8 @@
 
         --btn-shine: rgba(255, 255, 255, 0.15);
 
-        --radius: 20px;
+        --radius: 10px;
+        --radius-lg: 20px;
 
         --duration-fast: 0.15s;
         --duration-normal: 0.25s;

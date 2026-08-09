@@ -94,7 +94,7 @@
 <script setup>
 import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
 import { store } from '../store.js';
-import { displayName, parseMsgContent, renderMarkdown, applyChatToStore, sendChatMessage, getConvoKey, formatSize, compressImage, compressBase64Image } from '../utils.js';
+import { displayName, parseMsgContent, renderMarkdown, applyChatToStore, sendChatMessage, getConvoKey, formatSize, compressImage, compressBase64Image, extractMentions, isSingleEmoji } from '../utils.js';
 import EmojiPicker from './EmojiPicker.vue';
 import '../css/input-footer.css';
 
@@ -223,20 +223,21 @@ watch(convoKey, (newKey) => {
 });
 
 // --- 发送消息 ---
-function extractMentions(text) {
-  const uids = new Set();
-  if (text.includes('@所有人')) uids.add('all');
-  const re = /@(\d+)/g;
-  let m;
-  while ((m = re.exec(text)) !== null) {
-    const uid = Number(m[1]);
-    if (store.users[uid]) uids.add(uid);
-  }
-  return [...uids];
-}
+// （@提及解析已移至 utils.extractMentions：发送时从文本按昵称反查 uid，与拍一拍同模式）
 
 // --- 收藏选择发送 ---
 const favoritesVisible = ref(false);
+
+// 点击收藏弹窗/按钮以外的区域时关闭
+function onFavoritesDocClick(e) {
+  if (!favoritesVisible.value) return
+  const el = e.target
+  if (el && !el.closest('.favorites-picker') && !el.closest('.favorites-btn')) {
+    favoritesVisible.value = false
+  }
+}
+document.addEventListener('click', onFavoritesDocClick)
+onUnmounted(() => document.removeEventListener('click', onFavoritesDocClick))
 
 function previewFavorite(fav) {
   const obj = parseMsgContent(fav.content);
@@ -509,15 +510,7 @@ watch(inputText, () => {
   });
 });
 
-// 判断文本是否为「单个」emoji（恰好一个 emoji 字符/组合，不含其它文本）——微信风格放大仅限单表情
-function isSingleEmoji(text) {
-  const t = (text || '').replace(/\s+/g, '')
-  if (!t) return false
-  // 匹配完整 emoji 单元（含 ZWJ 组合、变体选择符 \uFE0F、肤色修饰符 \u1F3FB-\u1F3FF）
-  const m = t.match(/\p{Extended_Pictographic}(?:\u{200D}\p{Extended_Pictographic}|[\u{FE0F}\u{1F3FB}-\u{1F3FF}])*/gu)
-  if (!m || m.length !== 1) return false
-  return m[0] === t
-}
+// 判断文本是否为「单个」emoji —— 已移至 utils.isSingleEmoji（渲染端共用，防 API 伪造）
 
 // 微信风格：点击表情仅在输入框光标位置插入，不直接发送
 function onEmojiSelect(emoji) {
@@ -706,7 +699,8 @@ function applyMention(user) {
   const pos = inputEl.value?.selectionStart || text.length;
   const before = text.slice(0, pos);
   const after = text.slice(pos);
-  const replaced = before.replace(/@([^\s@]*)$/, '@' + (user.nickname || `User_${user.uid}`) + ' ');
+  // 插入 @UID（昵称可能重名，用 uid 唯一标识；渲染时再补全昵称/姓名）
+  const replaced = before.replace(/@([^\s@]*)$/, '@' + user.uid + ' ');
   inputText.value = replaced + after;
   mentionVisible.value = false;
   nextTick(() => {

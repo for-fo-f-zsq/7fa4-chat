@@ -79,7 +79,7 @@ body::after {
     width: 320px;
     padding: 36px 28px;
     background: var(--bg-app);
-    border-radius: var(--radius);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-modal), 0 0 0 1px rgba(0, 0, 0, 0.03), inset 0 1px 0 var(--border-3d-light);
     animation: boxSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;

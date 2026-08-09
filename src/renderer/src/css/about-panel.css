@@ -27,7 +27,7 @@
 .gitlab-logo { display: inline-block; width: 48px; height: 48px; }
 .about-content {
     background: var(--bg-about-content);
-    border-radius: var(--radius);
+    border-radius: var(--radius-lg);
     padding: 16px 20px;
     line-height: 1.6;
     color: var(--text-primary);
@@ -79,6 +79,15 @@
     color: var(--text-secondary);
     font-size: var(--font-size-small);
 }
+.about-content { display: block; }
+.about-info { min-width: 0; }
+.about-rows-with-qr { display: flex; align-items: center; gap: 20px; }
+.about-rows { flex: 1; min-width: 0; }
+.about-donate { flex-shrink: 0; text-align: center; }
+.donate-qr-img { width: 110px; height: 110px; border-radius: var(--radius); cursor: zoom-in; transition: transform 0.2s; }
+.donate-qr-img:hover { transform: scale(1.05); }
+.donate-zoom-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.65); display: flex; align-items: center; justify-content: center; z-index: 4000; cursor: zoom-out; }
+.donate-zoom-img { max-width: 80vw; max-height: 80vh; border-radius: var(--radius); box-shadow: var(--shadow-modal); }
 .about-github-link {
     display: inline-flex;
     align-items: center;

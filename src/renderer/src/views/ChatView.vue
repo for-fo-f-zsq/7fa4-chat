@@ -20,7 +20,7 @@
     />
     <ConversationList
       ref="conversationListRef"
-      v-if="isChatPage"
+      v-if="isChatPage && !(isNarrowLayout && pageId)"
       class="fade-content"
       :class="{ 'fade-out': listFading }"
       :pageType="displayPageType"
@@ -28,14 +28,14 @@
       :users="store.users"
       :groups="store.groups"
       :messages="store.messages"
-      :style="{ width: listWidth + 'px' }"
+      :style="isNarrowLayout ? { width: 'auto', flex: '1 1 0%' } : { width: listWidth + 'px' }"
       @select="onSelectConversation"
       @Targetmenu="onTargetMenu"
       @dropFile="onDropFile"
       @markAllRead="markAllRead"
       @newConversation="onNewConversationFromList"
     />
-    <div class="list-resize-bar" @mousedown="startListResize"></div>
+    <div class="list-resize-bar" v-if="!isNarrowLayout" @mousedown="startListResize"></div>
     <InputModal
       v-model:visible="showCreateGroupModal"
       title="新建群聊"
@@ -53,6 +53,7 @@
         :pageId="pageId"
         :targetUser="targetUser"
         :targetGroup="targetGroup"
+        @back="onBackFromChat"
         @openUserInfo="openuserinfo"
         @openGroupSettings="openGroupSettings"
         @toggleSearch="toggleSearch"
@@ -294,6 +295,12 @@ const saveConfirmVisible = ref(false);
 let pendingSwitch = null; // 被未保存拦截的切换动作（保存/不保存后执行）
 const isChatPage = computed(() => pageType.value === 'chat' || pageType.value === 'user' || pageType.value === 'group');
 const navPageType = computed(() => isChatPage.value ? 'chat' : pageType.value);
+// 窄长窗口单列模式：窗口高/宽比超过阈值时，会话列表与消息区互斥显示（微信/QQ 窄窗口风格）
+const NARROW_ASPECT = 1.4
+const isNarrowLayout = ref(false)
+function updateLayoutMode() {
+  isNarrowLayout.value = window.innerHeight / Math.max(window.innerWidth, 1) > NARROW_ASPECT
+}
 const contentFading = ref(false);
 const listFading = ref(false);
 const displayPageType = ref(null);
@@ -461,12 +468,26 @@ function switchPage(type) {
   if (type === 'settings') updateSettingsPanel();
 }
 
+// 消息区头部返回：清除当前会话（pageId 置空）回到会话列表
+function onBackFromChat() {
+  if (pageId.value == null) return;
+  pageId.value = null;
+  pageType.value = 'chat';
+  if (inputFooterRef.value) {
+    inputFooterRef.value.mentionVisible = false;
+    inputFooterRef.value.emojiVisible = false;
+  }
+  closeSearch();
+  updateBadgeCount();
+}
+
 // 未保存拦截弹窗：保存后离开
 async function onSaveConfirmSave() {
   saveConfirmVisible.value = false;
   // 按当前打开的工具调用对应保存
   if (currentTool.value === 'image') await toolsPageRef.value?.imageSave();
   else if (currentTool.value === 'markdown') await toolsPageRef.value?.markdownSave();
+  else if (currentTool.value === 'math') await toolsPageRef.value?.mathSave();
   // 保存成功后 dirty=false → emit 更新 toolsDirty=false；失败/取消则留在页面
   if (!toolsDirty.value && pendingSwitch) {
     const t = pendingSwitch.type;
@@ -514,6 +535,10 @@ function onSelectConversation({ type, id }) {
       if (group) { group.unread = 0; group.mentioned = false; }
     }
     updateBadgeCount();
+    // 已读清零立即落盘（节流保存最长 30s，避免刷新/重登后未读恢复）
+    saveConvos();
+    // 懒加载：从 SQLite 补拉该会话的历史消息到内存（缺失内容）
+    ensureConvoMessages(type, id);
   };
   contentFading.value = true;
   setTimeout(() => {
@@ -732,7 +757,7 @@ function markAllRead() {
   for (const user of Object.values(store.users)) user.unread = 0;
   for (const group of Object.values(store.groups)) group.unread = 0;
   updateBadgeCount();
-  saveData();
+  saveConvos(); // 立即落盘，避免刷新后未读恢复
 }
 
 // --- 未读计数 badge ---
@@ -1156,6 +1181,7 @@ async function fetchMessages(type, end) {
     const r = await (await safeFetch(`/chat/chat?type=${type}&end_time=${endSec}&take=10`)).json();
     if (!r.success || !r.chats || !r.chats.length) return;
     let needContinue = true;
+    const pendingPersist = {}; // 本轮新消息按会话分组，循环后增量入库
     for (const c of r.chats) {
       if (!infoLoopRunning) return;
       end = Math.min(end, c.send_time * 1000 - 1);
@@ -1168,6 +1194,11 @@ async function fetchMessages(type, end) {
         const msgContent = c.content;
         store.messages[c.id] = { id: c.id, sender: c.sender_id, send_time: c.send_time, content: msgContent };
         t.message_ids.push(c.id);
+        const persistKind = type === 'group' ? 'group' : 'user';
+        const persistCid = type === 'group' ? c.receiver_id : (type === 'send_user' ? c.receiver_id : c.sender_id);
+        const pk = persistKind + ':' + persistCid;
+        if (!pendingPersist[pk]) pendingPersist[pk] = { kind: persistKind, cid: persistCid, msgs: [] };
+        pendingPersist[pk].msgs.push({ id: c.id, sender: c.sender_id, send_time: c.send_time, content: msgContent });
         const state = await window.api.getWindowState();
         if (!state.focused || !state.visible) {
           const chatType = type === 'group' ? 'group' : 'user';
@@ -1179,9 +1210,16 @@ async function fetchMessages(type, end) {
             if (!notifCooldown[convoKey] || now - notifCooldown[convoKey] > 5000) {
               notifCooldown[convoKey] = now;
               const msg = JSON.parse(msgContent);
+              // 通知正文内容提取（拍一拍等结构化消息没有 content 字段）
+              let notifRaw = ''
+              if (msg.type === 'file') notifRaw = '📄 ' + (msg.name || '')
+              else if (msg.type === 'sticker') notifRaw = '🖼️ ' + (msg.name || '表情')
+              else if (msg.type === 'pat') notifRaw = '👋 拍了拍'
+              else if (msg.type === 'emoji') notifRaw = (msg.content || '') + ' '
+              else notifRaw = msg.content || ''
               const notifContent = notifPendingCount[convoKey] > 1
-                ? `${getNotifContent(msg.type === 'file' ? '📄 ' + msg.name : msg.type === 'sticker' ? '🖼️ ' + (msg.name || '表情') : msg.content, setting.value)} (+${notifPendingCount[convoKey] - 1})`
-                : getNotifContent(msg.type === 'file' ? `📄 ${msg.name}` : msg.type === 'sticker' ? `🖼️ ${msg.name || '表情'}` : msg.content, setting.value);
+                ? `${getNotifContent(notifRaw, setting.value)} (+${notifPendingCount[convoKey] - 1})`
+                : getNotifContent(notifRaw, setting.value);
               // 标题：群聊显示群名（避免误判私信），私信显示发送者；正文：群聊前置发送者名
               const notifTitle = chatType === 'group'
                 ? (store.groups[targetId]?.name || '群聊')
@@ -1194,12 +1232,17 @@ async function fetchMessages(type, end) {
               notifPendingCount[convoKey] = 0; // 已弹窗，聚合计数归零，避免 (+N) 无限累积
             }
           }
-        }
-        if (c.sender_id !== store.self.uid && !isCurrentPage) t.unread = (t.unread || 0) + 1;
-        if (type === 'group' && c.sender_id !== store.self.uid) {
-          try { const msgObj = JSON.parse(msgContent); if (msgObj.mentions && (msgObj.mentions.includes(store.self.uid) || msgObj.mentions.includes('all'))) t.mentioned = true; } catch {}
+          // 仅真正的新消息计未读/提及（已读历史消息不计，避免刷新/重登后未读恢复）
+          if (c.sender_id !== store.self.uid && !isCurrentPage) t.unread = (t.unread || 0) + 1;
+          if (type === 'group' && c.sender_id !== store.self.uid) {
+            try { const msgObj = JSON.parse(msgContent); if (msgObj.mentions && (msgObj.mentions.includes(store.self.uid) || msgObj.mentions.includes('all'))) t.mentioned = true; } catch {}
+          }
         }
       }
+    }
+    // 本轮新消息增量入库（按会话事务批量写）
+    for (const { kind, cid, msgs } of Object.values(pendingPersist)) {
+      persistMessages(msgs, kind, cid)
     }
     updateBadgeCount();
     if (needContinue) await fetchMessages(type, end);
@@ -1212,21 +1255,113 @@ async function updateMessagesData() {
   await fetchMessages('group', Date.now());
 }
 
-async function loadData() {
-  const dataFile = `data/${store.self.uid}.7c`;
+// ===== SQLite 存储（加密）：偏好 / 元数据节流 / 消息懒加载 =====
+let convoSaveTimer = null
+let prefSaveTimer = null
+
+async function saveConvos() {
+  const uid = store.self.uid
+  if (!uid) return
+  const convos = []
+  for (const [id, u] of Object.entries(store.users || {})) {
+    if (u && u.uid != null) convos.push({ kind: 'user', cid: Number(id), meta: u })
+  }
+  for (const [id, g] of Object.entries(store.groups || {})) {
+    if (g && g.gid != null) convos.push({ kind: 'group', cid: Number(id), meta: g })
+  }
+  if (convos.length) {
+    try { await window.api.storeSaveConvos(uid, convos) } catch {}
+  }
+}
+
+function scheduleConvoSave(delay = 30000) {
+  clearTimeout(convoSaveTimer)
+  convoSaveTimer = setTimeout(() => { saveConvos() }, delay)
+}
+
+async function savePrefs() {
+  const uid = store.self.uid
+  if (!uid) return
   try {
-    const raw = await window.api.loadDataFile(dataFile);
-    if (!raw.success || !raw.data) return;
-    const loaded = JSON.parse(raw.data);
-    if (loaded.users) store.users = loaded.users;
-    if (loaded.groups) store.groups = loaded.groups;
-    if (loaded.messages) store.messages = loaded.messages;
-    if (loaded.stickers) store.stickers = loaded.stickers;
-    if (loaded.drafts) store.drafts = loaded.drafts;
-    if (loaded.favorites) store.favorites = loaded.favorites;
-    if (loaded.mutedConvos) store.mutedConvos = loaded.mutedConvos;
-    if (loaded.hiddenConvos) store.hiddenConvos = loaded.hiddenConvos;
-    if (loaded.deletedMsgIds) store.deletedMsgIds = loaded.deletedMsgIds;
+    await window.api.storeSavePrefs(uid, {
+      drafts: store.drafts || {},
+      favorites: store.favorites || [],
+      mutedConvos: store.mutedConvos || {},
+      hiddenConvos: store.hiddenConvos || {},
+      deletedMsgIds: store.deletedMsgIds || [],
+      stickers: store.stickers || []
+    })
+  } catch {}
+}
+
+function schedulePrefSave(delay = 1500) {
+  clearTimeout(prefSaveTimer)
+  prefSaveTimer = setTimeout(() => { savePrefs() }, delay)
+}
+
+/** 消息增量入库（按会话事务批量写） */
+async function persistMessages(msgs, kind, cid) {
+  const uid = store.self.uid
+  if (!uid || !msgs || !msgs.length) return
+  try { await window.api.storeSaveMessages(uid, kind, Number(cid), msgs) } catch {}
+}
+
+/** 懒加载：进入会话时从 SQLite 补拉缺失的历史消息到内存 */
+async function ensureConvoMessages(kind, cid) {
+  const uid = store.self.uid
+  if (!uid || cid == null) return
+  const target = kind === 'group' ? store.groups[cid] : store.users[cid]
+  if (!target || !Array.isArray(target.message_ids) || !target.message_ids.length) return
+  const missing = target.message_ids.filter(mid => !store.messages[mid])
+  if (!missing.length) return
+  try {
+    const r = await window.api.storeLoadMessages(uid, kind, Number(cid), 1000)
+    if (r.success && Array.isArray(r.data)) {
+      for (const m of r.data) {
+        if (m && m.id != null && !store.messages[m.id]) store.messages[m.id] = m
+      }
+    }
+  } catch {}
+}
+
+/** 立即落盘（退出登录前调用） */
+async function flushData() {
+  clearTimeout(convoSaveTimer)
+  clearTimeout(prefSaveTimer)
+  convoSaveTimer = null
+  prefSaveTimer = null
+  await Promise.all([saveConvos(), savePrefs()])
+}
+
+async function loadData() {
+  const uid = store.self.uid
+  if (!uid) return
+  try { await window.api.storeInit(uid) } catch {}
+  try {
+    const [cr, pr, lr] = await Promise.all([
+      window.api.storeLoadConvos(uid),
+      window.api.storeLoadPrefs(uid),
+      window.api.storeLoadLastMessages(uid)
+    ])
+    // 每个会话最新一条消息（会话列表预览/排序）
+    if (lr && lr.success && Array.isArray(lr.data)) {
+      for (const { msg } of lr.data) {
+        if (msg && msg.id != null && !store.messages[msg.id]) store.messages[msg.id] = msg
+      }
+    }
+    if (cr && cr.success) {
+      if (cr.users) store.users = { ...store.users, ...cr.users }
+      if (cr.groups) store.groups = { ...store.groups, ...cr.groups }
+    }
+    if (pr && pr.success && pr.data) {
+      const d = pr.data
+      if (d.favorites) store.favorites = d.favorites
+      if (d.drafts) store.drafts = d.drafts
+      if (d.mutedConvos) store.mutedConvos = d.mutedConvos
+      if (d.hiddenConvos) store.hiddenConvos = d.hiddenConvos
+      if (d.deletedMsgIds) store.deletedMsgIds = d.deletedMsgIds
+      if (d.stickers) store.stickers = d.stickers
+    }
   } catch {}
   if (Array.isArray(store.users)) store.users = Object.fromEntries(store.users.map(u => [u.uid, u]));
   if (Array.isArray(store.groups)) store.groups = Object.fromEntries(store.groups.map(g => [g.gid, g]));
@@ -1252,12 +1387,10 @@ async function loadData() {
   });
 }
 
-async function saveData() {
-  try {
-    const data = { self: store.self, users: store.users, groups: store.groups, messages: store.messages, stickers: store.stickers, drafts: store.drafts, favorites: store.favorites, mutedConvos: store.mutedConvos, hiddenConvos: store.hiddenConvos, deletedMsgIds: store.deletedMsgIds };
-    const dataFile = `data/${store.self.uid}.7c`;
-    await window.api.saveDataFile(dataFile, JSON.stringify(data));
-  } catch {}
+/** 兼容旧调用点：安排保存（元数据与偏好节流；消息走增量入库） */
+function saveData() {
+  scheduleConvoSave()
+  schedulePrefSave()
 }
 
 async function logout() {
@@ -1269,8 +1402,8 @@ async function logout() {
   stopVisitReport();   // 停止访问统计上报定时器
   // 等待可能正在执行的异步操作完成
   await new Promise(r => setTimeout(r, 100));
-  // 退出前先保存当前数据
-  await saveData();
+  // 退出前先保存当前数据（立即落盘，不等节流）
+  await flushData();
   // 服务端登出：POST /logout 销毁服务器会话，并由服务器返回 Set-Cookie 删除有效 cookie
   try { await safeFetch('/logout', { method: 'POST' }, 10000) } catch {}
   // 本地兜底：清除会话 cookie（含 HttpOnly，渲染进程 document.cookie 无法删除）
@@ -1360,12 +1493,14 @@ onMounted(async () => {
   const root = document.documentElement;
   if (setting.value.theme && setting.value.theme !== 'default' && setting.value.theme !== 'custom') root.classList.add(`theme-${setting.value.theme}`);
   if (setting.value.theme === 'custom' && setting.value.customVars) { for (const [k, v] of Object.entries(setting.value.customVars)) root.style.setProperty(k, v); }
-  autoSaveTimer = setInterval(async () => { saveData(); }, 10000);
+  autoSaveTimer = setInterval(async () => { saveConvos(); }, 10000);
   unsubscribeNotifClick = window.api.onNotifClick((data) => { if (data.chatType && data.targetId) { pageType.value = data.chatType; pageId.value = Number(data.targetId); } });
   // 网络状态监听
   window.addEventListener('online', onOnline);
   window.addEventListener('offline', onOffline);
   window.addEventListener('focus', onWindowFocus);
+  window.addEventListener('resize', updateLayoutMode);
+  updateLayoutMode();
   try {
     const initialInfo = await (await safeFetch('/chat/info')).json();
     if (initialInfo.success) Object.assign(store.self, { uid: initialInfo.user.id, username: initialInfo.user.uid, nickname: initialInfo.user.nickname, realname: initialInfo.user.real_name });
@@ -1392,6 +1527,7 @@ onUnmounted(() => {
   window.removeEventListener('online', onOnline);
   window.removeEventListener('offline', onOffline);
   window.removeEventListener('focus', onWindowFocus);
+  window.removeEventListener('resize', updateLayoutMode);
   if (unsubscribeNotifClick) unsubscribeNotifClick();
   if (unsubscribeUploadProgress) unsubscribeUploadProgress();
 });

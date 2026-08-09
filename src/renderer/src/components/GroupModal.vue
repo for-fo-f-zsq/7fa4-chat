@@ -5,7 +5,7 @@
         <div class="group-detail-header">
           <div class="group-avatar-section">
             <div class="group-avatar-container">
-              <div class="avatar-placeholder-lg avatar-group-initial">{{ group.name ? group.name.charAt(0) : '群' }}</div>
+              <div class="avatar-placeholder-lg">{{ group.name ? group.name.charAt(0) : '群' }}</div>
             </div>
           </div>
           <div class="group-name-wrapper" v-if="canEditName && editingName">
@@ -97,7 +97,7 @@
               <span>{{ currentUserLabel }}</span>
               <i class="fas fa-chevron-down custom-select-arrow"></i>
             </div>
-            <div class="custom-select-dropdown" :class="{ dropup: userDropup }" v-if="userOpen">
+            <div class="custom-select-dropdown user-dropdown" :class="{ dropup: userDropup }" v-if="userOpen">
               <div class="custom-select-search" @click.stop>
                 <input class="custom-select-search-input" v-model="userSearchQuery" placeholder="搜索用户..." ref="userSearchInput" />
               </div>

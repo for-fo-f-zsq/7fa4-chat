@@ -1,0 +1,90 @@
+/* 数学画板（GeoGebra 官方版）样式 */
+.math-official {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-app);
+  overflow: hidden;
+}
+
+.math-official-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 12px;
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.math-official-back {
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.math-official-back:hover { background: var(--bg-input); }
+
+.math-official-title {
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.math-official-title i { color: var(--accent); }
+.math-official-sep { color: var(--text-secondary); margin: 0 2px; }
+
+.math-official-note {
+  margin-left: auto;
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+}
+
+.math-official-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.math-official-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+}
+
+.math-official-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--bg-app);
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  pointer-events: none;
+}
+.math-official-loading i { color: var(--accent); font-size: 22px; }
+.math-official-loading-sub {
+  font-size: var(--font-size-small);
+  opacity: 0.7;
+  max-width: 480px;
+  text-align: center;
+  line-height: 1.6;
+}

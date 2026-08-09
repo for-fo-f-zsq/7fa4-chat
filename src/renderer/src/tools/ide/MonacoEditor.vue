@@ -5,6 +5,8 @@
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import * as monaco from 'monaco-editor'
+// Monaco 样式（vs/vs-dark 主题 CSS，缺失会导致深色主题下 setTheme('vs-dark') 不生效仍为白底）
+import 'monaco-editor/min/vs/editor/editor.main.css'
 import editorWorker from 'monaco-editor/editor/editor.worker?worker'
 import jsonWorker from 'monaco-editor/language/json/json.worker?worker'
 import cssWorker from 'monaco-editor/language/css/css.worker?worker'
@@ -36,16 +38,21 @@ let suppress = false
 let observer = null
 
 function isDarkTheme() {
-  const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg-app').trim()
-  const m = bg.match(/#([0-9a-f]{6})/i)
-  if (m) {
-    const n = parseInt(m[1], 16)
-    const r = (n >> 16) & 255
-    const g = (n >> 8) & 255
-    const b = n & 255
-    return (r * 299 + g * 587 + b * 114) / 1000 < 128
+  const cs = getComputedStyle(document.documentElement)
+  const bg = (cs.getPropertyValue('--bg-app') || cs.getPropertyValue('--bg-sidebar') || '').trim()
+  let lum = null
+  const hex = bg.match(/#([0-9a-f]{6})/i)
+  if (hex) {
+    const n = parseInt(hex[1], 16)
+    lum = (((n >> 16) & 255) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000
+  } else {
+    const rgb = bg.match(/rgba?\(([^)]+)\)/)
+    if (rgb) {
+      const parts = rgb[1].split(',').map(s => parseFloat(s))
+      if (parts.length >= 3) lum = (parts[0] * 299 + parts[1] * 587 + parts[2] * 114) / 1000
+    }
   }
-  return false
+  return lum !== null ? lum < 128 : false
 }
 
 function applyTheme() {
@@ -87,9 +94,9 @@ onMounted(() => {
     emit('scroll', topLine)
   })
 
-  // 跟随应用主题切换（监听 documentElement 的 class 变化）
+  // 跟随应用主题切换（监听 documentElement 的 class / style 变化——custom 主题走内联 style）
   observer = new MutationObserver(applyTheme)
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style'] })
 
   emit('ready')
 })

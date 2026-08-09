@@ -16,7 +16,7 @@
 
 .userinfo-modal {
   background-color: var(--bg-group-detail);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-modal), inset 0 1px 0 var(--border-3d-light);
   border: 1px solid var(--border-3d-dark);
   display: flex;

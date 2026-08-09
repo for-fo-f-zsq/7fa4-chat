@@ -293,9 +293,6 @@
     border-radius: 40%;
     background: var(--avatar-grad-default);
 }
-.conv-avatar-group .avatar-placeholder-sm {
-    background: var(--avatar-grad-group);
-}
 
 .conv-info { flex: 1; min-width: 0; overflow: hidden; }
 .conv-name {

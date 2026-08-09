@@ -360,6 +360,15 @@
     text-align: center;
     animation: patShake 0.4s ease;
 }
+.pat-user {
+    color: var(--accent);
+    cursor: pointer;
+    font-weight: 600;
+}
+.pat-user:hover {
+    text-decoration: underline;
+    color: var(--accent-hover);
+}
 .msg-row:has(.pat-msg) {
     justify-content: center;
     align-self: center !important;

@@ -31,7 +31,8 @@
         </div>
         <template v-if="item.data.sender != selfUid">
           <div class="msg-avatar"
-            @dblclick="$emit('sendPat', item.data.sender)"
+            @click.stop="onAvatarSingleClick(item.data.sender)"
+            @dblclick="onAvatarDoubleClick(item.data.sender)"
             @contextmenu.prevent="pageType=='group'&&$emit('openGroupActionMenu', $event, item.data.sender)">
             <div class="avatar-placeholder-sm">{{ getAvatarInitial(item.data.sender) }}</div>
           </div>
@@ -40,7 +41,8 @@
               <span class="name"
               :style="{ color: getGradeColor(item.data.sender) }"
               :title="getGradeLabel(item.data.sender)"
-              @dblclick="$emit('sendPat', item.data.sender)"
+              @click.stop="onAvatarSingleClick(item.data.sender)"
+              @dblclick="onAvatarDoubleClick(item.data.sender)"
               @contextmenu.prevent="pageType=='group'&&$emit('openGroupActionMenu', $event, item.data.sender)">{{ displayName(msgSenderUser(item.data)) }}</span>
               <span class="time">{{ gettime2(item.data.send_time) }}</span>
             </div>
@@ -87,7 +89,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onUpdated, watch, nextTick } from 'vue';
+import { ref, reactive, computed, onUpdated, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
 import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown } from '../utils.js';
 import MsgMenu from './MsgMenu.vue';
@@ -181,6 +183,25 @@ function renderContent(msg, senderId) {
 function msgSenderUser(msg) {
   return store.users?.[msg.sender] || { uid: msg.sender };
 }
+
+// 单击头像/名字 → 打开用户信息；双击 → 拍一拍（与微信一致）
+// 单击延迟 250ms 判定，双击时清除计时器只触发拍一拍
+let avatarClickTimer = null;
+function onAvatarSingleClick(uid) {
+  clearTimeout(avatarClickTimer);
+  avatarClickTimer = setTimeout(() => {
+    avatarClickTimer = null;
+    if (uid != null) emit('openUserInfo', Number(uid));
+  }, 250);
+}
+function onAvatarDoubleClick(uid) {
+  clearTimeout(avatarClickTimer);
+  avatarClickTimer = null;
+  if (uid != null) emit('sendPat', Number(uid));
+}
+onUnmounted(() => {
+  if (avatarClickTimer) clearTimeout(avatarClickTimer);
+});
 
 // 代码块复制按钮注入
 function injectCodeCopyButtons() {
@@ -529,6 +550,12 @@ function onMessageAreaClick(e) {
   if (mentionEl) {
     const uid = mentionEl.dataset.uid;
     if (uid === 'all') return;
+    if (uid) emit('openUserInfo', Number(uid));
+    return;
+  }
+  const patUserEl = e.target.closest('.pat-user');
+  if (patUserEl) {
+    const uid = patUserEl.dataset.uid;
     if (uid) emit('openUserInfo', Number(uid));
     return;
   }

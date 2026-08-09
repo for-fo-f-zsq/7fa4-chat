@@ -1,3 +1,20 @@
+<h2>3.3.2</h2>
+<ul>
+  <li><span class="change-tag fix">修复</span>修复群聊操作下拉框内容被截断的问题</li>
+  <li><span class="change-tag new">新功能</span>新增 GeoGebra 数学画板工具（官方离线版）</li>
+  <li><span class="change-tag fix">修复</span>修复计算器模运算下除法计算的问题</li>
+  <li><span class="change-tag improve">优化</span>重构本地存储逻辑</li>
+  <li><span class="change-tag improve">优化</span>优化拍一拍消息</li>
+  <li><span class="change-tag improve">优化</span>重构@提及逻辑</li>
+  <li><span class="change-tag improve">优化</span>优化表情消息的显示逻辑</li>
+  <li><span class="change-tag improve">优化</span>优化界面圆角显示</li>
+  <li><span class="change-tag new">新功能</span>新增头像单击打开用户信息、双击拍一拍</li>
+  <li><span class="change-tag new">新功能</span>新增消息区头部返回按钮</li>
+  <li><span class="change-tag new">新功能</span>新增关于页面赞赏码展示</li>
+  <li><span class="change-tag improve">优化</span>优化窄长窗口单列布局</li>
+  <li><span class="change-tag improve">优化</span>优化编辑器深色主题适配</li>
+  <li><span class="change-tag fix">修复</span>修复消息刷新后未读计数恢复的问题</li>
+</ul>
 <h2>3.3.1</h2>
 <ul>
   <li><span class="change-tag fix">修复</span>修复无法登录的问题</li>

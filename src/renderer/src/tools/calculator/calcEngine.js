@@ -325,11 +325,18 @@ export function evaluate(expr, mod = null) {
   const mulOp = (a, b) => (M !== null ? reduce(needInt(a) * needInt(b)) : (typeof a === 'bigint' && typeof b === 'bigint' ? a * b : Number(a) * Number(b)))
   const divOp = (a, b) => {
     if (M !== null) {
+      // 模除法 = 解同余方程 b·x ≡ a (mod M)：
+      // 有解 ⟺ gcd(b, M) | a；约分后 x ≡ (a/g)·((b/g)⁻¹ mod (M/g))
+      const aa = needInt(a)
       const bb = needInt(b)
       if (bb === 0n) throw new Error('不能除以 0')
-      const inv = modInverse(bb, M)
-      if (inv === null) throw new Error(`除以 ${bb} 无模逆元，无法取模除法`)
-      return reduce(needInt(a) * inv)
+      const g = gcd(bb, M)
+      if (aa % g !== 0n) throw new Error(`同余方程 ${bb}x ≡ ${aa} (mod ${M}) 无解`)
+      const m2 = M / g
+      const b2 = bb / g
+      const a2 = aa / g
+      const inv = modInverse(b2, m2) // gcd(b2, m2) = 1，逆元必存在
+      return reduce(a2 * inv)
     }
     const d = Number(b)
     if (d === 0) throw new Error('不能除以 0')

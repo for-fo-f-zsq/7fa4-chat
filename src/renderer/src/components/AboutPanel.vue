@@ -1,13 +1,8 @@
 <template>
   <div class="about-panel">
     <div class="about-header">
-      <a href="#" @click.prevent="openLink('http://jx.7fa4.cn:9080/zsq/7fa4-chat')" title="GitLab 项目主页">
-        <svg class="tanuki-logo" width="25" height="24" viewBox="0 0 25 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path class="tanuki-shape tanuki" d="m24.507 9.5-.034-.09L21.082.562a.896.896 0 0 0-1.694.091l-2.29 7.01H7.825L5.535.653a.898.898 0 0 0-1.694-.09L.451 9.411.416 9.5a6.297 6.297 0 0 0 2.09 7.278l.012.01.03.022 5.16 3.867 2.56 1.935 1.554 1.176a1.051 1.051 0 0 0 1.268 0l1.555-1.176 2.56-1.935 5.197-3.89.014-.01A6.297 6.297 0 0 0 24.507 9.5Z" fill="#E24329"></path>
-          <path class="tanuki-shape right-cheek" d="m24.507 9.5-.034-.09a11.44 11.44 0 0 0-4.56 2.051l-7.447 5.632 4.742 3.584 5.197-3.89.014-.01A6.297 6.297 0 0 0 24.507 9.5Z" fill="#FC6D26"></path>
-          <path class="tanuki-shape chin" d="m7.707 20.677 2.56 1.935 1.555 1.176a1.051 1.051 0 0 0 1.268 0l1.555-1.176 2.56-1.935-4.743-3.584-4.755 3.584Z" fill="#FCA326"></path>
-          <path class="tanuki-shape left-cheek" d="M5.01 11.461a11.43 11.43 0 0 0-4.56-2.05L.416 9.5a6.297 6.297 0 0 0 2.09 7.278l.012.01.03.022 5.16 3.867 4.745-3.584-7.444-5.632Z" fill="#FC6D26"></path>
-        </svg>
+      <a href="#" class="about-github-link" @click.prevent="openLink('http://jx.7fa4.cn:9080/zsq/7fa4-chat')" title="GitLab 项目主页">
+        <i class="fab fa-gitlab"></i>
       </a>
       <a href="#" class="about-github-link" @click.prevent="openLink('https://github.com/for-fo-f-zsq/7fa4-chat')" title="GitHub 项目主页">
         <i class="fab fa-github"></i>
@@ -15,11 +10,19 @@
       <h2>7FA4 Chat</h2>
     </div>
     <div class="about-content">
-      <div class="about-row"><span class="label">版本</span><span class="value">{{ version }}</span></div>
-      <div class="about-row"><span class="label">框架</span><span class="value">Electron + Vue 3</span></div>
-      <div class="about-row"><span class="label">作者</span><span class="value">for_fo_f / deepseek-v4-flash-0731</span></div>
+      <div class="about-info">
+        <div class="about-rows-with-qr">
+          <div class="about-rows">
+            <div class="about-row"><span class="label">版本</span><span class="value">{{ version }}</span></div>
+            <div class="about-row"><span class="label">框架</span><span class="value">Electron + Vue 3</span></div>
+            <div class="about-row"><span class="label">作者</span><span class="value">for_fo_f / deepseek-v4-flash-0731</span></div>
+          </div>
+          <div class="about-donate">
+            <img :src="DONATE_URL" alt="赞赏码" class="donate-qr-img" @click="donateZoom = true">
+          </div>
+        </div>
 
-      <div class="update-section">
+        <div class="update-section">
         <div class="update-status-row">
           <span class="label">更新</span>
           <span class="update-status-text" :class="updateStatusClass">
@@ -79,6 +82,11 @@
           <div v-else class="changelog-empty">暂无更新日志</div>
         </div>
       </div>
+      </div><!-- /about-info -->
+    </div>
+    <!-- 赞赏码放大弹层 -->
+    <div v-if="donateZoom" class="donate-zoom-overlay" @click="donateZoom = false">
+      <img :src="DONATE_URL" alt="赞赏码" class="donate-zoom-img">
     </div>
   </div>
 </template>
@@ -92,6 +100,9 @@ defineProps({ version: String })
 const changelogLoading = ref(false)
 const changelogError = ref('')
 const changelogHtml = ref('')
+// 赞赏码（托管在 chat.forfof.cloud/assets/donate-qr.jpg）
+const DONATE_URL = 'https://chat.forfof.cloud/assets/donate-qr.jpg'
+const donateZoom = ref(false)
 const updateStatus = ref('idle') // idle, checking, available, not-available, downloading, downloaded, error
 const updateInfo = ref(null)
 const downloadProgress = ref(0)
