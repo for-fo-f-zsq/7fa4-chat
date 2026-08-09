@@ -281,6 +281,7 @@ import '../css/user-info.css';
 import '../css/addfriend-modal.css';
 import '../css/search-panel.css';
 import '../css/favorites-panel.css';
+import '../css/announcement.css';
 
 import 'katex/dist/katex.min.css';
 import '../../css/font-awesome/css/all.min.css';
@@ -412,6 +413,13 @@ watch(pageId, (newId) => {
   displayPageId.value = newId;
 }, { immediate: true });
 
+// 登录后恢复本地数据：uid 就绪即触发 loadData()
+// 根因修复：onMounted 时若 /chat/info 失败（uid 未设置），loadData 会 return 跳过，
+// 之后轮询 update() 虽会设置 uid，但 loadData 不会再被调用 → 本地数据永不恢复 → 消息全从服务器重拉 + 收藏丢失
+watch(() => (store.logined && store.self.uid) || false, (ready) => {
+  if (ready) loadData();
+}, { immediate: true });
+
 // --- 列表宽度调整 ---
 function startListResize(e) {
   e.preventDefault();
@@ -535,8 +543,6 @@ function onSelectConversation({ type, id }) {
       if (group) { group.unread = 0; group.mentioned = false; }
     }
     updateBadgeCount();
-    // 已读清零立即落盘（节流保存最长 30s，避免刷新/重登后未读恢复）
-    saveConvos();
     // 懒加载：从 SQLite 补拉该会话的历史消息到内存（缺失内容）
     ensureConvoMessages(type, id);
   };
@@ -757,7 +763,7 @@ function markAllRead() {
   for (const user of Object.values(store.users)) user.unread = 0;
   for (const group of Object.values(store.groups)) group.unread = 0;
   updateBadgeCount();
-  saveConvos(); // 立即落盘，避免刷新后未读恢复
+  saveData();
 }
 
 // --- 未读计数 badge ---
@@ -1056,7 +1062,7 @@ async function addfriend(q) {
 }
 
 // --- 快捷键 ---
-const DEFAULT_SHORTCUTS = { sendMessage: 'enter', search: 'ctrl+f', switchToChat: 'ctrl+1', switchToFavorites: 'ctrl+2', switchToSettings: 'ctrl+3', switchToAbout: 'ctrl+4', newConversation: 'ctrl+n' };
+const DEFAULT_SHORTCUTS = { sendMessage: 'enter', search: 'ctrl+f', switchToChat: 'ctrl+1', switchToFavorites: 'ctrl+2', switchToTools: 'ctrl+3', switchToSettings: 'ctrl+4', switchToAbout: 'ctrl+5', newConversation: 'ctrl+n' };
 function getShortcutValue(action) { return setting.value?.shortcuts?.[action] || DEFAULT_SHORTCUTS[action]; }
 function parseShortcut(shortcut) {
   const parts = shortcut.toLowerCase().split('+');
@@ -1095,6 +1101,7 @@ function handleGlobalShortcuts(e) {
   }
   if (matchShortcut(e, getShortcutValue('switchToChat'))) { e.preventDefault(); switchPage('chat'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToFavorites'))) { e.preventDefault(); switchPage('favorites'); return true; }
+  if (matchShortcut(e, getShortcutValue('switchToTools'))) { e.preventDefault(); switchPage('tools'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToSettings'))) { e.preventDefault(); switchPage('settings'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToAbout'))) { e.preventDefault(); switchPage('about'); return true; }
   if (matchShortcut(e, getShortcutValue('newConversation'))) { e.preventDefault(); showAddFriendModal.value = true; return true; }
@@ -1141,6 +1148,7 @@ let infoLoopRunning = false;
 let autoSaveTimer = null;
 let unsubscribeNotifClick = null;
 let unsubscribeUploadProgress = null;
+let unsubscribeFlush = null;
 
 // 通知冷却（聚合）：同一会话 5 秒内只通知一次
 const notifCooldown = {};
@@ -1232,11 +1240,10 @@ async function fetchMessages(type, end) {
               notifPendingCount[convoKey] = 0; // 已弹窗，聚合计数归零，避免 (+N) 无限累积
             }
           }
-          // 仅真正的新消息计未读/提及（已读历史消息不计，避免刷新/重登后未读恢复）
-          if (c.sender_id !== store.self.uid && !isCurrentPage) t.unread = (t.unread || 0) + 1;
-          if (type === 'group' && c.sender_id !== store.self.uid) {
-            try { const msgObj = JSON.parse(msgContent); if (msgObj.mentions && (msgObj.mentions.includes(store.self.uid) || msgObj.mentions.includes('all'))) t.mentioned = true; } catch {}
-          }
+        }
+        if (c.sender_id !== store.self.uid && !isCurrentPage) t.unread = (t.unread || 0) + 1;
+        if (type === 'group' && c.sender_id !== store.self.uid) {
+          try { const msgObj = JSON.parse(msgContent); if (msgObj.mentions && (msgObj.mentions.includes(store.self.uid) || msgObj.mentions.includes('all'))) t.mentioned = true; } catch {}
         }
       }
     }
@@ -1264,10 +1271,10 @@ async function saveConvos() {
   if (!uid) return
   const convos = []
   for (const [id, u] of Object.entries(store.users || {})) {
-    if (u && u.uid != null) convos.push({ kind: 'user', cid: Number(id), meta: u })
+    if (u && u.uid != null) convos.push({ kind: 'user', cid: Number(id), meta: JSON.parse(JSON.stringify(u)) })
   }
   for (const [id, g] of Object.entries(store.groups || {})) {
-    if (g && g.gid != null) convos.push({ kind: 'group', cid: Number(id), meta: g })
+    if (g && g.gid != null) convos.push({ kind: 'group', cid: Number(id), meta: JSON.parse(JSON.stringify(g)) })
   }
   if (convos.length) {
     try { await window.api.storeSaveConvos(uid, convos) } catch {}
@@ -1283,14 +1290,15 @@ async function savePrefs() {
   const uid = store.self.uid
   if (!uid) return
   try {
-    await window.api.storeSavePrefs(uid, {
+    // JSON 深拷贝：store 是 Vue reactive（Proxy），直接传 IPC 会 "An object could not be cloned"
+    await window.api.storeSavePrefs(uid, JSON.parse(JSON.stringify({
       drafts: store.drafts || {},
       favorites: store.favorites || [],
       mutedConvos: store.mutedConvos || {},
       hiddenConvos: store.hiddenConvos || {},
       deletedMsgIds: store.deletedMsgIds || [],
       stickers: store.stickers || []
-    })
+    })))
   } catch {}
 }
 
@@ -1443,6 +1451,11 @@ async function startInfoLoop() {
 
 // --- 全局事件 ---
 function onDocKeydown(e) {
+  // 拦截 Ctrl/Cmd+R 与 F5 刷新（渲染层兜底；主进程 before-input-event 已拦）
+  if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R'))) {
+    e.preventDefault();
+    return;
+  }
   if (handleGlobalShortcuts(e)) return;
   if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && isChatPage.value) {
     const tag = document.activeElement?.tagName;
@@ -1493,7 +1506,7 @@ onMounted(async () => {
   const root = document.documentElement;
   if (setting.value.theme && setting.value.theme !== 'default' && setting.value.theme !== 'custom') root.classList.add(`theme-${setting.value.theme}`);
   if (setting.value.theme === 'custom' && setting.value.customVars) { for (const [k, v] of Object.entries(setting.value.customVars)) root.style.setProperty(k, v); }
-  autoSaveTimer = setInterval(async () => { saveConvos(); }, 10000);
+  autoSaveTimer = setInterval(async () => { saveConvos(); savePrefs(); }, 10000);
   unsubscribeNotifClick = window.api.onNotifClick((data) => { if (data.chatType && data.targetId) { pageType.value = data.chatType; pageId.value = Number(data.targetId); } });
   // 网络状态监听
   window.addEventListener('online', onOnline);
@@ -1516,6 +1529,11 @@ onMounted(async () => {
   document.addEventListener('keydown', onDocKeydown);
   document.addEventListener('click', onDocClick);
   document.addEventListener('mousemove', (e) => { lastMouseX.value = e.clientX; lastMouseY.value = e.clientY; });
+  // 窗口关闭前落盘：主进程拦截 close 后通知 → 立即保存（10s 定时器未到点也能保存）→ 确认关闭
+  unsubscribeFlush = window.api.onAppFlushBeforeClose(async () => {
+    await flushData();
+    window.api.appFlushDone();
+  });
 });
 
 onUnmounted(() => {
@@ -1530,5 +1548,6 @@ onUnmounted(() => {
   window.removeEventListener('resize', updateLayoutMode);
   if (unsubscribeNotifClick) unsubscribeNotifClick();
   if (unsubscribeUploadProgress) unsubscribeUploadProgress();
+  if (unsubscribeFlush) unsubscribeFlush();
 });
 </script>

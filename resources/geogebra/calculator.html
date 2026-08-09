@@ -14,7 +14,7 @@
   <script src="deployggb.js"></script>
   <script>
     var params = {
-      "appName": "graphing",
+      "appName": "geometry",
       "width": 800,
       "height": 600,
       "showToolBar": true,
@@ -35,7 +35,7 @@
     }
     window.addEventListener("resize", fillViewport);
     window.addEventListener("load", function () {
-      applet.setHTML5Codebase("HTML5/5.0/web3d/");
+      applet.setHTML5Codebase("HTML5/5.0/web/");
       applet.inject("ggb-element");
       // 等 applet 初始化完成后获取实例并填满视口
       var tries = 0;
@@ -46,6 +46,9 @@
           if (ggb && ggb.setSize) {
             clearInterval(timer);
             fillViewport();
+            // 默认显示 XY 坐标轴与网格（showAxes/showGrid 非嵌入参数，需用 API 设置）
+            try { ggb.setAxesVisible(1, true); } catch (e) {}
+            try { ggb.setGridVisible(true); } catch (e) {}
           }
         } catch (e) { /* not ready */ }
         if (tries > 100) clearInterval(timer);

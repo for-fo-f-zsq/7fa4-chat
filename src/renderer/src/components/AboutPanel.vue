@@ -8,6 +8,7 @@
         <i class="fab fa-github"></i>
       </a>
       <h2>7FA4 Chat</h2>
+      <div class="about-announcement-btn" @click="showAnnouncement = true" title="版本公告"><i class="fas fa-bullhorn"></i></div>
     </div>
     <div class="about-content">
       <div class="about-info">
@@ -89,11 +90,14 @@
       <img :src="DONATE_URL" alt="赞赏码" class="donate-zoom-img">
     </div>
   </div>
+  <!-- 版本公告（手动打开，不更新已看版本记录，不影响启动自动公告） -->
+  <Announcement v-if="showAnnouncement" @close="showAnnouncement = false" />
 </template>
 
 <script setup>
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { store } from '../store.js'
+import Announcement from './Announcement.vue'
 
 defineProps({ version: String })
 
@@ -103,6 +107,7 @@ const changelogHtml = ref('')
 // 赞赏码（托管在 chat.forfof.cloud/assets/donate-qr.jpg）
 const DONATE_URL = 'https://chat.forfof.cloud/assets/donate-qr.jpg'
 const donateZoom = ref(false)
+const showAnnouncement = ref(false)
 const updateStatus = ref('idle') // idle, checking, available, not-available, downloading, downloaded, error
 const updateInfo = ref(null)
 const downloadProgress = ref(0)

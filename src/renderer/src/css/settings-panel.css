@@ -478,3 +478,10 @@
     font-size: var(--font-size-small);
     color: var(--text-secondary);
 }
+
+/* 窗口宽度不足时，设置面板所有两列布局改单列（置于文件末尾，确保覆盖基础规则） */
+@media (max-width: 760px) {
+    .info-grid { grid-template-columns: 1fr; gap: 12px 0; }
+    .theme-grid { grid-template-columns: 1fr; }
+    .options-grid { flex-direction: column; }
+}

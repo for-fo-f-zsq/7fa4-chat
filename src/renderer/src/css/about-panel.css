@@ -99,6 +99,20 @@
     text-decoration: none;
 }
 .about-github-link:hover { color: var(--accent); }
+.about-announcement-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    color: var(--text-secondary);
+    font-size: 19px;
+    cursor: pointer;
+    margin-left: auto;
+    border-radius: var(--radius);
+    transition: all var(--duration-fast) ease;
+}
+.about-announcement-btn:hover { color: var(--accent); background: var(--bg-conversation-hover); }
 .about-tech {
     display: flex;
     flex-wrap: wrap;

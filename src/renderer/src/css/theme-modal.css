@@ -1,5 +1,6 @@
 .theme-modal-card {
     width: 620px;
+    max-width: 92vw;
     max-height: 85vh;
     background-color: var(--bg-group-detail);
     border-radius: var(--radius-lg);
@@ -294,3 +295,9 @@
     font-family: monospace;
 }
 .grade-color-hex:focus { border-color: var(--accent); outline: none; }
+
+/* 窄视口：预设主题/年级颜色网格改单列（置于文件末尾确保覆盖） */
+@media (max-width: 760px) {
+    .theme-grid-modal { grid-template-columns: 1fr; }
+    .grade-colors-grid { grid-template-columns: 1fr; }
+}

@@ -22,6 +22,7 @@
 
 .group-detail-card {
     width: 550px;
+    max-width: 92vw;
     max-height: 85vh;
     background-color: var(--bg-group-detail);
     border-radius: var(--radius-lg);

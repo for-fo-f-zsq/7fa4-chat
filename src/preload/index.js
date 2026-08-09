@@ -49,6 +49,13 @@ contextBridge.exposeInMainWorld('api', {
   storeSavePrefs: (uid, entries) => ipcRenderer.invoke('store-save-prefs', uid, entries),
   storeExportAll: (uid) => ipcRenderer.invoke('store-export-all', uid),
   storeImportAll: (uid, data) => ipcRenderer.invoke('store-import-all', uid, data),
+  // --- 窗口关闭前落盘：主进程通知 → 渲染 flushData → 确认关闭 ---
+  onAppFlushBeforeClose: (cb) => {
+    const listener = () => cb();
+    ipcRenderer.on('app-flush-before-close', listener);
+    return () => ipcRenderer.removeListener('app-flush-before-close', listener);
+  },
+  appFlushDone: () => ipcRenderer.send('app-flush-done'),
   checkForUpdate: () => ipcRenderer.invoke('check-for-update'),
   downloadUpdate: () => ipcRenderer.invoke('download-update'),
   installUpdate: () => ipcRenderer.invoke('install-update'),

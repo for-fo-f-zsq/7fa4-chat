@@ -33,6 +33,8 @@ let tray = null;
 let serverStarted = false;
 let serverInstance = null;
 let minimizeToTray = true;
+let forceClose = false;   // 数据已落盘，允许真正关闭
+let flushPending = false; // 正在等待渲染进程 flush 确认
 let currentApiUrl = 'http://jx.7fa4.cn';
 let userStore = null; // SQLite 用户数据存储（whenReady 初始化）
 
@@ -165,6 +167,32 @@ function createWindow() {
         if (minimizeToTray && !app.isQuitting) {
             event.preventDefault();
             mainWindow.hide();
+            return;
+        }
+        // 真正关闭前：通知渲染进程先落盘（10s 自动保存定时器未到点也能保存）
+        // 渲染层 flushData 完成后发 app-flush-done 确认关闭；2s 超时强制关闭兜底
+        if (!forceClose && !flushPending) {
+            event.preventDefault();
+            flushPending = true;
+            mainWindow.webContents.send('app-flush-before-close');
+            setTimeout(() => {
+                if (!forceClose) {
+                    forceClose = true;
+                    flushPending = false;
+                    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+                }
+            }, 2000);
+        } else {
+            flushPending = false;
+        }
+    });
+
+    // 拦截 Ctrl/Cmd+R 与 F5 刷新：刷新会清空内存数据（10s 定时器未到点会丢未保存数据）
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+        if (input.type === 'keyDown' && (input.key === 'F5' || input.key === 'r' || input.key === 'R')) {
+            if (input.key === 'F5' || input.control || input.meta) {
+                event.preventDefault();
+            }
         }
     });
 
@@ -180,8 +208,7 @@ function createWindow() {
     let _maxStateTimer = null;
     mainWindow.on('resize', () => {
         if (_maxStateTimer) clearTimeout(_maxStateTimer);
-        _maxStateTimer = setTimeout(() => {
-            _maxStateTimer = null;
+        _maxStateTimer = setTimeout(() => {            _maxStateTimer = null;
             sendMaximizedState();
         }, 100);
     });
@@ -265,6 +292,10 @@ if (!gotTheLock) {
 }
 
 app.on('window-all-closed', () => {
+    // 用户主动退出（托盘/菜单"退出"）：即使 minimizeToTray 也强制退出
+    // 原因：close 拦截（flush）会中断 app.quit() 的首次流程，窗口随后被强制关闭，
+    // 若这里不兜底，minimizeToTray=true 时应用会留在托盘/任务栏不退出
+    if (app.isQuitting) { app.quit(); return; }
     if (!minimizeToTray && process.platform !== 'darwin') app.quit();
 });
 
@@ -632,6 +663,13 @@ function storeReady() {
 }
 
 // 初始化当前用户：迁移旧版单文件（幂等）
+// 渲染进程数据落盘完成后确认关闭（配合 close 拦截：先 flush 再关窗）
+ipcMain.on('app-flush-done', () => {
+    forceClose = true;
+    flushPending = false;
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+});
+
 ipcMain.handle('store-init', async (event, uid) => {
     if (!storeReady()) return { success: false, error: '存储未初始化' };
     if (uid == null) return { success: false, error: '缺少 uid' };

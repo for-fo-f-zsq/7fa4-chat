@@ -54,8 +54,9 @@ const defaultShortcuts = {
   search: 'ctrl+f',
   switchToChat: 'ctrl+1',
   switchToFavorites: 'ctrl+2',
-  switchToSettings: 'ctrl+3',
-  switchToAbout: 'ctrl+4',
+  switchToTools: 'ctrl+3',
+  switchToSettings: 'ctrl+4',
+  switchToAbout: 'ctrl+5',
   newConversation: 'ctrl+n'
 }
 
@@ -64,6 +65,7 @@ const shortcutItems = [
   { action: 'search', label: '搜索' },
   { action: 'switchToChat', label: '切换到消息' },
   { action: 'switchToFavorites', label: '切换到收藏' },
+  { action: 'switchToTools', label: '切换到工具' },
   { action: 'switchToSettings', label: '切换到设置' },
   { action: 'switchToAbout', label: '切换到关于' },
   { action: 'newConversation', label: '新建会话' }

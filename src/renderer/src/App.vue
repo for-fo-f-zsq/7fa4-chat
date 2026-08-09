@@ -3,6 +3,7 @@
     <LoginView v-if="!store.logined" @login="onLogin" />
     <ChatView v-else :key="loginSeq" />
   </div>
+  <Announcement v-if="showAnnouncement" @close="closeAnnouncement" />
   <div v-if="store.initializing && store.logined" class="init-loading">
     <div class="init-spinner"></div>
     <div class="init-text">正在加载消息…</div>
@@ -15,6 +16,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { store } from './store.js';
 import LoginView from './views/LoginView.vue';
 import ChatView from './views/ChatView.vue';
+import Announcement from './components/Announcement.vue';
 import { loadUsersDb } from './utils.js';
 
 const canvasEl = ref(null)
@@ -26,6 +28,31 @@ let resizeListener = null
 const mousePos = { x: -9999, y: -9999 }
 const viewFading = ref(false)
 const loginSeq = ref(0)
+
+// --- 版本公告：本地记录已看过的最高版本，首次打开新版本时展示 ---
+const showAnnouncement = ref(false)
+const SEEN_VERSION_KEY = 'announcement-seen-version'
+function compareVersions(a, b) {
+  const pa = String(a).split('.').map(Number)
+  const pb = String(b).split('.').map(Number)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0, y = pb[i] || 0
+    if (x !== y) return x > y ? 1 : -1
+  }
+  return 0
+}
+async function checkAnnouncement() {
+  try {
+    const v = await window.api.getVersion()
+    const seen = localStorage.getItem(SEEN_VERSION_KEY) || '0'
+    if (compareVersions(v, seen) > 0) showAnnouncement.value = true
+  } catch {}
+}
+async function closeAnnouncement() {
+  showAnnouncement.value = false
+  try { localStorage.setItem(SEEN_VERSION_KEY, await window.api.getVersion()) } catch {}
+}
+checkAnnouncement()
 
 function onLogin() {
   loginSeq.value++
