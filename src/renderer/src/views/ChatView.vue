@@ -1529,10 +1529,16 @@ onMounted(async () => {
   document.addEventListener('keydown', onDocKeydown);
   document.addEventListener('click', onDocClick);
   document.addEventListener('mousemove', (e) => { lastMouseX.value = e.clientX; lastMouseY.value = e.clientY; });
-  // 窗口关闭前落盘：主进程拦截 close 后通知 → 立即保存（10s 定时器未到点也能保存）→ 确认关闭
+  // 窗口关闭前落盘：主进程拦截 close 后通知 → 立即保存（convo 30s / pref 1.5s 节流数据也能保存）→ 确认关闭
   unsubscribeFlush = window.api.onAppFlushBeforeClose(async () => {
-    await flushData();
-    window.api.appFlushDone();
+    try {
+      await flushData();
+    } catch (e) {
+      console.error('[flush] 退出落盘失败:', e);
+    } finally {
+      // 无论是否成功，都通知主进程放行关闭，避免窗口卡在 flushPending
+      window.api.appFlushDone();
+    }
   });
 });
 

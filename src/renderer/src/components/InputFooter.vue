@@ -27,7 +27,7 @@
       <div class="input-split">
         <div class="input-split-left" :style="splitLeftWidth ? { width: splitLeftWidth + 'px', flex: 'none' } : {}">
           <div class="textarea-wrap">
-            <textarea v-model="inputText" :placeholder="sendPlaceholder" @keydown="onInputKeydown" @input="onInputChange" @paste="onPaste" @scroll="syncPreviewFromInput" :disabled="sending || inputDisabled" ref="inputEl"></textarea>
+            <div class="input-editor" ref="inputEl" :contenteditable="sending || inputDisabled ? 'false' : 'true'" :data-placeholder="sendPlaceholder" @keydown="onInputKeydown" @input="onInputChange" @paste="onPaste" @compositionend="onCompositionEnd" @scroll="syncPreviewFromInput"></div>
             <div class="mention-popup" v-if="mentionVisible" :style="mentionPopupStyle">
               <div class="mention-item mention-all-item" :class="{ active: mentionIndex === 0 }" @click="applyMentionAll" v-if="pageType === 'group'">
                 <i class="fas fa-users"></i> 所有人
@@ -96,6 +96,7 @@ import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
 import { store } from '../store.js';
 import { displayName, parseMsgContent, renderMarkdown, applyChatToStore, sendChatMessage, getConvoKey, formatSize, compressImage, compressBase64Image, extractMentions, isSingleEmoji } from '../utils.js';
 import EmojiPicker from './EmojiPicker.vue';
+import { QUANCODE, qqfaceUrl } from '../qqface-data.js';
 import '../css/input-footer.css';
 
 const props = defineProps({
@@ -110,6 +111,182 @@ const emit = defineEmits(['openPreview']);
 
 const inputText = ref('');
 const inputEl = ref(null);
+
+// ===== QQ 表情：contenteditable 富文本编辑支持 =====
+// 序列化：DOM 节点 → 发送文本（img.qqface 还原为 /code）
+function serializeEditorFromFragment(frag) {
+  let out = '';
+  const walk = (node) => {
+    node.childNodes.forEach((child) => {
+      if (child.nodeType === Node.TEXT_NODE) out += child.textContent.replace(/\u200B/g, '');
+      else if (child.nodeName === 'BR') out += '\n';
+      else if (child.nodeName === 'IMG' && child.classList.contains('qqface')) out += child.dataset.code || '';
+      else if (child.nodeName === 'DIV' || child.nodeName === 'P') walk(child);
+      else walk(child);
+    });
+  };
+  walk(frag);
+  return out;
+}
+
+function serializeEditor() {
+  const el = inputEl.value;
+  if (!el) return '';
+  return serializeEditorFromFragment(el);
+}
+
+// 计算光标在序列化文本中的字符偏移
+function getCaretSerializedOffset() {
+  const el = inputEl.value;
+  if (!el) return 0;
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return serializeEditor().length;
+  const range = sel.getRangeAt(0);
+  if (!el.contains(range.endContainer)) return serializeEditor().length;
+  const pre = range.cloneRange();
+  pre.selectNodeContents(el);
+  pre.setEnd(range.endContainer, range.endOffset);
+  return serializeEditorFromFragment(pre.cloneContents()).length;
+}
+
+// 把光标设到序列化文本的第 offset 字符处
+function setCaretBySerializedOffset(offset) {
+  const el = inputEl.value;
+  if (!el) return;
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  let acc = 0;
+  let placed = false;
+  const walk = (node) => {
+    if (placed) return;
+    for (const child of node.childNodes) {
+      if (placed) return;
+      if (child.nodeType === Node.TEXT_NODE) {
+        const len = child.textContent.replace(/\u200B/g, '').length;
+        if (acc + len >= offset) { range.setStart(child, Math.min(offset - acc, child.textContent.length)); range.collapse(true); placed = true; return; }
+        acc += len;
+      } else if (child.nodeName === 'BR') {
+        if (acc >= offset) { range.setStartBefore(child); range.collapse(true); placed = true; return; }
+        acc += 1;
+      } else if (child.nodeName === 'IMG' && child.classList.contains('qqface')) {
+        const len = (child.dataset.code || '').length;
+        if (acc + len >= offset) { range.setStartAfter(child); range.collapse(true); placed = true; return; }
+        acc += len;
+      } else if (child.nodeName === 'DIV' || child.nodeName === 'P') {
+        walk(child);
+        if (placed) return;
+      } else {
+        walk(child);
+        if (placed) return;
+      }
+    }
+  };
+  walk(el);
+  if (!placed) { range.selectNodeContents(el); range.collapse(false); }
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function escHtmlForEditor(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// 把序列化文本渲染为 DOM（/code → img，\n → br）
+function renderSerializedToHtml(text) {
+  let html = '';
+  const re = /(\/[\p{L}\p{N}_]+)|(\n)/gu;
+  let last = 0; let m;
+  while ((m = re.exec(text))) {
+    if (m.index > last) html += escHtmlForEditor(text.slice(last, m.index));
+    if (m[1]) {
+      const face = QUANCODE.get(m[1].toLowerCase());
+      if (face) html += `<img class="qqface" data-code="${m[1]}" src="${qqfaceUrl(face.file)}" alt="${escHtmlForEditor(m[1])}">`;
+      else html += escHtmlForEditor(m[1]);
+    } else if (m[2]) {
+      html += '<br>';
+    }
+    last = re.lastIndex;
+  }
+  if (last < text.length) html += escHtmlForEditor(text.slice(last));
+  return html;
+}
+
+function renderEditor(text, caretOffset) {
+  const el = inputEl.value;
+  if (!el) return;
+  el.innerHTML = renderSerializedToHtml(text);
+  setCaretBySerializedOffset(caretOffset);
+  autoResizeTextarea();
+}
+
+// 找序列化偏移对应的 DOM 位置（用于局部替换）
+function domPosFromSerializedOffset(offset) {
+  const el = inputEl.value;
+  if (!el) return null;
+  let acc = 0;
+  let result = null;
+  const walk = (node) => {
+    if (result) return;
+    for (const child of node.childNodes) {
+      if (result) return;
+      if (child.nodeType === Node.TEXT_NODE) {
+        const len = child.textContent.replace(/\u200B/g, '').length;
+        if (acc + len >= offset) { result = { node: child, offset: offset - acc }; return; }
+        acc += len;
+      } else if (child.nodeName === 'BR') {
+        if (acc >= offset) { result = { node: child, offset: 0 }; return; }
+        acc += 1;
+      } else if (child.nodeName === 'IMG' && child.classList.contains('qqface')) {
+        const len = (child.dataset.code || '').length;
+        if (acc + len >= offset) { result = { node: child, offset: 0 }; return; }
+        acc += len;
+      } else if (child.nodeName === 'DIV' || child.nodeName === 'P') {
+        walk(child);
+        if (result) return;
+      } else {
+        walk(child);
+        if (result) return;
+      }
+    }
+  };
+  walk(el);
+  return result;
+}
+
+// 实时把光标前的 /code 文本替换为 img（不打断中文 IME 组合）
+function replaceShortcutAtCaret() {
+  const caret = getCaretSerializedOffset();
+  const before = inputText.value.slice(0, caret);
+  const m = before.match(/\/([^\s/]*)$/);
+  if (!m) return;
+  const token = m[0];
+  const face = QUANCODE.get(token.toLowerCase());
+  if (!face) return;
+  const el = inputEl.value;
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  const startPos = domPosFromSerializedOffset(caret - token.length);
+  if (!startPos) return;
+  const startRange = document.createRange();
+  startRange.setStart(startPos.node, startPos.offset);
+  startRange.setEnd(range.endContainer, range.endOffset);
+  startRange.deleteContents();
+  const img = document.createElement('img');
+  img.className = 'qqface';
+  img.dataset.code = token;
+  img.src = qqfaceUrl(face.file);
+  img.alt = token;
+  startRange.insertNode(img);
+  const nr = document.createRange();
+  nr.setStartAfter(img);
+  nr.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(nr);
+  inputText.value = serializeEditor();
+}
+
 const sending = ref(false);
 const errorMessage = ref('');
 const tokenInfo = ref(null);
@@ -211,7 +388,13 @@ watch(convoKey, (newKey) => {
   // 恢复草稿内容
   const draftText = store.drafts?.[newKey] || '';
   const isFileDraft = draftText.startsWith('📄 ');
-  inputText.value = isFileDraft ? '' : draftText;
+  if (isFileDraft) {
+    inputText.value = '';
+    if (inputEl.value) inputEl.value.innerHTML = '';
+  } else {
+    inputText.value = draftText;
+    renderEditor(draftText, draftText.length);
+  }
   // 恢复待发送文件
   const savedFiles = store.drafts?.[newKey + '_files'];
   pendingFiles.value = Array.isArray(savedFiles) ? savedFiles : [];
@@ -281,6 +464,7 @@ async function sendFavorite(fav) {
 }
 
 async function sendMessage() {
+  inputText.value = serializeEditor();
   const hasText = inputText.value.trim().length > 0;
   const hasFiles = pendingFiles.value.length > 0;
   if (!hasText && !hasFiles) {
@@ -304,7 +488,7 @@ async function sendMessage() {
     // 文字单独发送（不与文件合并成一条消息）；仅单个 emoji 时发为 emoji 消息（微信风格放大），多个表情按普通文本 content 发送
     if (hasText) {
       const trimmed = inputText.value.trim()
-      const singleEmojiMsg = isSingleEmoji(trimmed)
+      const singleEmojiMsg = isSingleEmoji(trimmed) || !!QUANCODE.get(trimmed.toLowerCase())
       const msgObj = singleEmojiMsg
         ? { type: 'emoji', content: trimmed }
         : { type: 'text', content: inputText.value };
@@ -327,6 +511,7 @@ async function sendMessage() {
     }
     errorMessage.value = '';
     inputText.value = '';
+    if (inputEl.value) inputEl.value.innerHTML = '';
     replyTo.value = null;
     pendingFiles.value = [];
     delete store.drafts[convoKey.value];
@@ -469,62 +654,56 @@ function previewVisibleLine() {
   return line;
 }
 
-function syncPreviewFromInput() {
+function syncRatioToPreview() {
   const ta = inputEl.value;
-  if (!ta || inputScrollSyncing) return;
-  const line = Math.floor(ta.scrollTop / taLineHeight()) + 1;
-  inputPendingLine = line;
-  if (inputRafPending) return;
-  inputRafPending = true;
-  requestAnimationFrame(() => {
-    inputRafPending = false;
-    if (!inputPendingLine) return;
-    const target = locatePreviewLine(inputPendingLine);
-    inputPendingLine = null;
-    if (target === null || target === undefined) return;
-    lockInputScroll();
-    const pv = inputPreviewRef.value;
-    if (pv) pv.scrollTop = target;
-  });
+  const pv = inputPreviewRef.value;
+  if (!ta || !pv || inputScrollSyncing) return;
+  const maxScroll = ta.scrollHeight - ta.clientHeight;
+  const ratio = maxScroll > 1 ? ta.scrollTop / maxScroll : 0;
+  const pvMax = pv.scrollHeight - pv.clientHeight;
+  lockInputScroll();
+  pv.scrollTop = ratio * pvMax;
+}
+
+function syncPreviewFromInput() {
+  syncRatioToPreview();
 }
 
 function syncInputFromPreview() {
   const ta = inputEl.value;
   const pv = inputPreviewRef.value;
   if (!ta || !pv || inputScrollSyncing) return;
-  const line = previewVisibleLine();
-  if (!line) return;
+  const pvMax = pv.scrollHeight - pv.clientHeight;
+  const ratio = pvMax > 1 ? pv.scrollTop / pvMax : 0;
+  const maxScroll = ta.scrollHeight - ta.clientHeight;
   lockInputScroll();
-  ta.scrollTop = Math.round((line - 1) * taLineHeight());
+  ta.scrollTop = ratio * maxScroll;
 }
 
-// 内容变化：预览全量重渲染，按 textarea 当前顶部行重新定位（保持对齐）
+// 内容变化：预览按滚动比例同步（contenteditable 无行号，用比例对齐）
 watch(inputText, () => {
   nextTick(() => {
     const ta = inputEl.value;
     const pv = inputPreviewRef.value;
     if (!ta || !pv || inputScrollSyncing) return;
-    const line = Math.floor(ta.scrollTop / taLineHeight()) + 1;
-    const target = locatePreviewLine(line);
-    if (target !== null && target !== undefined) pv.scrollTop = target;
+    const maxScroll = ta.scrollHeight - ta.clientHeight;
+    const ratio = maxScroll > 1 ? ta.scrollTop / maxScroll : 0;
+    const pvMax = pv.scrollHeight - pv.clientHeight;
+    pv.scrollTop = ratio * pvMax;
   });
 });
 
 // 判断文本是否为「单个」emoji —— 已移至 utils.isSingleEmoji（渲染端共用，防 API 伪造）
 
 // 微信风格：点击表情仅在输入框光标位置插入，不直接发送
-function onEmojiSelect(emoji) {
-  const el = inputEl.value
-  const cur = inputText.value
-  const start = el?.selectionStart ?? cur.length
-  const end = el?.selectionEnd ?? start
-  inputText.value = cur.slice(0, start) + emoji + cur.slice(end)
-  nextTick(() => {
-    el?.focus()
-    const pos = start + emoji.length
-    el?.setSelectionRange?.(pos, pos)
-    autoResizeTextarea()
-  })
+function onEmojiSelect(face) {
+  const caret = getCaretSerializedOffset()
+  const text = inputText.value
+  const code = face.code
+  const newText = text.slice(0, caret) + code + text.slice(caret)
+  inputText.value = newText
+  renderEditor(newText, caret + code.length)
+  nextTick(() => inputEl.value?.focus())
 }
 
 async function onStickerSelect(sticker) {
@@ -627,11 +806,11 @@ function autoResizeTextarea() {
   el.style.height = Math.min(el.scrollHeight, 200) + 'px';
 }
 
-function onInputChange() {
+function onInputChange(e) {
+  inputText.value = serializeEditor();
   autoResizeTextarea();
-  const text = inputText.value;
-  const pos = inputEl.value?.selectionStart || text.length;
-  const before = text.slice(0, pos);
+  const caret = getCaretSerializedOffset();
+  const before = inputText.value.slice(0, caret);
   const atMatch = before.match(/@([^\s@]*)$/);
   if (atMatch && props.pageType === 'group') {
     mentionQuery.value = atMatch[1];
@@ -641,6 +820,12 @@ function onInputChange() {
   } else {
     mentionVisible.value = false;
   }
+  // 实时快捷码替换（IME 组合态时跳过，避免打断中文输入）
+  if (!e || !e.isComposing) replaceShortcutAtCaret();
+}
+
+function onCompositionEnd() {
+  onInputChange();
 }
 
 function onInputKeydown(e) {
@@ -679,12 +864,12 @@ function onInputKeydown(e) {
 }
 
 function insertNewline() {
-  const el = inputEl.value;
-  if (!el) return;
-  const start = el.selectionStart;
-  const end = el.selectionEnd;
-  inputText.value = inputText.value.substring(0, start) + '\n' + inputText.value.substring(end);
-  nextTick(() => { el.selectionStart = el.selectionEnd = start + 1; });
+  const caret = getCaretSerializedOffset();
+  const text = inputText.value;
+  const newText = text.slice(0, caret) + '\n' + text.slice(caret);
+  inputText.value = newText;
+  renderEditor(newText, caret + 1);
+  nextTick(() => inputEl.value?.focus());
 }
 
 function selectMentionByIndex(idx) {
@@ -695,36 +880,29 @@ function selectMentionByIndex(idx) {
 }
 
 function applyMention(user) {
+  const caret = getCaretSerializedOffset();
   const text = inputText.value;
-  const pos = inputEl.value?.selectionStart || text.length;
-  const before = text.slice(0, pos);
-  const after = text.slice(pos);
-  // 插入 @UID（昵称可能重名，用 uid 唯一标识；渲染时再补全昵称/姓名）
+  const before = text.slice(0, caret);
+  const after = text.slice(caret);
   const replaced = before.replace(/@([^\s@]*)$/, '@' + user.uid + ' ');
-  inputText.value = replaced + after;
+  const newText = replaced + after;
+  inputText.value = newText;
+  renderEditor(newText, replaced.length);
   mentionVisible.value = false;
-  nextTick(() => {
-    const newPos = replaced.length;
-    inputEl.value?.setSelectionRange(newPos, newPos);
-    inputEl.value?.focus();
-    autoResizeTextarea();
-  });
+  nextTick(() => inputEl.value?.focus());
 }
 
 function applyMentionAll() {
+  const caret = getCaretSerializedOffset();
   const text = inputText.value;
-  const pos = inputEl.value?.selectionStart || text.length;
-  const before = text.slice(0, pos);
-  const after = text.slice(pos);
+  const before = text.slice(0, caret);
+  const after = text.slice(caret);
   const replaced = before.replace(/@([^\s@]*)$/, '@所有人 ');
-  inputText.value = replaced + after;
+  const newText = replaced + after;
+  inputText.value = newText;
+  renderEditor(newText, replaced.length);
   mentionVisible.value = false;
-  nextTick(() => {
-    const newPos = replaced.length;
-    inputEl.value?.setSelectionRange(newPos, newPos);
-    inputEl.value?.focus();
-    autoResizeTextarea();
-  });
+  nextTick(() => inputEl.value?.focus());
 }
 
 // --- 拖拽（仅保留系统文件拖入） ---

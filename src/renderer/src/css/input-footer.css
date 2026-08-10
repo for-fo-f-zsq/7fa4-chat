@@ -620,3 +620,58 @@
   color: var(--text-mention-all);
   font-weight: 600;
 }
+
+/* ===== contenteditable 输入框（QQ 表情富文本） ===== */
+.textarea-wrap .input-editor {
+  width: 100%;
+  min-height: 40px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  border-bottom: 2px solid var(--border-3d-dark);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: var(--font-size-base, 14px);
+  font-family: inherit;
+  line-height: 1.4;
+  color: var(--text-primary);
+  resize: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  outline: none;
+  box-shadow: var(--shadow-input);
+  transition: background var(--duration-normal) ease, box-shadow var(--duration-normal) ease, border-color var(--duration-normal) ease;
+}
+.textarea-wrap .input-editor:focus {
+  background: var(--bg-input-focus);
+  border-color: var(--accent);
+  border-bottom-color: var(--accent);
+  box-shadow: var(--shadow-input-focus);
+}
+.textarea-wrap .input-editor:empty:before {
+  content: attr(data-placeholder);
+  color: var(--text-placeholder);
+  pointer-events: none;
+}
+.input-footer.sending .textarea-wrap .input-editor,
+.input-footer.disabled .textarea-wrap .input-editor {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.input-footer.drag-over .textarea-wrap .input-editor {
+  border-color: var(--accent);
+}
+.input-split-left .textarea-wrap .input-editor {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  max-height: none;
+}
+.input-split-left .textarea-wrap .input-editor:focus {
+  background: transparent;
+  border-color: transparent;
+  border-bottom-color: transparent;
+  box-shadow: none;
+}

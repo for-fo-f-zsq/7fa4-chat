@@ -349,8 +349,8 @@
 .file-text-content pre code { background: transparent; padding: 0; }
 .right .file-text-content { color: var(--message-self-text); }
 .right .file-text-content code { background: var(--bg-code-inline-self); }
-.chat-image { max-width: 240px; height: 200px; cursor: pointer; border-radius: 6px; }
-.emoji-msg { font-size: 64px; line-height: 1.2; display: inline-block; }
+.chat-image { max-width: 240px; max-height: 320px; width: auto; height: auto; cursor: pointer; border-radius: 6px; }
+.emoji-msg { font-size: 72px; line-height: 1.2; display: inline-block; }
 .sticker-msg { display: inline-block; line-height: 1.2; }
 .sticker-msg img { height: 100px; max-width: 100%; object-fit: contain; vertical-align: middle; }
 .pat-msg {
@@ -596,4 +596,18 @@
 .msg-status-icon.failed {
   color: var(--danger);
   cursor: pointer;
+}
+
+/* ===== QQ 表情（/xx 快捷码渲染）===== */
+.qqface {
+    width: 22px;
+    height: 22px;
+    vertical-align: -5px;
+    display: inline-block;
+    pointer-events: none;
+}
+.emoji-msg img.qqface {
+    width: 72px;
+    height: 72px;
+    vertical-align: middle;
 }

@@ -1,5 +1,9 @@
 <template>
-  <div class="preview-overlay" @click.self="$emit('close')">
+  <!-- 图片预览：纯黑遮罩 + 仅显示图片，无框（与赞助码放大一致） -->
+  <div v-if="type === 'image'" class="preview-overlay preview-overlay-image" @click="$emit('close')">
+    <img :src="src" class="preview-image-zoom" />
+  </div>
+  <div v-else class="preview-overlay" @click.self="$emit('close')">
     <div class="preview-modal">
       <div class="preview-header">
         <span class="preview-title">{{ title }}</span>
@@ -11,8 +15,7 @@
         </div>
       </div>
       <div class="preview-body" @click="onBodyClick">
-        <img v-if="type === 'image'" :src="src" class="preview-image" />
-        <pre v-else-if="type === 'text'" class="preview-text">{{ text }}</pre>
+        <pre v-if="type === 'text'" class="preview-text">{{ text }}</pre>
         <div v-else-if="type === 'html'" class="preview-html" v-html="text"></div>
         <iframe v-else-if="type === 'pdf'" :src="src" class="preview-pdf" title="PDF 预览"></iframe>
         <div v-else class="preview-error">无法解析为图片或文字</div>

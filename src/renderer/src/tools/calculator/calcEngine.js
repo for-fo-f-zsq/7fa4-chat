@@ -327,8 +327,11 @@ export function evaluate(expr, mod = null) {
     if (M !== null) {
       // 模除法 = 解同余方程 b·x ≡ a (mod M)：
       // 有解 ⟺ gcd(b, M) | a；约分后 x ≡ (a/g)·((b/g)⁻¹ mod (M/g))
-      const aa = needInt(a)
-      const bb = needInt(b)
+      // 先归一化到模 M 的规范剩余系：字面量（如 99824435300）与表达式（如 998244353*100）
+      // 必须走同一判定，否则「分母为模数倍数」时一个报错、一个误算为 0，结果不一致。
+      const aa = reduce(needInt(a))
+      const bb = reduce(needInt(b))
+      // bb ≡ 0 即分母为模数倍数（含字面 0）：模 M 下为零因子，除法无定义
       if (bb === 0n) throw new Error('不能除以 0')
       const g = gcd(bb, M)
       if (aa % g !== 0n) throw new Error(`同余方程 ${bb}x ≡ ${aa} (mod ${M}) 无解`)

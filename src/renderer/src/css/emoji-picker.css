@@ -194,3 +194,44 @@
     padding: 20px 0;
     line-height: 1.6;
 }
+
+/* ===== QQ 表情网格（覆盖 .emoji-item 旧布局：固定 56x56 正方形格子） ===== */
+.qqface-grid {
+    grid-template-columns: repeat(auto-fill, 56px);
+    grid-auto-rows: 56px;
+    gap: 10px;
+    padding: 10px;
+    justify-content: center;
+}
+.qqface-grid .qqface-item {
+    width: 56px;
+    height: 56px;
+    min-height: 56px;
+    padding: 0;
+    display: block;
+    line-height: 0;
+    font-size: 0;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: transform var(--duration-fast) ease, background var(--duration-fast) ease;
+}
+.qqface-grid .qqface-item:hover {
+    transform: scale(1.15);
+    background: var(--bg-conversation-hover);
+}
+.qqface-grid .qqface-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+}
+.qqface-grid .qqface-item:hover {
+    transform: scale(1.25);
+    background: var(--bg-conversation-hover);
+}
+.emoji-empty {
+    text-align: center;
+    color: var(--text-sub);
+    padding: 20px;
+    font-size: 13px;
+}

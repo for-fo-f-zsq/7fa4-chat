@@ -227,7 +227,17 @@
     background: var(--bg-conversation-hover);
 }
 .preview-body { padding: 16px; overflow: auto; flex: 1; }
-.preview-image { max-width: 100%; max-height: 70vh; border-radius: var(--radius); object-fit: contain; }
+/* 图片预览：纯黑遮罩 + 仅图片，无框（与赞助码放大一致） */
+.preview-overlay-image { background: rgba(0, 0, 0, 0.85); cursor: zoom-out; }
+.preview-image-zoom {
+    max-width: 90vw;
+    max-height: 90vh;
+    width: auto;
+    height: auto;
+    border-radius: 6px;
+    box-shadow: var(--shadow-modal);
+    user-select: none;
+}
 .preview-text {
     white-space: pre-wrap; word-break: break-all;
     font-size: var(--font-size-small); color: var(--text-primary);

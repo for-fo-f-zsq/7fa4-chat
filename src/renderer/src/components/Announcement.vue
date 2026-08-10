@@ -7,18 +7,19 @@
           <img src="/icon.png" alt="7FA4 Chat" class="announcement-logo-img" />
         </div>
         <p class="announcement-sub">全新版本发布</p>
-        <h1>V3.3.3</h1>
+        <h1>V3.3.4</h1>
         <div class="announcement-decor"></div>
       </div>
       <!-- 页 2：本次更新 -->
       <div v-else-if="page === 1" class="announcement-page">
         <h2><i class="fas fa-star"></i> 本次更新</h2>
         <ul class="announcement-list">
-          <li>本地数据存储重构，更安全更稳定</li>
-          <li>@提及逻辑重构，多人提醒更准确</li>
-          <li>GeoGebra 数学画板完整版，画圆等全功能</li>
-          <li>窄长窗口单列布局，体验更好</li>
-          <li>多项界面优化与问题修复</li>
+          <li>修复计算器模运算下除法计算不一致的问题</li>
+          <li>修复退出时数据保存不完整的问题</li>
+          <li>修复新消息通知弹窗抢占焦点的问题</li>
+          <li>重构表情消息显示，单表情展示更清晰</li>
+          <li>照片按原始比例显示</li>
+          <li>照片点开全屏无边框预览</li>
         </ul>
       </div>
       <!-- 页 3：更新日志 -->
@@ -39,19 +40,12 @@
         <p class="announcement-donate-tip">点击二维码可放大</p>
         <p class="announcement-sign">for_fo_f</p>
       </div>
-      <!-- 页 5：生日快乐 -->
-      <div v-else class="announcement-page announcement-birthday">
-        <div class="announcement-birthday-cake">🎂</div>
-        <h2>祝 for_fo_f 生日快乐</h2>
-        <p class="announcement-easter-egg">祝 FMQ 生日快乐</p>
-      </div>
-
       <div class="announcement-nav">
         <button v-if="page > 0" class="announcement-btn" @click="page--"><i class="fas fa-chevron-left"></i> 上一页</button>
         <div class="announcement-dots">
-          <span v-for="i in 5" :key="i" class="announcement-dot" :class="{ active: page === i - 1 }"></span>
+          <span v-for="i in 4" :key="i" class="announcement-dot" :class="{ active: page === i - 1 }"></span>
         </div>
-        <button v-if="page < 4" class="announcement-btn announcement-btn-primary" @click="page++">下一页 <i class="fas fa-chevron-right"></i></button>
+        <button v-if="page < 3" class="announcement-btn announcement-btn-primary" @click="page++">下一页 <i class="fas fa-chevron-right"></i></button>
         <button v-else class="announcement-btn announcement-btn-primary" @click="$emit('close')">开始使用 <i class="fas fa-check"></i></button>
       </div>
     </div>

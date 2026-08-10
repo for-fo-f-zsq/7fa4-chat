@@ -1,3 +1,12 @@
+<h2>3.3.4</h2>
+<ul>
+  <li><span class="change-tag fix">修复</span>修复计算器模运算下除法计算不一致的问题</li>
+  <li><span class="change-tag fix">修复</span>修复退出时数据保存不完整的问题</li>
+  <li><span class="change-tag fix">修复</span>修复新消息通知弹窗抢占焦点的问题</li>
+  <li><span class="change-tag improve">优化</span>重构表情消息显示，单表情展示更清晰</li>
+  <li><span class="change-tag improve">优化</span>照片按原始比例显示</li>
+  <li><span class="change-tag improve">优化</span>照片点开全屏无边框预览</li>
+</ul>
 <h2>3.3.3</h2>
 <ul>
   <li><span class="change-tag fix">修复</span>修复本地数据存储异常导致数据丢失的问题</li>

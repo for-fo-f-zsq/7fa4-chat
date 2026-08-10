@@ -261,26 +261,3 @@
     margin: 8px 0 0;
     opacity: 0.8;
 }
-
-/* 页 5：生日快乐 */
-.announcement-birthday-cake {
-    font-size: 140px;
-    line-height: 1;
-    margin-bottom: 18px;
-    animation: cakeBounce 1.2s ease infinite;
-}
-@keyframes cakeBounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-}
-.announcement-birthday h2 {
-    color: var(--accent) !important;
-    font-size: 21px !important;
-}
-
-/* 页 5：隐藏彩蛋（与背景同色不可见） */
-.announcement-easter-egg {
-    color: transparent;
-    font-size: 21px;
-    margin: 10px 0 0;
-}

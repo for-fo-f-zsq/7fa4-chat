@@ -169,21 +169,26 @@ function createWindow() {
             mainWindow.hide();
             return;
         }
-        // 真正关闭前：通知渲染进程先落盘（10s 自动保存定时器未到点也能保存）
-        // 渲染层 flushData 完成后发 app-flush-done 确认关闭；2s 超时强制关闭兜底
-        if (!forceClose && !flushPending) {
+        // 真正关闭前：先通知渲染进程落盘（convo 30s / pref 1.5s 节流数据也能保存）
+        // 渲染层 flushData 完成后发 app-flush-done → forceClose=true → 下一轮 close 才真正放行
+        // 关键：只要 forceClose 未置位，无论第几次 close（托盘退出 → app.quit() 会二次触发）都拦截，
+        // 避免二次 quit 抢先把窗口销毁、flush 未完成导致节流数据丢失。
+        if (!forceClose) {
             event.preventDefault();
-            flushPending = true;
-            mainWindow.webContents.send('app-flush-before-close');
-            setTimeout(() => {
-                if (!forceClose) {
-                    forceClose = true;
-                    flushPending = false;
-                    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
-                }
-            }, 2000);
-        } else {
-            flushPending = false;
+            if (!flushPending) {
+                flushPending = true;
+                mainWindow.webContents.send('app-flush-before-close');
+                // 超时兜底：2s 内渲染层未回 app-flush-done 则强制关闭（防渲染进程卡死/崩溃）
+                setTimeout(() => {
+                    if (!forceClose) {
+                        forceClose = true;
+                        flushPending = false;
+                        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+                    }
+                }, 2000);
+            }
+            // flushPending 已 true（二次 quit 触发）：继续等待 flush 完成，不在此放行
+            return;
         }
     });
 
@@ -227,7 +232,10 @@ function createTray() {
         { label: '显示窗口', click: () => { mainWindow.show(); mainWindow.focus(); } },
         { label: '退出', click: () => {
             app.isQuitting = true;
-            app.quit();
+            // 先触发 close：让渲染层 flush 节流数据（convo/prefs）落盘后再真正退出，
+            // 不要直接 app.quit()——那样会绕过 close 的 flush 拦截时序。
+            if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+            else app.quit();
         }}
     ]);
     tray.setToolTip('7FA4 Chat');
@@ -406,6 +414,7 @@ ipcMain.handle('notify', (e, { sender, content, chatType, targetId }) => {
     const isLinux = process.platform === 'linux';
     notificationWin = new BrowserWindow({
         width: 340, height: 100, frame: false, alwaysOnTop: true, transparent: true,
+        show: false, // 先隐藏创建，避免新窗口抢焦点打断其他窗口输入
         x: isLinux ? width : width - 348,
         y: isLinux ? height : height - 108,
         webPreferences: {
@@ -422,6 +431,8 @@ ipcMain.handle('notify', (e, { sender, content, chatType, targetId }) => {
     notificationWin.loadFile(notifPath);
     notificationWin.webContents.on('did-finish-load', () => {
         notificationWin.webContents.send('notif-data', { sender, content, chatType, targetId });
+        // 无焦点显示：置顶但绝不抢占当前窗口焦点
+        notificationWin.showInactive();
     });
 });
 

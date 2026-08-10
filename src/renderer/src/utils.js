@@ -2,6 +2,7 @@ import MarkdownIt from 'markdown-it'
 import katex from 'katex'
 import { reactive } from 'vue'
 import { store } from './store.js';
+import { QUANCODE, qqfaceUrl } from './qqface-data.js';
 
 // ========== 用户姓名数据库（加密存储） ==========
 // 明文 users.json 已从仓库移除，改打包为 AES-256-GCM 加密的 users.7c，
@@ -586,6 +587,28 @@ md.inline.ruler.after('escape', 'katex_inline', function (state, silent) {
   return true
 })
 
+// QQ 表情快捷码（/微笑 /wx /jy 等）：/xx → <img class="qqface">
+// 必须注册在 text 之前：'/' 不是 markdown-it text 规则的终止符，
+// 若 after('escape')（text 之后）则整段 /xx 已被 text 当作纯文本消费，规则无机会触发
+md.inline.ruler.before('text', 'qqface_inline', function (state, silent) {
+  if (state.src[state.pos] !== '/') return false
+  const prev = state.pos > 0 ? state.src[state.pos - 1] : ''
+  if (prev === ':' || prev === '/' || prev === '\\') return false
+  const m = /^\/([a-zA-Z\u4e00-\u9fa5]{1,12})/.exec(state.src.slice(state.pos))
+  if (!m) return false
+  const face = QUANCODE.get(m[0].toLowerCase())
+  if (!face) return false
+  if (!silent) {
+    const token = state.push('qqface_inline', 'img', 0)
+    token.attrSet('class', 'qqface')
+    token.attrSet('src', qqfaceUrl(face.file))
+    token.attrSet('data-code', m[0])
+    token.attrSet('alt', face.name)
+  }
+  state.pos += m[0].length
+  return true
+})
+
 md.block.ruler.before('paragraph', 'katex_block', function (state, startLine, endLine, silent) {
   const pos = state.bMarks[startLine] + state.tShift[startLine]
   const max = state.eMarks[startLine]
@@ -607,6 +630,16 @@ md.renderer.rules.katex_inline = function (tokens, idx) {
   // output:'html'：仅输出视觉层，避免 KaTeX 默认 MathML+HTML 双份导致复制/转 markdown 时文本重复
   try { return katex.renderToString(tokens[idx].content, { throwOnError: false, displayMode, output: 'html' }) }
   catch { return esc(tokens[idx].content) }
+}
+
+// QQ 表情快捷码渲染（/微笑 /wx /jy 等）：/xx → <img>
+// 前置字符守卫：避免误匹配 URL 协议 (https://、file://) 与转义 (\/)
+md.renderer.rules.qqface_inline = function (tokens, idx) {
+  const t = tokens[idx]
+  const src = t.attrGet('src')
+  const code = t.attrGet('data-code')
+  const alt = t.attrGet('alt') || ''
+  return '<img class="qqface" src="' + esc(src) + '" data-code="' + esc(code) + '" alt="' + esc(alt) + '">'
 }
 
 md.renderer.rules.katex_block = function (tokens, idx) {
@@ -777,6 +810,11 @@ export function parseContent(raw, senderId) {
     // 渲染时再次校验：仅单个 emoji 才放大显示，否则按普通文本 content 处理（防 API 伪造多字符）
     if (isSingleEmoji(emojiText)) {
       return '<span class="emoji-msg">' + esc(emojiText) + '</span>'
+    }
+    // QQ 表情快捷码单条放大（/微笑 /wx 等）：与 Unicode 单表情一致，去气泡框
+    const qface = QUANCODE.get(emojiText.toLowerCase())
+    if (qface) {
+      return '<span class="emoji-msg"><img class="qqface" src="' + qqfaceUrl(qface.file) + '" alt="' + esc(qface.name) + '" data-code="' + esc(emojiText) + '"></span>'
     }
     return renderMarkdown(obj.content || '')
   }

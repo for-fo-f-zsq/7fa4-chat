@@ -1,23 +1,20 @@
 <template>
   <div class="emoji-picker" v-if="visible">
     <div class="emoji-mode-switch">
-      <button :class="['mode-btn', { active: mode === 'emoji' }]" @click="mode = 'emoji'">普通表情</button>
+      <button :class="['mode-btn', { active: mode === 'emoji' }]" @click="mode = 'emoji'">QQ 表情</button>
       <button :class="['mode-btn', { active: mode === 'sticker' }]" @click="mode = 'sticker'">自定义表情</button>
     </div>
     <template v-if="mode === 'emoji'">
-      <div class="emoji-tabs">
-        <button v-for="(g, key) in groups" :key="key"
-          :class="['emoji-tab', { active: activeGroup === key }]"
-          @click="activeGroup = key"
-          :title="key">{{ g.icon }}</button>
-      </div>
       <div class="emoji-search">
-        <input v-model="search" placeholder="搜索..." ref="searchInput" />
+        <input v-model="search" placeholder="搜索 QQ 表情（输入 /微笑 或 /wx）..." ref="searchInput" />
       </div>
-      <div class="emoji-grid">
-        <span v-for="(e, i) in filteredEmojis" :key="i"
-          class="emoji-item" @click="emit('select', e)">{{ e }}</span>
+      <div class="emoji-grid qqface-grid">
+        <img v-for="f in filteredQqfaces" :key="f.id"
+          :src="qqfaceUrl(f.file)" :alt="f.name"
+          :title="f.name + '　' + f.code + (f.pinyin ? ' /' + f.pinyin : '') + (f.alias && f.alias.length ? ' /' + f.alias.join(' /') : '')"
+          class="emoji-item qqface-item" @click="emit('select', f)" />
       </div>
+      <div v-if="filteredQqfaces.length === 0" class="emoji-empty">无匹配表情</div>
     </template>
     <template v-if="mode === 'sticker'">
       <div class="sticker-toolbar">
@@ -39,7 +36,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { EMOJI_GROUPS } from '../emoji-data.js'
+import { QQFACES, qqfaceUrl } from '../qqface-data.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -47,13 +44,21 @@ const props = defineProps({
 })
 const emit = defineEmits(['select', 'selectSticker', 'addSticker', 'removeSticker'])
 
-const groups = EMOJI_GROUPS
 const mode = ref('emoji')
-const activeGroup = ref('表情')
 const search = ref('')
 const searchInput = ref(null)
 
-// ----- 监听全局搜索聚焦事件 -----
+const filteredQqfaces = computed(() => {
+  const q = search.value.trim().toLowerCase()
+  if (!q) return QQFACES
+  return QQFACES.filter(f =>
+    f.code.toLowerCase().includes(q) ||
+    f.name.includes(q) ||
+    f.pinyin.includes(q) ||
+    (f.alias && f.alias.some(a => a.includes(q)))
+  )
+})
+
 function onFocusEmojiSearch() {
   if (mode.value !== 'emoji') mode.value = 'emoji'
   searchInput.value?.focus()
@@ -62,14 +67,7 @@ function onFocusEmojiSearch() {
 onMounted(() => {
   document.addEventListener('focus-emoji-search', onFocusEmojiSearch)
 })
-
 onUnmounted(() => {
   document.removeEventListener('focus-emoji-search', onFocusEmojiSearch)
-})
-
-const filteredEmojis = computed(() => {
-  const g = groups[activeGroup.value]
-  if (!g) return []
-  return g.emojis
 })
 </script>
