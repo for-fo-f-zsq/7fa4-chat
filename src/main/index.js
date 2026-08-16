@@ -35,7 +35,7 @@ let serverInstance = null;
 let minimizeToTray = true;
 let forceClose = false;   // 数据已落盘，允许真正关闭
 let flushPending = false; // 正在等待渲染进程 flush 确认
-let currentApiUrl = 'http://jx.7fa4.cn';
+let currentApiUrl = 'https://jx.7fa4.cn';
 let userStore = null; // SQLite 用户数据存储（whenReady 初始化）
 
 function startServer() {
