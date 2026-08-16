@@ -1,7 +1,7 @@
 <template>
   <div class="about-panel">
     <div class="about-header">
-      <a href="#" class="about-github-link" @click.prevent="openLink('http://jx.7fa4.cn:9080/zsq/7fa4-chat')" title="GitLab 项目主页">
+      <a href="#" class="about-github-link" @click.prevent="openLink('https://jx.7fa4.cn:9080/zsq/7fa4-chat')" title="GitLab 项目主页">
         <i class="fab fa-gitlab"></i>
       </a>
       <a href="#" class="about-github-link" @click.prevent="openLink('https://github.com/for-fo-f-zsq/7fa4-chat')" title="GitHub 项目主页">

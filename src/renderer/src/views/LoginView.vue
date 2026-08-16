@@ -37,8 +37,8 @@
         <label class="api-url-label">API网址</label>
         <div class="api-url-row">
           <select class="api-url-dropdown" v-model="apiUrl">
-            <option value="http://jx.7fa4.cn">jx.7fa4.cn</option>
-            <option value="http://in.7fa4.cn">in.7fa4.cn</option>
+            <option value="https://jx.7fa4.cn">jx.7fa4.cn</option>
+            <option value="https://in.7fa4.cn">in.7fa4.cn</option>
           </select>
           <button class="api-settings-btn" title="打开服务端设置" @click="openApiSettings">
             <i class="fas fa-external-link-alt"></i>
@@ -68,7 +68,7 @@ const emit = defineEmits(['login']);
 const username = ref('');
 const password = ref('');
 const remember = ref(false);
-const apiUrl = ref('http://jx.7fa4.cn');
+const apiUrl = ref('https://jx.7fa4.cn');
 const error = ref('');
 const loading = ref(false);
 

@@ -20,7 +20,7 @@
             <div class="custom-select" :class="{ open: apiUrlOpen }" @click="apiUrlOpen = !apiUrlOpen" v-click-outside="() => apiUrlOpen = false">
               <div class="custom-select-trigger"><span>{{ apiUrlLabel }}</span><i class="fas fa-chevron-down custom-select-arrow"></i></div>
               <div class="custom-select-dropdown" v-if="apiUrlOpen">
-                <div class="custom-select-option" v-for="o in apiUrlOptions" :key="o.value" :class="{ active: (setting.apiUrl || 'http://jx.7fa4.cn') === o.value }" @click.stop="selectApiUrl(o.value)">
+                <div class="custom-select-option" v-for="o in apiUrlOptions" :key="o.value" :class="{ active: (setting.apiUrl || 'https://jx.7fa4.cn') === o.value }" @click.stop="selectApiUrl(o.value)">
                   <span class="cs-dot" :style="{ background: o.color }"></span><span>{{ o.label }}</span>
                 </div>
               </div>
@@ -124,8 +124,8 @@ const cacheSize = ref(null)
 const themes = THEMES
 
 const apiUrlOptions = [
-  { value: 'http://jx.7fa4.cn', label: 'jx.7fa4.cn', color: '#E67E22' },
-  { value: 'http://in.7fa4.cn', label: 'in.7fa4.cn', color: '#12B7F5' }
+  { value: 'https://jx.7fa4.cn', label: 'jx.7fa4.cn', color: '#E67E22' },
+  { value: 'https://in.7fa4.cn', label: 'in.7fa4.cn', color: '#12B7F5' }
 ]
 
 const currentTheme = computed(() => props.setting?.theme || 'default')
