@@ -1,6 +1,6 @@
 <template>
   <div class="view-fade" :class="{ 'view-fade-out': viewFading }">
-    <LoginView v-if="!store.logined" @login="onLogin" />
+    <LoginView v-if="!store.logined && !store.guestMode" @login="onLogin" @guest="onGuest" />
     <ChatView v-else :key="loginSeq" />
   </div>
   <Announcement v-if="showAnnouncement" @close="closeAnnouncement" />
@@ -54,17 +54,28 @@ async function closeAnnouncement() {
 }
 checkAnnouncement()
 
+// 游客模式：未登录直接进入主界面（聊天/收藏不可用，工具/设置/关于可浏览）
+function onGuest() {
+  store.guestMode = true;
+  loginSeq.value++;
+  viewFading.value = true;
+  setTimeout(() => {
+    nextTick(() => {
+      requestAnimationFrame(() => { requestAnimationFrame(() => { viewFading.value = false; }); });
+    });
+  }, 500);
+}
+
 function onLogin() {
+  store.guestMode = false; // 登录成功后退出游客模式，状态一致
   loginSeq.value++
   viewFading.value = true
   setTimeout(() => {
+    // 竞态防护：延迟期间若用户已切走（如点了"返回"进入游客模式），放弃本次登录置位
+    if (store.guestMode) return;
     store.logined = true
     nextTick(() => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          viewFading.value = false
-        })
-      })
+      requestAnimationFrame(() => { requestAnimationFrame(() => { viewFading.value = false; }); });
     })
   }, 500)
 }

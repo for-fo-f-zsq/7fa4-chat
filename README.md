@@ -1,15 +1,15 @@
-# [下载安装包](http://jx.7fa4.cn:9080/zsq/7fa4-chat/-/packages)
+# [下载安装包](https://jx.7fa4.cn:9080/student-archive/zsq-7fa4-chat/-/packages)
 ```bash
 curl -sL -o latest-linux.yml \
-  "http://jx.7fa4.cn:9080/api/v4/projects/886/packages/generic/7FA4-Chat/latest/latest-linux.yml"
+  "https://jx.7fa4.cn:9080/api/v4/projects/886/packages/generic/7FA4-Chat/latest/latest-linux.yml"
 APPIMAGE=$(grep -E "^\s+- url:.*\.AppImage" latest-linux.yml | sed 's/.*url: *//')
-curl -L -O "http://jx.7fa4.cn:9080/api/v4/projects/886/packages/generic/7FA4-Chat/latest/${APPIMAGE}"
+curl -L -O "https://jx.7fa4.cn:9080/api/v4/projects/886/packages/generic/7FA4-Chat/latest/${APPIMAGE}"
 chmod +x "${APPIMAGE}"
 rm latest-linux.yml
 ./"${APPIMAGE}"
 ```
 
-一个基于[7FA4 Chat API](http://jx.7fa4.cn:8888/article/134),使用[electron](https://www.electronjs.org/)+[VUE3](https://vuejs.org/)(vue+js+css)构建的跨平台聊天软件
+一个基于[7FA4 Chat API](https://jx.7fa4.cn:8888/article/134),使用[electron](https://www.electronjs.org/)+[VUE3](https://vuejs.org/)(vue+js+css)构建的跨平台聊天软件
 
 目前已经完全支持：
 
@@ -58,4 +58,4 @@ rm latest-linux.yml
 - 内置「工具」模块：IDE（代码编辑、C++ 本地编译判题、内置终端等）、交互式图编辑器、科学计算器
 - ……
 
-如果你有什么好的建议，请前往[议题/issues](http://jx.7fa4.cn:9080/zsq/7fa4-chat/-/issues)提交
+如果你有什么好的建议，请前往[议题/issues](https://jx.7fa4.cn:9080/student-archive/zsq-7fa4-chat/-/issues)提交

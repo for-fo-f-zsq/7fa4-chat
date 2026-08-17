@@ -216,22 +216,27 @@ export async function safeFetch(url, options = {}, timeout = 10000) {
     } else {
       res = await fetch(url, options)
     }
-    // 检测到返回 HTML（通常是会话失效被服务端重定向到登录页）：直接退出登录跳转到 login，不尝试重新登录
+    // 检测到返回 HTML（通常会话失效被服务端重定向到登录页）：不再强制退出登录，
+    // 改为标记网络异常（"未连接"横幅），由调用方/轮询层决定是否继续。历史消息仍可读。
     const _ctype = (res.headers.get('content-type') || '').toLowerCase()
     if (_ctype.includes('text/html')) {
-      store.logined = false
-      return { json: async () => ({ success: false, err: { message: '会话已失效，请重新登录' } }) }
+      store.netError = true
+      return { json: async () => ({ success: false, _html: true, err: { message: '未连接，正在重新连接…' } }) }
     }
     if (!res.ok) return { json: async () => ({ success: false, err: { message: res.statusText } }) }
     try {
       const data = await res.json()
+      store.netError = false
+      store.online = navigator.onLine
       return { json: async () => data }
     } catch {
-      // 非 JSON（即 HTML，会话失效）：直接退出登录，不尝试重新登录，也不清空已保存的密码
-      store.logined = false
-      return { json: async () => ({ success: false, err: { message: '会话已失效，请重新登录' } }) }
+      // 非 JSON（即 HTML，会话失效）：标记网络异常，不退出登录
+      store.netError = true
+      return { json: async () => ({ success: false, _html: true, err: { message: '未连接，正在重新连接…' } }) }
     }
   } catch (e) {
+    // 网络层错误（断网/超时）：标记网络异常，不退出登录；online 交由 navigator 事件
+    store.netError = true
     return { json: async () => ({ success: false, err: { message: e.message || '网络错误' } }) }
   }
 }
@@ -387,6 +392,7 @@ export function displayName(user) {
 // 上报用户公开信息（ranklist 页公开字段），供服务器按 uid 记录最近访问时间与个人信息，
 // 用于分析使用情况；纯统计用途，失败静默，不影响主流程。
 // 载荷经主进程 AES-256-GCM 加密后发出（密钥不进渲染进程），防止第三方 POST 伪造。
+// 仅当窗口打开且聚焦时上报（最小化/隐藏/失焦时不打扰服务器），恢复可见聚焦时立即补报。
 let _reporting = false
 let _appVersion = null
 async function _getAppVersion() {
@@ -394,8 +400,13 @@ async function _getAppVersion() {
   try { _appVersion = (await window.api.getVersion()) || '' } catch { _appVersion = '' }
   return _appVersion
 }
+function _windowActive() {
+  return document.visibilityState === 'visible' && document.hasFocus()
+}
 async function _reportVisit() {
   if (_reporting) return
+  // 窗口未打开/未聚焦时不上报（minimize 到托盘时 visibility 变为 hidden，天然跳过）
+  if (!_windowActive()) return
   const s = store.self
   if (!s || !s.uid) return
   _reporting = true
@@ -421,8 +432,14 @@ async function _reportVisit() {
 let _visitTimer = null
 export function startVisitReport() {
   if (_visitTimer) return
-  _reportVisit() // 立即上报一次
+  _reportVisit() // 立即上报一次（若当前未聚焦则跳过）
   _visitTimer = setInterval(_reportVisit, 10 * 60 * 1000)
+  // 窗口重新可见/聚焦时补报一次，弥补最小化期间的漏报
+  document.addEventListener('visibilitychange', _onVisitWindowActive)
+  window.addEventListener('focus', _onVisitWindowActive)
+}
+function _onVisitWindowActive() {
+  if (_windowActive()) _reportVisit()
 }
 
 // 退出登录：停止上报定时器，重新登录后 startVisitReport 可再次启动
@@ -431,6 +448,8 @@ export function stopVisitReport() {
     clearInterval(_visitTimer)
     _visitTimer = null
   }
+  document.removeEventListener('visibilitychange', _onVisitWindowActive)
+  window.removeEventListener('focus', _onVisitWindowActive)
 }
 
 // ========== 用户信息爬取（ranklist） ==========
@@ -693,6 +712,30 @@ for (const type of LINE_MAP_BLOCK_TYPES) {
 export function renderMarkdown(text) {
   if (!text) return ''
   return md.render(preprocessKatexBlock(text)).replace(/\n+$/, '')
+}
+
+// 输入框预览：markdown 渲染后把 /code 表情码替换为表情图（整体未命中则缩短重试，
+// 与输入框 renderSerializedToHtml 的 resolveCodeToken 逻辑一致，保证预览与输入框表现一致）。
+// 仅在 HTML 标签外替换，避免误伤 </em>、</p> 等标签内斜杠。
+export function renderMarkdownPreview(text) {
+  if (!text) return ''
+  const html = renderMarkdown(text)
+  const codeRe = /(\/[\p{L}\p{N}_]+)/gu
+  return html.replace(/<[^>]*>|[^<]+/g, (seg) => {
+    if (seg.startsWith('<')) return seg // 标签原样保留
+    return seg.replace(codeRe, (token) => {
+      let cur = token
+      while (cur.length > 1) {
+        const face = QUANCODE.get(cur.toLowerCase())
+        if (face) {
+          const rest = token.slice(cur.length)
+          return `<img class="qqface" data-code="${cur}" src="${qqfaceUrl(face.file)}" alt="${cur}">` + (rest ? rest : '')
+        }
+        cur = cur.slice(0, -1)
+      }
+      return token
+    })
+  })
 }
 
 export function formatSize(bytes) {

@@ -10,13 +10,18 @@
         <button class="title-btn title-close" @click="windowClose"><i class="fas fa-times"></i></button>
       </div>
     </div>
+    <!-- 网络/登录状态横幅：位于 app-body 外，全宽横条 -->
+    <div class="network-banner" v-if="store.logined && store.netError"><i class="fas fa-wifi"></i> 未连接，正在尝试重新连接… <button class="banner-login-btn" @click="onUserAction('relogin')">重新登录</button></div>
+    <div class="network-banner not-logged-in" v-if="!store.logined"><i class="fas fa-user-lock"></i> 您还未登录，聊天与收藏暂不可用。 <button class="banner-login-btn" @click="gotoLogin">去登录</button></div>
     <div class="app-body">
-    <div class="network-banner" v-if="!store.online"><i class="fas fa-wifi"></i> 网络连接已断开，正在尝试重连...</div>
     <NavBar
       :pageType="navPageType"
       :users="store.users"
       :groups="store.groups"
+      :loggedIn="store.logined"
+      :self="store.self"
       @switch="switchPage"
+      @user-action="onUserAction"
     />
     <ConversationList
       ref="conversationListRef"
@@ -296,6 +301,39 @@ const saveConfirmVisible = ref(false);
 let pendingSwitch = null; // 被未保存拦截的切换动作（保存/不保存后执行）
 const isChatPage = computed(() => pageType.value === 'chat' || pageType.value === 'user' || pageType.value === 'group');
 const navPageType = computed(() => isChatPage.value ? 'chat' : pageType.value);
+
+// 游客模式：聊天/收藏不可用，落到设置页浏览
+watch(() => store.logined, (logged) => {
+  if (!logged && (isChatPage.value || pageType.value === 'favorites')) {
+    pageType.value = 'settings';
+    pageId.value = null;
+  }
+}, { immediate: true });
+
+// 返回登录页（游客模式"去登录"）：退出游客，回到登录界面
+function gotoLogin() {
+  if (store.logined) return;
+  store.guestMode = false;
+  store.logined = false;
+}
+
+// 左下角头像菜单动作：login / relogin / logout
+// 重新登录（relogin）= 完整退出（清 cookie/数据）+ 回登录页，避免旧账号数据串入新会话
+async function onUserAction(kind) {
+  if (kind === 'logout' && store.logined) {
+    await logout(false); // 退出登录 → 回游客主界面
+    return;
+  }
+  if (kind === 'relogin' && store.logined) {
+    await logout(true); // 重新登录 → 回登录页
+    return;
+  }
+  if (kind === 'login') {
+    // 游客模式去登录
+    store.guestMode = false;
+    store.logined = false;
+  }
+}
 // 窄长窗口单列模式：窗口高/宽比超过阈值时，会话列表与消息区互斥显示（微信/QQ 窄窗口风格）
 const NARROW_ASPECT = 1.4
 const isNarrowLayout = ref(false)
@@ -439,6 +477,8 @@ function startListResize(e) {
 
 // --- 页面导航 ---
 function switchPage(type) {
+  // 游客模式：聊天/收藏不可用，拦截导航
+  if (!store.logined && (type === 'chat' || type === 'favorites')) return;
   // 未保存的工具内容（图片/Markdown）：离开工具前先确认（保存/不保存/取消）
   if (toolsDirty.value && pageType.value === 'tools' && currentTool.value !== 'list') {
     pendingSwitch = { type };
@@ -1332,13 +1372,48 @@ async function ensureConvoMessages(kind, cid) {
   } catch {}
 }
 
-/** 立即落盘（退出登录前调用） */
+/** 立即落盘（退出登录前调用）：元数据 + 偏好 + 内存中未入库的消息兜底 */
 async function flushData() {
   clearTimeout(convoSaveTimer)
   clearTimeout(prefSaveTimer)
   convoSaveTimer = null
   prefSaveTimer = null
+  // 兜底：内存中仍有、但可能因 fire-and-forget 未完成入库的消息，按会话分组批量补写
+  try {
+    const uid = store.self.uid
+    if (uid) {
+      const pending = {} // key: kind:cid → msgs[]
+      for (const [id, u] of Object.entries(store.users || {})) {
+        if (!u || !Array.isArray(u.message_ids)) continue
+        for (const mid of u.message_ids) {
+          const msg = store.messages[mid]
+          if (msg) {
+            const k = `user:${id}`
+            if (!pending[k]) pending[k] = []
+            pending[k].push(msg)
+          }
+        }
+      }
+      for (const [id, g] of Object.entries(store.groups || {})) {
+        if (!g || !Array.isArray(g.message_ids)) continue
+        for (const mid of g.message_ids) {
+          const msg = store.messages[mid]
+          if (msg) {
+            const k = `group:${id}`
+            if (!pending[k]) pending[k] = []
+            pending[k].push(msg)
+          }
+        }
+      }
+      await Promise.all(Object.entries(pending).map(([k, msgs]) => {
+        const [kind, cid] = k.split(':')
+        return window.api.storeSaveMessages(uid, kind, Number(cid), msgs).catch(() => {})
+      }))
+    }
+  } catch {}
   await Promise.all([saveConvos(), savePrefs()])
+  // 等待所有 IPC 写入完成（SQLite 落盘），避免清空 store 后丢失
+  await new Promise(r => setTimeout(r, 300))
 }
 
 async function loadData() {
@@ -1401,7 +1476,7 @@ function saveData() {
   schedulePrefSave()
 }
 
-async function logout() {
+async function logout(toLogin = false) {
   // 先停止轮询与后台任务，防止异步操作继续往 store 写数据
   infoLoopRunning = false;
   if (pollTimer) clearInterval(pollTimer);
@@ -1423,6 +1498,10 @@ async function logout() {
   await window.api.saveSetting(s);
   Object.assign(store, { self: { uid: null, username: null, nickname: null, realname: null }, users: {}, groups: {}, messages: {}, stickers: [], drafts: {}, favorites: [], mutedConvos: {}, hiddenConvos: {} });
   store.logined = false;
+  store.netError = false;
+  store.online = navigator.onLine;
+  // toLogin=true：重新登录 → 回登录页（guestMode=false）；否则退出登录 → 回游客主界面（guestMode=true）
+  store.guestMode = !toLogin;
 }
 
 async function startInfoLoop() {
@@ -1430,10 +1509,11 @@ async function startInfoLoop() {
   infoLoopRunning = true;
   let failCount = 0;
   while (infoLoopRunning && store.logined) {
-    try { const result = await (await safeFetch('/chat/info')).json(); if (!infoLoopRunning) break; if (result.success) { await update(result); failCount = 0; } else failCount++; } catch { failCount++; }
+    try { const result = await (await safeFetch('/chat/info')).json(); if (!infoLoopRunning) break; if (result.success) { await update(result); failCount = 0; store.netError = false; store.online = true; } else { failCount++; store.netError = true; } } catch { failCount++; store.netError = true; }
     if (!infoLoopRunning) break;
     if (failCount >= 3) {
-      // 连续失败（如无法访问 jx）：退避到 10s，避免高频空转
+      // 连续失败（如无法访问 jx）：退避到 10s，避免高频空转；保持"未连接"横幅直到恢复
+      store.online = false;
       await new Promise(r => setTimeout(r, 10000));
       continue;
     }
@@ -1514,22 +1594,8 @@ onMounted(async () => {
   window.addEventListener('focus', onWindowFocus);
   window.addEventListener('resize', updateLayoutMode);
   updateLayoutMode();
-  try {
-    const initialInfo = await (await safeFetch('/chat/info')).json();
-    if (initialInfo.success) Object.assign(store.self, { uid: initialInfo.user.id, username: initialInfo.user.uid, nickname: initialInfo.user.nickname, realname: initialInfo.user.real_name });
-    await loadData();
-    if (initialInfo.success) await update(initialInfo);
-    await updateMessagesData();
-    updateBadgeCount();
-    nextTick(() => { messageListRef.value?.scrollToBottomInstant(); });
-  } finally {
-    store.initializing = false;
-  }
-  if (store.logined) startInfoLoop();
-  document.addEventListener('keydown', onDocKeydown);
-  document.addEventListener('click', onDocClick);
-  document.addEventListener('mousemove', (e) => { lastMouseX.value = e.clientX; lastMouseY.value = e.clientY; });
   // 窗口关闭前落盘：主进程拦截 close 后通知 → 立即保存（convo 30s / pref 1.5s 节流数据也能保存）→ 确认关闭
+  // 必须在游客 return 之前注册：任何模式（含游客）关窗都要应答，避免主进程 flushPending 等待超时
   unsubscribeFlush = window.api.onAppFlushBeforeClose(async () => {
     try {
       await flushData();
@@ -1540,6 +1606,30 @@ onMounted(async () => {
       window.api.appFlushDone();
     }
   });
+  // 未登录（游客模式）：仅加载本地偏好设置与主题，跳过网络初始化，
+  // 不拉取 /chat/info、不进入轮询；聊天/收藏入口由 NavBar 隐藏。登录后由登录门控触发重新挂载。
+  if (!store.logined) {
+    store.online = true;
+    store.netError = false;
+    store.initializing = false;
+    return;
+  }
+  try {
+    const initialInfo = await (await safeFetch('/chat/info')).json();
+    if (initialInfo.success) Object.assign(store.self, { uid: initialInfo.user.id, username: initialInfo.user.uid, nickname: initialInfo.user.nickname, realname: initialInfo.user.real_name });
+    await loadData();
+    if (initialInfo.success) await update(initialInfo);
+    else store.netError = true; // /chat/info 失败（网络断/会话失效）→ 未连接横幅，但本地历史仍可读
+    await updateMessagesData();
+    updateBadgeCount();
+    nextTick(() => { messageListRef.value?.scrollToBottomInstant(); });
+  } finally {
+    store.initializing = false;
+  }
+  if (store.logined) startInfoLoop();
+  document.addEventListener('keydown', onDocKeydown);
+  document.addEventListener('click', onDocClick);
+  document.addEventListener('mousemove', (e) => { lastMouseX.value = e.clientX; lastMouseY.value = e.clientY; });
 });
 
 onUnmounted(() => {

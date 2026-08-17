@@ -7,19 +7,19 @@
           <img src="/icon.png" alt="7FA4 Chat" class="announcement-logo-img" />
         </div>
         <p class="announcement-sub">全新版本发布</p>
-        <h1>V3.3.4</h1>
+        <h1>V3.4.0</h1>
         <div class="announcement-decor"></div>
       </div>
       <!-- 页 2：本次更新 -->
       <div v-else-if="page === 1" class="announcement-page">
         <h2><i class="fas fa-star"></i> 本次更新</h2>
         <ul class="announcement-list">
-          <li>修复计算器模运算下除法计算不一致的问题</li>
-          <li>修复退出时数据保存不完整的问题</li>
-          <li>修复新消息通知弹窗抢占焦点的问题</li>
-          <li>重构表情消息显示，单表情展示更清晰</li>
-          <li>照片按原始比例显示</li>
-          <li>照片点开全屏无边框预览</li>
+          <li>未登录也可直接进入主界面浏览，登录后可正常使用聊天与收藏</li>
+          <li>左下角新增用户头像，可查看个人信息、重新登录与退出登录</li>
+          <li>网络异常时顶部显示未连接提示，并可一键重新登录</li>
+          <li>粘贴内容自动过滤样式，表情粘贴为源码形式</li>
+          <li>修复表情在行中不渲染的问题</li>
+          <li>服务端全面升级为 HTTPS 加密访问</li>
         </ul>
       </div>
       <!-- 页 3：更新日志 -->

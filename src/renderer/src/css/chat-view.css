@@ -346,14 +346,30 @@
   background: var(--accent-light);
 }
 
-/* 网络状态横幅 */
+/* 网络状态横幅（全宽横条，位于 title-bar 与 app-body 之间） */
 .network-banner {
   padding: 6px 16px;
   text-align: center;
   font-size: var(--font-size-small);
   color: var(--text-on-accent);
   background: var(--danger);
+  flex: 0 0 auto;
 }
 .network-banner.online {
   background: var(--success);
 }
+/* 未登录（游客）横幅：金色警示，区别于连接失败的红条 */
+.network-banner.not-logged-in {
+  background: #b8860b;
+}
+.banner-login-btn {
+  margin-left: 10px;
+  padding: 1px 12px;
+  font-size: var(--font-size-small);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 12px;
+  cursor: pointer;
+}
+.banner-login-btn:hover { background: rgba(255, 255, 255, 0.35); }

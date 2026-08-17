@@ -106,7 +106,7 @@ jobs:
             echo "::error::缺少 secret GITLAB_TOKEN，请在仓库 Settings→Secrets→Actions 添加后重试"; exit 1
           fi
           VERSION="${GITHUB_REF_NAME#v}"
-          GITLAB_API="http://jx.7fa4.cn:9080/api/v4/projects/886"
+          GITLAB_API="https://jx.7fa4.cn:9080/api/v4/projects/886"
           GITLAB_URL="${GITLAB_API}/packages/generic/7FA4-Chat"
           echo "上传版本：$VERSION -> $GITLAB_URL"
 

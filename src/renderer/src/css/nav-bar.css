@@ -128,3 +128,114 @@
     height: 36px;
     border-radius: var(--radius);
 }
+
+/* 底部用户头像（左下角固定） */
+.nav-user-wrap {
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    padding-top: 8px;
+}
+.nav-user {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--bg-sidebar-active);
+    border: 1px solid var(--border-3d-light);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--duration-normal, 0.2s) ease;
+    user-select: none;
+}
+.nav-user:hover { transform: scale(1.08); box-shadow: 0 3px 10px var(--gradient-accent); }
+.nav-user-initial {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--accent);
+}
+.nav-user-fallback { font-size: 18px; opacity: 0.7; }
+
+/* 用户菜单：fixed 定位脱离 navbar stacking context 与 overflow 裁剪，
+   固定显示在左下角头像上方（z-index 高于会话列表 3） */
+.nav-user-menu {
+    position: fixed;
+    bottom: 16px;
+    left: 58px;
+    width: 230px;
+    background: var(--bg-conversation, #fff);
+    border: 1px solid var(--border-3d-dark);
+    border-radius: var(--radius, 12px);
+    box-shadow: var(--shadow-context, 0 10px 30px rgba(0, 0, 0, 0.25));
+    padding: 10px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+}
+.nav-user-menu-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 4px 10px;
+    border-bottom: 1px solid var(--border-3d-dark, #eee);
+    margin-bottom: 8px;
+}
+.nav-user-menu-avatar {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    border-radius: 50%;
+    background: var(--bg-sidebar-active);
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+}
+.nav-user-initial-lg { font-size: 20px; font-weight: 600; color: var(--accent); }
+.nav-user-menu-names { display: flex; flex-direction: column; min-width: 0; }
+.nav-user-menu-name { font-size: 14px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-user-menu-uname { font-size: 11px; color: var(--text-hint, #888); }
+
+.nav-user-menu-info {
+    padding: 4px 2px 8px;
+    border-bottom: 1px solid var(--border-3d-dark, #eee);
+    margin-bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.nav-user-menu-info .info-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 12px;
+}
+.nav-user-menu-info .info-label {
+    color: var(--text-hint, #888);
+    min-width: 32px;
+    flex-shrink: 0;
+}
+.nav-user-menu-info .info-value {
+    color: var(--text-primary);
+    word-break: break-all;
+}
+.nav-user-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background var(--duration-fast, 0.15s) ease;
+}
+.nav-user-menu-item i { width: 16px; text-align: center; color: var(--accent); }
+.nav-user-menu-item:hover { background: var(--bg-conversation-hover, rgba(0, 0, 0, 0.05)); }
+.nav-user-menu-item.danger { color: var(--danger, #e64340); }
+.nav-user-menu-item.danger i { color: var(--danger, #e64340); }

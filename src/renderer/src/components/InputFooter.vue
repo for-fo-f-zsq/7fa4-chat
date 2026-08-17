@@ -94,7 +94,7 @@
 <script setup>
 import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
 import { store } from '../store.js';
-import { displayName, parseMsgContent, renderMarkdown, applyChatToStore, sendChatMessage, getConvoKey, formatSize, compressImage, compressBase64Image, extractMentions, isSingleEmoji } from '../utils.js';
+import { displayName, parseMsgContent, renderMarkdown, renderMarkdownPreview, applyChatToStore, sendChatMessage, getConvoKey, formatSize, compressImage, compressBase64Image, extractMentions, isSingleEmoji } from '../utils.js';
 import EmojiPicker from './EmojiPicker.vue';
 import { QUANCODE, qqfaceUrl } from '../qqface-data.js';
 import '../css/input-footer.css';
@@ -193,6 +193,8 @@ function escHtmlForEditor(s) {
 }
 
 // 把序列化文本渲染为 DOM（/code → img，\n → br）
+// /code 匹配连续的字母/数字/下划线段；若整体未命中 QUANCODE 则逐字缩短重试，
+// 避免"你好/微笑世界"把后续文字误吞进 code 导致不渲染
 function renderSerializedToHtml(text) {
   let html = '';
   const re = /(\/[\p{L}\p{N}_]+)|(\n)/gu;
@@ -200,9 +202,7 @@ function renderSerializedToHtml(text) {
   while ((m = re.exec(text))) {
     if (m.index > last) html += escHtmlForEditor(text.slice(last, m.index));
     if (m[1]) {
-      const face = QUANCODE.get(m[1].toLowerCase());
-      if (face) html += `<img class="qqface" data-code="${m[1]}" src="${qqfaceUrl(face.file)}" alt="${escHtmlForEditor(m[1])}">`;
-      else html += escHtmlForEditor(m[1]);
+      html += resolveCodeToken(m[1]);
     } else if (m[2]) {
       html += '<br>';
     }
@@ -210,6 +210,20 @@ function renderSerializedToHtml(text) {
   }
   if (last < text.length) html += escHtmlForEditor(text.slice(last));
   return html;
+}
+
+// 解析 /code token：整体命中则渲染表情；未命中则从末尾逐字缩短重试（剩余部分按原文输出）
+function resolveCodeToken(token) {
+  let cur = token;
+  while (cur.length > 1) {
+    const face = QUANCODE.get(cur.toLowerCase());
+    if (face) {
+      const rest = token.slice(cur.length);
+      return `<img class="qqface" data-code="${cur}" src="${qqfaceUrl(face.file)}" alt="${escHtmlForEditor(cur)}">` + (rest ? escHtmlForEditor(rest) : '');
+    }
+    cur = cur.slice(0, -1);
+  }
+  return escHtmlForEditor(token);
 }
 
 function renderEditor(text, caretOffset) {
@@ -258,7 +272,8 @@ function domPosFromSerializedOffset(offset) {
 function replaceShortcutAtCaret() {
   const caret = getCaretSerializedOffset();
   const before = inputText.value.slice(0, caret);
-  const m = before.match(/\/([^\s/]*)$/);
+  // 光标前最后一段 /xxx（到空格/斜杠为止），整体命中 QUANCODE 才替换
+  const m = before.match(/\/([\p{L}\p{N}_]+)$/u);
   if (!m) return;
   const token = m[0];
   const face = QUANCODE.get(token.toLowerCase());
@@ -545,32 +560,65 @@ async function sendFileMessage() {
   sending.value = false;
 }
 
-// --- 粘贴图片发送 ---
+// --- 粘贴：图片直接发送；文本强制纯文本（剥 HTML 样式）；表情粘贴源码（/code） ---
 async function onPaste(e) {
   const items = e.clipboardData?.items;
   if (!items) return;
-  for (const item of items) {
-    if (item.type.startsWith('image/')) {
-      e.preventDefault();
-      const file = item.getAsFile();
-      if (!file) return;
-      sending.value = true;
-      try {
-        const result = await compressImage(file);
-        if (!result) { sending.value = false; return; }
-        addPendingFile(`pasted_${Date.now()}.png`, result.size, result.data, 'image/jpeg');
-      } catch {
-        errorMessage.value = '粘贴图片发送失败';
-      }
-      sending.value = false;
-      return;
+  // 取剪贴板文本（text/plain 优先，text/html 剥标签）
+  let text = e.clipboardData.getData('text/plain');
+  if (!text) {
+    const html = e.clipboardData.getData('text/html');
+    if (html) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      text = (doc.body ? doc.body.innerText : '') || '';
     }
   }
+  // 表情粘贴（剪贴板同时含文本+图片，文本为 /code 表情码）：插入源码，不发送图片
+  const codeText = (text || '').trim();
+  if (codeText && /^\/[\p{L}\p{N}_]+$/u.test(codeText) && QUANCODE.has(codeText.toLowerCase())) {
+    e.preventDefault();
+    insertPastedText(codeText);
+    return;
+  }
+  // 普通图片：阻止默认粘贴（避免文字同时被插入），压缩后发送
+  let imgItem = null;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) { imgItem = item; break; }
+  }
+  if (imgItem) {
+    e.preventDefault();
+    const file = imgItem.getAsFile();
+    if (!file) return;
+    sending.value = true;
+    try {
+      const result = await compressImage(file);
+      if (!result) { sending.value = false; return; }
+      addPendingFile(`pasted_${Date.now()}.png`, result.size, result.data, 'image/jpeg');
+    } catch {
+      errorMessage.value = '粘贴图片发送失败';
+    }
+    sending.value = false;
+    return;
+  }
+  // 无图片：阻止默认富文本粘贴，仅插入纯文本
+  e.preventDefault();
+  if (!text) return;
+  insertPastedText(text);
+}
+
+// 在光标处插入纯文本（contenteditable 重渲染）
+function insertPastedText(text) {
+  const caret = getCaretSerializedOffset();
+  const before = inputText.value.slice(0, caret);
+  const after = inputText.value.slice(caret);
+  inputText.value = before + text + after;
+  renderEditor(inputText.value, caret + text.length);
+  onInputChange();
 }
 
 // --- Markdown 预览（全量渲染 + 块内插值定位，同步滚动） ---
 function renderMdPreview() {
-  return renderMarkdown(inputText.value);
+  return renderMarkdownPreview(inputText.value);
 }
 
 const inputPreviewRef = ref(null);

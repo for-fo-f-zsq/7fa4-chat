@@ -120,7 +120,7 @@ const nameInputRef = ref(null)
 onMounted(async () => {
   try {
     const setting = await window.api.loadSetting()
-    apiUrl.value = (setting.apiUrl || 'http://jx.7fa4.cn') + ':8888'
+    apiUrl.value = ((setting.apiUrl || 'https://jx.7fa4.cn').replace(/^http:\/\//, 'https://')) + ':8888'
   } catch (err) {
     console.error('获取设置失败:', err)
   }

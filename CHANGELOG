@@ -1,3 +1,12 @@
+<h2>3.4.0</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>未登录可直接进入主界面浏览，聊天与收藏需登录后使用</li>
+  <li><span class="change-tag new">新功能</span>左下角新增用户头像入口，可查看个人信息、重新登录与退出登录</li>
+  <li><span class="change-tag new">新功能</span>网络异常时顶部显示未连接提示，支持一键重新登录</li>
+  <li><span class="change-tag improve">优化</span>粘贴内容自动过滤样式，表情粘贴为源码形式</li>
+  <li><span class="change-tag improve">优化</span>服务端全面升级为 HTTPS 加密访问</li>
+  <li><span class="change-tag fix">修复</span>修复表情在行中不渲染的问题</li>
+</ul>
 <h2>3.3.4</h2>
 <ul>
   <li><span class="change-tag fix">修复</span>修复计算器模运算下除法计算不一致的问题</li>

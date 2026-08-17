@@ -320,3 +320,28 @@ body::after {
 body, .box, .input, .btn {
     transition: background-color 0.45s ease, border-color 0.4s ease, color 0.35s ease, box-shadow 0.4s ease;
 }
+
+/* 登录框左上角返回按钮（游客模式返回主界面） */
+.btn-guest {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    font-size: var(--font-size-small);
+    color: var(--text-secondary);
+    background: transparent;
+    border: 1px solid var(--border-light);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 2;
+}
+.btn-guest:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-light);
+}
+.btn-guest i { font-size: 12px; }

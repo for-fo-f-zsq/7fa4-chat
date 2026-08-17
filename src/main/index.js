@@ -35,7 +35,7 @@ let serverInstance = null;
 let minimizeToTray = true;
 let forceClose = false;   // 数据已落盘，允许真正关闭
 let flushPending = false; // 正在等待渲染进程 flush 确认
-let currentApiUrl = 'http://jx.7fa4.cn';
+let currentApiUrl = 'https://jx.7fa4.cn';
 let userStore = null; // SQLite 用户数据存储（whenReady 初始化）
 
 function startServer() {
@@ -285,7 +285,14 @@ if (!gotTheLock) {
                 await saveSettingToFile(setting);
             }
             if (setting.minimizeToTray !== undefined) minimizeToTray = setting.minimizeToTray;
-            if (setting.apiUrl) currentApiUrl = setting.apiUrl.replace(/\/$/, '');
+            if (setting.apiUrl) {
+                currentApiUrl = setting.apiUrl.replace(/^http:\/\//, 'https://').replace(/\/$/, '');
+                // 旧设置存的 http 地址升级为 https 并写回，保证渲染进程读到一致值
+                if (currentApiUrl !== setting.apiUrl) {
+                    setting.apiUrl = currentApiUrl;
+                    await saveSettingToFile(setting);
+                }
+            }
             // 与设置面板默认值保持一致（面板默认勾选开启）
             autoUpdateEnabled = setting.autoUpdate !== false;
             startServer();
@@ -386,7 +393,7 @@ ipcMain.handle('save-setting', async (event, data) => {
         minimizeToTray = data.minimizeToTray;
     }
     if (data.apiUrl !== undefined && data.apiUrl !== oldApiUrl) {
-        currentApiUrl = data.apiUrl.replace(/\/$/, '');
+        currentApiUrl = data.apiUrl.replace(/^http:\/\//, 'https://').replace(/\/$/, '');
         stopServer();
         startServer();
         // API 网址变了，刷新自动更新源并立即重新检查
@@ -944,7 +951,8 @@ ipcMain.handle('fetch-changelog', async () => {
     try {
         const changelogUrl = `${currentApiUrl}:9080/api/v4/projects/886/packages/generic/7FA4-Chat/latest/CHANGELOG`;
         const html = await new Promise((resolve, reject) => {
-            http.get(changelogUrl, { timeout: 10000 }, res => {
+            const reqMod = changelogUrl.startsWith('https:') ? https : http;
+            reqMod.get(changelogUrl, { timeout: 10000 }, res => {
                 if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
                     const redirectUrl = new URL(res.headers.location);
                     const reqMod = redirectUrl.protocol === 'https:' ? https : http;

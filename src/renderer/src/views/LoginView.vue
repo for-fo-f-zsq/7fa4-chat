@@ -12,6 +12,7 @@
     </div>
     <div class="container">
     <div class="box">
+      <button class="btn-guest" title="返回主界面（游客模式）" @click="emit('guest')"><i class="fas fa-arrow-left"></i> 返回</button>
       <div class="logo">
         <div class="logo-icon">
           <img src="../../icon/icon.ico" style="width:100%">
@@ -37,8 +38,8 @@
         <label class="api-url-label">API网址</label>
         <div class="api-url-row">
           <select class="api-url-dropdown" v-model="apiUrl">
-            <option value="http://jx.7fa4.cn">jx.7fa4.cn</option>
-            <option value="http://in.7fa4.cn">in.7fa4.cn</option>
+            <option value="https://jx.7fa4.cn">jx.7fa4.cn</option>
+            <option value="https://in.7fa4.cn">in.7fa4.cn</option>
           </select>
           <button class="api-settings-btn" title="打开服务端设置" @click="openApiSettings">
             <i class="fas fa-external-link-alt"></i>
@@ -63,12 +64,12 @@ import '../../css/font-awesome/css/all.min.css';
 
 const { isMaximized, windowMinimize, windowMaximize, windowClose } = useWindowControls()
 
-const emit = defineEmits(['login']);
+const emit = defineEmits(['login', 'guest']);
 
 const username = ref('');
 const password = ref('');
 const remember = ref(false);
-const apiUrl = ref('http://jx.7fa4.cn');
+const apiUrl = ref('https://jx.7fa4.cn');
 const error = ref('');
 const loading = ref(false);
 
@@ -138,7 +139,7 @@ onMounted(async () => {
     if (setting.theme && setting.theme !== 'default') {
       document.documentElement.classList.add(`theme-${setting.theme}`);
     }
-    if (setting.apiUrl) apiUrl.value = setting.apiUrl;
+    if (setting.apiUrl) apiUrl.value = setting.apiUrl.replace(/^http:\/\//, 'https://');
     // 旧版本存的是 md5 哈希（32 位十六进制），新版本改存明文，升级后清空、不自动填充
     if (setting.loginPassword && /^[a-f0-9]{32}$/i.test(setting.loginPassword)) {
       setting.keepLogin = false;

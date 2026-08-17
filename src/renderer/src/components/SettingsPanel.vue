@@ -4,15 +4,6 @@
       <h2>设置</h2>
     </div>
     <div class="settings-card">
-      <div class="info-grid">
-        <div class="info-row"><span class="info-label">UID</span><span class="info-value">{{ self.uid }}</span></div>
-        <div class="info-row" v-if="self.username"><span class="info-label">用户名</span><span class="info-value">{{ self.username }}</span></div>
-        <div class="info-row" v-if="self.nickname"><span class="info-label">昵称</span><span class="info-value">{{ self.nickname }}</span></div>
-        <div class="info-row" v-if="self.realname"><span class="info-label">真名</span><span class="info-value">{{ self.realname }}</span></div>
-        <div class="info-row" v-if="self.school"><span class="info-label">学校</span><span class="info-value">{{ self.school }}</span></div>
-        <div class="info-row" v-if="self.seat"><span class="info-label">座位</span><span class="info-value">{{ self.seat }}</span></div>
-      </div>
-      <div class="settings-divider"></div>
       <div class="options-grid">
         <div class="options-col">
           <div class="option-row">
@@ -20,7 +11,7 @@
             <div class="custom-select" :class="{ open: apiUrlOpen }" @click="apiUrlOpen = !apiUrlOpen" v-click-outside="() => apiUrlOpen = false">
               <div class="custom-select-trigger"><span>{{ apiUrlLabel }}</span><i class="fas fa-chevron-down custom-select-arrow"></i></div>
               <div class="custom-select-dropdown" v-if="apiUrlOpen">
-                <div class="custom-select-option" v-for="o in apiUrlOptions" :key="o.value" :class="{ active: (setting.apiUrl || 'http://jx.7fa4.cn') === o.value }" @click.stop="selectApiUrl(o.value)">
+                <div class="custom-select-option" v-for="o in apiUrlOptions" :key="o.value" :class="{ active: (setting.apiUrl || 'https://jx.7fa4.cn').replace(/^http:\/\//, 'https://') === o.value }" @click.stop="selectApiUrl(o.value)">
                   <span class="cs-dot" :style="{ background: o.color }"></span><span>{{ o.label }}</span>
                 </div>
               </div>
@@ -97,7 +88,6 @@
         <div class="shortcut-entry-right"><span class="shortcut-entry-hint">{{ formatSize(cacheSize) }} · 点击清理</span><i class="fas fa-trash theme-row-arrow"></i></div>
       </div>
     </div>
-    <button class="logout-btn" @click="$emit('logout')"><i class="fas fa-sign-out-alt"></i> 退出登录</button>
   </div>
 </template>
 
@@ -124,8 +114,8 @@ const cacheSize = ref(null)
 const themes = THEMES
 
 const apiUrlOptions = [
-  { value: 'http://jx.7fa4.cn', label: 'jx.7fa4.cn', color: '#E67E22' },
-  { value: 'http://in.7fa4.cn', label: 'in.7fa4.cn', color: '#12B7F5' }
+  { value: 'https://jx.7fa4.cn', label: 'jx.7fa4.cn', color: '#E67E22' },
+  { value: 'https://in.7fa4.cn', label: 'in.7fa4.cn', color: '#12B7F5' }
 ]
 
 const currentTheme = computed(() => props.setting?.theme || 'default')
@@ -138,7 +128,7 @@ const currentThemeColor = computed(() => {
   return themes.find(t => t.value === currentTheme.value)?.color || '#3C8CE7'
 })
 const apiUrlLabel = computed(() => {
-  const v = props.setting?.apiUrl || 'http://jx.7fa4.cn'
+  const v = (props.setting?.apiUrl || 'https://jx.7fa4.cn').replace(/^http:\/\//, 'https://')
   return apiUrlOptions.find(o => o.value === v)?.label || v
 })
 
