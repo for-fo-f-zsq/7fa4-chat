@@ -192,38 +192,19 @@ function escHtmlForEditor(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// 把序列化文本渲染为 DOM（/code → img，\n → br）
-// /code 匹配连续的字母/数字/下划线段；若整体未命中 QUANCODE 则逐字缩短重试，
-// 避免"你好/微笑世界"把后续文字误吞进 code 导致不渲染
+// 把序列化文本渲染为 DOM（#1：输入框不渲染表情，纯文本显示 /code，\n → br）
+// 表情渲染仅发生在"发送后/预览"（见 utils.renderMarkdown / renderMarkdownPreview）
 function renderSerializedToHtml(text) {
   let html = '';
-  const re = /(\/[\p{L}\p{N}_]+)|(\n)/gu;
+  const re = /(\n)/g;
   let last = 0; let m;
   while ((m = re.exec(text))) {
     if (m.index > last) html += escHtmlForEditor(text.slice(last, m.index));
-    if (m[1]) {
-      html += resolveCodeToken(m[1]);
-    } else if (m[2]) {
-      html += '<br>';
-    }
+    html += '<br>';
     last = re.lastIndex;
   }
   if (last < text.length) html += escHtmlForEditor(text.slice(last));
   return html;
-}
-
-// 解析 /code token：整体命中则渲染表情；未命中则从末尾逐字缩短重试（剩余部分按原文输出）
-function resolveCodeToken(token) {
-  let cur = token;
-  while (cur.length > 1) {
-    const face = QUANCODE.get(cur.toLowerCase());
-    if (face) {
-      const rest = token.slice(cur.length);
-      return `<img class="qqface" data-code="${cur}" src="${qqfaceUrl(face.file)}" alt="${escHtmlForEditor(cur)}">` + (rest ? escHtmlForEditor(rest) : '');
-    }
-    cur = cur.slice(0, -1);
-  }
-  return escHtmlForEditor(token);
 }
 
 function renderEditor(text, caretOffset) {
@@ -266,40 +247,6 @@ function domPosFromSerializedOffset(offset) {
   };
   walk(el);
   return result;
-}
-
-// 实时把光标前的 /code 文本替换为 img（不打断中文 IME 组合）
-function replaceShortcutAtCaret() {
-  const caret = getCaretSerializedOffset();
-  const before = inputText.value.slice(0, caret);
-  // 光标前最后一段 /xxx（到空格/斜杠为止），整体命中 QUANCODE 才替换
-  const m = before.match(/\/([\p{L}\p{N}_]+)$/u);
-  if (!m) return;
-  const token = m[0];
-  const face = QUANCODE.get(token.toLowerCase());
-  if (!face) return;
-  const el = inputEl.value;
-  const sel = window.getSelection();
-  if (!sel || !sel.rangeCount) return;
-  const range = sel.getRangeAt(0);
-  const startPos = domPosFromSerializedOffset(caret - token.length);
-  if (!startPos) return;
-  const startRange = document.createRange();
-  startRange.setStart(startPos.node, startPos.offset);
-  startRange.setEnd(range.endContainer, range.endOffset);
-  startRange.deleteContents();
-  const img = document.createElement('img');
-  img.className = 'qqface';
-  img.dataset.code = token;
-  img.src = qqfaceUrl(face.file);
-  img.alt = token;
-  startRange.insertNode(img);
-  const nr = document.createRange();
-  nr.setStartAfter(img);
-  nr.collapse(true);
-  sel.removeAllRanges();
-  sel.addRange(nr);
-  inputText.value = serializeEditor();
 }
 
 const sending = ref(false);
@@ -852,6 +799,29 @@ function autoResizeTextarea() {
   if (!el) return;
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+  // #13 编译器式滚动：光标跟随——内容超高出现滚动条后，确保光标始终可见
+  scrollCaretIntoView(el);
+}
+
+// 把输入框滚动到光标处（编译器式光标跟随）
+function scrollCaretIntoView(el) {
+  if (!el) return;
+  // 仅当有滚动溢出时才调整（无/低内容时不必要）
+  if (el.scrollHeight <= el.clientHeight + 1) return;
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  if (!el.contains(range.endContainer)) return;
+  const rect = range.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  const relTop = rect.top - elRect.top;
+  const relBottom = rect.bottom - elRect.top;
+  // 光标在可视区外时滚动到可见（保留 8px 边距）
+  if (relTop < el.scrollTop + 8) {
+    el.scrollTop = relTop - 8;
+  } else if (relBottom > el.scrollTop + el.clientHeight - 8) {
+    el.scrollTop = relBottom - el.clientHeight + 8;
+  }
 }
 
 function onInputChange(e) {
@@ -868,8 +838,7 @@ function onInputChange(e) {
   } else {
     mentionVisible.value = false;
   }
-  // 实时快捷码替换（IME 组合态时跳过，避免打断中文输入）
-  if (!e || !e.isComposing) replaceShortcutAtCaret();
+  // #1 输入框不实时渲染表情：发送/预览时才由 markdown 渲染
 }
 
 function onCompositionEnd() {

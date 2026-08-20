@@ -35,6 +35,7 @@ let serverInstance = null;
 let minimizeToTray = true;
 let forceClose = false;   // 数据已落盘，允许真正关闭
 let flushPending = false; // 正在等待渲染进程 flush 确认
+let pendingRestart = false; // 托盘"重启"：flush 完成后 relaunch
 let currentApiUrl = 'https://jx.7fa4.cn';
 let userStore = null; // SQLite 用户数据存储（whenReady 初始化）
 
@@ -183,6 +184,12 @@ function createWindow() {
                     if (!forceClose) {
                         forceClose = true;
                         flushPending = false;
+                        if (pendingRestart) {
+                            pendingRestart = false;
+                            app.relaunch();
+                            app.exit(0);
+                            return;
+                        }
                         if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
                     }
                 }, 2000);
@@ -230,6 +237,13 @@ function createTray() {
     tray = new Tray(icon);
     const contextMenu = Menu.buildFromTemplate([
         { label: '显示窗口', click: () => { mainWindow.show(); mainWindow.focus(); } },
+        { label: '重启', click: () => {
+            // 完整落盘后重启：设标记 + close（触发 flush 拦截），app-flush-done 时 relaunch
+            pendingRestart = true;
+            app.isQuitting = true;
+            if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+            else { pendingRestart = false; app.relaunch(); app.exit(0); }
+        }},
         { label: '退出', click: () => {
             app.isQuitting = true;
             // 先触发 close：让渲染层 flush 节流数据（convo/prefs）落盘后再真正退出，
@@ -685,6 +699,13 @@ function storeReady() {
 ipcMain.on('app-flush-done', () => {
     forceClose = true;
     flushPending = false;
+    if (pendingRestart) {
+        // 重启：flush 已落盘 → 安排新实例并结束当前进程
+        pendingRestart = false;
+        app.relaunch();
+        app.exit(0);
+        return;
+    }
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
 });
 
@@ -957,14 +978,14 @@ ipcMain.handle('fetch-changelog', async () => {
                     const redirectUrl = new URL(res.headers.location);
                     const reqMod = redirectUrl.protocol === 'https:' ? https : http;
                     reqMod.get(res.headers.location, { timeout: 10000 }, r => {
-                        let data = '';
-                        r.on('data', chunk => data += chunk);
-                        r.on('end', () => resolve(data));
+                        const chunks = [];
+                        r.on('data', chunk => chunks.push(chunk));
+                        r.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
                     }).on('error', reject);
                 } else {
-                    let data = '';
-                    res.on('data', chunk => data += chunk);
-                    res.on('end', () => resolve(data));
+                    const chunks = [];
+                    res.on('data', chunk => chunks.push(chunk));
+                    res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
                 }
             }).on('error', reject);
         });
@@ -978,6 +999,47 @@ ipcMain.handle('fetch-changelog', async () => {
 });
 
 // ========== 新增功能 IPC ==========
+
+// 通用：向官网 website-api 发起 HTTPS 请求（feedback/sponsors）
+function httpsApiJson(path, method = 'GET', bodyObj) {
+  return new Promise((resolve) => {
+    const url = new URL('https://chat.forfof.cloud' + path);
+    const body = bodyObj ? JSON.stringify(bodyObj) : null;
+    const headers = { 'Accept': 'application/json' };
+    if (body) { headers['Content-Type'] = 'application/json'; headers['Content-Length'] = Buffer.byteLength(body); }
+    const req = https.request(url, { method, timeout: 10000, headers }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => {
+        let data = null;
+        try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch {}
+        resolve({ status: res.statusCode, data });
+      });
+    });
+    req.on('error', (e) => resolve({ status: 0, data: null, error: e.message || '网络错误' }));
+    req.on('timeout', () => { req.destroy(new Error('timeout')); });
+    if (body) req.write(body);
+    req.end();
+  });
+}
+
+// #6 提交反馈
+ipcMain.handle('send-feedback', async (event, { content, user, uid } = {}) => {
+    const r = await httpsApiJson('/api/feedback', 'POST', { content: String(content || ''), user: String(user || ''), uid: Number(uid) || 0 });
+    if (r.status >= 200 && r.status < 300 && r.data && r.data.ok) {
+        return { success: true, id: r.data.id };
+    }
+    return { success: false, error: (r.data && r.data.error) || (r.error) || ('HTTP ' + r.status) };
+});
+
+// #18 赞助列表
+ipcMain.handle('fetch-sponsors', async () => {
+    const r = await httpsApiJson('/api/sponsors', 'GET');
+    if (r.status >= 200 && r.status < 300 && r.data && Array.isArray(r.data.list)) {
+        return { success: true, list: r.data.list };
+    }
+    return { success: false, list: [], error: (r.data && r.data.error) || r.error || ('HTTP ' + r.status) };
+});
 
 // 任务栏图标未读数
 ipcMain.handle('set-badge-count', (event, count) => {

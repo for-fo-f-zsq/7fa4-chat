@@ -53,6 +53,16 @@ async function closeAnnouncement() {
   try { localStorage.setItem(SEEN_VERSION_KEY, await window.api.getVersion()) } catch {}
 }
 checkAnnouncement()
+// 头像菜单"版本公告"入口：全局事件触发显示公告
+window.addEventListener('open-announcement', () => { showAnnouncement.value = true })
+
+// #2 登录持久化：localStorage 有登录标记 → 直接进入已登录主界面（重启/reload 不退出登录）
+try {
+  if (localStorage.getItem('7fa4_logined') === '1') {
+    store.guestMode = false;
+    store.logined = true;
+  }
+} catch {}
 
 // 游客模式：未登录直接进入主界面（聊天/收藏不可用，工具/设置/关于可浏览）
 function onGuest() {

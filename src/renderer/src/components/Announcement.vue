@@ -7,19 +7,21 @@
           <img src="/icon.png" alt="7FA4 Chat" class="announcement-logo-img" />
         </div>
         <p class="announcement-sub">全新版本发布</p>
-        <h1>V3.4.0</h1>
+        <h1>V3.4.1</h1>
         <div class="announcement-decor"></div>
       </div>
       <!-- 页 2：本次更新 -->
       <div v-else-if="page === 1" class="announcement-page">
         <h2><i class="fas fa-star"></i> 本次更新</h2>
         <ul class="announcement-list">
-          <li>未登录也可直接进入主界面浏览，登录后可正常使用聊天与收藏</li>
-          <li>左下角新增用户头像，可查看个人信息、重新登录与退出登录</li>
-          <li>网络异常时顶部显示未连接提示，并可一键重新登录</li>
-          <li>粘贴内容自动过滤样式，表情粘贴为源码形式</li>
-          <li>修复表情在行中不渲染的问题</li>
-          <li>服务端全面升级为 HTTPS 加密访问</li>
+          <li>头像菜单重构：个人信息、收藏、设置、关于、版本公告、意见反馈统一收纳</li>
+          <li>登录状态本地持久化，重启应用不退出；重新登录保留密码</li>
+          <li>新增意见反馈功能，应用内直接提交建议与 Bug</li>
+          <li>关于页与公告新增赞助者表格</li>
+          <li>图片编辑新增就地文字工具，所见即所得</li>
+          <li>Markdown 编辑器新增富文本工具栏</li>
+          <li>表情渲染重构，输入框不再提前渲染</li>
+          <li>消息拉取策略优化，历史消息获取更完整</li>
         </ul>
       </div>
       <!-- 页 3：更新日志 -->
@@ -38,6 +40,20 @@
         <p>由 for_fo_f 独立开发维护，你的每一份赞赏都是持续更新的动力</p>
         <img :src="DONATE_URL" alt="赞赏码" class="announcement-donate" @click="donateZoom = true" />
         <p class="announcement-donate-tip">点击二维码可放大</p>
+        <!-- #18 赞助者列表（表格） -->
+        <div class="announcement-sponsors" v-if="sponsorList.length">
+          <div class="announcement-sponsor-title">感谢以下赞助者</div>
+          <table class="announcement-sponsor-table">
+            <thead><tr><th>#</th><th>昵称</th><th>金额</th></tr></thead>
+            <tbody>
+              <tr v-for="(sp, idx) in sponsorList" :key="sp.name">
+                <td class="idx">{{ idx + 1 }}</td>
+                <td>{{ sp.name }}</td>
+                <td class="amt">{{ sp.amount }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <p class="announcement-sign">for_fo_f</p>
       </div>
       <div class="announcement-nav">
@@ -66,6 +82,15 @@ const donateZoom = ref(false)
 const changelogLoading = ref(false)
 const changelogError = ref('')
 const changelogHtml = ref('')
+// #18 赞助者
+const sponsorList = ref([])
+async function loadSponsors() {
+  try {
+    const r = await window.api.fetchSponsors()
+    if (r && r.success && Array.isArray(r.list)) sponsorList.value = r.list
+  } catch {}
+}
+loadSponsors()
 
 // 进入第 3 页时加载官方更新日志
 watch(page, (p) => {

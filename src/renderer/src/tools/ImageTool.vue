@@ -10,9 +10,9 @@
       <div class="md-workspace-bar">
         <i class="fas fa-image"></i>
         <span class="md-workspace-path" :title="currentName || '未打开图片'">{{ currentName || '未打开图片' }}</span>
-        <button class="md-ws-btn" title="打开图片" @click="openImage"><i class="fas fa-folder-open"></i> 打开图片</button>
-        <button class="md-ws-btn" title="新建空白画布" @click="newCanvas"><i class="fas fa-square-plus"></i> 新建画布</button>
-        <button class="md-ws-btn" title="保存到文件" :disabled="!canvasReady || saving" @click="save"><i class="fas fa-save"></i> 保存</button>
+        <button class="md-ws-btn md-ws-btn-icon" title="打开图片" @click="openImage"><i class="fas fa-folder-open"></i></button>
+        <button class="md-ws-btn md-ws-btn-icon" title="新建空白画布" @click="newCanvas"><i class="fas fa-plus-square"></i></button>
+        <button class="md-ws-btn md-ws-btn-icon" title="保存到文件" :disabled="!canvasReady || saving" @click="save"><i class="fas fa-save"></i></button>
       </div>
     </div>
 
@@ -74,10 +74,27 @@
           <div v-if="loadError" class="img-overlay img-overlay-error">
             <i class="fas fa-exclamation-triangle"></i> {{ loadError }}
           </div>
+          <!-- #8 就地文字编辑（contenteditable，所见即所得；点击处为 editor 左上角） -->
+          <div v-if="textDraft" class="img-text-overlay" :style="{ left: textBoxLeft + 'px', top: textBoxTop + 'px' }" @mousedown.stop @pointerdown.stop @click.stop>
+            <div class="img-text-toolbar">
+              <input type="number" v-model.number="fontSize" min="10" max="200" step="1" title="字号">
+              <label title="颜色"><input type="color" v-model="color"></label>
+              <button class="img-text-ok" title="确认应用" @click="commitText"><i class="fas fa-check"></i></button>
+              <button class="img-text-cancel" title="取消" @click="cancelText"><i class="fas fa-times"></i></button>
+            </div>
+            <div
+              ref="textRef"
+              class="img-text-editor"
+              contenteditable="true"
+              :style="{ fontSize: fontSize + 'px', color, minWidth: '120px', minHeight: '36px' }"
+              @input="onTextInput"
+              @keydown.stop
+            ></div>
+          </div>
         </div>
         <div class="img-footer">
           <span class="img-meta">{{ currentName || '未命名' }} · {{ width }} × {{ height }}px{{ mime === 'image/jpeg' ? ' · JPEG' : mime === 'image/png' ? '' : ' · 保存时将转为 PNG' }}</span>
-          <button class="md-save-btn" :disabled="!dirty || !!loadError" @click="save"><i class="fas fa-save"></i> 保存</button>
+          <button class="md-save-btn md-save-btn-icon" :title="'保存到文件'" :disabled="!dirty || !!loadError" @click="save"><i class="fas fa-save"></i></button>
         </div>
       </div>
     </div>
@@ -103,7 +120,8 @@ const tools = [
   { id: 'eraser', title: '橡皮（只擦除本次绘制）', icon: 'fas fa-eraser' },
   { id: 'line', title: '直线', icon: 'fas fa-minus' },
   { id: 'rect', title: '矩形', icon: 'fas fa-square' },
-  { id: 'ellipse', title: '椭圆', icon: 'fas fa-circle' }
+  { id: 'ellipse', title: '椭圆', icon: 'fas fa-circle' },
+  { id: 'text', title: '文字（点击画布后输入）', icon: 'fas fa-font' }
 ]
 
 const MAX_EDIT_PIXELS = 20 * 1024 * 1024
@@ -111,6 +129,7 @@ const MAX_EDIT_SIDE = 20000
 
 const canvasEl = ref(null)
 const wrapEl = ref(null)
+const textRef = ref(null)
 const tool = ref('brush')
 const color = ref('#ff0000')
 const size = ref(4)
@@ -118,6 +137,17 @@ const loading = ref(false)
 const loadError = ref('')
 const dirty = ref(false)
 const canUndo = ref(false)
+// #8 文字工具：就地富文本（contenteditable，所见即所得）
+const textDraft = ref(false)
+const textPos = ref({ x: 0, y: 0 })
+const textBoxLeft = ref(0)
+const textBoxTop = ref(0)
+const fontSize = ref(24)
+// 文字对象模型（可移动、可再编辑）
+const textObjects = ref([]) // [{id,x,y,md,fontSize,color}]
+const selectedTextId = ref(null)
+const movingTextId = ref(null)
+let textSeq = 0
 const width = ref(0)
 const height = ref(0)
 const resizeW = ref(0)
@@ -161,6 +191,7 @@ let baseCanvas = null
 let editCanvas = null
 let editCtx = null
 const undoStack = []
+const undoTextStack = []
 let undoDepth = 10
 let drawing = false
 let startPos = { x: 0, y: 0 }
@@ -171,6 +202,22 @@ function getPos(e) {
   return {
     x: (e.clientX - rect.left) * (displayCanvas.width / rect.width),
     y: (e.clientY - rect.top) * (displayCanvas.height / rect.height)
+  }
+}
+
+// 画布相对 wrapEl 的水平居中偏移（canvas margin:0 auto，当 wrap 更宽时产生左侧空隙）
+function canvasOffsetX() {
+  const wrap = wrapEl.value
+  if (!wrap || !displayCanvas) return 0
+  const off = (wrap.clientWidth - displayCanvas.width * zoomScale.value) / 2
+  return off > 0 ? off : 0
+}
+
+// 把物理坐标转成编辑框相对 wrapEl 的 CSS 左上角（含居中偏移 + 缩放）
+function textBoxPos(phys) {
+  return {
+    left: canvasOffsetX() + phys.x * zoomScale.value,
+    top: phys.y * zoomScale.value
   }
 }
 
@@ -205,11 +252,13 @@ function render() {
   displayCtx.clearRect(0, 0, displayCanvas.width, displayCanvas.height)
   displayCtx.drawImage(baseCanvas, 0, 0)
   displayCtx.drawImage(editCanvas, 0, 0)
+  renderTextObjects(displayCtx)
 }
 
 function pushUndo() {
   undoStack.push(editCtx.getImageData(0, 0, editCanvas.width, editCanvas.height))
-  if (undoStack.length > undoDepth) undoStack.shift()
+  undoTextStack.push(JSON.parse(JSON.stringify(textObjects.value)))
+  if (undoStack.length > undoDepth) { undoStack.shift(); undoTextStack.shift(); }
   canUndo.value = undoStack.length > 0
 }
 
@@ -234,9 +283,30 @@ function drawShape(p0, p1) {
 function onPointerDown(e) {
   if (loading.value || loadError.value || !canvasReady.value) return
   e.preventDefault()
+  const pos = getPos(e)
+  // #8 文字工具：点击命中已有文字则选中+移动，空白处新建
+  if (tool.value === 'text') {
+    const hit = hitText(pos)
+    if (hit) {
+      selectedTextId.value = hit.id
+      movingTextId.value = hit.id
+      textDraft.value = false
+    } else {
+      selectedTextId.value = null
+      textPos.value = pos
+      // 就地编辑框以鼠标点击为左上角；CSS 定位 = 居中偏移 + 物理坐标×zoom
+      const tp = textBoxPos(pos)
+      textBoxLeft.value = tp.left
+      textBoxTop.value = tp.top
+      fontSize.value = 24
+      textDraft.value = true // 先渲染编辑框
+      nextTick(() => { if (textRef.value) { textRef.value.innerHTML = ''; textRef.value.focus() } }) // 再自动聚焦，点一下就开打
+    }
+    return
+  }
   displayCanvas.setPointerCapture(e.pointerId)
   drawing = true
-  startPos = getPos(e)
+  startPos = pos
   lastPos = startPos
   pushUndo()
   dirty.value = true
@@ -252,6 +322,19 @@ function onPointerDown(e) {
 }
 
 function onPointerMove(e) {
+  // #8 文字对象拖动
+  if (tool.value === 'text' && movingTextId.value != null && !textDraft.value) {
+    e.preventDefault()
+    const pos = getPos(e)
+    const obj = textObjects.value.find((o) => o.id === movingTextId.value)
+    if (obj) {
+      obj.x = Math.max(0, pos.x)
+      obj.y = Math.max(0, pos.y)
+      dirty.value = true
+      render()
+    }
+    return
+  }
   if (!drawing) return
   e.preventDefault()
   const pos = getPos(e)
@@ -268,10 +351,165 @@ function onPointerMove(e) {
 }
 
 function onPointerUp(e) {
+  // #8 结束文字拖动
+  if (tool.value === 'text' && movingTextId.value != null) {
+    movingTextId.value = null
+    // 双击选中文字 → 打开编辑框
+    const now = Date.now()
+    if (selectedTextId.value != null && now - (lastTextClick || 0) < 400) {
+      const obj = textObjects.value.find((o) => o.id === selectedTextId.value)
+      if (obj && !textDraft.value) {
+        fontSize.value = obj.fontSize || 24
+        color.value = obj.color || '#ff0000'
+        textPos.value = { x: obj.x, y: obj.y }
+        const tp = textBoxPos({ x: obj.x, y: obj.y })
+        textBoxLeft.value = tp.left
+        textBoxTop.value = tp.top
+        textDraft.value = true
+        nextTick(() => { if (textRef.value) { textRef.value.innerHTML = (obj.md || '').split('\n').map(l => l ? l : '<br>').join('<br>'); textRef.value.focus() } })
+      }
+    }
+    lastTextClick = now
+    return
+  }
   if (!drawing) return
   drawing = false
   editCtx.globalCompositeOperation = 'source-over'
   try { displayCanvas.releasePointerCapture(e.pointerId) } catch {}
+}
+let lastTextClick = 0
+
+// #8 命中检测：点击位置是否落在某个文字对象内
+function hitText(pos) {
+  for (let i = textObjects.value.length - 1; i >= 0; i--) {
+    const obj = textObjects.value[i]
+    const { w, h } = measureText(obj)
+    if (pos.x >= obj.x && pos.x <= obj.x + w && pos.y >= obj.y && pos.y <= obj.y + h) {
+      return obj
+    }
+  }
+  return null
+}
+
+// 读取 contenteditable 编辑器为纯文本（换行由 <br>/<div><br> 还原）
+function readEditorText() {
+  const el = textRef.value
+  if (!el) return ''
+  // 简化为按 <br> 与块级还原换行
+  let html = el.innerHTML
+  html = html.replace(/<br\s*\/?>/gi, '\n')
+  html = html.replace(/<\/div>/gi, '\n').replace(/<\/p>/gi, '\n')
+  html = html.replace(/<[^>]+>/g, '')
+  return html.replace(/&nbsp;/g, ' ')
+}
+
+function onTextInput() {
+  // 就地富文本只做内联样式，不做内容过滤；空则不处理
+}
+
+function cancelText() {
+  textDraft.value = false
+  if (selectedTextId.value != null && !textObjects.value.some(o => o.id === selectedTextId.value)) selectedTextId.value = null
+}
+
+// #8 文字工具：确认创建/更新文字对象（从就地编辑器取纯文本）
+function commitText() {
+  const t = readEditorText()
+  if (!t.trim()) { textDraft.value = false; return }
+  pushUndo() // 记录文字快照（可撤销）
+  if (selectedTextId.value != null) {
+    // 更新已有对象
+    const obj = textObjects.value.find((o) => o.id === selectedTextId.value)
+    if (obj) { obj.md = t; obj.fontSize = fontSize.value; obj.color = color.value }
+  } else {
+    // 新建对象
+    textObjects.value.push({
+      id: ++textSeq,
+      x: textPos.value.x,
+      y: textPos.value.y,
+      md: t,
+      fontSize: fontSize.value,
+      color: color.value,
+    })
+  }
+  dirty.value = true
+  render()
+  textDraft.value = false
+}
+
+// 计算文字对象渲染尺寸（供点选命中与移动用）
+function measureText(obj) {
+  const fs = obj.fontSize || 24
+  const ctx = editCtx || displayCtx
+  const lines = (obj.md || '').split('\n')
+  let w = 0
+  lines.forEach((l) => {
+    const plain = l.replace(/\*\*/g, '').replace(/^#{1,6}\s*/, '').replace(/[*_~`]/g, '')
+    const m = ctx.measureText ? ctx.measureText(plain).width : plain.length * fs
+    if (m > w) w = m
+  })
+  return { w: Math.max(w, 10), h: lines.length * fs * 1.25 }
+}
+
+// 绘制文字对象到指定 ctx（支持简单 markdown：换行、**加粗**、# 标题、斜体、行内代码）
+function renderTextObjects(ctx) {
+  if (!ctx || !textObjects.value.length) return
+  const fontFamily = '"Microsoft YaHei", "PingFang SC", sans-serif'
+  ctx.save()
+  textObjects.value.forEach((obj) => {
+    const fs = obj.fontSize || 24
+    const x = obj.x
+    let y = obj.y
+    const lines = (obj.md || '').split('\n')
+    lines.forEach((line) => {
+      // 解析行内 markdown 段
+      const segments = parseInlineMd(line)
+      let cursor = x
+      segments.forEach((seg) => {
+        ctx.save()
+        ctx.fillStyle = obj.color || '#ff0000'
+        if (seg.bold) ctx.font = `bold ${fs}px ${fontFamily}`
+        else if (seg.italic) ctx.font = `italic ${fs}px ${fontFamily}`
+        else if (seg.code) ctx.font = `${fs * 0.9}px "Consolas", monospace`
+        else ctx.font = `${fs}px ${fontFamily}`
+        ctx.textBaseline = 'top'
+        // 行首免费绘制（后续段累加 x）
+        if (seg.code) {
+          const bg = ctx.measureText(seg.text).width
+          ctx.fillStyle = obj.color || '#ff0000'
+          ctx.globalAlpha = 0.12
+          ctx.fillRect(cursor, y, bg + 8, fs * 1.2)
+          ctx.globalAlpha = 1
+          ctx.fillStyle = obj.color || '#ff0000'
+          ctx.fillText(seg.text, cursor + 4, y + 2)
+        } else {
+          ctx.fillText(seg.text, cursor, y)
+        }
+        cursor += ctx.measureText(seg.text).width
+        ctx.restore()
+      })
+      y += fs * 1.25
+    })
+  })
+  ctx.restore()
+}
+
+// 简单 markdown 解析：返回 [{text, bold, italic, code}]
+function parseInlineMd(line) {
+  // 先去除标题前缀
+  let l = line.replace(/^#{1,6}\s*/, '')
+  const segs = []
+  const re = /(\*\*[^*]+\*\*)|(\*[^*]+\*)|(`[^`]+`)/g
+  let last = 0, m
+  while ((m = re.exec(l))) {
+    if (m.index > last) segs.push({ text: l.slice(last, m.index), bold: false, italic: false, code: false })
+    if (m[1]) segs.push({ text: m[1].slice(2, -2), bold: true, italic: false, code: false })
+    else if (m[2]) segs.push({ text: m[2].slice(1, -1), bold: false, italic: true, code: false })
+    else if (m[3]) segs.push({ text: m[3].slice(1, -1), bold: false, italic: false, code: true })
+    last = re.lastIndex
+  }
+  if (last < l.length) segs.push({ text: l.slice(last), bold: false, italic: false, code: false })
+  return segs.length ? segs : [{ text: l, bold: false, italic: false, code: false }]
 }
 
 function onKeydown(e) {
@@ -286,8 +524,11 @@ function onKeydown(e) {
 
 function undo() {
   const snap = undoStack.pop()
+  const snapText = undoTextStack.pop()
   if (!snap) return
   editCtx.putImageData(snap, 0, 0)
+  textObjects.value = snapText || [] // #8 恢复文字对象
+  selectedTextId.value = null
   canUndo.value = undoStack.length > 0
   dirty.value = true
   render()
@@ -300,6 +541,8 @@ function clearCanvas() {
   editCtx.globalCompositeOperation = 'destination-out'
   editCtx.clearRect(0, 0, editCanvas.width, editCanvas.height)
   editCtx.globalCompositeOperation = 'source-over'
+  textObjects.value = [] // #8 清空文字对象
+  selectedTextId.value = null
   dirty.value = true
   render()
 }
@@ -335,6 +578,7 @@ function resizeCanvas() {
   height.value = nh
   // 旧撤销快照尺寸与画布不一致，清空重记（resize 本身不可撤销）
   undoStack.length = 0
+  undoTextStack.length = 0
   canUndo.value = false
   pushUndo()
   dirty.value = true
@@ -397,6 +641,8 @@ function loadImageData(base64Data, imgMime, name, blankW = 0, blankH = 0) {
       const ch = wrap.clientHeight || 600
       zoomScale.value = Math.max(0.1, Math.min(cw / w, ch / h, 1))
     }
+    textObjects.value = [] // #8 新图清空文字对象
+    selectedTextId.value = null
     pushUndo()
     render()
     loading.value = false
@@ -430,6 +676,7 @@ async function save() {
     }
     octx.drawImage(baseCanvas, 0, 0)
     octx.drawImage(editCanvas, 0, 0)
+    renderTextObjects(octx)
     const dataUrl = out.toDataURL(isJpeg ? 'image/jpeg' : 'image/png', isJpeg ? 0.92 : undefined)
     const base64 = dataUrl.split(',')[1]
     const name = (currentName.value || 'image').replace(/\.[^.]+$/, isJpeg ? '.jpg' : '.png')

@@ -1,3 +1,28 @@
+<h2>3.4.1</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>未登录可直接进入主界面，聊天与收藏需登录后使用；登录状态本地持久化，重启不退出</li>
+  <li><span class="change-tag new">新功能</span>左下角头像菜单重构：个人信息、收藏、设置、关于、版本公告、意见反馈统一收纳</li>
+  <li><span class="change-tag new">新功能</span>新增意见反馈功能，可在应用内提交建议与 Bug</li>
+  <li><span class="change-tag new">新功能</span>关于页与公告展示赞助者列表（表格）</li>
+  <li><span class="change-tag new">新功能</span>图片编辑新增就地文字工具（所见即所得、字号颜色可调）</li>
+  <li><span class="change-tag new">新功能</span>Markdown 编辑器新增富文本工具栏（标题、列表、代码块、表格等）</li>
+  <li><span class="change-tag new">新功能</span>计算器质因数分解移除数值上限</li>
+  <li><span class="change-tag new">新功能</span>系统托盘新增"重启"入口</li>
+  <li><span class="change-tag improve">优化</span>重新登录时保留账号密码，仅退出登录时清除</li>
+  <li><span class="change-tag improve">优化</span>一键已读同步清除 @ 提醒</li>
+  <li><span class="change-tag improve">优化</span>输入框滚动改为光标跟随，与编辑器一致</li>
+  <li><span class="change-tag improve">优化</span>表情渲染重构：输入框不渲染、仅在发送与预览渲染，避免误渲染</li>
+  <li><span class="change-tag improve">优化</span>消息拉取策略优化，历史消息获取更完整</li>
+  <li><span class="change-tag improve">优化</span>工具按钮全面图标化，界面更简洁</li>
+  <li><span class="change-tag improve">优化</span>官网支持自动降级到备用服务器，下载链接修复</li>
+  <li><span class="change-tag improve">优化</span>官网文案调整、macOS 下载默认 arm64 架构</li>
+  <li><span class="change-tag improve">优化</span>访问统计上报频率提升至 1 分钟</li>
+  <li><span class="change-tag improve">优化</span>关于页布局优化：更新日志与赞助者分栏展示</li>
+  <li><span class="change-tag improve">优化</span>管理后台用户列表支持滚动浏览</li>
+  <li><span class="change-tag fix">修复</span>修复部分主题下头像菜单背景显示异常</li>
+  <li><span class="change-tag fix">修复</span>修复表情码被误渲染的问题</li>
+  <li><span class="change-tag fix">修复</span>修复更新日志显示乱码的问题</li>
+</ul>
 <h2>3.4.0</h2>
 <ul>
   <li><span class="change-tag new">新功能</span>未登录可直接进入主界面浏览，聊天与收藏需登录后使用</li>

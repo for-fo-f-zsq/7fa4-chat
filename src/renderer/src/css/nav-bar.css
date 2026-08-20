@@ -166,76 +166,108 @@
     position: fixed;
     bottom: 16px;
     left: 58px;
-    width: 230px;
-    background: var(--bg-conversation, #fff);
+    width: 264px;
+    background: var(--bg-app, #fff);
     border: 1px solid var(--border-3d-dark);
-    border-radius: var(--radius, 12px);
-    box-shadow: var(--shadow-context, 0 10px 30px rgba(0, 0, 0, 0.25));
-    padding: 10px;
+    border-radius: 14px;
+    box-shadow: var(--shadow-context, 0 14px 40px rgba(0, 0, 0, 0.28));
+    padding: 8px;
     z-index: 9999;
     display: flex;
     flex-direction: column;
+    gap: 6px;
+    animation: navUserIn 0.16s ease;
+}
+@keyframes navUserIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 .nav-user-menu-head {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 10px;
     padding: 6px 4px 10px;
     border-bottom: 1px solid var(--border-3d-dark, #eee);
-    margin-bottom: 8px;
+}
+.nav-user-menu-head-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 .nav-user-menu-avatar {
-    width: 42px;
-    height: 42px;
-    min-width: 42px;
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
     border-radius: 50%;
-    background: var(--bg-sidebar-active);
-    color: var(--accent);
+    background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+    color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
+    font-size: 22px;
+    box-shadow: 0 3px 10px var(--gradient-accent);
 }
-.nav-user-initial-lg { font-size: 20px; font-weight: 600; color: var(--accent); }
+.nav-user-initial-lg { font-size: 20px; font-weight: 700; color: #fff; }
 .nav-user-menu-names { display: flex; flex-direction: column; min-width: 0; }
-.nav-user-menu-name { font-size: 14px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nav-user-menu-uname { font-size: 11px; color: var(--text-hint, #888); }
+.nav-user-menu-name { font-size: 15px; font-weight: 650; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-user-menu-uname { font-size: 12px; color: var(--text-hint, #888); }
 
 .nav-user-menu-info {
-    padding: 4px 2px 8px;
-    border-bottom: 1px solid var(--border-3d-dark, #eee);
-    margin-bottom: 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    background: var(--bg-input, #f5f5f5);
+    border-radius: 10px;
+    padding: 8px;
+}
+.nav-user-menu-info .info-item {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 2px;
+    min-width: 0;
 }
-.nav-user-menu-info .info-row {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    font-size: 12px;
-}
-.nav-user-menu-info .info-label {
+.nav-user-menu-info .info-key {
+    font-size: 11px;
     color: var(--text-hint, #888);
-    min-width: 32px;
-    flex-shrink: 0;
 }
-.nav-user-menu-info .info-value {
+.nav-user-menu-info .info-val {
+    font-size: 12.5px;
+    font-weight: 550;
     color: var(--text-primary);
     word-break: break-all;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.nav-user-menu-info .info-val.mono {
+    font-family: "SFMono-Regular", Consolas, monospace;
+    letter-spacing: 0.3px;
+}
+
+/* 分组容器 */
+.nav-user-menu-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 3px 2px;
+}
+.nav-user-menu-group + .nav-user-menu-group {
+    border-top: 1px solid var(--border-3d-dark, #eee);
 }
 .nav-user-menu-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     padding: 8px 10px;
     border-radius: 8px;
     font-size: 13px;
     color: var(--text-primary);
     cursor: pointer;
-    transition: background var(--duration-fast, 0.15s) ease;
+    transition: background var(--duration-fast, 0.15s) ease, color var(--duration-fast, 0.15s) ease;
 }
-.nav-user-menu-item i { width: 16px; text-align: center; color: var(--accent); }
-.nav-user-menu-item:hover { background: var(--bg-conversation-hover, rgba(0, 0, 0, 0.05)); }
+.nav-user-menu-item i { width: 18px; text-align: center; color: var(--accent); font-size: 14px; }
+.nav-user-menu-item span { flex: 1; }
+.nav-user-menu-item:hover { background: var(--bg-conversation-hover, rgba(0, 0, 0, 0.06)); }
 .nav-user-menu-item.danger { color: var(--danger, #e64340); }
 .nav-user-menu-item.danger i { color: var(--danger, #e64340); }
+.nav-user-menu-item.danger:hover { background: rgba(230, 67, 64, 0.09); }

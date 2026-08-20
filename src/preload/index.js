@@ -63,6 +63,8 @@ contextBridge.exposeInMainWorld('api', {
   fetchChangelog: () => ipcRenderer.invoke('fetch-changelog'),
   // --- 新增功能 IPC ---
   setBadgeCount: (count) => ipcRenderer.invoke('set-badge-count', count),
+  sendFeedback: (data) => ipcRenderer.invoke('send-feedback', data),
+  fetchSponsors: () => ipcRenderer.invoke('fetch-sponsors'),
   exportData: (data) => ipcRenderer.invoke('export-data', data),
   importData: () => ipcRenderer.invoke('import-data'),
   getCacheSize: () => ipcRenderer.invoke('get-cache-size'),

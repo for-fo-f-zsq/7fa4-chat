@@ -261,3 +261,43 @@
     margin: 8px 0 0;
     opacity: 0.8;
 }
+
+/* #18 赞助者列表（公告"赞赏"页） */
+.announcement-sponsors {
+  width: 100%; margin-top: 14px;
+  background: var(--bg-input); border-radius: var(--radius);
+  padding: 10px 14px;
+}
+.announcement-sponsor-title { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; text-align: center; }
+.announcement-sponsor-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 13px; padding: 3px 0; color: var(--text-primary);
+}
+.announcement-sponsor-row .amt { color: var(--accent); font-weight: 600; }
+
+/* #18 赞助者表格（公告"赞赏"页） */
+.announcement-sponsor-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    margin: 8px auto 0;
+    text-align: left; /* 覆盖父级 .announcement-page 的 center */
+}
+.announcement-sponsor-table th {
+    padding: 5px 10px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-light);
+}
+.announcement-sponsor-table th:first-child,
+.announcement-sponsor-table th:nth-child(2) { text-align: left; }
+.announcement-sponsor-table th:last-child { text-align: right; }
+.announcement-sponsor-table td {
+    padding: 5px 10px;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text-primary);
+}
+.announcement-sponsor-table tr:last-child td { border-bottom: none; }
+.announcement-sponsor-table .idx { color: var(--text-hint); width: 28px; text-align: center; }
+.announcement-sponsor-table td.idx { text-align: center; }
+.announcement-sponsor-table td.amt { color: var(--accent); font-weight: 600; text-align: right; }

@@ -8,7 +8,6 @@
         <i class="fab fa-github"></i>
       </a>
       <h2>7FA4 Chat</h2>
-      <div class="about-announcement-btn" @click="showAnnouncement = true" title="版本公告"><i class="fas fa-bullhorn"></i></div>
     </div>
     <div class="about-content">
       <div class="about-info">
@@ -66,21 +65,39 @@
         <span class="tech-tag">Express</span>
         <span class="tech-tag">Font Awesome</span>
       </div>
-
-      <div class="changelog-section">
-        <div class="changelog-header">
-          <span>更新日志</span>
-          <i class="fas fa-chevron-down changelog-toggle" ></i>
+      <div class="about-two-col">
+        <!-- 左半：更新日志 -->
+        <div class="changelog-section">
+          <div class="changelog-header">
+            <span>更新日志</span>
+            <i class="fas fa-chevron-down changelog-toggle" ></i>
+          </div>
+          <div class="changelog-content">
+            <div v-if="changelogLoading" class="changelog-loading">
+              <i class="fas fa-spinner fa-spin"></i> 加载中...
+            </div>
+            <div v-else-if="changelogError" class="changelog-error">
+              <i class="fas fa-times-circle"></i> {{ changelogError }}
+            </div>
+            <div v-else-if="changelogHtml" class="changelog-body" v-html="changelogHtml"></div>
+            <div v-else class="changelog-empty">暂无更新日志</div>
+          </div>
         </div>
-        <div  class="changelog-content">
-          <div v-if="changelogLoading" class="changelog-loading">
-            <i class="fas fa-spinner fa-spin"></i> 加载中...
+        <!-- 右半：赞助者（表格） -->
+        <div class="about-right-col">
+          <div class="sponsor-section" v-if="sponsors.length">
+            <div class="sponsor-header"><span>赞助者</span><small>感谢每一份支持</small></div>
+            <table class="sponsor-table">
+              <thead><tr><th>#</th><th>昵称</th><th>金额</th></tr></thead>
+              <tbody>
+                <tr v-for="(sp, idx) in sponsors" :key="sp.name">
+                  <td class="sponsor-idx">{{ idx + 1 }}</td>
+                  <td class="sponsor-name">{{ sp.name }}</td>
+                  <td class="sponsor-amount">{{ sp.amount }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <div v-else-if="changelogError" class="changelog-error">
-            <i class="fas fa-times-circle"></i> {{ changelogError }}
-          </div>
-          <div v-else-if="changelogHtml" class="changelog-body" v-html="changelogHtml"></div>
-          <div v-else class="changelog-empty">暂无更新日志</div>
         </div>
       </div>
       </div><!-- /about-info -->
@@ -90,24 +107,28 @@
       <img :src="DONATE_URL" alt="赞赏码" class="donate-zoom-img">
     </div>
   </div>
-  <!-- 版本公告（手动打开，不更新已看版本记录，不影响启动自动公告） -->
-  <Announcement v-if="showAnnouncement" @close="showAnnouncement = false" />
 </template>
 
 <script setup>
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { store } from '../store.js'
-import Announcement from './Announcement.vue'
 
 defineProps({ version: String })
 
 const changelogLoading = ref(false)
 const changelogError = ref('')
+// #18 赞助者
+const sponsors = ref([])
+async function loadSponsors() {
+  try {
+    const r = await window.api.fetchSponsors()
+    if (r && r.success && Array.isArray(r.list)) sponsors.value = r.list
+  } catch {}
+}
 const changelogHtml = ref('')
 // 赞赏码（托管在 chat.forfof.cloud/assets/donate-qr.jpg）
 const DONATE_URL = 'https://chat.forfof.cloud/assets/donate-qr.jpg'
 const donateZoom = ref(false)
-const showAnnouncement = ref(false)
 const updateStatus = ref('idle') // idle, checking, available, not-available, downloading, downloaded, error
 const updateInfo = ref(null)
 const downloadProgress = ref(0)
@@ -193,7 +214,7 @@ async function fetchChangelog() {
 
 onMounted(async () => {
   try {
-    checkForUpdate();fetchChangelog();
+    checkForUpdate();fetchChangelog();loadSponsors();
   } catch (err) {
     console.error('获取设置失败:', err)
   }

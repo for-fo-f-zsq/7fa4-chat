@@ -433,7 +433,7 @@ let _visitTimer = null
 export function startVisitReport() {
   if (_visitTimer) return
   _reportVisit() // 立即上报一次（若当前未聚焦则跳过）
-  _visitTimer = setInterval(_reportVisit, 10 * 60 * 1000)
+  _visitTimer = setInterval(_reportVisit, 60 * 1000) // 上报频率：1 分钟一次
   // 窗口重新可见/聚焦时补报一次，弥补最小化期间的漏报
   document.addEventListener('visibilitychange', _onVisitWindowActive)
   window.addEventListener('focus', _onVisitWindowActive)
@@ -606,27 +606,9 @@ md.inline.ruler.after('escape', 'katex_inline', function (state, silent) {
   return true
 })
 
-// QQ 表情快捷码（/微笑 /wx /jy 等）：/xx → <img class="qqface">
-// 必须注册在 text 之前：'/' 不是 markdown-it text 规则的终止符，
-// 若 after('escape')（text 之后）则整段 /xx 已被 text 当作纯文本消费，规则无机会触发
-md.inline.ruler.before('text', 'qqface_inline', function (state, silent) {
-  if (state.src[state.pos] !== '/') return false
-  const prev = state.pos > 0 ? state.src[state.pos - 1] : ''
-  if (prev === ':' || prev === '/' || prev === '\\') return false
-  const m = /^\/([a-zA-Z\u4e00-\u9fa5]{1,12})/.exec(state.src.slice(state.pos))
-  if (!m) return false
-  const face = QUANCODE.get(m[0].toLowerCase())
-  if (!face) return false
-  if (!silent) {
-    const token = state.push('qqface_inline', 'img', 0)
-    token.attrSet('class', 'qqface')
-    token.attrSet('src', qqfaceUrl(face.file))
-    token.attrSet('data-code', m[0])
-    token.attrSet('alt', face.name)
-  }
-  state.pos += m[0].length
-  return true
-})
+// QQ 表情快捷码（/微笑 /wx /jy 等）：改为在 renderMarkdown 预处理阶段处理（见下方）。
+// （原 markdown-it inline 规则会因 text 规则吞并 token 内斜杠而无法命中"中间位置"的 /code，
+//   已移除，改用带后边界的预处理替换，能正确命中 bist/st dc 这类场景。）
 
 md.block.ruler.before('paragraph', 'katex_block', function (state, startLine, endLine, silent) {
   const pos = state.bMarks[startLine] + state.tShift[startLine]
@@ -709,33 +691,32 @@ for (const type of LINE_MAP_BLOCK_TYPES) {
   }
 }
 
+// 有效的 QQ 表情码占位符（预处理阶段用，防止被 markdown-it 转义/吞并）。
+// 用私用区字符 \uE000 包裹：markdown-it 原样保留、不会替换成 �，输出后安全还原
 export function renderMarkdown(text) {
   if (!text) return ''
-  return md.render(preprocessKatexBlock(text)).replace(/\n+$/, '')
+  // 预处理：把"后跟空格/标点/行尾"的有效 /code 表情码替换为占位符（仅后边界判定的正确渲染）
+  const qfRe = /\/[\p{L}\p{N}_]{1,16}(?=\s|[^\p{L}\p{N}_]|$)/gu
+  const qfMap = {}
+  let qfCount = 0
+  const serialized = preprocessKatexBlock(text.replace(qfRe, (m) => {
+    const face = QUANCODE.get(m.toLowerCase())
+    if (!face) return m
+    const ph = '\uE000QF' + (qfCount++) + 'QF\uE000'
+    qfMap[ph] = `<img class="qqface" data-code="${m}" src="${qqfaceUrl(face.file)}" alt="${m}">`
+    return ph
+  }))
+  let out = md.render(serialized).replace(/\n+$/, '')
+  // 还原占位符为表情 <img>（逐 key 字符串替换，避开正则转义问题）
+  for (const [ph, img] of Object.entries(qfMap)) {
+    if (out.includes(ph)) out = out.split(ph).join(img)
+  }
+  return out
 }
 
-// 输入框预览：markdown 渲染后把 /code 表情码替换为表情图（整体未命中则缩短重试，
-// 与输入框 renderSerializedToHtml 的 resolveCodeToken 逻辑一致，保证预览与输入框表现一致）。
-// 仅在 HTML 标签外替换，避免误伤 </em>、</p> 等标签内斜杠。
+// 输入框预览：与显示框统一使用 renderMarkdown（预览与消息显示完全一致）
 export function renderMarkdownPreview(text) {
-  if (!text) return ''
-  const html = renderMarkdown(text)
-  const codeRe = /(\/[\p{L}\p{N}_]+)/gu
-  return html.replace(/<[^>]*>|[^<]+/g, (seg) => {
-    if (seg.startsWith('<')) return seg // 标签原样保留
-    return seg.replace(codeRe, (token) => {
-      let cur = token
-      while (cur.length > 1) {
-        const face = QUANCODE.get(cur.toLowerCase())
-        if (face) {
-          const rest = token.slice(cur.length)
-          return `<img class="qqface" data-code="${cur}" src="${qqfaceUrl(face.file)}" alt="${cur}">` + (rest ? rest : '')
-        }
-        cur = cur.slice(0, -1)
-      }
-      return token
-    })
-  })
+  return renderMarkdown(text)
 }
 
 export function formatSize(bytes) {

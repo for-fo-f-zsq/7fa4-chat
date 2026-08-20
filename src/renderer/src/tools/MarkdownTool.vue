@@ -22,16 +22,39 @@
         <span v-else class="md-workspace-path md-name-edit" :title="'点击修改文件名' + (fileName ? '：' + fileName : '')" @click="startEditName">
           {{ fileName || '未命名' }}<i class="fas fa-pencil-alt md-name-edit-icon"></i>
         </span>
-        <button class="md-ws-btn" title="打开文件" @click="openFile"><i class="fas fa-folder-open"></i> 打开</button>
-        <button class="md-ws-btn" title="新建文件" @click="newFile"><i class="fas fa-file"></i> 新建</button>
-        <button class="md-ws-btn" title="保存到文件" :disabled="saving" @click="save"><i class="fas fa-save"></i> 保存</button>
-        <button class="md-ws-btn" title="导出为图片" :disabled="exporting" @click="exportPng"><i class="fas fa-image"></i> 导出图片</button>
+        <button class="md-ws-btn md-ws-btn-icon" title="打开文件" @click="openFile"><i class="fas fa-folder-open"></i></button>
+        <button class="md-ws-btn md-ws-btn-icon" title="新建文件" @click="newFile"><i class="fas fa-file"></i></button>
+        <button class="md-ws-btn md-ws-btn-icon" title="保存到文件" :disabled="saving" @click="save"><i class="fas fa-save"></i></button>
+        <button class="md-ws-btn md-ws-btn-icon" title="导出为图片" :disabled="exporting" @click="exportPng"><i class="fas fa-image"></i></button>
         <div class="md-view-switch">
-          <button :class="{ active: viewMode === 'edit' }" @click="viewMode = 'edit'">编辑</button>
-          <button :class="{ active: viewMode === 'split' }" @click="viewMode = 'split'">分屏</button>
-          <button :class="{ active: viewMode === 'preview' }" @click="viewMode = 'preview'">预览</button>
+          <button :class="{ active: viewMode === 'edit' }" title="编辑" @click="viewMode = 'edit'"><i class="fas fa-pen"></i></button>
+          <button :class="{ active: viewMode === 'split' }" title="分屏" @click="viewMode = 'split'"><i class="fas fa-columns"></i></button>
+          <button :class="{ active: viewMode === 'preview' }" title="预览" @click="viewMode = 'preview'"><i class="fas fa-eye"></i></button>
         </div>
       </div>
+    </div>
+
+    <!-- 洛谷式 markdown 富文本工具栏 -->
+    <div class="mp-editor-toolbar">
+      <ul class="mp-editor-menu">
+        <li><a title="粗体" @click="toolbar('**{sel}**')"><i class="fas fa-bold"></i></a></li>
+        <li><a title="删除线" @click="toolbar('~~{sel}~~')"><i class="fas fa-strikethrough"></i></a></li>
+        <li><a title="斜体" @click="toolbar('*{sel}*')"><i class="fas fa-italic"></i></a></li>
+        <li><a title="分割线" @click="toolbar('\n---\n')"><i class="fas fa-minus"></i></a></li>
+        <li class="mp-divider"><span>|</span></li>
+        <li v-for="h in 6" :key="h"><a :title="h + ' 级标题'" @click="toolbar(('#'.repeat(h)) + ' ')"><i class="mp-icon-header">H{{ h }}</i></a></li>
+        <li class="mp-divider"><span>|</span></li>
+        <li><a title="无序列表" @click="toolbar('\n- ')"><i class="fas fa-list-ul"></i></a></li>
+        <li><a title="有序列表" @click="toolbar('\n1. ')"><i class="fas fa-list-ol"></i></a></li>
+        <li class="mp-divider"><span>|</span></li>
+        <li><a title="插入图片" @click="toolbar('![图片描述](图片链接)')"><i class="fas fa-image"></i></a></li>
+        <li><a title="插入链接" @click="toolbar('[链接文字](链接地址)')"><i class="fas fa-link"></i></a></li>
+        <li><a title="插入代码块" @click="insertCodeBlock"><i class="fas fa-code"></i></a></li>
+        <li><a title="插入表格" @click="toolbar('\n| 列1 | 列2 |\n| --- | --- |\n| 数据 | 数据 |\n')"><i class="fas fa-table"></i></a></li>
+        <li class="mp-divider"><span>|</span></li>
+        <li><a title="隐藏预览" @click="togglePreview"><i class="fas fa-eye"></i></a></li>
+        <li><a title="全屏" @click="toggleFullscreen"><i class="fas fa-expand-arrows-alt"></i></a></li>
+      </ul>
     </div>
 
     <div class="md-tool-body">
@@ -91,6 +114,25 @@ async function onSaveThenLeave() {
 function leaveNow() {
   saveConfirmVisible.value = false
   emit('back')
+}
+
+// 洛谷式 markdown 工具栏：在光标处插入 markdown 语法（{sel} 由选区文本替换）
+function toolbar(text) {
+  monacoRef.value?.insertText(text)
+}
+// 插入代码块：无选区默认 cpp 且光标放两 ``` 之间；有选区则包围选区
+function insertCodeBlock() {
+  monacoRef.value?.insertText('\n```cpp\n{sel}\n```\n')
+}
+function togglePreview() {
+  // 在 编辑/分屏/预览 间简单切换：当前预览或分屏 → 回编辑；编辑 → 分屏
+  viewMode.value = viewMode.value === 'preview' ? 'edit' : (viewMode.value === 'split' ? 'edit' : 'split')
+}
+function toggleFullscreen() {
+  const el = document.querySelector('.md-tool')
+  if (!el) return
+  if (!document.fullscreenElement) { el.requestFullscreen?.().catch?.(() => {}) }
+  else { document.exitFullscreen?.() }
 }
 
 onMounted(() => {

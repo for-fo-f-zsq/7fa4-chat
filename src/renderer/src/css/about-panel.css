@@ -356,3 +356,68 @@
     padding: 4px 8px;
     margin: 2px 0;
 }
+
+/* #18 赞助者列表 */
+.sponsor-section { margin: 12px 0; }
+.sponsor-header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.sponsor-header span { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.sponsor-header small { font-size: 11px; color: var(--text-secondary); }
+.sponsor-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.sponsor-item {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 4px 12px; border-radius: 20px;
+  background: var(--bg-input); border: 1px solid var(--border-light);
+  font-size: 12.5px;
+}
+.sponsor-name { color: var(--text-primary); }
+.sponsor-amount { color: var(--accent); font-weight: 600; }
+
+/* 关于页两栏：左更新日志 / 右赞助者+技术 */
+.about-two-col {
+    display: flex;
+    gap: 20px;
+    align-items: stretch;
+}
+.about-two-col .changelog-section {
+    flex: 1.4;
+    min-width: 0;
+}
+.about-right-col {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+@media (max-width: 720px) {
+    .about-two-col { flex-direction: column; }
+}
+
+/* 赞助者表格（与公告一致） */
+.sponsor-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    background: var(--bg-input);
+    border-radius: 10px;
+    overflow: hidden;
+}
+.sponsor-table th {
+    padding: 6px 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: var(--bg-settings-info, var(--bg-input));
+    border-bottom: 1px solid var(--border-light);
+}
+.sponsor-table th:first-child,
+.sponsor-table th:nth-child(2) { text-align: left; }
+.sponsor-table th:last-child { text-align: right; }
+.sponsor-table td {
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border-light);
+}
+.sponsor-table tbody tr:last-child td { border-bottom: none; }
+.sponsor-table .sponsor-idx { color: var(--text-hint); width: 28px; text-align: center; }
+.sponsor-table td.sponsor-idx { text-align: center; }
+.sponsor-table .sponsor-name { color: var(--text-primary); }
+.sponsor-table .sponsor-amount { color: var(--accent); font-weight: 600; text-align: right; }

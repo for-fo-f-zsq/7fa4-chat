@@ -485,3 +485,37 @@
     .theme-grid { grid-template-columns: 1fr; }
     .options-grid { flex-direction: column; }
 }
+
+/* #6 意见反馈弹窗 */
+.feedback-mask {
+  position: fixed; inset: 0; z-index: 6000;
+  background: rgba(0,0,0,.5);
+  display: flex; align-items: center; justify-content: center;
+}
+.feedback-box {
+  width: 420px; max-width: 92vw;
+  background: var(--bg-app); border-radius: var(--radius-lg);
+  border: 1px solid var(--border-3d-dark);
+  box-shadow: var(--shadow-modal);
+  padding: 18px 20px;
+}
+.feedback-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.feedback-head h3 { margin: 0; font-size: 16px; color: var(--text-primary); }
+.feedback-close { background: none; border: none; color: var(--text-secondary); font-size: 16px; cursor: pointer; }
+.feedback-input {
+  width: 100%; box-sizing: border-box;
+  background: var(--bg-input); color: var(--text-primary);
+  border: 1px solid var(--border-light); border-radius: var(--radius);
+  padding: 10px 12px; font-size: 13px; font-family: inherit; resize: vertical;
+}
+.feedback-status { margin-top: 10px; font-size: 12.5px; }
+.feedback-status.ok { color: var(--success, #07c160); }
+.feedback-status.err { color: var(--danger, #e64340); }
+.feedback-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+.feedback-btn {
+  padding: 7px 16px; border-radius: var(--radius);
+  border: 1px solid var(--border-light); background: var(--bg-input);
+  color: var(--text-primary); font-size: 13px; cursor: pointer;
+}
+.feedback-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.feedback-btn.primary:disabled { opacity: .5; cursor: not-allowed; }

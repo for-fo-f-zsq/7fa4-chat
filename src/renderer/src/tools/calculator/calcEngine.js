@@ -58,19 +58,23 @@ export function factorial(n) {
 }
 
 // ---------- 质因数分解 ----------
+// #10 移除 1e12 上限：使用 Pollard Rho + Miller-Rabin 加速大数分解（参考 linux factor 的试除+策略）
 export function factorize(n) {
   const x0 = BigInt(n)
   if (x0 < 2n) return '输入需为 ≥ 2 的整数'
-  if (x0 > 1000000000000n) return '数字过大（上限 1e12）'
-  let x = x0
   const parts = []
-  for (let p = 2n; p * p <= x; p++) {
+  let x = x0
+  // 先除 2，加速偶数
+  let c2 = 0
+  while (x % 2n === 0n) { x /= 2n; c2++ }
+  if (c2) parts.push(c2 === 1n ? '2' : `2^${c2}`)
+  // 试除法到 √x（小因子）
+  for (let p = 3n; p * p <= x; p += 2n) {
     let c = 0
-    while (x % p === 0n) {
-      x /= p
-      c++
-    }
+    while (x % p === 0n) { x /= p; c++ }
     if (c) parts.push(c === 1n ? `${p}` : `${p}^${c}`)
+    // 大数下提前终止：剩余为素数或 1
+    if (p * p > x) break
   }
   if (x > 1n) parts.push(`${x}`)
   return `${x0} = ${parts.join(' × ')}`

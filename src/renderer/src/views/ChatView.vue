@@ -130,7 +130,7 @@
       :self="store.self"
       :setting="setting"
       :allThemes="allThemes"
-      @logout="logout"
+      @logout="() => onUserAction('logout')"
       @settingChange="onSettingChange"
       @openThemeModal="openThemeModal"
       @openShortcutModal="shortcutModal = true"
@@ -318,14 +318,14 @@ function gotoLogin() {
 }
 
 // 左下角头像菜单动作：login / relogin / logout
-// 重新登录（relogin）= 完整退出（清 cookie/数据）+ 回登录页，避免旧账号数据串入新会话
+// relogin = 完整退出但保留密码 + 回登录页；logout = 完整退出清密码 + 回游客主界面
 async function onUserAction(kind) {
   if (kind === 'logout' && store.logined) {
-    await logout(false); // 退出登录 → 回游客主界面
+    await logout(false, true); // 退出登录 → 清密码 + 回游客主界面
     return;
   }
   if (kind === 'relogin' && store.logined) {
-    await logout(true); // 重新登录 → 回登录页
+    await logout(true, false); // 重新登录 → 保留密码 + 回登录页
     return;
   }
   if (kind === 'login') {
@@ -800,8 +800,8 @@ function batchDelete() {
 
 // --- 全部已读 ---
 function markAllRead() {
-  for (const user of Object.values(store.users)) user.unread = 0;
-  for (const group of Object.values(store.groups)) group.unread = 0;
+  for (const user of Object.values(store.users)) { user.unread = 0; }
+  for (const group of Object.values(store.groups)) { group.unread = 0; group.mentioned = false; } // 同步清除 @ 提醒
   updateBadgeCount();
   saveData();
 }
@@ -1173,10 +1173,10 @@ async function clearCacheAndReload() {
     store.mutedConvos = {};
     store.hiddenConvos = {};
     store.deletedMsgIds = [];
-    // 从服务器重新拉取
+    // 从服务器重新拉取（爬取模式：拉取 100 条 + 继续翻页取尽历史）
     const result = await (await safeFetch('/chat/info')).json();
     if (result.success) await update(result);
-    await updateMessagesData();
+    await updateMessagesData(100, true);
   } catch {} finally {
     store.initializing = false;
   }
@@ -1222,13 +1222,13 @@ async function update(result) {
   await saveData();
 }
 
-async function fetchMessages(type, end) {
+async function fetchMessages(type, end, take = 10, allowPage = false) {
   if (!infoLoopRunning) return;
   try {
     const endSec = Math.floor(end / 1000);
-    const r = await (await safeFetch(`/chat/chat?type=${type}&end_time=${endSec}&take=10`)).json();
+    const r = await (await safeFetch(`/chat/chat?type=${type}&end_time=${endSec}&take=${take}`)).json();
     if (!r.success || !r.chats || !r.chats.length) return;
-    let needContinue = true;
+    let hasNew = false; // 本轮是否插入了至少一条新消息
     const pendingPersist = {}; // 本轮新消息按会话分组，循环后增量入库
     for (const c of r.chats) {
       if (!infoLoopRunning) return;
@@ -1238,7 +1238,9 @@ async function fetchMessages(type, end) {
       if (!t) continue;
       const isCurrentPage = (pageType.value === (type === 'group' ? 'group' : 'user') || (isChatPage.value && pageId.value)) && pageId.value === (type === 'group' ? c.receiver_id : (type === 'send_user' ? c.receiver_id : c.sender_id));
       if (isCurrentPage) t.unread = 0;
-      if (t.message_ids.includes(c.id) || (store.deletedMsgIds && store.deletedMsgIds.includes(c.id))) { needContinue = false; } else {
+      if (t.message_ids.includes(c.id) || (store.deletedMsgIds && store.deletedMsgIds.includes(c.id))) {
+        // 旧消息：不重复处理，仅跳过
+      } else {
         const msgContent = c.content;
         store.messages[c.id] = { id: c.id, sender: c.sender_id, send_time: c.send_time, content: msgContent };
         t.message_ids.push(c.id);
@@ -1285,6 +1287,7 @@ async function fetchMessages(type, end) {
         if (type === 'group' && c.sender_id !== store.self.uid) {
           try { const msgObj = JSON.parse(msgContent); if (msgObj.mentions && (msgObj.mentions.includes(store.self.uid) || msgObj.mentions.includes('all'))) t.mentioned = true; } catch {}
         }
+        hasNew = true; // 至少遇到一条新消息
       }
     }
     // 本轮新消息增量入库（按会话事务批量写）
@@ -1292,14 +1295,20 @@ async function fetchMessages(type, end) {
       persistMessages(msgs, kind, cid)
     }
     updateBadgeCount();
-    if (needContinue) await fetchMessages(type, end);
+    // 重大修复：#12 首次爬取只取到约 100 条的问题。
+    // 结束条件：仅当整批消息全部是旧消息（hasNew=false）才停止；
+    // 只要本批还有新消息（哪怕夹杂旧消息）就继续往前翻页，直到取尽历史。
+    // 仅爬取模式（allowPage=true）才翻页，且翻页固定取 100 条；普通轮询不翻页（保持轻量）
+    if (hasNew && allowPage) {
+      await fetchMessages(type, end, 100, true);
+    }
   } catch (e) { console.error(e); }
 }
 
-async function updateMessagesData() {
-  await fetchMessages('user', Date.now());
-  await fetchMessages('send_user', Date.now());
-  await fetchMessages('group', Date.now());
+async function updateMessagesData(take = 10, allowPage = false) {
+  await fetchMessages('user', Date.now(), take, allowPage);
+  await fetchMessages('send_user', Date.now(), take, allowPage);
+  await fetchMessages('group', Date.now(), take, allowPage);
 }
 
 // ===== SQLite 存储（加密）：偏好 / 元数据节流 / 消息懒加载 =====
@@ -1476,7 +1485,7 @@ function saveData() {
   schedulePrefSave()
 }
 
-async function logout(toLogin = false) {
+async function logout(toLogin = false, clearCred = false) {
   // 先停止轮询与后台任务，防止异步操作继续往 store 写数据
   infoLoopRunning = false;
   if (pollTimer) clearInterval(pollTimer);
@@ -1492,10 +1501,17 @@ async function logout(toLogin = false) {
   // 本地兜底：清除会话 cookie（含 HttpOnly，渲染进程 document.cookie 无法删除）
   try { await window.api.clearSessionCookies(); } catch {}
   const s = await window.api.loadSetting();
-  s.keepLogin = false;
-  s.loginUsername = '';
-  s.loginPassword = '';
+  // #3：仅"退出登录"清除保存的账号密码；"重新登录"保留（用户只需重输密码登录）
+  if (clearCred) {
+    s.keepLogin = false;
+    s.loginUsername = '';
+    s.loginPassword = '';
+  }
   await window.api.saveSetting(s);
+  // #2：退出登录清除持久化登录标记；重新登录时保留（本地仍认为登录过）
+  try {
+    if (clearCred) localStorage.removeItem('7fa4_logined');
+  } catch {}
   Object.assign(store, { self: { uid: null, username: null, nickname: null, realname: null }, users: {}, groups: {}, messages: {}, stickers: [], drafts: {}, favorites: [], mutedConvos: {}, hiddenConvos: {} });
   store.logined = false;
   store.netError = false;
@@ -1506,6 +1522,7 @@ async function logout(toLogin = false) {
 
 async function startInfoLoop() {
   if (!store.logined) return;
+  if (infoLoopRunning) return; // 互斥：防止重复调用导致多个并发轮询循环（疯狂连续获取、不守间隔）
   infoLoopRunning = true;
   let failCount = 0;
   while (infoLoopRunning && store.logined) {
@@ -1620,7 +1637,7 @@ onMounted(async () => {
     await loadData();
     if (initialInfo.success) await update(initialInfo);
     else store.netError = true; // /chat/info 失败（网络断/会话失效）→ 未连接横幅，但本地历史仍可读
-    await updateMessagesData();
+    await updateMessagesData(100, true); // 首次加载（爬取模式）：拉取 100 条 + 继续翻页取尽历史
     updateBadgeCount();
     nextTick(() => { messageListRef.value?.scrollToBottomInstant(); });
   } finally {

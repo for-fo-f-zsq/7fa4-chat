@@ -126,6 +126,53 @@ defineExpose({
   setScrollLine: (line) => {
     if (!editor || !line) return
     editor.setScrollTop(editor.getTopForPosition(line, 1))
+  },
+  // 在光标处插入文本；若含 {sel} 占位，替换为当前选区文本（供 markdown 格式按钮包裹选区）
+  insertText: (text) => {
+    if (!editor) return
+    const sel = editor.getSelection()
+    const model = editor.getModel()
+    if (!model) return
+    const selected = sel && !sel.isEmpty() ? model.getValueInRange(sel) : ''
+    const hasSel = !!(selected)
+    // {sel} → 选中文本；无占位则简单插入
+    const toInsert = text.includes('{sel}') ? text.replace('{sel}', selected || '') : text
+    if (hasSel && text.includes('{sel}')) {
+      // 包裹选区
+      const range = new monaco.Range(sel.startLineNumber, sel.startColumn, sel.endLineNumber, sel.endColumn)
+      editor.executeEdits('markdown-toolbar', [{ range, text: toInsert }])
+      const startPos = new monaco.Position(sel.startLineNumber, sel.startColumn)
+      editor.setPosition(startPos)
+      editor.focus()
+    } else if (hasSel && !text.includes('{sel}')) {
+      // 有选区且文本无占位：先在选区前插入（行首命令如标题/列表）
+      const range = new monaco.Range(sel.startLineNumber, 1, sel.startLineNumber, 1)
+      editor.executeEdits('markdown-toolbar', [{ range, text }])
+      editor.focus()
+    } else if (!hasSel && text.includes('{sel}')) {
+      // 无选区且含 {sel}：占位留空，光标放到占位起始处（支持跨行，如代码块）
+      const pos = editor.getPosition()
+      const range = new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column)
+      editor.executeEdits('markdown-toolbar', [{ range, text: toInsert }])
+      // {sel} 前的文本（含换行）：据此计算光标应处的实际行与列
+      const idx = text.indexOf('{sel}')
+      const before = text.slice(0, idx)
+      const lines = before.split('\n')
+      const newLine = pos.lineNumber + (lines.length - 1)
+      const newCol = lines.length > 1 ? lines[lines.length - 1].length + 1 : pos.column + before.length
+      const newPos = new monaco.Position(Math.max(1, newLine), Math.max(1, newCol))
+      editor.setPosition(newPos)
+      editor.focus()
+    } else {
+      // 无选区：在光标处插入
+      const pos = editor.getPosition()
+      const range = new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column)
+      editor.executeEdits('markdown-toolbar', [{ range, text: toInsert }])
+      // 光标移到插入点之后
+      const newPos = new monaco.Position(pos.lineNumber, pos.column + toInsert.length)
+      editor.setPosition(newPos)
+      editor.focus()
+    }
   }
 })
 </script>

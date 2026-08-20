@@ -39,8 +39,8 @@
             </select>
           </div>
           <div class="graph-btn-row">
-            <button class="graph-btn" @click="loadExample"><i class="fas fa-file-alt"></i> 示例</button>
-            <button class="graph-btn" @click="clearInput"><i class="fas fa-eraser"></i> 清空</button>
+            <button class="graph-btn graph-btn-icon" title="加载示例图" @click="loadExample"><i class="fas fa-file-alt"></i></button>
+            <button class="graph-btn graph-btn-icon" title="清空输入" @click="clearInput"><i class="fas fa-eraser"></i></button>
           </div>
         </div>
 
@@ -67,7 +67,7 @@
             带权（随机 1-9）
           </label>
           <div class="graph-btn-row">
-            <button class="graph-btn primary" @click="randomGraph"><i class="fas fa-dice"></i> 生成</button>
+            <button class="graph-btn primary graph-btn-icon" title="随机生成图" @click="randomGraph"><i class="fas fa-dice"></i></button>
           </div>
         </div>
 

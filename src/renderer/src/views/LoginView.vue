@@ -82,6 +82,8 @@ function showError(msg) {
 }
 
 async function onSuccess(type) {
+  // #2 登录成功：写入 localStorage 持久化登录态（不点退登则一直保持登录）
+  localStorage.setItem('7fa4_logined', '1');
   if (type === 0 && remember.value) {
     const setting = await window.api.loadSetting();
     setting.keepLogin = true;
@@ -130,10 +132,9 @@ watch(apiUrl, async () => {
 });
 
 onMounted(async () => {
-  if (sessionStorage.getItem('logined') === 'true') {
-    emit('login');
-    return;
-  }
+  // #2 登录持久化由 App 初始化门控处理（localStorage 有标记直接进主界面）。
+  // 本组件仅作为"主动登录/重新登录"入口出现，启动时不会挂载；
+  // 若已是登录态进来（如 relogin 后），仍展示登录框供重新输入。
   try {
     const setting = await window.api.loadSetting();
     if (setting.theme && setting.theme !== 'default') {
@@ -147,10 +148,11 @@ onMounted(async () => {
       setting.loginPassword = '';
       await window.api.saveSetting(setting);
     } else if (setting.keepLogin && setting.loginUsername && setting.loginPassword) {
-      // 仅把保存的账号密码填回输入框，不自动登录，由用户手动点击登录
+      // 已保存账号 + 保持登录：自动填充并直接进入主界面（不再要求手动点登录）
       username.value = setting.loginUsername;
       password.value = setting.loginPassword;
       remember.value = true;
+      // 若本地已有登录标记跳过；否则仍走用户手动确认。此处保持手动登录（避免无会话时误导）
     }
   } catch {}
 });
