@@ -7,21 +7,21 @@
           <img src="/icon.png" alt="7FA4 Chat" class="announcement-logo-img" />
         </div>
         <p class="announcement-sub">全新版本发布</p>
-        <h1>V3.4.1</h1>
+        <h1>V3.4.3</h1>
         <div class="announcement-decor"></div>
       </div>
       <!-- 页 2：本次更新 -->
       <div v-else-if="page === 1" class="announcement-page">
         <h2><i class="fas fa-star"></i> 本次更新</h2>
         <ul class="announcement-list">
-          <li>头像菜单重构：个人信息、收藏、设置、关于、版本公告、意见反馈统一收纳</li>
-          <li>登录状态本地持久化，重启应用不退出；重新登录保留密码</li>
-          <li>新增意见反馈功能，应用内直接提交建议与 Bug</li>
-          <li>关于页与公告新增赞助者表格</li>
-          <li>图片编辑新增就地文字工具，所见即所得</li>
-          <li>Markdown 编辑器新增富文本工具栏</li>
-          <li>表情渲染重构，输入框不再提前渲染</li>
-          <li>消息拉取策略优化，历史消息获取更完整</li>
+          <li>群详情支持批量管理操作，多选成员统一执行，带进度与失败重试</li>
+          <li>Markdown 数学公式字体修复，运算符斜体显示正常</li>
+          <li>打开任意输入框自动聚焦，光标定位更顺手</li>
+          <li>修复打开大表情图片卡死的问题，表情消息渲染更流畅</li>
+          <li>修复 Linux 重启后应用无法自动打开的问题</li>
+          <li>修复链接地址被误渲染成表情的问题</li>
+          <li>自定义表情支持自动压缩，超大图片也可正常使用</li>
+          <li>版本公告窗口优化：固定高度、跳过按钮在所有页面可用</li>
         </ul>
       </div>
       <!-- 页 3：更新日志 -->
@@ -46,7 +46,7 @@
           <table class="announcement-sponsor-table">
             <thead><tr><th>#</th><th>昵称</th><th>金额</th></tr></thead>
             <tbody>
-              <tr v-for="(sp, idx) in sponsorList" :key="sp.name">
+              <tr v-for="(sp, idx) in sponsorList" :key="idx">
                 <td class="idx">{{ idx + 1 }}</td>
                 <td>{{ sp.name }}</td>
                 <td class="amt">{{ sp.amount }}</td>
@@ -57,12 +57,15 @@
         <p class="announcement-sign">for_fo_f</p>
       </div>
       <div class="announcement-nav">
-        <button v-if="page > 0" class="announcement-btn" @click="page--"><i class="fas fa-chevron-left"></i> 上一页</button>
+        <button class="announcement-btn" @click="$emit('close')"><i class="fas fa-times"></i> 跳过</button>
         <div class="announcement-dots">
           <span v-for="i in 4" :key="i" class="announcement-dot" :class="{ active: page === i - 1 }"></span>
         </div>
-        <button v-if="page < 3" class="announcement-btn announcement-btn-primary" @click="page++">下一页 <i class="fas fa-chevron-right"></i></button>
-        <button v-else class="announcement-btn announcement-btn-primary" @click="$emit('close')">开始使用 <i class="fas fa-check"></i></button>
+        <div class="announcement-nav-right">
+          <button v-if="page > 0" class="announcement-btn" @click="page--"><i class="fas fa-chevron-left"></i> 上一页</button>
+          <button v-if="page < 3" class="announcement-btn announcement-btn-primary" @click="page++">下一页 <i class="fas fa-chevron-right"></i></button>
+          <button v-else class="announcement-btn announcement-btn-primary" @click="$emit('close')">开始使用 <i class="fas fa-check"></i></button>
+        </div>
       </div>
     </div>
 

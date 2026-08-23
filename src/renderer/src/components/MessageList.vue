@@ -91,7 +91,7 @@
 <script setup>
 import { ref, reactive, computed, onUpdated, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown } from '../utils.js';
+import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown, compressBase64Image } from '../utils.js';
 import MsgMenu from './MsgMenu.vue';
 import { useCurrentMessages } from '../composables/useCurrentMessages.js';
 import '../css/message-list.css';
@@ -429,7 +429,14 @@ async function collectMsg() {
     const isImage = obj.type === 'file' && /^image\//.test(obj.mime);
     if ((isSticker || isImage) && obj.data) {
       if (!store.stickers.some(s => s.name === obj.name)) {
-        store.stickers.push({ name: obj.name || '表情', data: obj.data, mime: obj.mime });
+        // 压缩后收藏：GIF 保留动画不压缩，其余压缩到 ≤100KB，避免"收藏表情超100KB"
+        let data = obj.data;
+        let mime = obj.mime;
+        if (!/^image\/gif$/i.test(mime)) {
+          const r = await compressBase64Image(data, mime);
+          if (r) { data = r.data; mime = 'image/jpeg'; }
+        }
+        store.stickers.push({ name: obj.name || '表情', data, mime });
       }
     }
   }
@@ -569,7 +576,7 @@ function onMessageAreaClick(e) {
   if (fileEl) {
     e.preventDefault();
     e.stopPropagation();
-    const base64Data = fileEl.dataset.base64;
+    const base64Data = fileEl.dataset.fileB64;
     const name = fileEl.dataset.name;
     const mime = fileEl.dataset.mime;
     openPreview({ type: 'file', data: base64Data, name, mime });
@@ -580,9 +587,17 @@ function onMessageAreaClick(e) {
     e.preventDefault();
     e.stopPropagation();
     const src = imgEl.src;
-    const base64Data = imgEl.dataset.base64;
     const mime = imgEl.dataset.mime;
-    openPreview({ type: 'image', src, name: '图片', data: base64Data, mime });
+    openPreview({ type: 'image', src, name: '图片', data: src.startsWith('blob:') ? '' : imgEl.dataset.media, mime });
+    return;
+  }
+  const stickerEl = e.target.closest('.sticker-msg img');
+  if (stickerEl) {
+    e.preventDefault();
+    e.stopPropagation();
+    const src = stickerEl.src;
+    const mime = stickerEl.dataset.mime;
+    openPreview({ type: 'image', src, name: '表情', data: src.startsWith('blob:') ? '' : stickerEl.dataset.media, mime });
     return;
   }
 }

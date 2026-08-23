@@ -8,6 +8,7 @@
       <div class="addfriend-search">
         <input
           ref="searchRef"
+          v-autofocus
           v-model="query"
           type="text"
           placeholder="搜索用户名 / 昵称 / 真名 / UID"

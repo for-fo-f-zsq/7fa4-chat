@@ -1,226 +1,106 @@
 <template>
   <div class="about-panel">
-    <div class="about-header">
-      <a href="#" class="about-github-link" @click.prevent="openLink('https://jx.7fa4.cn:9080/student-archive/zsq-7fa4-chat')" title="GitLab 项目主页">
-        <i class="fab fa-gitlab"></i>
-      </a>
-      <a href="#" class="about-github-link" @click.prevent="openLink('https://github.com/for-fo-f-zsq/7fa4-chat')" title="GitHub 项目主页">
-        <i class="fab fa-github"></i>
-      </a>
-      <h2>7FA4 Chat</h2>
+    <!-- 概览 -->
+    <div class="about-card about-hero">
+      <div class="about-hero-center">
+        <div class="about-logo-wrap">
+          <img src="/icon.png" alt="7FA4 Chat" class="about-logo" />
+        </div>
+        <div class="about-name">7FA4 Chat</div>
+        <div class="about-version-pill">v{{ version }}</div>
+        <p class="about-tagline">基于 Vue 3 与 Electron 的跨平台即时通讯应用，内置 Markdown、数学公式、代码与画板等学习工具。</p>
+      </div>
+      <div class="about-links">
+        <button class="about-link-btn" @click="openLink('https://github.com/for-fo-f-zsq/7fa4-chat')"><i class="fab fa-github"></i> GitHub</button>
+        <button class="about-link-btn" @click="openLink('https://jx.7fa4.cn:9080/student-archive/zsq-7fa4-chat')"><i class="fab fa-gitlab"></i> GitLab</button>
+        <button class="about-link-btn" @click="openLink('https://chat.forfof.cloud')"><i class="fas fa-globe"></i> 官网</button>
+      </div>
     </div>
-    <div class="about-content">
-      <div class="about-info">
-        <div class="about-rows-with-qr">
-          <div class="about-rows">
-            <div class="about-row"><span class="label">版本</span><span class="value">{{ version }}</span></div>
-            <div class="about-row"><span class="label">框架</span><span class="value">Electron + Vue 3</span></div>
-            <div class="about-row"><span class="label">作者</span><span class="value">for_fo_f / deepseek-v4-flash-0731</span></div>
-          </div>
-          <div class="about-donate">
-            <img :src="DONATE_URL" alt="赞赏码" class="donate-qr-img" @click="donateZoom = true">
-          </div>
-        </div>
 
-        <div class="update-section">
-        <div class="update-status-row">
-          <span class="label">更新</span>
-          <span class="update-status-text" :class="updateStatusClass">
-            <i v-if="updateStatus === 'checking'" class="fas fa-spinner fa-spin"></i>
-            <i v-else-if="updateStatus === 'available'" class="fas fa-cloud-upload-alt"></i>
-            <i v-else-if="updateStatus === 'downloading'" class="fas fa-download"></i>
-            <i v-else-if="updateStatus === 'downloaded'" class="fas fa-check-circle"></i>
-            <i v-else-if="updateStatus === 'not-available'" class="fas fa-check-circle"></i>
-            <i v-else-if="updateStatus === 'error'" class="fas fa-times-circle"></i>
-            <i v-else class="fas fa-question-circle"></i>
-            {{ updateStatusText }}
-          </span>
-          <button class="update-refresh-btn" @click="checkForUpdate" :disabled="updateStatus === 'checking' || updateStatus === 'downloading'" title="检查更新">
-            <i class="fas fa-sync-alt" :class="{ 'fa-spin': updateStatus === 'checking' }"></i>
-          </button>
+    <!-- 功能特性 -->
+    <div class="about-card">
+      <div class="about-card-title"><i class="fas fa-cubes"></i>功能特性</div>
+      <div class="about-feat-grid">
+        <div class="about-feat">
+          <div class="about-feat-icon"><i class="fas fa-comment-dots"></i></div>
+          <div class="about-feat-body">
+            <div class="about-feat-name">即时通讯</div>
+            <div class="about-feat-desc">私聊与群聊、@ 提醒与拍一拍；消息置顶收藏、自定义表情、图片与文件消息，历史记录完整拉取。</div>
+          </div>
         </div>
-        <div v-if="updateStatus === 'downloading'" class="update-progress-bar">
-          <div class="update-progress-fill" :style="{ width: downloadProgress + '%' }"></div>
-          <span class="update-progress-text">{{ downloadProgress.toFixed(1) }}%</span>
+        <div class="about-feat">
+          <div class="about-feat-icon"><i class="fas fa-file-alt"></i></div>
+          <div class="about-feat-body">
+            <div class="about-feat-name">消息渲染</div>
+            <div class="about-feat-desc">Markdown 富文本与代码高亮，行内、块级 KaTeX 数学公式，图片按原始比例显示并支持全屏预览。</div>
+          </div>
         </div>
-        <div class="update-actions">
-          <button v-if="updateStatus === 'available'" class="update-btn" @click="downloadUpdate">
-            <i class="fas fa-download"></i> 下载更新
-          </button>
-          <button v-if="updateStatus === 'downloaded'" class="update-btn update-btn-install" @click="installUpdate">
-            <i class="fas fa-sync-alt"></i> 安装并重启
-          </button>
+        <div class="about-feat">
+          <div class="about-feat-icon"><i class="fas fa-wrench"></i></div>
+          <div class="about-feat-body">
+            <div class="about-feat-name">内置工具箱</div>
+            <div class="about-feat-desc">Monaco 代码编辑器（本地判题）、终端、Markdown 编辑器、图片编辑与 PDF 查看，开箱即用。</div>
+          </div>
+        </div>
+        <div class="about-feat">
+          <div class="about-feat-icon"><i class="fas fa-calculator"></i></div>
+          <div class="about-feat-body">
+            <div class="about-feat-name">科学计算</div>
+            <div class="about-feat-desc">科学计算器支持表达式、模运算与质因数分解；GeoGebra 数学画板提供完整的绘图体验。</div>
+          </div>
+        </div>
+        <div class="about-feat">
+          <div class="about-feat-icon"><i class="fas fa-shield-alt"></i></div>
+          <div class="about-feat-body">
+            <div class="about-feat-name">数据与隐私</div>
+            <div class="about-feat-desc">聊天数据本地 SQLite + AES-256 加密存储，删除即彻底删除，无遥测、无广告。</div>
+          </div>
+        </div>
+        <div class="about-feat">
+          <div class="about-feat-icon"><i class="fas fa-laptop"></i></div>
+          <div class="about-feat-body">
+            <div class="about-feat-name">跨平台体验</div>
+            <div class="about-feat-desc">支持 Windows、Linux 与 macOS，多套主题、可自定义快捷键与字体大小，窄窗自动单列布局。</div>
+          </div>
         </div>
       </div>
+    </div>
 
-      <div class="about-desc">
-        <p>7FA4 Chat 是一款基于 Vue 3 与 Electron 构建的跨平台即时通讯应用。</p>
-        <p>你可以前往顶部 GitLab / GitHub 图标查看项目主页与源码</p>
-      </div>
+    <!-- 技术栈 -->
+    <div class="about-card">
+      <div class="about-card-title"><i class="fas fa-code"></i>技术栈</div>
       <div class="about-tech">
         <span class="tech-tag">Vue 3</span>
         <span class="tech-tag">Electron</span>
+        <span class="tech-tag">Node.js</span>
+        <span class="tech-tag">Express</span>
+        <span class="tech-tag">SQLite</span>
         <span class="tech-tag">Markdown</span>
         <span class="tech-tag">KaTeX</span>
-        <span class="tech-tag">Express</span>
+        <span class="tech-tag">Monaco</span>
+        <span class="tech-tag">GeoGebra</span>
         <span class="tech-tag">Font Awesome</span>
       </div>
-      <div class="about-two-col">
-        <!-- 左半：更新日志 -->
-        <div class="changelog-section">
-          <div class="changelog-header">
-            <span>更新日志</span>
-            <i class="fas fa-chevron-down changelog-toggle" ></i>
-          </div>
-          <div class="changelog-content">
-            <div v-if="changelogLoading" class="changelog-loading">
-              <i class="fas fa-spinner fa-spin"></i> 加载中...
-            </div>
-            <div v-else-if="changelogError" class="changelog-error">
-              <i class="fas fa-times-circle"></i> {{ changelogError }}
-            </div>
-            <div v-else-if="changelogHtml" class="changelog-body" v-html="changelogHtml"></div>
-            <div v-else class="changelog-empty">暂无更新日志</div>
-          </div>
-        </div>
-        <!-- 右半：赞助者（表格） -->
-        <div class="about-right-col">
-          <div class="sponsor-section" v-if="sponsors.length">
-            <div class="sponsor-header"><span>赞助者</span><small>感谢每一份支持</small></div>
-            <table class="sponsor-table">
-              <thead><tr><th>#</th><th>昵称</th><th>金额</th></tr></thead>
-              <tbody>
-                <tr v-for="(sp, idx) in sponsors" :key="sp.name">
-                  <td class="sponsor-idx">{{ idx + 1 }}</td>
-                  <td class="sponsor-name">{{ sp.name }}</td>
-                  <td class="sponsor-amount">{{ sp.amount }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-      </div><!-- /about-info -->
-    </div>
-    <!-- 赞赏码放大弹层 -->
-    <div v-if="donateZoom" class="donate-zoom-overlay" @click="donateZoom = false">
-      <img :src="DONATE_URL" alt="赞赏码" class="donate-zoom-img">
+      <div class="about-footer">© 2026 for_fo_f 独立开发维护 · 反馈请到头像菜单「意见反馈」</div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue'
-import { store } from '../store.js'
+import { ref, onMounted } from 'vue'
 
-defineProps({ version: String })
+const props = defineProps({ version: { type: String, default: '' } })
 
-const changelogLoading = ref(false)
-const changelogError = ref('')
-// #18 赞助者
-const sponsors = ref([])
-async function loadSponsors() {
-  try {
-    const r = await window.api.fetchSponsors()
-    if (r && r.success && Array.isArray(r.list)) sponsors.value = r.list
-  } catch {}
-}
-const changelogHtml = ref('')
-// 赞赏码（托管在 chat.forfof.cloud/assets/donate-qr.jpg）
-const DONATE_URL = 'https://chat.forfof.cloud/assets/donate-qr.jpg'
-const donateZoom = ref(false)
-const updateStatus = ref('idle') // idle, checking, available, not-available, downloading, downloaded, error
-const updateInfo = ref(null)
-const downloadProgress = ref(0)
-const updateError = ref('')
+// 兜底：外层异步传入可能为空，面板自身再拉一次版本号
+const version = ref(props.version || '')
+onMounted(() => {
+  if (!version.value) {
+    window.api.getVersion().then((v) => { if (v) version.value = v }).catch(() => {})
+  }
+})
 
 // 用系统默认浏览器打开外部链接
 function openLink(url) {
   window.api.openExternal(url)
 }
-
-const updateStatusText = computed(() => {
-  switch (updateStatus.value) {
-    case 'idle': return '未检查'
-    case 'checking': return '正在检查...'
-    case 'available': return `发现新版本 v${updateInfo.value?.version || ''}`
-    case 'not-available': return '已是最新版本'
-    case 'downloading': return `正在下载 ${downloadProgress.value.toFixed(1)}%`
-    case 'downloaded': return `v${updateInfo.value?.version || ''} 已就绪`
-    case 'error': return `更新失败: ${updateError.value}`
-    default: return '未知'
-  }
-})
-
-const updateStatusClass = computed(() => {
-  return {
-    'status-idle': updateStatus.value === 'idle',
-    'status-checking': updateStatus.value === 'checking',
-    'status-available': updateStatus.value === 'available',
-    'status-latest': updateStatus.value === 'not-available',
-    'status-downloading': updateStatus.value === 'downloading',
-    'status-downloaded': updateStatus.value === 'downloaded',
-    'status-error': updateStatus.value === 'error',
-  }
-})
-
-function handleUpdateStatus(data) {
-  updateStatus.value = data.status
-  if (data.info) updateInfo.value = data.info
-  if (data.progress) downloadProgress.value = data.progress.percent
-  if (data.error) updateError.value = data.error
-}
-
-async function checkForUpdate() {
-  updateStatus.value = 'checking'
-  updateError.value = ''
-  try {
-    await window.api.checkForUpdate()
-  } catch (e) {
-    updateStatus.value = 'error'
-    updateError.value = e.message
-  }
-}
-
-async function downloadUpdate() {
-  try {
-    await window.api.downloadUpdate()
-  } catch (e) {
-    updateStatus.value = 'error'
-    updateError.value = e.message
-  }
-}
-
-function installUpdate() {
-  window.api.installUpdate()
-}
-
-async function fetchChangelog() {
-  changelogLoading.value = true
-  changelogError.value = ''
-  try {
-    const result = await window.api.fetchChangelog()
-    if (result.success) {
-      changelogHtml.value = result.html
-    } else {
-      changelogError.value = result.error || '获取失败'
-    }
-  } catch (e) {
-    changelogError.value = e.message || '网络错误'
-  } finally {
-    changelogLoading.value = false
-  }
-}
-
-onMounted(async () => {
-  try {
-    checkForUpdate();fetchChangelog();loadSponsors();
-  } catch (err) {
-    console.error('获取设置失败:', err)
-  }
-  window.api.onUpdateStatus(handleUpdateStatus)
-})
-onUnmounted(() => {
-  // ipcRenderer listener will be cleaned up on window close
-})
 </script>

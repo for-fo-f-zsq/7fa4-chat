@@ -4,6 +4,7 @@
       <h4>{{ title }}</h4>
       <input
         ref="inputRef"
+        v-autofocus
         v-model="inputValue"
         type="text"
         :placeholder="placeholder"

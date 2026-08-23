@@ -6,7 +6,7 @@
         <button class="preview-close" @click="$emit('close')"><i class="fas fa-times"></i></button>
       </div>
       <div class="forward-search">
-        <input class="forward-search-input" v-model="searchQuery" placeholder="搜索联系人/群聊..." ref="searchInput" />
+        <input class="forward-search-input" v-autofocus v-model="searchQuery" placeholder="搜索联系人/群聊..." ref="searchInput" />
       </div>
       <div class="forward-list">
         <div

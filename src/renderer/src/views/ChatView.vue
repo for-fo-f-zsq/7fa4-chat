@@ -141,6 +141,17 @@
       :class="{ 'fade-out': contentFading }"
       :version="version"
     />
+    <UpdatePanel
+      v-if="pageType==='update'"
+      class="fade-content"
+      :class="{ 'fade-out': contentFading }"
+      :version="version"
+    />
+    <DonatePanel
+      v-if="pageType==='donate'"
+      class="fade-content"
+      :class="{ 'fade-out': contentFading }"
+    />
     </div>
   </div>
   <TargetMenu
@@ -172,6 +183,7 @@
     :groups="store.groups"
     :users="store.users"
     :selfUid="store.self.uid"
+    :progress="groupActionProgress"
     @close="groupModal.show = false;groupModal.groupId=0"
     @submit="submitGroupAction"
     @openuserinfo="openuserinfo"
@@ -255,6 +267,8 @@ import ForwardModal from '../components/ForwardModal.vue';
 import ContentPreviewModal from '../components/ContentPreviewModal.vue';
 import SettingsPanel from '../components/SettingsPanel.vue';
 import AboutPanel from '../components/AboutPanel.vue';
+import UpdatePanel from '../components/UpdatePanel.vue';
+import DonatePanel from '../components/DonatePanel.vue';
 import TargetMenu from '../components/TargetMenu.vue';
 import UserInfoModal from '../components/UserInfoModal.vue';
 import GroupModal from '../components/GroupModal.vue';
@@ -367,6 +381,8 @@ const targetMenu = reactive({ show: false, x: 0, y: 0, type: '', id: null, isPin
 const userinfo = reactive({ show: false, uid: 0 });
 const groupaction = reactive({ show: false, mid: 0, x: 0, y: 0 });
 const groupModal = reactive({ show: false, groupId: null });
+// 群详情多选操作进度：{ show, current, total, label }（show=false 表示空闲）
+const groupActionProgress = reactive({ show: false, current: 0, total: 0, label: '' });
 const themeModal = ref(false);
 const shortcutModal = ref(false);
 const forwardModalVisible = ref(false);
@@ -982,6 +998,26 @@ async function postGroup(body) {
   return await (await safeFetch('/chat/group', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json();
 }
 
+// 微小间隔防抖
+const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+// 带重试的群操作：每轮尝试前调 onStart 刷新进度（含首次），结束调 onEnd；失败自动重试最多 2 次
+async function postGroupWithRetry(body, onStart, onEnd) {
+  let lastResult = { success: false, err: { message: '操作失败' } };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    onStart?.(); // 每轮尝试前刷新进度（首次 + 重试）
+    if (attempt > 0) await wait(600); // 重试前退避
+    try {
+      lastResult = await postGroup(body);
+      if (lastResult.success) break;
+    } catch {
+      lastResult = { success: false, err: { message: '网络异常，请重试' } };
+    }
+  }
+  onEnd?.();
+  return lastResult;
+}
+
 async function refreshInfo() {
   const info = await (await safeFetch('/chat/info')).json();
   if (info.success) await update(info);
@@ -1048,13 +1084,21 @@ async function submitGroupAction(action, gidOverride) {
   if (action.type === 'dissolve') {
     const group = store.groups[gid];
     if (group) {
-      try {
-        const members = group.users.filter(u => String(u.user_id) !== String(store.self.uid));
-        for (const m of members) {
-          await postGroup({ type: 'del_member', group_id: gid, target_id: m.user_id });
-        }
-      } catch {}
+      const members = group.users.filter(u => String(u.user_id) !== String(store.self.uid));
+      // 解散群聊：逐个踢出成员，加间隔 + 进度 + 重试
+      if (members.length > 0) {
+        groupActionProgress.show = true;
+        groupActionProgress.total = members.length;
+      }
+      for (let i = 0; i < members.length; i++) {
+        const m = members[i];
+        groupActionProgress.current = i + 1;
+        groupActionProgress.label = `解散群聊：移除成员 ${i + 1}/${members.length}`;
+        await postGroupWithRetry({ type: 'del_member', group_id: gid, target_id: m.user_id }, null, null);
+        if (i < members.length - 1) await wait(300);
+      }
     }
+    groupActionProgress.show = false;
     action = { ...action, type: 'leave' };
   }
   // 支持批量选人：targetIds 数组优先，否则回退单 targetId
@@ -1064,20 +1108,39 @@ async function submitGroupAction(action, gidOverride) {
   if (action.type === 'give_owner' && targets.length > 1) { alert('转让群主只能选择一名成员'); return; }
   if (targets.length === 0) { alert('请选择成员'); return; }
   let failed = false;
-  for (const tid of targets) {
+  // 批量选人：循环开始前显示进度条，全部结束才隐藏（避免每条间闪烁）
+  if (targets.length > 1) {
+    groupActionProgress.show = true;
+    groupActionProgress.total = targets.length;
+  }
+  for (let i = 0; i < targets.length; i++) {
+    const tid = targets[i];
     const body = { type: action.type, group_id: gid, target_id: tid, title: action.title };
     if (action.type === 'mute_member' || action.type === 'mute_group') {
       body.mute = Math.floor(Date.now() / 1000 + action.muteMinutes * 60);
     }
-    try {
-      const r = await postGroup(body);
-      if (!r.success) {
-        failed = true;
-        const msg = r.err?.message || '操作失败';
-        if (targets.length === 1) { alert(msg); return; }
-      }
-    } catch { failed = true; if (targets.length === 1) { alert('操作失败，请重试'); return; } }
+    if (targets.length > 1) {
+      groupActionProgress.current = i + 1;
+      groupActionProgress.label = `操作进度 ${i + 1}/${targets.length}`;
+    }
+    const done = await postGroupWithRetry(
+      body,
+      () => {
+        if (targets.length > 1) {
+          groupActionProgress.current = i + 1;
+          groupActionProgress.label = `操作进度 ${i + 1}/${targets.length}`;
+        }
+      },
+      () => {} // show 由循环统一控制
+    ).catch(() => ({ success: false }));
+    if (!done.success) {
+      failed = true;
+      const msg = done.err?.message || '操作失败';
+      if (targets.length === 1) { alert(msg); groupActionProgress.show = false; return; }
+    }
+    if (i < targets.length - 1) await wait(300); // 相邻两条间微小间隔，防连续请求网络问题
   }
+  groupActionProgress.show = false;
   if (failed && targets.length > 1) alert('部分成员操作失败，请重试');
   if (action.type === 'leave') { const group = store.groups[gid]; if (group) group.exited = true; groupModal.show = false; }
   await refreshInfo();

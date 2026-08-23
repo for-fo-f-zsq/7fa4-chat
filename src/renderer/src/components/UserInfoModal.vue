@@ -5,6 +5,7 @@
         <div class="user-note-wrapper" v-if="editingName">
           <input
             ref="nameInputRef"
+            v-autofocus
             v-model="tempName"
             type="text"
             class="user-note-input"

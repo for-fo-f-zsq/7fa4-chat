@@ -12,6 +12,7 @@
         <input
           v-if="editingName"
           ref="nameInputRef"
+          v-autofocus
           v-model="fileNameDraft"
           class="md-name-input"
           spellcheck="false"

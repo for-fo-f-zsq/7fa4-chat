@@ -16,14 +16,14 @@
 }
 
 .announcement-card {
-    width: 520px;
-    max-width: 92vw;
-    max-height: 85vh;
+    width: 640px;               /* 加宽：从 520px 提升到 640px */
+    max-width: 94vw;
+    height: 500px;              /* 加高：从 430px 提升到 500px */
     background: linear-gradient(160deg, var(--bg-app), var(--bg-gradient-end));
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-modal), inset 0 1px 0 var(--border-3d-light);
     border: 1px solid var(--border-3d-dark);
-    padding: 28px 28px 20px;
+    padding: 30px 32px 22px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -36,14 +36,18 @@
 
 .announcement-page {
     flex: 1;
-    min-height: 300px;
+    min-height: 360px;          /* 页面区：随卡片加高自动撑大，设最小高度保证内容区足够 */
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;   /* 顶部对齐 + 可滚动：内容超高也完整可见（center 会裁切顶部） */
     text-align: center;
     overflow-y: auto;
     animation: announcementPage 0.3s ease;
+}
+/* 内容不足高度时垂直居中：用 auto margin（flex 标准做法，内容超高时不裁顶部） */
+.announcement-welcome {
+    justify-content: center;
 }
 @keyframes announcementPage {
     from { opacity: 0; transform: translateX(16px); }
@@ -176,6 +180,11 @@
     flex: 1;
     justify-content: center;
 }
+.announcement-nav-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
 .announcement-dot {
     width: 7px;
     height: 7px;
@@ -192,7 +201,8 @@
 /* 页 3：官方更新日志 */
 .announcement-changelog {
     width: 100%;
-    max-height: 240px;
+    flex: 1;                     /* 占满页面剩余高度（卡片加高后不再固定 240px） */
+    min-height: 0;               /* 允许收缩，保证内部滚动生效 */
     overflow-y: auto;
     text-align: left;
     background: var(--bg-input);

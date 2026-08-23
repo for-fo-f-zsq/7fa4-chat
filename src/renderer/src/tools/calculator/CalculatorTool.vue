@@ -14,6 +14,7 @@
         <div class="calc-display">
           <input
             ref="exprInputRef"
+            v-autofocus
             v-model="exprText"
             class="calc-expr-input"
             placeholder="0"

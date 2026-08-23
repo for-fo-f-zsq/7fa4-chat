@@ -39,6 +39,32 @@ let pendingRestart = false; // 托盘"重启"：flush 完成后 relaunch
 let currentApiUrl = 'https://jx.7fa4.cn';
 let userStore = null; // SQLite 用户数据存储（whenReady 初始化）
 
+// Linux/AppImage 下 execPath 指向临时挂载点，relaunch 后挂载点失效会导致新进程无法启动。
+// Electron 官方建议：不要在 AppImage 用 app.relaunch()，而改用"启动新进程后让本进程以优雅方式退出"。
+// 统一走 app.quit()（BSD/退出时机干净），并显式重建主进程对象，避免 Linux 直接退出不再打开。
+function appRestart() {
+  try {
+    // 借助 stdin/stdout 或退出码 0 平滑退出；quitAndInstall 的 quit 流程足够干净。
+    // 关键差异：Linux 下不要用 app.exit(0)（硬杀），否则新实例在旧实例释放单实例锁之前启动 → 误判已有实例而退出。
+    app.isQuitting = true;
+    const relaunchArgs = [];
+    // AppImage：新进程会以同一个 APPIMAGE 环境变量作为可执行路径启动（electron-builder 写法）
+    const relaunchOpts = {};
+    if (process.platform === 'linux') {
+      if (process.env.APPIMAGE) {
+        // 使用 APPIMAGE 环境变量指向的真实 AppImage 路径，避免 execPath 指向已卸载的临时挂载点
+        relaunchOpts.execPath = process.env.APPIMAGE;
+        if (process.env.APPIMAGE_EXTRA_ARGS) relaunchArgs.push(...process.env.APPIMAGE_EXTRA_ARGS.split(' '));
+      }
+    }
+    app.relaunch(relaunchOpts);
+    app.quit();
+  } catch (err) {
+    console.error('[Restart] 重启失败:', err && err.message);
+    app.quit();
+  }
+}
+
 function startServer() {
     if (serverStarted) return;
     const serverApp = express();
@@ -186,8 +212,7 @@ function createWindow() {
                         flushPending = false;
                         if (pendingRestart) {
                             pendingRestart = false;
-                            app.relaunch();
-                            app.exit(0);
+                            appRestart();
                             return;
                         }
                         if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
@@ -242,7 +267,7 @@ function createTray() {
             pendingRestart = true;
             app.isQuitting = true;
             if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
-            else { pendingRestart = false; app.relaunch(); app.exit(0); }
+            else { pendingRestart = false; appRestart(); }
         }},
         { label: '退出', click: () => {
             app.isQuitting = true;
@@ -700,10 +725,9 @@ ipcMain.on('app-flush-done', () => {
     forceClose = true;
     flushPending = false;
     if (pendingRestart) {
-        // 重启：flush 已落盘 → 安排新实例并结束当前进程
+        // 重启：flush 已落盘 → 安排新实例并优雅退出
         pendingRestart = false;
-        app.relaunch();
-        app.exit(0);
+        appRestart();
         return;
     }
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();

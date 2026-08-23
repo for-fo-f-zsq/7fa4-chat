@@ -723,7 +723,14 @@ async function addSticker() {
   try {
     const sel = await window.api.selectImage();
     if (!sel.success) { sending.value = false; return; }
-    store.stickers.push({ name: sel.name, data: sel.data, mime: sel.mime });
+    // 压缩：GIF 保留动画不压缩；其余图片压缩到 ≤100KB，避免"收藏表情超100KB"
+    let data = sel.data;
+    let mime = sel.mime;
+    if (sel.mime && !/^image\/gif$/i.test(sel.mime)) {
+      const result = await compressBase64Image(data, mime);
+      if (result) { data = result.data; mime = 'image/jpeg'; }
+    }
+    store.stickers.push({ name: sel.name, data, mime });
   } catch {
     errorMessage.value = '添加表情失败';
   }

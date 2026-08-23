@@ -351,8 +351,8 @@ export const QQFACES = [
   { id: 390, code: "/无语", name: "无语", pinyin: "wuyu", alias: [], file: "s390.gif" },
   { id: 391, code: "/嘟嘴", name: "嘟嘴", pinyin: "duzui", alias: [], file: "s391.gif" },
   { id: 392, code: "/龙头", name: "龙头", pinyin: "longtou", alias: [], file: "s392.gif" },
-  { id: 393, code: "/龙腾", name: "龙腾", pinyin: "longteng", alias: [], file: "s393.gif" },
-  { id: 394, code: "/龙舞", name: "龙舞", pinyin: "longwu", alias: [], file: "s394.gif" },
+  { id: 393, code: "/龙腾", name: "龙腾", pinyin: "longteng", alias: [], file: "s392.gif" },
+  { id: 394, code: "/龙舞", name: "龙舞", pinyin: "longwu", alias: [], file: "s392.gif" },
   { id: 395, code: "/紫龙", name: "紫龙", pinyin: "zilong", alias: [], file: "s395.gif" },
   { id: 396, code: "/小恐龙", name: "小恐龙", pinyin: "xiaokonglong", alias: [], file: "s396.gif" },
   { id: 397, code: "/黄恐龙", name: "黄恐龙", pinyin: "huangkonglong", alias: [], file: "s397.gif" },
@@ -373,8 +373,8 @@ export const QQFACES = [
   { id: 412, code: "/墨镜花", name: "墨镜花", pinyin: "mojinghua", alias: [], file: "s412.gif" },
   { id: 413, code: "/酷花", name: "酷花", pinyin: "kuhua", alias: [], file: "s413.gif" },
   { id: 415, code: "/婴儿", name: "婴儿", pinyin: "yinger", alias: [], file: "s415.gif" },
-  { id: 416, code: "/宝贝", name: "宝贝", pinyin: "baobei", alias: [], file: "s416.gif" },
-  { id: 417, code: "/萌娃", name: "萌娃", pinyin: "mengwa", alias: [], file: "s417.gif" },
+  { id: 416, code: "/宝贝", name: "宝贝", pinyin: "baobei", alias: [], file: "s415.gif" },
+  { id: 417, code: "/萌娃", name: "萌娃", pinyin: "mengwa", alias: [], file: "s415.gif" },
 ];
 
 // 快捷码 → 表情（中文 + 拼音 + 缩写 全映射）

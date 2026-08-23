@@ -54,6 +54,36 @@ export { COLOR_KEYS, GRADE_LABELS, DEFAULT_PALETTE }
 // ========== 消息长度限制 ==========
 export const MAX_MSG_LENGTH = 102400;
 
+// ========== 图片/表情 media URL 缓存（治本：避免 100KB+ base64 内联进 HTML/一次性解码） ==========
+// 把 base64 → Blob objectURL，DOM 只挂一个短 URL。按 base64 字符串缓存，同一数据复用同一 URL，避免泄漏。
+const mediaUrlCache = new Map()
+const MEDIA_URL_MAX = 400  // 缓存上限，防内存无限增长
+export function mediaUrlFromData(base64, mime) {
+  if (!base64) return ''
+  const hit = mediaUrlCache.get(base64)
+  if (hit) return hit
+  const mimeStr = mime && /^image\//.test(mime) ? mime : 'image/png'
+  let url
+  try {
+    const bin = atob(base64)
+    const bytes = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+    url = URL.createObjectURL(new Blob([bytes], { type: mimeStr }))
+  } catch {
+    url = `data:${mimeStr};base64,${base64}`
+  }
+  if (mediaUrlCache.size >= MEDIA_URL_MAX) {
+    // 简单 FIFO 清理：删最早一条（Map 迭代序即插入序）
+    const firstKey = mediaUrlCache.keys().next().value
+    mediaUrlCache.delete(firstKey)
+  }
+  mediaUrlCache.set(base64, url)
+  return url
+}
+// 供消息渲染层缓存解析结果（同一 content 字符串只解析一次，避免每次 v-html 重算超大 HTML）
+const parseContentCache = new Map()
+const PARSE_CACHE_MAX = 300
+
 // ========== 图片压缩 (Canvas) ==========
 export function compressImage(file) {
   return new Promise((resolve) => {
@@ -692,14 +722,21 @@ for (const type of LINE_MAP_BLOCK_TYPES) {
 }
 
 // 有效的 QQ 表情码占位符（预处理阶段用，防止被 markdown-it 转义/吞并）。
-// 用私用区字符 \uE000 包裹：markdown-it 原样保留、不会替换成 �，输出后安全还原
-export function renderMarkdown(text) {
-  if (!text) return ''
-  // 预处理：把"后跟空格/标点/行尾"的有效 /code 表情码替换为占位符（仅后边界判定的正确渲染）
-  const qfRe = /\/[\p{L}\p{N}_]{1,16}(?=\s|[^\p{L}\p{N}_]|$)/gu
+  // 用私用区字符 \uE000 包裹：markdown-it 原样保留、不会替换成 �，输出后安全还原
+  export function renderMarkdown(text) {
+    if (!text) return ''
+    // 预处理：把"后跟空白/行尾"的有效 /code 表情码替换为占位符（仅后边界判定的正确渲染）。
+    // 后边界只允许不可见字符（空格/换行/行尾），避免 /jx. /abc. 等路径或 URL 片段被误渲染成表情。
+    // 另跳过 URL 内部片段（http(s):// 或 www. 之后的部分），如 http://jx.7fa4.cn/api/xx 不应渲染成表情
+    const urlSpans = []
+    const textNoUrl = String(text).replace(/\b(?:https?|ftp):\/\/[^\s<>"')\]]+|\bwww\.[^\s<>"')\]]+/gi, (m) => {
+      urlSpans.push(m)
+      return '\uE100URL' + (urlSpans.length - 1) + 'URL\uE101'
+    })
+    const qfRe = /\/[\p{L}\p{N}_]{1,16}(?=\s|$)/gu
   const qfMap = {}
   let qfCount = 0
-  const serialized = preprocessKatexBlock(text.replace(qfRe, (m) => {
+  const serialized = preprocessKatexBlock(textNoUrl.replace(qfRe, (m) => {
     const face = QUANCODE.get(m.toLowerCase())
     if (!face) return m
     const ph = '\uE000QF' + (qfCount++) + 'QF\uE000'
@@ -707,10 +744,10 @@ export function renderMarkdown(text) {
     return ph
   }))
   let out = md.render(serialized).replace(/\n+$/, '')
-  // 还原占位符为表情 <img>（逐 key 字符串替换，避开正则转义问题）
-  for (const [ph, img] of Object.entries(qfMap)) {
-    if (out.includes(ph)) out = out.split(ph).join(img)
-  }
+  // 还原占位符为表情 <img>（单遍正则替换，O(L)；避免逐 key split/join 导致的 O(N²) 卡顿）
+  out = out.replace(/\uE000QF(\d+)QF\uE000/g, (_, k) => qfMap['\uE000QF' + k + 'QF\uE000'] || '')
+  // 还原 URL 占位符
+  out = out.replace(/\uE100URL(\d+)URL\uE101/g, (_, i) => esc(urlSpans[+i] ?? ''))
   return out
 }
 
@@ -799,19 +836,33 @@ function getFileIconInfo(name) {
 
 export function parseContent(raw, senderId) {
   if (!raw) return renderMarkdown(raw || '')
+  // 缓存：同一 content 只解析一次（大图片/表情消息尤为关键）
+  const cacheKey = senderId != null ? raw + '\u0001' + senderId : raw
+  const cached = parseContentCache.get(cacheKey)
+  if (cached != null) return cached
+  const result = _parseContentImpl(raw, senderId)
+  if (parseContentCache.size >= PARSE_CACHE_MAX) {
+    const firstKey = parseContentCache.keys().next().value
+    parseContentCache.delete(firstKey)
+  }
+  parseContentCache.set(cacheKey, result)
+  return result
+}
+
+function _parseContentImpl(raw, senderId) {
   const obj = parseMsgContent(raw)
   if (!obj) return renderMarkdown(raw)
   if (obj.type === 'file') {
     const isImage = /^image\//.test(obj.mime || '') || /\.(jpg|jpeg|png|gif|bmp|webp|ico)$/i.test(obj.name || '')
-    let dataUri = ''
-    if (obj.data && obj.mime) dataUri = `data:${obj.mime};base64,${obj.data}`
     let fileHtml = ''
     if (isImage) {
-      fileHtml = `<img class="chat-image" src="${esc(dataUri)}" data-base64="${esc(obj.data || '')}" data-mime="${esc(obj.mime || '')}">`
+      const src = mediaUrlFromData(obj.data || '', obj.mime || 'image/png')
+      fileHtml = `<img class="chat-image" src="${esc(src)}" data-media="${esc(src)}" data-mime="${esc(obj.mime || '')}">`
     } else {
       // 微信风格文件卡片：左侧后缀图标，右侧文件名 + 大小
       const fi = getFileIconInfo(obj.name || '')
-      fileHtml = `<div class="file-msg" data-base64="${esc(obj.data || '')}" data-name="${esc(obj.name)}" data-mime="${esc(obj.mime || '')}">
+      const b64 = obj.data || ''
+      fileHtml = `<div class="file-msg" data-file-b64="${esc(b64)}" data-name="${esc(obj.name)}" data-mime="${esc(obj.mime || '')}">
   <div class="file-msg-icon" style="color:${fi.color}"><i class="fas ${fi.icon}"></i></div>
   <div class="file-msg-info">
     <div class="file-msg-name">${esc(obj.name)}</div>
@@ -825,9 +876,8 @@ export function parseContent(raw, senderId) {
     return fileHtml
   }
   if (obj.type === 'sticker') {
-    let dataUri = ''
-    if (obj.data && obj.mime) dataUri = `data:${obj.mime};base64,${obj.data}`
-    return `<span class="sticker-msg"><img src="${esc(dataUri)}" alt="${esc(obj.name || '')}" data-base64="${esc(obj.data || '')}" data-mime="${esc(obj.mime || '')}"></span>`
+    const src = mediaUrlFromData(obj.data || '', obj.mime || 'image/png')
+    return `<span class="sticker-msg"><img src="${esc(src)}" alt="${esc(obj.name || '')}" data-media="${esc(src)}" data-mime="${esc(obj.mime || '')}"></span>`
   }
   if (obj.type === 'emoji') {
     const emojiText = String(obj.content || '').trim()

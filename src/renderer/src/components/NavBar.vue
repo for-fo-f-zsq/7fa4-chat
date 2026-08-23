@@ -51,6 +51,8 @@
         <div class="nav-user-menu-group">
           <div class="nav-user-menu-item" v-if="loggedIn" @click="go('favorites')"><i class="fas fa-star"></i><span>收藏</span></div>
           <div class="nav-user-menu-item" @click="go('settings')"><i class="fas fa-cog"></i><span>设置</span></div>
+          <div class="nav-user-menu-item" @click="go('update')"><i class="fas fa-cloud-upload-alt"></i><span>版本更新</span></div>
+          <div class="nav-user-menu-item" @click="go('donate')"><i class="fas fa-heart"></i><span>赞助</span></div>
           <div class="nav-user-menu-item" @click="go('about')"><i class="fas fa-info-circle"></i><span>关于</span></div>
           <div class="nav-user-menu-item" @click="openAnnouncement"><i class="fas fa-bullhorn"></i><span>版本公告</span></div>
           <div class="nav-user-menu-item" @click="openFeedback"><i class="fas fa-comment-dots"></i><span>意见反馈</span></div>

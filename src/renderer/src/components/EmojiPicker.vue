@@ -6,7 +6,7 @@
     </div>
     <template v-if="mode === 'emoji'">
       <div class="emoji-search">
-        <input v-model="search" placeholder="搜索 QQ 表情（输入 /微笑 或 /wx）..." ref="searchInput" />
+        <input v-autofocus v-model="search" placeholder="搜索 QQ 表情（输入 /微笑 或 /wx）..." ref="searchInput" />
       </div>
       <div class="emoji-grid qqface-grid">
         <img v-for="f in filteredQqfaces" :key="f.id"

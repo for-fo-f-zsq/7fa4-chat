@@ -3,7 +3,7 @@
     <div class="search-bar">
       <div class="search-field">
         <label class="search-label">关键词</label>
-        <input class="search-input" v-model="query" placeholder="搜索消息..." ref="inputEl" />
+        <input class="search-input" v-autofocus v-model="query" placeholder="搜索消息..." ref="inputEl" />
       </div>
       <div class="search-field">
         <label class="search-label">范围</label>
@@ -27,7 +27,7 @@
           </div>
           <div class="custom-select-dropdown" :class="{ dropup: senderDropup }" v-if="senderOpen">
             <div class="custom-select-search" @click.stop>
-              <input class="custom-select-search-input" v-model="senderSearchQuery" placeholder="搜索发送者..." ref="senderSearchInput" />
+              <input class="custom-select-search-input" v-autofocus v-model="senderSearchQuery" placeholder="搜索发送者..." ref="senderSearchInput" />
             </div>
             <div class="custom-select-options">
               <div class="custom-select-option" :class="{ active: !senderFilter }" @click.stop="selectSender('')"><span>全部</span></div>

@@ -1,3 +1,25 @@
+<h2>3.4.3</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>头像菜单新增"版本更新"与"赞助"独立页面</li>
+  <li><span class="change-tag improve">优化</span>重做"关于"页面，新增完整的软件介绍与功能说明</li>
+  <li><span class="change-tag improve">优化</span>更新日志改为内部滚动显示，页面布局更整洁</li>
+  <li><span class="change-tag improve">优化</span>赞助页改为左右并排布局，展示更清晰</li>
+  <li><span class="change-tag improve">优化</span>优化版本更新页布局与更新状态显示</li>
+  <li><span class="change-tag improve">优化</span>版本公告页更新日志占满高度，可完整滚动浏览</li>
+  <li><span class="change-tag fix">修复</span>修复若干界面与显示问题</li>
+</ul>
+<h2>3.4.2</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>新增群成员批量管理操作，支持间隔执行、进度显示与失败重试</li>
+  <li><span class="change-tag improve">优化</span>打开输入框自动聚焦，光标定位更顺手</li>
+  <li><span class="change-tag improve">优化</span>优化版本公告显示，固定高度并增加跳过入口</li>
+  <li><span class="change-tag improve">优化</span>优化表情消息渲染性能</li>
+  <li><span class="change-tag fix">修复</span>修复 Markdown 公式中字体显示异常的问题</li>
+  <li><span class="change-tag fix">修复</span>修复打开大表情图片卡死的问题</li>
+  <li><span class="change-tag fix">修复</span>修复 Linux 重启后应用无法自动打开的问题</li>
+  <li><span class="change-tag fix">修复</span>修复链接地址被误渲染成表情的问题</li>
+  <li><span class="change-tag fix">修复</span>修复超大自定义表情无法使用的问题</li>
+</ul>
 <h2>3.4.1</h2>
 <ul>
   <li><span class="change-tag new">新功能</span>未登录可直接进入主界面，聊天与收藏需登录后使用；登录状态本地持久化，重启不退出</li>

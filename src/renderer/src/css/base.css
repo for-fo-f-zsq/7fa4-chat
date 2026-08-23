@@ -27,6 +27,40 @@
     font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
 }
 
+/* 恢复 KaTeX 数学字体：上方全局 * 的 font-family 会直接命中 .katex 内部所有子元素，
+   把本应继承 KaTeX_Main 的正体算子（\min \max \mathrm 等 .mop/.mord）覆盖成 sans-serif，
+   导致"$内和$外显示一样"。这里让 .katex 内部恢复 KaTeX 官方默认字体：
+   - 根与多数元素 → KaTeX_Main（正体，\min \max \sum \mathrm 等）；
+   - .mathnormal → KaTeX_Math（斜体变量，如 x）；
+   - 花体/哥特等专属字体类保持自身规则（KaTeX .css 自带，无需覆盖）。 */
+.katex,
+.katex * {
+    font-family: KaTeX_Main, 'Times New Roman', serif;
+}
+.katex .mathnormal {
+    font-family: KaTeX_Math, KaTeX_Main, 'Times New Roman', serif;
+    font-style: italic;
+}
+.katex .mathcal {
+    font-family: KaTeX_Caligraphic, KaTeX_Main, 'Times New Roman', serif;
+}
+.katex .mathfrak,
+.katex .textfrak {
+    font-family: KaTeX_Fraktur, KaTeX_Main, 'Times New Roman', serif;
+}
+.katex .mathscr,
+.katex .textscr {
+    font-family: KaTeX_Script, KaTeX_Main, 'Times New Roman', serif;
+}
+.katex .mathrm,
+.katex .textrm,
+.katex .textsf,
+.katex .texttt,
+.katex .mop,
+.katex .mathdefault {
+    font-style: normal;
+}
+
 html, body, #app {
     margin: 0;
     padding: 0;

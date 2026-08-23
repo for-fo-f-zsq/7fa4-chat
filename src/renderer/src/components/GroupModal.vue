@@ -11,6 +11,7 @@
           <div class="group-name-wrapper" v-if="canEditName && editingName">
             <input
               ref="nameInputRef"
+              v-autofocus
               v-model="tempName"
               type="text"
               class="group-name-input"
@@ -48,7 +49,7 @@
         </div>
         <div class="section-title"><i class="fas fa-users"></i> 成员列表({{ group.users.length }}人)</div>
         <div class="member-search-bar">
-          <input class="member-search-input" v-model="memberSearchQuery" placeholder="搜索成员..." ref="memberSearchInput" />
+          <input class="member-search-input" v-autofocus v-model="memberSearchQuery" placeholder="搜索成员..." ref="memberSearchInput" />
         </div>
         <div class="table-wrapper">
           <table class="member-table">
@@ -99,7 +100,7 @@
             </div>
             <div class="custom-select-dropdown user-dropdown" :class="{ dropup: userDropup }" v-if="userOpen">
               <div class="custom-select-search" @click.stop>
-                <input class="custom-select-search-input" v-model="userSearchQuery" placeholder="搜索用户..." ref="userSearchInput" />
+                <input class="custom-select-search-input" v-autofocus v-model="userSearchQuery" placeholder="搜索用户..." ref="userSearchInput" />
               </div>
               <div class="select-all-option" v-if="multiSelect && searchedUsers.length" @click.stop="toggleSelectAll">
                 <input type="checkbox" :checked="allSearchedSelected" @click.stop.prevent="toggleSelectAll" />
@@ -117,7 +118,14 @@
           <div class="group-select-error" v-if="selectError">{{ selectError }}</div>
           <input v-if="showMuteTime" v-model.number="muteMinutes" type="number" class="mute-input" placeholder="禁言分钟" min="1" />
           <input v-if="showNewName" v-model="newName" type="text" class="name-input" placeholder="新群名" />
-          <button class="execute-btn" @click="executeAction">执行</button>
+          <button class="execute-btn" :disabled="!!progress?.show" @click="executeAction">
+            <i v-if="progress?.show" class="fas fa-spinner fa-spin"></i>
+            {{ progress?.show ? formatProgressLabel() : '执行' }}
+          </button>
+        </div>
+        <div v-if="progress?.show" class="group-progress-bar">
+          <div class="group-progress-fill" :style="{ width: progressPercent + '%' }"></div>
+          <span class="group-progress-label">{{ progress.label }}</span>
         </div>
 
         <GroupActionMenu
@@ -156,10 +164,21 @@ const props = defineProps({
   groupId: [String, Number],
   groups: Object,
   users: Object,
-  selfUid: [String, Number]
+  selfUid: [String, Number],
+  progress: { type: Object, default: null }
 })
 
 const emit = defineEmits(['close', 'submit', 'openuserinfo', 'switchToChat'])
+
+// 操作进度辅助（progress 由父组件 submitGroupAction 更新）
+const progressPercent = computed(() => {
+  if (!props.progress?.total) return 0
+  return Math.round((props.progress.current / props.progress.total) * 100)
+})
+function formatProgressLabel() {
+  if (!props.progress?.label) return '处理中…'
+  return props.progress.label
+}
 
 function emitSubmit(action) {
   emit('submit', action)
