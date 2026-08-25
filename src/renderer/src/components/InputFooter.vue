@@ -96,7 +96,7 @@ import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
 import { store } from '../store.js';
 import { displayName, parseMsgContent, renderMarkdown, renderMarkdownPreview, applyChatToStore, sendChatMessage, getConvoKey, formatSize, compressImage, compressBase64Image, extractMentions, isSingleEmoji } from '../utils.js';
 import EmojiPicker from './EmojiPicker.vue';
-import { QUANCODE, qqfaceUrl } from '../qqface-data.js';
+import { QUANCODE, qqfaceUrl, qqfaceShortCode } from '../qqface-data.js';
 import '../css/input-footer.css';
 
 const props = defineProps({
@@ -691,13 +691,16 @@ watch(inputText, () => {
 // 判断文本是否为「单个」emoji —— 已移至 utils.isSingleEmoji（渲染端共用，防 API 伪造）
 
 // 微信风格：点击表情仅在输入框光标位置插入，不直接发送
+// 默认插入最短快捷码（/jy 而非 /惊讶 /jingya）；表情码后补一个空格：
+// 渲染端用 /code(?=\s|$) 判定，连点多个表情时需空格分隔才能逐个识别
 function onEmojiSelect(face) {
   const caret = getCaretSerializedOffset()
   const text = inputText.value
-  const code = face.code
-  const newText = text.slice(0, caret) + code + text.slice(caret)
+  const code = qqfaceShortCode(face)
+  const inserted = code + ' '
+  const newText = text.slice(0, caret) + inserted + text.slice(caret)
   inputText.value = newText
-  renderEditor(newText, caret + code.length)
+  renderEditor(newText, caret + inserted.length)
   nextTick(() => inputEl.value?.focus())
 }
 

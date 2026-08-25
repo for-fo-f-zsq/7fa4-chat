@@ -387,4 +387,21 @@ for (const f of QQFACES) {
 
 export function qqfaceUrl(file) { return "/qqface/" + file }
 
+/**
+ * 取表情的最短快捷码（用于点击表情时默认插入的文本）。
+ * 候选：中文码 code、全拼码 "/pinyin"、以及全部 alias（"/alias"）。
+ * 在全部候选中选 JS 长度最小的；长度相同时优先 alias > pinyin > code。
+ * 例：/惊讶 → /jy（alias 最短）；无 alias 但有拼音 → /jingya；两者皆无 → 用中文码。
+ */
+export function qqfaceShortCode(f) {
+  if (!f) return ''
+  const cands = []
+  if (f.code) cands.push({ s: f.code, pri: 3 })
+  if (f.pinyin) cands.push({ s: '/' + f.pinyin, pri: 2 })
+  for (const a of (f.alias || [])) cands.push({ s: '/' + a, pri: 1 })
+  if (!cands.length) return ''
+  cands.sort((x, y) => (x.s.length - y.s.length) || (x.pri - y.pri))
+  return cands[0].s
+}
+
 export const QUANCODE_PATTERN = /\/[a-zA-Z\u4e00-\u9fa5]{1,12}/g

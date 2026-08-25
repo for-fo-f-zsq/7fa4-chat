@@ -8,6 +8,7 @@
   <li><span class="change-tag improve">优化</span>图编辑器、计算器窗口较窄时自动收起侧边面板，主区域更开阔</li>
   <li><span class="change-tag improve">优化</span>Markdown 编辑器窗口较窄时自动改为上下分栏显示</li>
   <li><span class="change-tag improve">优化</span>消息保存方式优化，退出后重启不再丢失最近发送的消息</li>
+  <li><span class="change-tag improve">优化</span>表情插入改用最短快捷码，连续选择多个表情也能正常显示</li>
   <li><span class="change-tag fix">修复</span>修复自己发送的消息在重启后有时不显示的问题</li>
   <li><span class="change-tag fix">修复</span>修复未保存提示中"不保存"按钮无法点击的问题</li>
 </ul>
