@@ -22,3 +22,8 @@ export const THEMES = [
   { value: 'cyberpunk', label: '赛博（Cyberpunk）', color: '#FCEE09' },
   { value: 'solarized', label: '日晒（Solarized）', color: '#268BD2' }
 ]
+
+// 窄窗口（手机比例）判定阈值：高/宽比超过此值即进入窄（单列）布局。
+// 与 ChatView 的 isNarrowLayout 共用，供各工具独立感知窄模式。
+export const NARROW_ASPECT = 1.4
+

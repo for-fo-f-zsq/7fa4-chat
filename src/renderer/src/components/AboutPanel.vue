@@ -1,5 +1,9 @@
 <template>
   <div class="about-panel">
+    <!-- 返回条 -->
+    <div class="about-topbar">
+      <BackButton title="返回消息列表" @back="emit('back')" />
+    </div>
     <!-- 概览 -->
     <div class="about-card about-hero">
       <div class="about-hero-center">
@@ -88,8 +92,10 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import BackButton from './BackButton.vue'
 
 const props = defineProps({ version: { type: String, default: '' } })
+const emit = defineEmits(['back'])
 
 // 兜底：外层异步传入可能为空，面板自身再拉一次版本号
 const version = ref(props.version || '')

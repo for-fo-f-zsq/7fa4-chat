@@ -1,5 +1,5 @@
 <template>
-  <div class="graph-tool">
+  <div class="graph-tool" :class="{ narrow: isNarrow }">
     <div class="graph-tool-header">
       <div class="graph-tool-title">
         <button class="graph-back-btn" title="返回工具列表" @click="$emit('back')"><i class="fas fa-arrow-left"></i></button>
@@ -10,7 +10,11 @@
     </div>
 
     <div class="graph-tool-body">
-      <div class="graph-side">
+      <!-- 窄模式：侧边把手（抽屉收起时仍可见，点击展开/收起） -->
+      <div v-if="isNarrow" class="graph-side-handle" :class="{ open: sideOpen }" @click="sideOpen = !sideOpen" :title="sideOpen ? '收起输入面板' : '展开输入面板'">
+        <i :class="sideOpen ? 'fas fa-chevron-left' : 'fas fa-chevron-right'"></i>
+      </div>
+      <div class="graph-side" :class="{ open: sideOpen }">
         <div class="graph-panel">
           <div class="graph-panel-title"><i class="fas fa-edit"></i> 输入</div>
           <div class="graph-field-label">边列表（u v [w]，输入实时生效，# 开头为注释）</div>
@@ -211,9 +215,15 @@
 <script setup>
 import { ref, reactive, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import * as algos from './graphAlgos.js'
+import { useNarrow } from '../../composables/useNarrow.js'
 import './graph-editor.css'
 
 defineEmits(['back'])
+
+const { isNarrow } = useNarrow()
+// 窄模式默认收起侧栏（画布优先占满；宽模式始终展开）
+const sideOpen = ref(false)
+watch(isNarrow, (n) => { if (!n) sideOpen.value = true }, { immediate: true })
 
 const NODE_R = 22
 

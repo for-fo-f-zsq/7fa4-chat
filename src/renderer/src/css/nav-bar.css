@@ -271,3 +271,49 @@
 .nav-user-menu-item.danger { color: var(--danger, #e64340); }
 .nav-user-menu-item.danger i { color: var(--danger, #e64340); }
 .nav-user-menu-item.danger:hover { background: rgba(230, 67, 64, 0.09); }
+
+/* ========== 窄长窗口（手机比例）：导航栏移到底部成 TabBar ==========
+   由 ChatView 的 isNarrowLayout（高/宽比 > 1.4）驱动，.app-body 加 .narrow 类 */
+.app-body.narrow {
+    flex-direction: column;
+}
+.app-body.narrow .navbar {
+    width: 100%;
+    height: 58px;
+    flex-direction: row;
+    padding: 0 12px;
+    border-right: none;
+    border-top: 1px solid var(--border-3d-dark);
+    box-shadow: 0 -4px 12px var(--shadow-navbar);
+    order: 99; /* 沉到底部 */
+    gap: 8px;
+    flex-shrink: 0;
+}
+.app-body.narrow .navbar::after {
+    display: none; /* 底部模式下顶部横道光条观感突兀，隐藏 */
+}
+.app-body.narrow .nav-logo {
+    display: none; /* 手机比例空间紧张，隐藏 logo */
+}
+.app-body.narrow .nav-icon.active::before {
+    display: none; /* 移动 TabBar 惯例：不画顶部横线，用图标高亮表达激活态 */
+}
+.app-body.narrow .nav-icon.active {
+    background: var(--bg-sidebar-active);
+    border-radius: var(--radius);
+}
+@keyframes navIndicatorBottom {
+    from { width: 0; opacity: 0; }
+    to { width: 22px; opacity: 1; }
+}
+.app-body.narrow .nav-icon:hover { transform: scale(1.08) translateY(0); }
+.app-body.narrow .nav-user-wrap {
+    margin-top: 0;
+    margin-left: auto;
+    padding-top: 0;
+}
+.app-body.narrow .nav-user-menu {
+    bottom: 66px;
+    left: auto;
+    right: 12px;
+}

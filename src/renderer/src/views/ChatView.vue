@@ -13,8 +13,9 @@
     <!-- 网络/登录状态横幅：位于 app-body 外，全宽横条 -->
     <div class="network-banner" v-if="store.logined && store.netError"><i class="fas fa-wifi"></i> 未连接，正在尝试重新连接… <button class="banner-login-btn" @click="onUserAction('relogin')">重新登录</button></div>
     <div class="network-banner not-logged-in" v-if="!store.logined"><i class="fas fa-user-lock"></i> 您还未登录，聊天与收藏暂不可用。 <button class="banner-login-btn" @click="gotoLogin">去登录</button></div>
-    <div class="app-body">
+    <div class="app-body" :class="{ narrow: isNarrowLayout }">
     <NavBar
+      v-if="!(isNarrowLayout && isChatPage && pageId)"
       :pageType="navPageType"
       :users="store.users"
       :groups="store.groups"
@@ -113,6 +114,7 @@
       @forward="onFavForward"
       @copy="onFavCopy"
       @download="onFavDownload"
+      @back="backToChatList"
     />
     <ToolsPage
       v-if="pageType==='tools'"
@@ -134,23 +136,27 @@
       @settingChange="onSettingChange"
       @openThemeModal="openThemeModal"
       @openShortcutModal="shortcutModal = true"
+      @back="backToChatList"
     />
     <AboutPanel
       v-if="pageType==='about'"
       class="fade-content"
       :class="{ 'fade-out': contentFading }"
       :version="version"
+      @back="backToChatList"
     />
     <UpdatePanel
       v-if="pageType==='update'"
       class="fade-content"
       :class="{ 'fade-out': contentFading }"
       :version="version"
+      @back="backToChatList"
     />
     <DonatePanel
       v-if="pageType==='donate'"
       class="fade-content"
       :class="{ 'fade-out': contentFading }"
+      @back="backToChatList"
     />
     </div>
   </div>
@@ -256,7 +262,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, startVisitReport, stopVisitReport, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage } from '../utils.js';
+import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, startVisitReport, stopVisitReport, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, markMsgDirty, takeDirtyMsgKeys } from '../utils.js';
 
 import NavBar from '../components/NavBar.vue';
 import ConversationList from '../components/ConversationList.vue';
@@ -284,6 +290,7 @@ import SaveConfirmModal from '../components/SaveConfirmModal.vue';
 import { useWindowControls } from '../composables/useWindowControls.js';
 import { useMuteConfirm } from '../composables/useMuteConfirm.js';
 import { useCurrentMessages } from '../composables/useCurrentMessages.js';
+import { NARROW_ASPECT } from '../composables/constants.js';
 
 import '../css/base.css';
 import '../css/nav-bar.css';
@@ -316,10 +323,10 @@ let pendingSwitch = null; // 被未保存拦截的切换动作（保存/不保�
 const isChatPage = computed(() => pageType.value === 'chat' || pageType.value === 'user' || pageType.value === 'group');
 const navPageType = computed(() => isChatPage.value ? 'chat' : pageType.value);
 
-// 游客模式：聊天/收藏不可用，落到设置页浏览
+// 游客模式：聊天/收藏不可用，落到关于页浏览
 watch(() => store.logined, (logged) => {
   if (!logged && (isChatPage.value || pageType.value === 'favorites')) {
-    pageType.value = 'settings';
+    pageType.value = 'about';
     pageId.value = null;
   }
 }, { immediate: true });
@@ -349,7 +356,6 @@ async function onUserAction(kind) {
   }
 }
 // 窄长窗口单列模式：窗口高/宽比超过阈值时，会话列表与消息区互斥显示（微信/QQ 窄窗口风格）
-const NARROW_ASPECT = 1.4
 const isNarrowLayout = ref(false)
 function updateLayoutMode() {
   isNarrowLayout.value = window.innerHeight / Math.max(window.innerWidth, 1) > NARROW_ASPECT
@@ -532,6 +538,13 @@ function switchPage(type) {
   if (type === 'settings') updateSettingsPanel();
 }
 
+// 从头像菜单子页（收藏/设置/关于/更新/赞助）返回消息列表
+function backToChatList() {
+  // 游客模式聊天不可用，保持留在当前子页；返回仅对登录用户生效
+  if (!store.logined) return;
+  switchPage('chat');
+}
+
 // 消息区头部返回：清除当前会话（pageId 置空）回到会话列表
 function onBackFromChat() {
   if (pageId.value == null) return;
@@ -568,6 +581,9 @@ function onSaveConfirmDiscard() {
   if (pendingSwitch) {
     const t = pendingSwitch.type;
     pendingSwitch = null;
+    // 丢弃未保存内容：清除 dirty 标记，否则 switchPage 会再次命中未保存拦截，
+    // 弹窗关闭后立刻重开，表现为"不保存"无法点击/点了没反应
+    toolsDirty.value = false;
     switchPage(t);
   }
 }
@@ -766,7 +782,6 @@ function deleteMsg(msgId) {
       if (idx >= 0) group.message_ids.splice(idx, 1);
     }
   }
-  saveData();
 }
 
 function batchForward() {
@@ -802,7 +817,6 @@ function batchFavorite() {
     }
   }
   messageListRef.value?.exitMultiSelect();
-  saveData();
 }
 
 function batchDelete() {
@@ -811,7 +825,6 @@ function batchDelete() {
     deleteMsg(msgId);
   }
   messageListRef.value?.exitMultiSelect();
-  saveData();
 }
 
 // --- 全部已读 ---
@@ -819,7 +832,6 @@ function markAllRead() {
   for (const user of Object.values(store.users)) { user.unread = 0; }
   for (const group of Object.values(store.groups)) { group.unread = 0; group.mentioned = false; } // 同步清除 @ 提醒
   updateBadgeCount();
-  saveData();
 }
 
 // --- 未读计数 badge ---
@@ -850,7 +862,6 @@ async function deleteConvo() {
   }
   if (pageId.value == id && (pageType.value === type || pageType.value === 'chat')) pageId.value = null;
   updateBadgeCount();
-  await saveData();
 }
 
 function toggleMute() {
@@ -860,7 +871,6 @@ function toggleMute() {
   if (!store.mutedConvos) store.mutedConvos = {};
   store.mutedConvos[key] = !store.mutedConvos[key];
   if (!store.mutedConvos[key]) delete store.mutedConvos[key];
-  saveData();
 }
 
 function toggleRead() {
@@ -875,7 +885,6 @@ function toggleRead() {
     item.unread = 1;
   }
   updateBadgeCount();
-  saveData();
 }
 
 // --- 搜索 ---
@@ -989,7 +998,6 @@ async function togglePin() {
   const item = targetMenu.type === 'user' ? store.users[targetMenu.id] : store.groups[targetMenu.id];
   if (!item) return;
   item.pinned = !item.pinned;
-  await saveData();
   targetMenu.show = false;
 }
 
@@ -1039,7 +1047,6 @@ async function unblockGroupFromMenu() {
   const group = store.groups[gid];
   if (!group) return;
   group.blocked = false;
-  await saveData();
 }
 
 async function deleteGroupFromMenu() {
@@ -1050,7 +1057,6 @@ async function deleteGroupFromMenu() {
   if (group.message_ids) { for (const mid of group.message_ids) delete store.messages[mid]; }
   delete store.groups[gid];
   if (pageId.value == gid && (pageType.value === 'group' || pageType.value === 'chat')) pageId.value = null;
-  await saveData();
 }
 
 async function dissolveGroupFromMenu() {
@@ -1077,7 +1083,6 @@ async function submitGroupAction(action, gidOverride) {
       group.blocked = true;
       try { await postGroup({ type: 'leave', group_id: gid, target_id: 0 }); } catch {}
       groupModal.show = false;
-      await saveData();
     }
     return;
   }
@@ -1282,7 +1287,6 @@ async function update(result) {
     if (newGroup.blocked && !newGroup.exited) { try { await postGroup({ type: 'leave', group_id: Number(gid), target_id: 0 }); newGroup.exited = true; } catch {} }
   }
   store.groups = newGroups;
-  await saveData();
 }
 
 async function fetchMessages(type, end, take = 10, allowPage = false) {
@@ -1292,7 +1296,6 @@ async function fetchMessages(type, end, take = 10, allowPage = false) {
     const r = await (await safeFetch(`/chat/chat?type=${type}&end_time=${endSec}&take=${take}`)).json();
     if (!r.success || !r.chats || !r.chats.length) return;
     let hasNew = false; // 本轮是否插入了至少一条新消息
-    const pendingPersist = {}; // 本轮新消息按会话分组，循环后增量入库
     for (const c of r.chats) {
       if (!infoLoopRunning) return;
       end = Math.min(end, c.send_time * 1000 - 1);
@@ -1303,15 +1306,19 @@ async function fetchMessages(type, end, take = 10, allowPage = false) {
       if (isCurrentPage) t.unread = 0;
       if (t.message_ids.includes(c.id) || (store.deletedMsgIds && store.deletedMsgIds.includes(c.id))) {
         // 旧消息：不重复处理，仅跳过
+        // 自愈：id 已在会话消息列表、但内容缺失（本地未及落库 / 历史持久化丢失），
+        // 从服务器返回补回内容，否则该消息重启后永远无法显示；由快照统一落库
+        if (!store.messages[c.id] && !(store.deletedMsgIds && store.deletedMsgIds.includes(c.id))) {
+          store.messages[c.id] = { id: c.id, sender: c.sender_id, send_time: c.send_time, content: c.content };
+          markMsgDirty(type === 'group' ? 'group' : 'user', type === 'group' ? c.receiver_id : (type === 'send_user' ? c.receiver_id : c.sender_id));
+        }
       } else {
         const msgContent = c.content;
         store.messages[c.id] = { id: c.id, sender: c.sender_id, send_time: c.send_time, content: msgContent };
         t.message_ids.push(c.id);
         const persistKind = type === 'group' ? 'group' : 'user';
         const persistCid = type === 'group' ? c.receiver_id : (type === 'send_user' ? c.receiver_id : c.sender_id);
-        const pk = persistKind + ':' + persistCid;
-        if (!pendingPersist[pk]) pendingPersist[pk] = { kind: persistKind, cid: persistCid, msgs: [] };
-        pendingPersist[pk].msgs.push({ id: c.id, sender: c.sender_id, send_time: c.send_time, content: msgContent });
+        markMsgDirty(persistKind, persistCid);
         const state = await window.api.getWindowState();
         if (!state.focused || !state.visible) {
           const chatType = type === 'group' ? 'group' : 'user';
@@ -1353,10 +1360,6 @@ async function fetchMessages(type, end, take = 10, allowPage = false) {
         hasNew = true; // 至少遇到一条新消息
       }
     }
-    // 本轮新消息增量入库（按会话事务批量写）
-    for (const { kind, cid, msgs } of Object.values(pendingPersist)) {
-      persistMessages(msgs, kind, cid)
-    }
     updateBadgeCount();
     // 重大修复：#12 首次爬取只取到约 100 条的问题。
     // 结束条件：仅当整批消息全部是旧消息（hasNew=false）才停止；
@@ -1374,56 +1377,55 @@ async function updateMessagesData(take = 10, allowPage = false) {
   await fetchMessages('group', Date.now(), take, allowPage);
 }
 
-// ===== SQLite 存储（加密）：偏好 / 元数据节流 / 消息懒加载 =====
-let convoSaveTimer = null
-let prefSaveTimer = null
+// ===== SQLite 存储：唯一快照保存通道 =====
+// 一切持久化收敛为 saveAll()：会话元数据 + 偏好 + 脏区消息，单事务原子写。
+// 触发点只有两个：① 10s 定时器 ② 退出/登出前。无散落 flush/即时入库。
+let savingNow = false
 
-async function saveConvos() {
+/** 全量快照落盘（唯一保存入口，自动互斥防重入） */
+async function saveAll() {
   const uid = store.self.uid
-  if (!uid) return
-  const convos = []
-  for (const [id, u] of Object.entries(store.users || {})) {
-    if (u && u.uid != null) convos.push({ kind: 'user', cid: Number(id), meta: JSON.parse(JSON.stringify(u)) })
-  }
-  for (const [id, g] of Object.entries(store.groups || {})) {
-    if (g && g.gid != null) convos.push({ kind: 'group', cid: Number(id), meta: JSON.parse(JSON.stringify(g)) })
-  }
-  if (convos.length) {
-    try { await window.api.storeSaveConvos(uid, convos) } catch {}
-  }
-}
-
-function scheduleConvoSave(delay = 30000) {
-  clearTimeout(convoSaveTimer)
-  convoSaveTimer = setTimeout(() => { saveConvos() }, delay)
-}
-
-async function savePrefs() {
-  const uid = store.self.uid
-  if (!uid) return
+  if (!uid || savingNow) return
+  savingNow = true
   try {
-    // JSON 深拷贝：store 是 Vue reactive（Proxy），直接传 IPC 会 "An object could not be cloned"
-    await window.api.storeSavePrefs(uid, JSON.parse(JSON.stringify({
+    // 会话元数据（JSON 深拷贝，防 Vue Proxy 无法克隆）
+    const convos = []
+    for (const [id, u] of Object.entries(store.users || {})) {
+      if (u && u.uid != null) convos.push({ kind: 'user', cid: Number(id), meta: JSON.parse(JSON.stringify(u)) })
+    }
+    for (const [id, g] of Object.entries(store.groups || {})) {
+      if (g && g.gid != null) convos.push({ kind: 'group', cid: Number(id), meta: JSON.parse(JSON.stringify(g)) })
+    }
+    // 脏区消息：仅上传有变化的会话，按会话原子替换
+    const dirtyKeys = takeDirtyMsgKeys()
+    const messages = {}
+    if (dirtyKeys) {
+      for (const key of dirtyKeys) {
+        const [kind, cid] = key.split(':')
+        const target = kind === 'group' ? store.groups[cid] : store.users[cid]
+        if (!target || !Array.isArray(target.message_ids)) continue
+        const list = []
+        for (const mid of target.message_ids) {
+          const m = store.messages[mid]
+          // 深拷贝：store 为 Vue reactive（Proxy），直接传 IPC 会 "An object could not be cloned"
+          if (m) list.push(JSON.parse(JSON.stringify(m)))
+        }
+        if (list.length) messages[key] = list
+      }
+    }
+    // 偏好
+    const prefs = JSON.parse(JSON.stringify({
       drafts: store.drafts || {},
       favorites: store.favorites || [],
       mutedConvos: store.mutedConvos || {},
       hiddenConvos: store.hiddenConvos || {},
       deletedMsgIds: store.deletedMsgIds || [],
       stickers: store.stickers || []
-    })))
-  } catch {}
-}
-
-function schedulePrefSave(delay = 1500) {
-  clearTimeout(prefSaveTimer)
-  prefSaveTimer = setTimeout(() => { savePrefs() }, delay)
-}
-
-/** 消息增量入库（按会话事务批量写） */
-async function persistMessages(msgs, kind, cid) {
-  const uid = store.self.uid
-  if (!uid || !msgs || !msgs.length) return
-  try { await window.api.storeSaveMessages(uid, kind, Number(cid), msgs) } catch {}
+    }))
+    await window.api.storeSaveAll(uid, { convos, messages, prefs })
+  } catch {} finally {
+    savingNow = false
+  }
 }
 
 /** 懒加载：进入会话时从 SQLite 补拉缺失的历史消息到内存 */
@@ -1444,47 +1446,10 @@ async function ensureConvoMessages(kind, cid) {
   } catch {}
 }
 
-/** 立即落盘（退出登录前调用）：元数据 + 偏好 + 内存中未入库的消息兜底 */
+/** 退出/登出前的最终保存（唯一第二入口，定时器之外的兜底） */
 async function flushData() {
-  clearTimeout(convoSaveTimer)
-  clearTimeout(prefSaveTimer)
-  convoSaveTimer = null
-  prefSaveTimer = null
-  // 兜底：内存中仍有、但可能因 fire-and-forget 未完成入库的消息，按会话分组批量补写
-  try {
-    const uid = store.self.uid
-    if (uid) {
-      const pending = {} // key: kind:cid → msgs[]
-      for (const [id, u] of Object.entries(store.users || {})) {
-        if (!u || !Array.isArray(u.message_ids)) continue
-        for (const mid of u.message_ids) {
-          const msg = store.messages[mid]
-          if (msg) {
-            const k = `user:${id}`
-            if (!pending[k]) pending[k] = []
-            pending[k].push(msg)
-          }
-        }
-      }
-      for (const [id, g] of Object.entries(store.groups || {})) {
-        if (!g || !Array.isArray(g.message_ids)) continue
-        for (const mid of g.message_ids) {
-          const msg = store.messages[mid]
-          if (msg) {
-            const k = `group:${id}`
-            if (!pending[k]) pending[k] = []
-            pending[k].push(msg)
-          }
-        }
-      }
-      await Promise.all(Object.entries(pending).map(([k, msgs]) => {
-        const [kind, cid] = k.split(':')
-        return window.api.storeSaveMessages(uid, kind, Number(cid), msgs).catch(() => {})
-      }))
-    }
-  } catch {}
-  await Promise.all([saveConvos(), savePrefs()])
-  // 等待所有 IPC 写入完成（SQLite 落盘），避免清空 store 后丢失
+  await saveAll()
+  // 等待 SQLite 落盘完成，避免清空 store 后丢失
   await new Promise(r => setTimeout(r, 300))
 }
 
@@ -1540,12 +1505,6 @@ async function loadData() {
     if (g.exited === undefined) g.exited = false;
     if (g.blocked === undefined) g.blocked = false;
   });
-}
-
-/** 兼容旧调用点：安排保存（元数据与偏好节流；消息走增量入库） */
-function saveData() {
-  scheduleConvoSave()
-  schedulePrefSave()
 }
 
 async function logout(toLogin = false, clearCred = false) {
@@ -1666,7 +1625,7 @@ onMounted(async () => {
   const root = document.documentElement;
   if (setting.value.theme && setting.value.theme !== 'default' && setting.value.theme !== 'custom') root.classList.add(`theme-${setting.value.theme}`);
   if (setting.value.theme === 'custom' && setting.value.customVars) { for (const [k, v] of Object.entries(setting.value.customVars)) root.style.setProperty(k, v); }
-  autoSaveTimer = setInterval(async () => { saveConvos(); savePrefs(); }, 10000);
+  autoSaveTimer = setInterval(async () => { await saveAll(); }, 10000);
   unsubscribeNotifClick = window.api.onNotifClick((data) => { if (data.chatType && data.targetId) { pageType.value = data.chatType; pageId.value = Number(data.targetId); } });
   // 网络状态监听
   window.addEventListener('online', onOnline);

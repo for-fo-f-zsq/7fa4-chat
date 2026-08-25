@@ -301,6 +301,25 @@ export function parseMsgContent(content) {
   try { return JSON.parse(unescapeHtml(content)) } catch { return null }
 }
 
+// ===== 消息持久化脏区（唯一保存通道的增量标记） =====
+// 存储收敛为单一快照（storeSaveAll，定时器+退出时调用）。
+// 任何让会话消息产生变化的操作只需标记 dirty，由快照统一按会话原子落库，
+// 不再有散落的逐条入库/flush 逻辑，杜绝"id 已存、内容未存"的分裂状态。
+const dirtyMsgKeys = new Set()
+
+/** 标记某会话消息有变化（新消息/发送/自愈补回），快照保存时会带上 */
+export function markMsgDirty(kind, cid) {
+  dirtyMsgKeys.add(`${kind}:${cid}`)
+}
+
+/** 取出并清空全部脏会话标记（供 saveAll 组装消息快照） */
+export function takeDirtyMsgKeys() {
+  if (!dirtyMsgKeys.size) return null
+  const keys = [...dirtyMsgKeys]
+  dirtyMsgKeys.clear()
+  return keys
+}
+
 // 将聊天接口返回的 chat 写入 store，返回解码后的内容与 token 信息
 export function applyChatToStore(r, pageType, pageId) {
   const c = r.chat
@@ -308,6 +327,8 @@ export function applyChatToStore(r, pageType, pageId) {
   if (target) {
     store.messages[c.id] = { id: c.id, sender: c.sender_id, send_time: c.send_time, content: c.content }
     target.message_ids.push(c.id)
+    // 仅标记脏区，由统一快照（定时/退出）落库；不做即时入库
+    markMsgDirty(pageType === 'group' ? 'group' : 'user', Number(pageId))
   }
   return { tokenInfo: { remain: r.remain_token_count, total: r.remain_token_count + r.used_token_count } }
 }

@@ -756,6 +756,13 @@ ipcMain.handle('store-save-convos', async (event, uid, convos) => {
     return userStore.saveConvos(Number(uid), convos);
 });
 
+// 全量快照（唯一保存通道）：会话元数据 + 偏好 + 待写消息，单事务原子
+ipcMain.handle('store-save-all', async (event, uid, data) => {
+    if (!storeReady()) return { success: false, error: '存储未初始化' };
+    if (!data || typeof data !== 'object') return { success: false, error: 'data 需为对象' };
+    return userStore.saveAll(Number(uid), data);
+});
+
 ipcMain.handle('store-load-messages', async (event, uid, kind, cid, limit, before) => {
     if (!storeReady()) return { success: false, error: '存储未初始化' };
     return userStore.loadMessages(Number(uid), kind, Number(cid), limit, before);

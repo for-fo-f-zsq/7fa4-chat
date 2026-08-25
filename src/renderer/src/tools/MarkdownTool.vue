@@ -1,5 +1,5 @@
 <template>
-  <div class="md-tool">
+  <div class="md-tool" :class="{ narrow: isNarrow }">
     <div class="md-tool-header">
       <div class="md-tool-title">
         <button class="md-back-btn" title="返回工具列表" @click="onBack"><i class="fas fa-arrow-left"></i></button>
@@ -81,9 +81,12 @@ import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import MonacoEditor from './ide/MonacoEditor.vue'
 import SaveConfirmModal from '../components/SaveConfirmModal.vue'
 import { renderMarkdown } from '../utils.js'
+import { useNarrow } from '../composables/useNarrow.js'
 import './ide/ide-tool.css'
 
 const emit = defineEmits(['back', 'dirty-change'])
+
+const { isNarrow } = useNarrow()
 
 const content = ref('')
 const fileName = ref('')

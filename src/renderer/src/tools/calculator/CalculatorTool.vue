@@ -1,5 +1,5 @@
 <template>
-  <div class="calc-tool">
+  <div class="calc-tool" :class="{ narrow: isNarrow }">
     <div class="calc-tool-header">
       <div class="calc-tool-title">
         <button class="calc-back-btn" title="返回工具列表" @click="$emit('back')"><i class="fas fa-arrow-left"></i></button>
@@ -10,6 +10,10 @@
     </div>
 
     <div class="calc-body">
+      <!-- 窄模式：侧边把手（历史抽屉收起时仍可见，点击展开/收起） -->
+      <div v-if="isNarrow" class="calc-side-handle" :class="{ open: historyOpen }" @click="historyOpen = !historyOpen" :title="historyOpen ? '收起历史' : '展开历史'">
+        <i :class="historyOpen ? 'fas fa-chevron-right' : 'fas fa-chevron-left'"></i>
+      </div>
       <div class="calc-main">
         <div class="calc-display">
           <input
@@ -45,7 +49,7 @@
         </div>
       </div>
 
-      <div class="calc-side">
+      <div class="calc-side" :class="{ open: historyOpen }">
         <div class="calc-history-title">历史</div>
         <div class="calc-history">
           <div v-if="!history.length" class="calc-history-empty">暂无历史</div>
@@ -62,9 +66,13 @@
 <script setup>
 import { ref, computed, nextTick } from 'vue'
 import * as ce from './calcEngine.js'
+import { useNarrow } from '../../composables/useNarrow.js'
 import './calc-tool.css'
 
 defineEmits(['back'])
+
+const { isNarrow } = useNarrow()
+const historyOpen = ref(false)
 
 const exprText = ref('')
 const resultText = ref('')

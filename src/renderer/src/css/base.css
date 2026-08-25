@@ -144,6 +144,23 @@ body {
     overflow: hidden;
     min-height: 0;
 }
+/* 通用返回按钮（工具内部 & 头像菜单子页共用）：圆角小图标，嵌入 header 与标题同行 */
+.md-back-btn {
+    border: none;
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: var(--font-size-base);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all var(--duration-fast) ease;
+}
+.md-back-btn:hover { background: var(--accent-light); color: var(--accent); }
 .app::after {
     content: '';
     position: absolute;

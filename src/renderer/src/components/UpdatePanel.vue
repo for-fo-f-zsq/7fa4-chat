@@ -1,6 +1,7 @@
 <template>
   <div class="update-view">
     <div class="update-view-header">
+      <BackButton title="返回消息列表" @back="emit('back')" />
       <h2>版本更新</h2>
     </div>
 
@@ -61,8 +62,10 @@
 
 <script setup>
 import { computed, ref, onMounted } from 'vue'
+import BackButton from './BackButton.vue'
 
 const props = defineProps({ version: { type: String, default: '' } })
+const emit = defineEmits(['back'])
 
 // 兜底：外层异步传入可能为空，面板自身再拉一次版本号
 const version = ref(props.version || '')

@@ -7,21 +7,21 @@
           <img src="/icon.png" alt="7FA4 Chat" class="announcement-logo-img" />
         </div>
         <p class="announcement-sub">全新版本发布</p>
-        <h1>V3.4.3</h1>
+        <h1>V3.4.4</h1>
         <div class="announcement-decor"></div>
       </div>
       <!-- 页 2：本次更新 -->
       <div v-else-if="page === 1" class="announcement-page">
         <h2><i class="fas fa-star"></i> 本次更新</h2>
         <ul class="announcement-list">
-          <li>群详情支持批量管理操作，多选成员统一执行，带进度与失败重试</li>
-          <li>Markdown 数学公式字体修复，运算符斜体显示正常</li>
-          <li>打开任意输入框自动聚焦，光标定位更顺手</li>
-          <li>修复打开大表情图片卡死的问题，表情消息渲染更流畅</li>
-          <li>修复 Linux 重启后应用无法自动打开的问题</li>
-          <li>修复链接地址被误渲染成表情的问题</li>
-          <li>自定义表情支持自动压缩，超大图片也可正常使用</li>
-          <li>版本公告窗口优化：固定高度、跳过按钮在所有页面可用</li>
+          <li>添加好友支持直接输入用户名或编号，不再局限于榜单内用户</li>
+          <li>收藏、设置、关于、版本更新、赞助页面新增返回按钮，可一键回到消息列表</li>
+          <li>窗口较窄时导航栏自动移到界面底部，进入聊天时自动隐藏</li>
+          <li>图编辑器、计算器窗口较窄时自动收起侧边面板，主区域更开阔</li>
+          <li>Markdown 编辑器窗口较窄时自动改为上下分栏显示</li>
+          <li>消息保存优化，退出后重启不再丢失最近发送的消息</li>
+          <li>修复自己发送的消息在重启后有时不显示的问题</li>
+          <li>修复未保存提示中"不保存"按钮无法点击的问题</li>
         </ul>
       </div>
       <!-- 页 3：更新日志 -->

@@ -7,6 +7,11 @@
     display: flex;             /* flex 列容器：子卡片可用 flex:1 撑满窗口高度（版本更新页内部滚动依赖） */
     flex-direction: column;
 }
+.about-topbar {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+}
 .particle-canvas {
     position: absolute;
     inset: 0;

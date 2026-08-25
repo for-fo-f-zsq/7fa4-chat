@@ -1,6 +1,7 @@
 <template>
   <div class="donate-view">
     <div class="donate-view-header">
+      <BackButton title="返回消息列表" @back="emit('back')" />
       <h2>赞助</h2>
     </div>
 
@@ -41,6 +42,9 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import BackButton from './BackButton.vue'
+
+const emit = defineEmits(['back'])
 
 // 赞赏码（托管在 chat.forfof.cloud/assets/donate-qr.jpg）
 const DONATE_URL = 'https://chat.forfof.cloud/assets/donate-qr.jpg'

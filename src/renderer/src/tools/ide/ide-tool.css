@@ -143,13 +143,14 @@
 .tools-header h2 i { color: var(--accent); }
 .tools-grid {
     padding: 20px 24px;
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
     gap: 16px;
     overflow-y: auto;
 }
 .tool-card {
-    width: 240px;
+    width: auto;
+    min-width: 0;
     padding: 20px;
     border-radius: 12px;
     background: var(--bg-app);
@@ -189,6 +190,21 @@
     display: flex;
     padding: 12px 16px;
     gap: 12px;
+}
+
+/* 窄模式（手机比例）：分屏改为"上编辑、下预览"上下堆叠 */
+.md-tool.narrow .md-tool-body {
+    flex-direction: column;
+}
+.md-tool.narrow .md-tool-body .md-md-host {
+    flex: 1 1 50%;
+    min-height: 0;
+    min-width: 0;
+}
+.md-tool.narrow .md-tool-body .md-preview-fill {
+    flex: 1 1 50%;
+    min-height: 0;
+    min-width: 0;
 }
 
 /* ---- Markdown 编辑工具 ---- */

@@ -1,6 +1,7 @@
 <template>
   <div class="settings-panel">
     <div class="settings-header">
+      <BackButton title="返回消息列表" @back="emit('back')" />
       <h2>设置</h2>
     </div>
     <div class="settings-card">
@@ -97,13 +98,14 @@ import { store } from '../store.js'
 import { vClickOutside } from '../composables/vClickOutside.js'
 import { THEMES } from '../composables/constants.js'
 import { applyFontSize, formatSize } from '../utils.js'
+import BackButton from './BackButton.vue'
 
 const props = defineProps({
   self: Object,
   setting: Object
 })
 
-const emit = defineEmits(['logout', 'settingChange', 'openThemeModal', 'openShortcutModal'])
+const emit = defineEmits(['logout', 'settingChange', 'openThemeModal', 'openShortcutModal', 'back'])
 
 onMounted(() => { loadCacheSize() })
 

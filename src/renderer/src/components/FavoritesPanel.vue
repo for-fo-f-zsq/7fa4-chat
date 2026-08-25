@@ -1,6 +1,7 @@
 <template>
   <div class="favorites-panel">
     <div class="favorites-header">
+      <BackButton title="返回消息列表" @back="emit('back')" />
       <h2>收藏</h2>
     </div>
     <div class="favorites-list" v-if="favorites.length">
@@ -42,8 +43,9 @@ import { computed, reactive } from 'vue';
 import { store } from '../store.js';
 import { gettime2, displayName, parseMsgContent } from '../utils.js';
 import ContextMenu from './ContextMenu.vue';
+import BackButton from './BackButton.vue';
 
-const emit = defineEmits(['preview', 'forward', 'copy', 'download']);
+const emit = defineEmits(['preview', 'forward', 'copy', 'download', 'back']);
 
 const favorites = computed(() => store.favorites || []);
 

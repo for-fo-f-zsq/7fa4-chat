@@ -19,6 +19,12 @@
           <option v-for="g in gradeOptions" :key="g.key" :value="g.key">{{ g.label }}</option>
         </select>
       </div>
+      <div class="addfriend-direct" v-if="query.trim()">
+        <button class="addfriend-direct-btn" @click="onDirectAdd">
+          <i class="fas fa-user-plus"></i>
+          直接添加「{{ query.trim() }}」
+        </button>
+      </div>
       <div class="addfriend-list" v-if="filteredUsers.length > 0">
         <div
           v-for="u in filteredUsers"
@@ -141,6 +147,14 @@ function onViewUser(u) {
 function onAddFriend(u) {
   if (u.isFriend) return
   emit('confirm', String(u.uid))
+}
+
+// 直接添加：把原始输入透传给后端（API 支持用户名 / uid），用于添加不在榜单上的用户
+function onDirectAdd() {
+  const q = query.value.trim()
+  if (!q) return
+  emit('confirm', q)
+  close()
 }
 
 function close() {

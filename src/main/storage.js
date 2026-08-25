@@ -129,7 +129,7 @@ class UserStore {
   }
 
   // ---------- 消息 ----------
-  /** msgs: [{mid, send_time, ...}]，逐条加密，事务批量写 */
+  /** msgs: [{mid|id, send_time, ...}]，逐条加密，事务批量写 */
   saveMessages(uid, kind, cid, msgs) {
     if (!this.db || !msgs || !msgs.length) return { success: true, count: 0 }
     try {
@@ -145,6 +145,47 @@ class UserStore {
       }
       this.db.exec('COMMIT')
       return { success: true, count: msgs.length }
+    } catch (e) {
+      try { this.db.exec('ROLLBACK') } catch {}
+      return { success: false, error: e.message }
+    }
+  }
+
+  // ---------- 全量快照（唯一保存通道） ----------
+  /**
+   * 一次性原子保存全部数据：会话元数据 + 偏好 + 待写消息（按会话）。
+   * 单一事务：要么全部落库、要么全部失败，杜绝"会话 id 已存、消息内容未存"的分裂状态。
+   * messages 传 { 'user:cid'|'group:cid': [msgs] }，仅包含有变化的会话（脏区），
+   * 每个会话先 DELETE 再 INSERT，保持库内与该会话内存一致。
+   */
+  saveAll(uid, { convos, prefs, messages }) {
+    if (!this.db) return { success: false, error: 'db not ready' }
+    try {
+      this.db.exec('BEGIN')
+      if (Array.isArray(convos)) {
+        const stmt = this.db.prepare('INSERT OR REPLACE INTO convos (uid, kind, cid, meta, updated) VALUES (?,?,?,?,?)')
+        const now = Date.now()
+        for (const c of convos) stmt.run(uid, c.kind, c.cid, encryptJSON(c.meta), now)
+      }
+      if (messages && typeof messages === 'object') {
+        const delStmt = this.db.prepare('DELETE FROM messages WHERE uid=? AND kind=? AND cid=?')
+        const insStmt = this.db.prepare('INSERT OR REPLACE INTO messages (uid, kind, cid, mid, send_time, content) VALUES (?,?,?,?,?,?)')
+        for (const [key, msgs] of Object.entries(messages)) {
+          const [kind, cid] = key.split(':')
+          if (!kind || cid == null || !Array.isArray(msgs)) continue
+          delStmt.run(uid, kind, Number(cid))
+          for (const m of msgs) {
+            if (m == null || m.id == null) continue
+            insStmt.run(uid, kind, Number(cid), Number(m.id), Number(m.send_time || 0), encryptJSON({ ...m, id: Number(m.id), mid: Number(m.id) }))
+          }
+        }
+      }
+      if (prefs && typeof prefs === 'object') {
+        const stmt = this.db.prepare('INSERT OR REPLACE INTO prefs (uid, key, value) VALUES (?,?,?)')
+        for (const [key, value] of Object.entries(prefs)) stmt.run(uid, key, encryptJSON(value))
+      }
+      this.db.exec('COMMIT')
+      return { success: true }
     } catch (e) {
       try { this.db.exec('ROLLBACK') } catch {}
       return { success: false, error: e.message }

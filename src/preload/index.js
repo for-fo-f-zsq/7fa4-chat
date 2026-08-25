@@ -43,7 +43,7 @@ contextBridge.exposeInMainWorld('api', {
   storeSaveConvos: (uid, convos) => ipcRenderer.invoke('store-save-convos', uid, convos),
   storeLoadLastMessages: (uid) => ipcRenderer.invoke('store-load-last-messages', uid),
   storeLoadMessages: (uid, kind, cid, limit, before) => ipcRenderer.invoke('store-load-messages', uid, kind, cid, limit, before),
-  storeSaveMessages: (uid, kind, cid, msgs) => ipcRenderer.invoke('store-save-messages', uid, kind, cid, msgs),
+  storeSaveAll: (uid, data) => ipcRenderer.invoke('store-save-all', uid, data),
   storeCleanMessages: (uid, keepPerConvo) => ipcRenderer.invoke('store-clean-messages', uid, keepPerConvo),
   storeLoadPrefs: (uid) => ipcRenderer.invoke('store-load-prefs', uid),
   storeSavePrefs: (uid, entries) => ipcRenderer.invoke('store-save-prefs', uid, entries),

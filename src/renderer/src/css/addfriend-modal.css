@@ -202,3 +202,28 @@
   color: var(--text-secondary);
   font-size: var(--font-size-base);
 }
+
+.addfriend-direct {
+  padding: 0 20px 10px;
+}
+
+.addfriend-direct-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: var(--font-size-base);
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.addfriend-direct-btn:hover {
+  background: var(--bg-conversation-hover);
+  box-shadow: var(--shadow-input-focus);
+}

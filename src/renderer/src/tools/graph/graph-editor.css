@@ -75,6 +75,53 @@
     border-right: 1px solid var(--border-light);
 }
 
+/* 窄模式（手机比例）：侧栏收起为左侧抽屉，画布优先占满 */
+.graph-tool.narrow .graph-side-handle {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 18px;
+    height: 64px;
+    border-radius: 0 8px 8px 0;
+    background: var(--accent);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    cursor: pointer;
+    z-index: 6;
+    opacity: 0.85;
+    transition: opacity 0.2s, left 0.22s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+    user-select: none;
+}
+.graph-tool.narrow .graph-side-handle:hover {
+    opacity: 1;
+}
+.graph-tool.narrow .graph-side-handle.open {
+    left: 262px;
+}
+.graph-tool.narrow .graph-side {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 262px;
+    z-index: 5;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+    box-shadow: var(--shadow-elevated);
+}
+.graph-tool.narrow .graph-side.open {
+    transform: translateX(0);
+}
+.graph-tool.narrow .graph-tool-body {
+    position: relative;
+}
+.graph-tool.narrow .graph-canvas-col {
+    width: 100%;
+}
+
 .graph-panel {
     background: var(--bg-app);
     border: 1px solid var(--border-light);

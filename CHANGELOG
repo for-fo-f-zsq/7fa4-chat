@@ -1,3 +1,16 @@
+<h2>3.4.4</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>添加好友支持直接输入用户名或编号，不再局限于榜单内用户</li>
+  <li><span class="change-tag new">新功能</span>收藏、设置、关于、版本更新、赞助页面新增返回按钮，可一键回到消息列表</li>
+  <li><span class="change-tag new">新功能</span>未登录打开应用默认进入"关于"页面</li>
+  <li><span class="change-tag improve">优化</span>窗口较窄时导航栏自动移到界面底部，进入聊天时自动隐藏，使用更顺手</li>
+  <li><span class="change-tag improve">优化</span>工具页面自动适应窗口宽度，窗口较窄时各项自动占满显示</li>
+  <li><span class="change-tag improve">优化</span>图编辑器、计算器窗口较窄时自动收起侧边面板，主区域更开阔</li>
+  <li><span class="change-tag improve">优化</span>Markdown 编辑器窗口较窄时自动改为上下分栏显示</li>
+  <li><span class="change-tag improve">优化</span>消息保存方式优化，退出后重启不再丢失最近发送的消息</li>
+  <li><span class="change-tag fix">修复</span>修复自己发送的消息在重启后有时不显示的问题</li>
+  <li><span class="change-tag fix">修复</span>修复未保存提示中"不保存"按钮无法点击的问题</li>
+</ul>
 <h2>3.4.3</h2>
 <ul>
   <li><span class="change-tag new">新功能</span>头像菜单新增"版本更新"与"赞助"独立页面</li>
