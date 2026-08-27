@@ -109,12 +109,16 @@ jobs:
         run: npx cap sync android
 
       - name: Decode signing keystore
-        if: ${{ secrets.ANDROID_KEYSTORE_B64 != '' }}
         env:
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
         run: |
-          echo "$ANDROID_KEYSTORE_B64" | base64 -d > android/app/release.keystore
-          echo "已解码签名密钥 android/app/release.keystore"
+          # if 表达式不支持 secrets 上下文，改为在 step 内判断是否配置了签名密钥
+          if [ -n "$ANDROID_KEYSTORE_B64" ]; then
+            echo "$ANDROID_KEYSTORE_B64" | base64 -d > android/app/release.keystore
+            echo "已解码签名密钥 android/app/release.keystore"
+          else
+            echo "::warning::未配置 ANDROID_KEYSTORE_B64，将使用 debug 签名（跨机器升级安装会失败）"
+          fi
 
       - name: Build APK
         working-directory: android
