@@ -15,7 +15,7 @@
     <div class="network-banner not-logged-in" v-if="!store.logined"><i class="fas fa-user-lock"></i> 您还未登录，聊天与收藏暂不可用。 <button class="banner-login-btn" @click="gotoLogin">去登录</button></div>
     <div class="app-body" :class="{ narrow: isNarrowLayout }">
     <NavBar
-      v-if="!(isNarrowLayout && isChatPage && pageId)"
+      v-if="showNavBar"
       :pageType="navPageType"
       :users="store.users"
       :groups="store.groups"
@@ -322,6 +322,14 @@ const saveConfirmVisible = ref(false);
 let pendingSwitch = null; // 被未保存拦截的切换动作（保存/不保存后执行）
 const isChatPage = computed(() => pageType.value === 'chat' || pageType.value === 'user' || pageType.value === 'group');
 const navPageType = computed(() => isChatPage.value ? 'chat' : pageType.value);
+// 窄模式导航栏：仅消息对象列表（chat/user/group 且未打开具体详情）与工具列表（未进入工具详情）显示，其余页/详情态隐藏
+// 非窄（桌面宽窗）模式：导航栏恒显示，不因进入会话/工具详情隐藏（窄模式专属行为）
+const showNavBar = computed(() => {
+  if (!isNarrowLayout.value) return true
+  if (isChatPage.value && pageId.value) return false
+  if (navPageType.value === 'tools') return currentTool.value === 'list'
+  return navPageType.value === 'chat'
+})
 
 // 游客模式：聊天/收藏不可用，落到关于页浏览
 watch(() => store.logined, (logged) => {
@@ -357,8 +365,22 @@ async function onUserAction(kind) {
 }
 // 窄长窗口单列模式：窗口高/宽比超过阈值时，会话列表与消息区互斥显示（微信/QQ 窄窗口风格）
 const isNarrowLayout = ref(false)
+let lastLayH = 0
+let lastLayW = 0
 function updateLayoutMode() {
-  isNarrowLayout.value = window.innerHeight / Math.max(window.innerWidth, 1) > NARROW_ASPECT
+  const nowH = window.innerHeight
+  const nowW = window.innerWidth
+  // 软键盘（Android 聚焦输入框/搜索框）会把 window.innerHeight 顶起骤降，但宽基本不变。
+  // 若按此重算，高宽比可能跌破 1.4，把窄屏单列误判回宽屏双列，导致会话列表/导航栏闪现。
+  // 识别"宽未变 + 高骤降(>150px)"的键盘场景并忽略，保持当前窄/宽判定；转横屏等真实尺寸变化仍正常响应。
+  if (lastLayW && Math.abs(nowW - lastLayW) < 40 && (lastLayH - nowH) > 150) {
+    lastLayH = nowH
+    lastLayW = nowW
+    return
+  }
+  lastLayH = nowH
+  lastLayW = nowW
+  isNarrowLayout.value = nowH / Math.max(nowW, 1) > NARROW_ASPECT
 }
 const contentFading = ref(false);
 const listFading = ref(false);
@@ -540,8 +562,9 @@ function switchPage(type) {
 
 // 从头像菜单子页（收藏/设置/关于/更新/赞助）返回消息列表
 function backToChatList() {
-  // 游客模式聊天不可用，保持留在当前子页；返回仅对登录用户生效
-  if (!store.logined) return;
+  // 未登录（游客）无消息列表可回：返回按钮始终可用，回到游客可用的工具列表；
+  // 登录用户则回到消息列表。switchPage('tools') 会把 currentTool 置 'list' 回到工具列表。
+  if (!store.logined) { switchPage('tools'); return; }
   switchPage('chat');
 }
 
@@ -1257,6 +1280,14 @@ let autoSaveTimer = null;
 let unsubscribeNotifClick = null;
 let unsubscribeUploadProgress = null;
 let unsubscribeFlush = null;
+let unsubscribeAndroidBack = null;
+
+// Android 系统返回键：进入会话→回列表；其它页→回聊天；聊天列表→退出应用
+function onAndroidBack() {
+  if (pageId.value != null) { onBackFromChat(); return; }
+  if (navPageType.value !== 'chat') { switchPage('chat'); return; }
+  window.api.androidExit?.();
+}
 
 // 通知冷却（聚合）：同一会话 5 秒内只通知一次
 const notifCooldown = {};
@@ -1547,6 +1578,10 @@ async function startInfoLoop() {
   if (infoLoopRunning) return; // 互斥：防止重复调用导致多个并发轮询循环（疯狂连续获取、不守间隔）
   infoLoopRunning = true;
   let failCount = 0;
+  // 首次全量爬取：在此处（infoLoopRunning 已置真）执行 100 条 + 翻页取尽历史。
+  // 必须在 onMounted 里 startInfoLoop() 之前做同样的调用会被 fetchMessages 的
+  // `if (!infoLoopRunning) return` 守卫跳过（当时仍为 false），导致首次只有轮询的 10 条。
+  try { await updateMessagesData(100, true); } catch {}
   while (infoLoopRunning && store.logined) {
     try { const result = await (await safeFetch('/chat/info')).json(); if (!infoLoopRunning) break; if (result.success) { await update(result); failCount = 0; store.netError = false; store.online = true; } else { failCount++; store.netError = true; } } catch { failCount++; store.netError = true; }
     if (!infoLoopRunning) break;
@@ -1633,6 +1668,8 @@ onMounted(async () => {
   window.addEventListener('focus', onWindowFocus);
   window.addEventListener('resize', updateLayoutMode);
   updateLayoutMode();
+  // Android 系统返回键（仅 Web/Android 适配层提供该 API）
+  if (window.api.onAndroidBack) unsubscribeAndroidBack = window.api.onAndroidBack(onAndroidBack);
   // 窗口关闭前落盘：主进程拦截 close 后通知 → 立即保存（convo 30s / pref 1.5s 节流数据也能保存）→ 确认关闭
   // 必须在游客 return 之前注册：任何模式（含游客）关窗都要应答，避免主进程 flushPending 等待超时
   unsubscribeFlush = window.api.onAppFlushBeforeClose(async () => {
@@ -1659,7 +1696,6 @@ onMounted(async () => {
     await loadData();
     if (initialInfo.success) await update(initialInfo);
     else store.netError = true; // /chat/info 失败（网络断/会话失效）→ 未连接横幅，但本地历史仍可读
-    await updateMessagesData(100, true); // 首次加载（爬取模式）：拉取 100 条 + 继续翻页取尽历史
     updateBadgeCount();
     nextTick(() => { messageListRef.value?.scrollToBottomInstant(); });
   } finally {
@@ -1684,5 +1720,6 @@ onUnmounted(() => {
   if (unsubscribeNotifClick) unsubscribeNotifClick();
   if (unsubscribeUploadProgress) unsubscribeUploadProgress();
   if (unsubscribeFlush) unsubscribeFlush();
+  if (unsubscribeAndroidBack) unsubscribeAndroidBack();
 });
 </script>

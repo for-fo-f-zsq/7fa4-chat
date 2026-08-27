@@ -1,3 +1,9 @@
+<h2>3.4.5</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>新增 Android 移动端版本，功能与桌面版一致，支持 Android 6.0 及以上，可在官网下载安装包</li>
+  <li><span class="change-tag fix">修复</span>修复登录后历史消息显示不全、重启后消息可能丢失的问题</li>
+  <li><span class="change-tag fix">修复</span>修复输入文字时软键盘弹出导致界面布局错乱、数学画板窄窗口无法铺满、未登录时返回按钮无效等问题</li>
+</ul>
 <h2>3.4.4</h2>
 <ul>
   <li><span class="change-tag new">新功能</span>添加好友支持直接输入用户名或编号，不再局限于榜单内用户</li>

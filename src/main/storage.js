@@ -155,8 +155,10 @@ class UserStore {
   /**
    * 一次性原子保存全部数据：会话元数据 + 偏好 + 待写消息（按会话）。
    * 单一事务：要么全部落库、要么全部失败，杜绝"会话 id 已存、消息内容未存"的分裂状态。
-   * messages 传 { 'user:cid'|'group:cid': [msgs] }，仅包含有变化的会话（脏区），
-   * 每个会话先 DELETE 再 INSERT，保持库内与该会话内存一致。
+   * messages 传 { 'user:cid'|'group:cid': [msgs] }，仅包含有变化的会话（脏区）。
+   * 消息按 mid 增量合并（INSERT OR REPLACE，不做会话级 DELETE）：
+   * 渲染层内存仅为懒加载的部分历史时，也绝不会把库中已保存的完整历史覆盖清空。
+   * （历史消息的"删除"由 deletedMsgIds persisted 在 prefs 中承担，不需要物理删行。）
    */
   saveAll(uid, { convos, prefs, messages }) {
     if (!this.db) return { success: false, error: 'db not ready' }
@@ -168,12 +170,10 @@ class UserStore {
         for (const c of convos) stmt.run(uid, c.kind, c.cid, encryptJSON(c.meta), now)
       }
       if (messages && typeof messages === 'object') {
-        const delStmt = this.db.prepare('DELETE FROM messages WHERE uid=? AND kind=? AND cid=?')
         const insStmt = this.db.prepare('INSERT OR REPLACE INTO messages (uid, kind, cid, mid, send_time, content) VALUES (?,?,?,?,?,?)')
         for (const [key, msgs] of Object.entries(messages)) {
           const [kind, cid] = key.split(':')
           if (!kind || cid == null || !Array.isArray(msgs)) continue
-          delStmt.run(uid, kind, Number(cid))
           for (const m of msgs) {
             if (m == null || m.id == null) continue
             insStmt.run(uid, kind, Number(cid), Number(m.id), Number(m.send_time || 0), encryptJSON({ ...m, id: Number(m.id), mid: Number(m.id) }))

@@ -122,6 +122,7 @@
 .tools-page {
     flex: 1;
     min-width: 0;
+    min-height: 0; /* 窄模式 app-body 为 column，防内容把底部导航挤出视口 */
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -767,8 +768,14 @@
     padding: 8px 12px;
     border-bottom: 1px solid var(--border-light);
     flex-shrink: 0;
-    flex-wrap: wrap;
+    /* 窄窗口单行横向滚动，避免按钮换行堆叠 */
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: thin;
 }
+.img-toolbar::-webkit-scrollbar { height: 4px; }
+.img-toolbar::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 2px; }
+.img-toolbar > * { flex-shrink: 0; }
 
 .img-tool-btn {
     width: 32px;

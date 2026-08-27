@@ -1,6 +1,13 @@
 import { createApp, nextTick } from 'vue';
 import App from './App.vue';
 
+// 非 Electron 环境（Capacitor Android / 浏览器）：先安装 window.api 适配层再挂载。
+// 动态 import 保证桌面端（已有 preload 注入的 window.api）不会打包该 chunk。
+if (!window.api) {
+  await import('./platform/web-api.js');
+  document.body.classList.add('web');
+}
+
 const app = createApp(App);
 
 // 全局自动聚焦指令：任何 v-if 打开（挂载）的输入框自动捕捉光标，与画图工具文本框一致。

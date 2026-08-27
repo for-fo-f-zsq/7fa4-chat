@@ -1,6 +1,6 @@
 {
   "name": "7fa4-chat",
-  "version": "3.4.4",
+  "version": "3.4.5",
   "description": "7FA4 Chat",
   "main": "./out/main/index.js",
   "desktopName": "7fa4-chat.desktop",
@@ -17,16 +17,27 @@
   "homepage": "https://jx.7fa4.cn:9080/student-archive/zsq-7fa4-chat",
   "license": "MIT",
   "devDependencies": {
+    "@capacitor/cli": "^7.6.8",
     "@vitejs/plugin-vue": "^5.2.3",
     "electron": "^41.7.1",
     "electron-builder": "^26.8.1",
-    "electron-vite": "^5.0.0"
+    "electron-vite": "^5.0.0",
+    "fake-indexeddb": "^6.2.5",
+    "happy-dom": "^20.11.12"
   },
   "dependencies": {
+    "@capacitor/android": "^7.6.8",
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/browser": "^7.0.5",
+    "@capacitor/core": "^7.6.8",
+    "@capacitor/filesystem": "^7.1.8",
+    "@capacitor/local-notifications": "^7.0.7",
+    "@capacitor/share": "^7.0.4",
     "bytenode": "^1.6.0",
     "electron-builder-sandbox-fix": "^1.1.1",
     "electron-updater": "^6.8.9",
     "express": "^5.2.1",
+    "html2canvas": "^1.4.1",
     "http-proxy-middleware": "^3.0.5",
     "katex": "^0.16.44",
     "markdown-it": "^14.1.1",
@@ -127,6 +138,9 @@
       "package.json",
       "!node_modules/.cache",
       "!src",
+      "!node_modules/@capacitor/**",
+      "!node_modules/@capacitor/*/**",
+      "!node_modules/html2canvas/**",
       "node_modules/**/*"
     ],
     "extraResources": [

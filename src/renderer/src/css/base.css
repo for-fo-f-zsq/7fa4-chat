@@ -198,9 +198,8 @@ body {
 @media (max-width: 768px) {
     .app { max-height: 100vh; border-radius: 0; }
     .list-section { width: 220px; min-width: 180px; }
-    .navbar { width: 50px; }
-    .nav-icon { width: 40px; height: 40px; }
-    .nav-icon i { font-size: 18px; }
+    /* 不在宽度媒体查询中缩放 navbar/图标：桌面侧栏窄窗口下保持原尺寸，
+       底部 TabBar 形态由 .app-body.narrow（高宽比驱动）统一处理，避免误伤宽模式 */
 }
 
 .editable-name {
@@ -228,4 +227,27 @@ body {
 .editable-name.editable:hover .edit-icon {
     opacity: 1;
     color: var(--accent);
+}
+
+/* ========== Web/Android 平台（body.web，由入口 main.js 在安装适配层时添加） ========== */
+/* 移动端由系统状态栏 + NavBar 承担标题职责，隐藏桌面自定义标题栏（含窗口控制按钮） */
+body.web .title-bar {
+    display: none;
+}
+/* 系统状态栏透明沉浸：顶部留出安全区（刘海屏） */
+body.web .app {
+    padding-top: env(safe-area-inset-top, 0px);
+}
+/* 触屏设备去掉悬停依赖的提示 */
+body.web {
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+}
+/* 输入类元素保留文本选择与缩放行为（iOS/Android WebView 禁缩放会导致输入字号<16px 时自动放大） */
+body.web input,
+body.web textarea,
+body.web [contenteditable] {
+    user-select: text;
+    -webkit-user-select: text;
 }

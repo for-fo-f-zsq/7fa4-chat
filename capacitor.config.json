@@ -1,0 +1,16 @@
+{
+  "appId": "cn.forfof.chat",
+  "appName": "7FA4 Chat",
+  "webDir": "out/renderer",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "CapacitorCookies": {
+      "enabled": true
+    }
+  }
+}

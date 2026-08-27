@@ -13,7 +13,7 @@
       <iframe
         ref="frameRef"
         class="math-official-frame"
-        src="geo://ggb/calculator.html"
+        :src="frameSrc"
         frameborder="0"
         allowfullscreen
         @load="onLoad"
@@ -36,6 +36,8 @@ const emit = defineEmits(['back', 'dirty-change'])
 
 const frameRef = ref(null)
 const loaded = ref(false)
+// Electron 走 geo:// 自定义协议（extraResources）；Web/Android 走打包进静态资源的相对路径
+const frameSrc = window.__7FA4_WEB__ ? '/geogebra/calculator.html' : 'geo://ggb/calculator.html'
 
 function onLoad() {
   loaded.value = true

@@ -3,6 +3,8 @@ import { resolve } from 'path';
 import { readFileSync } from 'fs';
 import vue from '@vitejs/plugin-vue';
 
+const pkg = JSON.parse(readFileSync(resolve('package.json'), 'utf8'));
+
 // 主进程使用 CJS require('./storage')，vite 不会打包相对 CJS 依赖，
 // 该插件在构建产物中输出 storage.js 原文件，保证运行时 require 可解析。
 const copyStoragePlugin = () => ({
@@ -42,6 +44,10 @@ export default defineConfig({
     root: resolve('src/renderer'),
     publicDir: resolve('src/renderer/public'),
     plugins: [vue()],
+    // Web/Android 适配层 getVersion 使用（Electron 端走 app.getVersion，不依赖此 define）
+    define: {
+      __APP_VERSION__: JSON.stringify(pkg.version)
+    },
     build: {
       outDir: resolve('out/renderer'), // 绝对路径：避免相对 root 解析产生 src/renderer/out 垃圾目录
       minify: true,

@@ -1,5 +1,5 @@
 .about-panel {
-    flex: 1;
+    flex: 1; min-height: 0;
     overflow-y: auto;
     background: linear-gradient(160deg, var(--bg-app), var(--bg-gradient-end));
     padding: 20px 24px;

@@ -7,22 +7,18 @@
           <img src="/icon.png" alt="7FA4 Chat" class="announcement-logo-img" />
         </div>
         <p class="announcement-sub">全新版本发布</p>
-        <h1>V3.4.4</h1>
+        <h1>V3.4.5</h1>
         <div class="announcement-decor"></div>
       </div>
       <!-- 页 2：本次更新 -->
       <div v-else-if="page === 1" class="announcement-page">
         <h2><i class="fas fa-star"></i> 本次更新</h2>
         <ul class="announcement-list">
-          <li>添加好友支持直接输入用户名或编号，不再局限于榜单内用户</li>
-          <li>收藏、设置、关于、版本更新、赞助页面新增返回按钮，可一键回到消息列表</li>
-          <li>窗口较窄时导航栏自动移到界面底部，进入聊天时自动隐藏</li>
-          <li>图编辑器、计算器窗口较窄时自动收起侧边面板，主区域更开阔</li>
-          <li>Markdown 编辑器窗口较窄时自动改为上下分栏显示</li>
-          <li>消息保存优化，退出后重启不再丢失最近发送的消息</li>
-          <li>表情插入改用最短快捷码，连续选择多个表情也能正常显示</li>
-          <li>修复自己发送的消息在重启后有时不显示的问题</li>
-          <li>修复未保存提示中"不保存"按钮无法点击的问题</li>
+          <li>新增 Android 移动端版本：功能与桌面版一致，支持 Android 6.0 及以上，可在官网下载安装包</li>
+          <li>修复登录后历史消息显示不全、重启后消息可能丢失的问题</li>
+          <li>修复输入文字时软键盘弹出导致界面布局错乱、会话列表异常显示的问题</li>
+          <li>修复数学画板（GeoGebra）在窄窗口下无法自适应铺满的问题</li>
+          <li>修复未登录时部分页面返回按钮无法使用的问题</li>
         </ul>
       </div>
       <!-- 页 3：更新日志 -->

@@ -26,14 +26,36 @@
     };
     var applet = new GGBApplet(params, true);
     var ggb = null;
+
+    // GeoGebra 的 setSize 需配合 resize 事件触发内部重排才能生效（宽进窄缩能铺满，
+    // 正是因为窗口 resize 驱动；窄首次进入无 resize 事件，setSize 常被吞掉）。
     function fillViewport() {
       try {
-        if (ggb && ggb.setSize) {
-          ggb.setSize(window.innerWidth, window.innerHeight);
-        }
+        if (!ggb || !ggb.setSize) return;
+        var w = window.innerWidth;
+        var h = window.innerHeight;
+        if (w <= 0 || h <= 0) return;
+        ggb.setSize(w, h);
+        try { window.dispatchEvent(new Event("resize")); } catch (e) {}
       } catch (e) { /* ignore */ }
     }
+    // 外层窗口尺寸变化（用户拖拽窗口、切换窄/宽模式、导航栏沉底等）
     window.addEventListener("resize", fillViewport);
+    // iframe 的 CSS 尺寸变化不会触发 iframe 内部 window.resize，
+    // 用 ResizeObserver 监听容器，捕获布局导致的尺寸变化（窄模式切换等）。
+    if (typeof ResizeObserver !== "undefined") {
+      try {
+        new ResizeObserver(function () { fillViewport(); }).observe(document.getElementById("ggb-element"));
+      } catch (e) { /* ignore */ }
+    }
+    // 用 canvas 实际 DOM 尺寸（而非 ggb.getWidth 报告值）判断是否已铺满
+    function isFilled() {
+      try {
+        var cv = document.querySelector("#ggb-element canvas");
+        return cv && Math.abs(cv.clientWidth - window.innerWidth) < 3 && Math.abs(cv.clientHeight - window.innerHeight) < 3;
+      } catch (e) { return false; }
+    }
+
     window.addEventListener("load", function () {
       applet.setHTML5Codebase("HTML5/5.0/web/");
       applet.inject("ggb-element");
@@ -46,6 +68,13 @@
           if (ggb && ggb.setSize) {
             clearInterval(timer);
             fillViewport();
+            // 窄窗首次进入时 applet 就绪帧的尺寸可能仍是过渡值，且 GeoGebra 可能吞掉
+            // 早期 setSize。持续每 200ms 重设 + 派发 resize，直至 canvas 真正铺满（≤6s 兜底）。
+            var settle = setInterval(function () {
+              fillViewport();
+              if (isFilled()) clearInterval(settle);
+            }, 200);
+            setTimeout(function () { clearInterval(settle); }, 6000);
             // 默认显示 XY 坐标轴与网格（showAxes/showGrid 非嵌入参数，需用 API 设置）
             try { ggb.setAxesVisible(1, true); } catch (e) {}
             try { ggb.setGridVisible(true); } catch (e) {}

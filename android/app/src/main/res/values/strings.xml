@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">7FA4 Chat</string>
+    <string name="title_activity_main">7FA4 Chat</string>
+    <string name="package_name">cn.forfof.chat</string>
+    <string name="custom_url_scheme">cn.forfof.chat</string>
+</resources>

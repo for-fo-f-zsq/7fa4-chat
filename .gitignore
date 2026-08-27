@@ -17,3 +17,14 @@ website-dev/
 
 # 本地测试残留（如 dev/null 等），不入库
 /dev/
+
+# Android（Capacitor）构建与生成产物：均由 build-web.mjs + cap sync 重新生成
+/android/local.properties
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/capacitor-cordova-android-plugins/build/
+/android/app/src/main/assets/public/
+/android/.idea/
+/android/app/release.keystore
+/android/.keystore-pass
