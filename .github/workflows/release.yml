@@ -128,6 +128,7 @@ jobs:
           else
             echo "::warning::未配置 ANDROID_KEYSTORE_B64 等 Secrets，使用 debug 签名（可安装，但后续版本换签名后无法覆盖升级）"
           fi
+          chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
           VERSION="${GITHUB_REF_NAME#v}"
           [ -z "$VERSION" ] && VERSION=$(node -p "require('../package.json').version")
