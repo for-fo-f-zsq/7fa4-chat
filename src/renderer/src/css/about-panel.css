@@ -757,3 +757,68 @@
 }
 .donate-zoom-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.65); display: flex; align-items: center; justify-content: center; z-index: 6000; cursor: zoom-out; }
 .donate-zoom-img { max-width: 80vw; max-height: 80vh; border-radius: var(--radius); box-shadow: var(--shadow-modal); }
+
+/* 作者 & AI 协作者（hero 卡） */
+.about-author {
+  margin: 16px 0 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.about-author-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+}
+.about-author-main {
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.3px;
+}
+.about-author-sep {
+  color: var(--text-mute);
+  opacity: 0.6;
+}
+.about-author-ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.about-author-ai i { font-size: 12px; }
+.about-author-note {
+  font-size: var(--font-size-small);
+  color: var(--text-mute);
+}
+.about-ai-models {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  max-width: 520px;
+}
+.ai-chip {
+  --chip-color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.7;
+  color: var(--chip-color);
+  background: var(--bg-input);
+  border: 1px solid var(--chip-color);
+  white-space: nowrap;
+  transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  cursor: default;
+}
+.ai-chip:hover {
+  transform: translateY(-1px);
+  background: var(--bg-conversation-hover);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
+}

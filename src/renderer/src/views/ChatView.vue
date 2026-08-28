@@ -1578,10 +1578,19 @@ async function startInfoLoop() {
   if (infoLoopRunning) return; // 互斥：防止重复调用导致多个并发轮询循环（疯狂连续获取、不守间隔）
   infoLoopRunning = true;
   let failCount = 0;
-  // 首次全量爬取：在此处（infoLoopRunning 已置真）执行 100 条 + 翻页取尽历史。
-  // 必须在 onMounted 里 startInfoLoop() 之前做同样的调用会被 fetchMessages 的
-  // `if (!infoLoopRunning) return` 守卫跳过（当时仍为 false），导致首次只有轮询的 10 条。
+  // 首次进入：onMounted 里的 update(initialInfo) 因 infoLoopRunning 未置真，会被 update 自身的
+  // `if (!infoLoopRunning) return` 守卫跳过，此时 store.users/groups 为空。若直接全量爬取，
+  // fetchMessages 会因 `if (!t) continue`（t 取不到会话）把历史全部丢弃，只剩轮询的 10 条。
+  // 因此置真后先 /chat/info 填充会话，再执行 100 条 + 翻页爬取历史。
+  try {
+    const r = await (await safeFetch('/chat/info')).json();
+    if (!infoLoopRunning) return;
+    if (r.success) { await update(r); failCount = 0; store.netError = false; store.online = true; }
+    else { failCount++; store.netError = true; }
+  } catch { failCount++; store.netError = true; }
   try { await updateMessagesData(100, true); } catch {}
+  // 首次历史爬取（无论成败）结束：隐藏"正在加载消息…"提示，进入常规轮询
+  store.initializing = false;
   while (infoLoopRunning && store.logined) {
     try { const result = await (await safeFetch('/chat/info')).json(); if (!infoLoopRunning) break; if (result.success) { await update(result); failCount = 0; store.netError = false; store.online = true; } else { failCount++; store.netError = true; } } catch { failCount++; store.netError = true; }
     if (!infoLoopRunning) break;
@@ -1699,7 +1708,8 @@ onMounted(async () => {
     updateBadgeCount();
     nextTick(() => { messageListRef.value?.scrollToBottomInstant(); });
   } finally {
-    store.initializing = false;
+    // 加载提示的收尾移入 startInfoLoop：首次历史爬取完成后再隐藏，
+    // 否则会在爬取仍在进行时提前消失（"提示闪一下就没了，消息还在加载"）。
   }
   if (store.logined) startInfoLoop();
   document.addEventListener('keydown', onDocKeydown);

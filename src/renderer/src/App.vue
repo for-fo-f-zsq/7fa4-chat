@@ -78,12 +78,12 @@ function onGuest() {
 
 function onLogin() {
   store.guestMode = false; // 登录成功后退出游客模式，状态一致
+  // 立即置 logined：让 ChatView 挂载即走完整登录初始化（onMounted 后续才置 true 会使
+  // 挂载时仍判为游客而提前 return，导致 init-loading 不显示、startInfoLoop 不启动、首次历史不加载）
+  store.logined = true
   loginSeq.value++
   viewFading.value = true
   setTimeout(() => {
-    // 竞态防护：延迟期间若用户已切走（如点了"返回"进入游客模式），放弃本次登录置位
-    if (store.guestMode) return;
-    store.logined = true
     nextTick(() => {
       requestAnimationFrame(() => { requestAnimationFrame(() => { viewFading.value = false; }); });
     })

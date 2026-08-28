@@ -1,3 +1,11 @@
+<h2>3.4.6</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>关于页新增作者与 AI 协作者展示，列出参与开发的 DeepSeek、GLM、腾讯混元等模型</li>
+  <li><span class="change-tag new">新功能</span>Android 桌面图标与启动屏改为 7FA4 完整 Logo，白色背景居中显示，比例协调不变形</li>
+  <li><span class="change-tag fix">修复</span>修复新用户登录后历史消息显示不全的问题，登录时显示加载提示并完整加载聊天记录</li>
+  <li><span class="change-tag fix">修复</span>修复输入文字时软键盘弹出导致计算器等工具界面布局错乱的问题</li>
+  <li><span class="change-tag improve">优化</span>消息气泡加宽，左右留白更少，阅读更紧凑</li>
+</ul>
 <h2>3.4.5</h2>
 <ul>
   <li><span class="change-tag new">新功能</span>新增 Android 移动端版本，功能与桌面版一致，支持 Android 6.0 及以上，可在官网下载安装包</li>

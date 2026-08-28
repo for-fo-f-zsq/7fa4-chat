@@ -47,10 +47,10 @@
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    max-width: 75%;
+    max-width: 85%;
 }
 .msg-row.multi-select-active {
-    max-width: 85%;
+    max-width: 93%;
 }
 
 .msg-row.left { align-self: flex-start; }

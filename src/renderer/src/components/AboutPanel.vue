@@ -13,6 +13,24 @@
         <div class="about-name">7FA4 Chat</div>
         <div class="about-version-pill">v{{ version }}</div>
         <p class="about-tagline">基于 Vue 3 与 Electron 的跨平台即时通讯应用，内置 Markdown、数学公式、代码与画板等学习工具。</p>
+        <!-- 作者 & AI 协作者 -->
+        <div class="about-author">
+          <div class="about-author-line">
+            <span class="about-author-main">for_fo_f</span>
+            <span class="about-author-sep">/</span>
+            <span class="about-author-ai"><i class="fas fa-robot"></i> AI</span>
+            <span class="about-author-note">协作开发</span>
+          </div>
+          <div class="about-ai-models">
+            <span
+              v-for="m in aiModels"
+              :key="m.name"
+              class="ai-chip"
+              :style="{ '--chip-color': m.color }"
+              :title="m.name"
+            >{{ m.name }}</span>
+          </div>
+        </div>
       </div>
       <div class="about-links">
         <button class="about-link-btn" @click="openLink('https://github.com/for-fo-f-zsq/7fa4-chat')"><i class="fab fa-github"></i> GitHub</button>
@@ -109,4 +127,16 @@ onMounted(() => {
 function openLink(url) {
   window.api.openExternal(url)
 }
+
+// 参与开发的 AI 协作者（按需增删改名即可）；颜色按厂商分色系：
+// DeepSeek=蓝系、GLM(智谱)=绿系、Hy3(腾讯混元)=橙，同厂商用同色系深浅区分具体模型
+const aiModels = [
+  { name: 'DeepSeek V4 Flash · 0731', color: '#3b5bfd' },
+  { name: 'DeepSeek V4 Flash Vision (Exp)', color: '#6176ff' },
+  { name: 'GLM-5.1', color: '#0a7a4b' },
+  { name: 'GLM-5.2', color: '#0b8f5a' },
+  { name: 'GLM-5.3', color: '#10a86b' },
+  { name: 'GLM-5.3 Flash', color: '#28c18a' },
+  { name: 'Hy3', color: '#e07b39' },
+]
 </script>
