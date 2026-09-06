@@ -41,12 +41,16 @@ const GRADE_LABELS = {
   by: '毕业', jl: '教练', uk: '其他'
 }
 
+// 年级颜色全新设计（2026-09-06 彻底重做）：
+// 学段 = 色系（小学 琥珀/橙棕 → 初中 青 → 高中 绿 → 大学 蓝靛 → 毕业 石板灰 → 教练 玫红），
+// 同段内按年级逐级加深；本值为"浅色主题档"（中等明度、白底清晰），
+// 深色主题在 css/themes/*.css 中用同色系更亮一档（--grade-* 覆盖）。
 const DEFAULT_PALETTE = {
-  x4: '#9a7240', x5: '#7d5a2e', x6: '#60421c',
-  c1: '#2d8fa5', c2: '#1f7a92', c3: '#0f657f',
-  g1: '#3d8a4e', g2: '#2a7538', g3: '#176025',
-  d1: '#5568b0', d2: '#43549e', d3: '#32408c', d4: '#212c7a',
-  by: '#777777', jl: '#c4587a', uk: '#666666'
+  x4: '#D97E24', x5: '#C16A15', x6: '#A5530C',
+  c1: '#10A093', c2: '#0B8379', c3: '#076A62',
+  g1: '#3FA45B', g2: '#2D8F48', g3: '#1E7A38',
+  d1: '#4B7AE8', d2: '#3762CC', d3: '#284DB2', d4: '#1D3A96',
+  by: '#8D96A7', jl: '#CE4E82', uk: '#828B98'
 }
 
 export { COLOR_KEYS, GRADE_LABELS, DEFAULT_PALETTE }
@@ -694,6 +698,16 @@ md.renderer.rules.qqface_inline = function (tokens, idx) {
   return '<img class="qqface" src="' + esc(src) + '" data-code="' + esc(code) + '" alt="' + esc(alt) + '">'
 }
 
+// 网络图片（![alt](url)）：按应用 image 类型显示——套用 .chat-image 样式（缩略尺寸），
+// 点击由 MessageList 的 .chat-image 命中逻辑打开大图预览（与图片消息一致）
+md.renderer.rules.image = function (tokens, idx) {
+  const t = tokens[idx]
+  const src = t.attrGet('src') || ''
+  const title = t.attrGet('title') || ''
+  const alt = t.content || ''
+  return '<img class="chat-image" src="' + esc(src) + '" alt="' + esc(alt) + '" title="' + esc(title) + '" loading="lazy">'
+}
+
 md.renderer.rules.katex_block = function (tokens, idx) {
   try { return '<p>' + katex.renderToString(tokens[idx].content, { throwOnError: false, displayMode: true, output: 'html' }) + '</p>' }
   catch { return '<p>' + esc(tokens[idx].content) + '</p>' }
@@ -914,18 +928,24 @@ function _parseContentImpl(raw, senderId) {
     return renderMarkdown(obj.content || '')
   }
   if (obj.type === 'pat') {
+    // 严格解析：pat 只接受单个目标 uid（数字或纯数字字符串）。
+    // target 为数组/对象/空/非数字等非法形态时不做兼容，直接判为非法消息，显示原始 content。
+    const patTarget = obj.target
+    if (patTarget == null || Array.isArray(patTarget) || !/^\d+$/.test(String(patTarget))) {
+      return renderMarkdown(raw)
+    }
     const senderName = senderId ? getUsername(senderId, store.users) : ''
-    const targetName = obj.target ? getUsername(obj.target, store.users) : ''
+    const targetName = getUsername(patTarget, store.users)
     // 仅当用户信息可解析（store.users 或姓名库有记录）时才渲染可点击名字；
     // 解析失败显示 User_xxx 兜底名时不可点击（点开 userinfo 也没有意义）
     const senderKnown = senderId ? !!(store.users?.[senderId] || usersJson?.[senderId]) : false
-    const targetKnown = obj.target ? !!(store.users?.[obj.target] || usersJson?.[obj.target]) : false
+    const targetKnown = !!(store.users?.[patTarget] || usersJson?.[patTarget])
     const senderHtml = senderId
       ? (senderKnown ? `<span class="pat-user" data-uid="${senderId}">${esc(senderName)}</span>` : esc(senderName))
       : ''
-    const targetHtml = obj.target
-      ? (targetKnown ? `<span class="pat-user" data-uid="${obj.target}">${esc(targetName)}</span>` : esc(targetName))
-      : ''
+    const targetHtml = targetKnown
+      ? `<span class="pat-user" data-uid="${patTarget}">${esc(targetName)}</span>`
+      : esc(targetName)
     return '<div class="pat-msg">' + senderHtml + ' 拍了拍 ' + targetHtml + '</div>'
   }
   if (obj.type === 'text') {

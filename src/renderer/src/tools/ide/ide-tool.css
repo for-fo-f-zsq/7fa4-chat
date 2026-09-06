@@ -103,6 +103,23 @@
 }
 .md-ws-btn-icon:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* 发送按钮（图片编辑器）：强调色 */
+.md-ws-btn-send {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--text-on-accent);
+    font-weight: 600;
+}
+.md-ws-btn-send:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+    color: var(--text-on-accent);
+}
+.md-ws-btn-send:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .md-tool-error {
     display: flex;
     align-items: center;

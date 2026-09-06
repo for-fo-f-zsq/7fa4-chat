@@ -285,12 +285,19 @@
 }
 .expand-btn:hover { color: var(--accent-hover); }
 
-.load-more-hint {
+.load-more-hint-row {
     text-align: center;
+    padding: 8px;
+}
+
+.load-more-hint-text {
     font-size: var(--font-size-small);
     color: var(--text-secondary);
-    padding: 8px;
     opacity: 0.6;
+}
+
+.load-more-hint-text i {
+    margin-right: 4px;
 }
 
 .file-msg {

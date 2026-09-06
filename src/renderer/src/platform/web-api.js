@@ -488,6 +488,7 @@ if (IS_NATIVE) {
 window.api = {
   getUserDataPath: async () => null,
   getVersion: async () => (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'),
+  getPlatform: async () => (IS_NATIVE ? 'android' : 'web'),
   loadSetting: async () => loadSettingObj(),
   saveSetting: async (data) => {
     const merged = { ...loadSettingObj(), ...(data || {}) }
@@ -551,6 +552,10 @@ window.api = {
       return v == null ? { success: false, error: '文件不存在' } : { success: true, data: v }
     } catch (e) { return { success: false, error: e.message } }
   },
+  deleteDataFile: async (filename) => {
+    try { localStorage.removeItem('datafile:' + filename); return { success: true } }
+    catch (e) { return { success: false, error: e.message } }
+  },
   // --- IndexedDB 存储 ---
   storeInit: (uid) => store.init(uid),
   storeLoadConvos: (uid) => store.loadConvos(uid),
@@ -566,34 +571,51 @@ window.api = {
   // --- 生命周期 ---
   onAppFlushBeforeClose: on('flushBeforeClose'),
   appFlushDone: () => {},
-  // --- 更新（Android 无 electron-updater：引导到官网下载页） ---
+  // --- 更新（Android 无 electron-updater：版本信息由本地后端 /web/api/version 聚合 GitLab） ---
   checkForUpdate: async () => ({ status: 'not-packaged' }),
   downloadUpdate: async () => ({ status: 'not-packaged' }),
   installUpdate: async () => ({ status: 'not-packaged' }),
-  onUpdateStatus: (callback) => {
-    try { callback({ status: 'not-available', error: '移动端请通过官网下载新版安装包' }) } catch {}
+  // 更新状态由渲染层 UpdatePanel 依据 fetchVersionInfo 比对生成（不再回调死结论）
+  onUpdateStatus: () => () => {},
+  fetchVersionInfo: async () => {
+    try {
+      const res = await siteRequest('/web/api/version', { method: 'GET', headers: { 'Accept': 'application/json' } })
+      const data = await res.json().catch(() => null)
+      if (res.ok && data && data.success) {
+        return { success: true, latestVersion: data.latestVersion || '', artifacts: data.artifacts || [], publishDate: data.publishDate || '', fetchedAt: data.fetchedAt || 0 }
+      }
+      return { success: false, error: (data && data.error) || `HTTP ${res.status}` }
+    } catch (e) {
+      return { success: false, error: e.message || '网络错误' }
+    }
   },
   fetchChangelog: async () => {
+    // 由本地后端 /web/api/version 返回 CHANGELOG（不再客户端直连 GitLab 9080）
     try {
-      const url = `${apiBase()}:9080/api/v4/projects/886/packages/generic/7FA4-Chat/latest/CHANGELOG`
-      const res = IS_NATIVE
-        ? await nativeHttp(url, {})
-        : await origFetch(url)
-      const html = typeof res === 'string' ? res : await res.text()
-      if (!html || !html.trim()) return { success: false, error: '更新日志为空' }
-      return { success: true, html }
+      const res = await siteRequest('/web/api/version', { method: 'GET', headers: { 'Accept': 'application/json' } })
+      const data = await res.json().catch(() => null)
+      if (res.ok && data && data.success && data.changelog && data.changelog.trim()) {
+        return { success: true, html: data.changelog }
+      }
+      return { success: false, error: (data && data.error) || `HTTP ${res.status}` }
     } catch (e) {
-      return { success: false, error: e.message || '获取更新日志失败' }
+      return { success: false, error: e.message || '网络错误' }
     }
   },
   // --- 站点 API ---
   setBadgeCount: async () => ({ success: true }),
-  sendFeedback: async ({ content, user, uid } = {}) => {
+  sendFeedback: async ({ content, user, uid, client, image } = {}) => {
     try {
       const res = await siteRequest('/api/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: String(content || ''), user: String(user || ''), uid: Number(uid) || 0 })
+        body: JSON.stringify({
+          content: String(content || ''),
+          user: String(user || ''),
+          uid: Number(uid) || 0,
+          client: client && typeof client === 'object' ? client : null,
+          image: String(image || '')
+        })
       })
       const data = await res.json().catch(() => null)
       if (res.ok && data && data.ok) return { success: true, id: data.id }
@@ -718,5 +740,6 @@ window.api = {
   androidExit: () => { if (IS_NATIVE) CapApp.exitApp() }
 }
 
-// 平台标记（渲染层可读取，如 GeoGebra iframe 路径分支）
+// 平台标记（渲染层可读取，如 GeoGebra iframe 路径分支 / 反馈客户端信息）
 window.__7FA4_WEB__ = true
+window.__7FA4_PLATFORM__ = IS_NATIVE ? 'android' : 'web'

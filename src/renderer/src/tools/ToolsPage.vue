@@ -46,6 +46,7 @@
         class="ide-host"
         @back="$emit('openTool', 'list')"
         @dirty-change="$emit('dirty-change', $event)"
+        @sendImage="(p) => $emit('send-image', p)"
       />
     </template>
     <template v-else-if="currentTool === 'graph_editor'">
@@ -77,7 +78,7 @@ defineProps({
   currentTool: { type: String, default: 'list' }
 })
 
-const emit = defineEmits(['openTool', 'dirty-change'])
+const emit = defineEmits(['openTool', 'dirty-change', 'send-image'])
 
 const imageToolRef = ref(null)
 const markdownToolRef = ref(null)
@@ -87,6 +88,7 @@ const mathToolRef = ref(null)
 defineExpose({
   imageSave: () => imageToolRef.value?.save(),
   markdownSave: () => markdownToolRef.value?.save(),
-  mathSave: () => mathToolRef.value?.save()
+  mathSave: () => mathToolRef.value?.save(),
+  imageOpen: (data, mime, name) => imageToolRef.value?.imageOpen(data, mime, name)
 })
 </script>

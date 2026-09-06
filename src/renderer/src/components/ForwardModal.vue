@@ -2,7 +2,7 @@
   <div class="forward-overlay" @click.self="$emit('close')">
     <div class="forward-modal">
       <div class="forward-header">
-        <span>转发消息</span>
+        <span>{{ title }}</span>
         <button class="preview-close" @click="$emit('close')"><i class="fas fa-times"></i></button>
       </div>
       <div class="forward-search">
@@ -40,7 +40,8 @@ import { store } from '../store.js';
 import { displayName } from '../utils.js';
 
 const props = defineProps({
-  msgContent: { type: String, default: '' }
+  msgContent: { type: String, default: '' },
+  title: { type: String, default: '转发消息' }
 });
 
 const emit = defineEmits(['close', 'forward']);
@@ -74,8 +75,8 @@ const searchedGroups = computed(() => {
 });
 
 function doSend() {
-  if (!selectedId.value || !props.msgContent) return;
-  emit('forward', { type: selectedType.value, targetId: selectedId.value, msgContent: props.msgContent });
+  if (!selectedId.value) return;
+  emit('forward', { type: selectedType.value, targetId: selectedId.value, msgContent: props.msgContent || '' });
 }
 
 function focus() {

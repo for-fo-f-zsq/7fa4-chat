@@ -625,8 +625,8 @@ function runLayout() {
           d2 = dx * dx + dy * dy
         }
         const d = Math.sqrt(d2) || 1
-        // 斥力：反平方，clamp 上限防距离过近时弹飞；基准系数整体放大（×2），随「排斥力」倍率缩放
-        const f = Math.min((5600 * repulsion.value) / d2, 1400 * repulsion.value)
+        // 斥力：反平方，clamp 上限防距离过近时弹飞；基准系数整体放大（用户要求整体×10），随「排斥力」倍率缩放
+        const f = Math.min((56000 * repulsion.value) / d2, 14000 * repulsion.value)
         fx += (dx / d) * f
         fy += (dy / d) * f
       }
@@ -638,14 +638,14 @@ function runLayout() {
         let dx = b.x - a.x, dy = b.y - a.y
         const d = Math.hypot(dx, dy) || 1
         // 拉力（边）：严格按边长计算——力与边实际长度成正比（f ∝ d），长边拉回强、短边弱；
-        // 系数 0.004 使默认 1x 下平衡间距约 110px（拉力=排斥力处），避免图被拉成一团
-        const f = 0.004 * spring.value * d
+        // 系数 0.04 使默认 1x 下平衡间距约 110px（拉力=排斥力处），避免图被拉成一团（整体×10）
+        const f = 0.04 * spring.value * d
         fx += (dx / d) * f
         fy += (dy / d) * f
       }
-      // 向心力：把整个图拉回原点，避免节点漂散；强度随「向心力」倍率缩放
-      fx -= a.x * 0.0015 * centripetal.value
-      fy -= a.y * 0.0015 * centripetal.value
+      // 向心力：把整个图拉回原点，避免节点漂散；强度随「向心力」倍率缩放（整体×10）
+      fx -= a.x * 0.015 * centripetal.value
+      fy -= a.y * 0.015 * centripetal.value
       let nvx = (a.vx || 0) * 0.85 + fx * dt
       let nvy = (a.vy || 0) * 0.85 + fy * dt
       // 速度上限：防止单帧飞离画面
@@ -1140,10 +1140,12 @@ function edgeGeometry(e) {
   const a = byId(e.u)
   const b = byId(e.v)
   if (!a || !b) return null
-  const same = edges.filter((x) => x.u === e.u && x.v === e.v)
+  // 重边按"无向对"分组：u↔v 与 v↔u 视为同组，避免双向重边完全重叠、权重标签糊在一起；
+  // 组内沿法线方向错开 14px，使各条边与权重标签都能分辨
+  const same = edges.filter((x) => (x.u === e.u && x.v === e.v) || (x.u === e.v && x.v === e.u))
   const k = same.length
   const idx = same.indexOf(e)
-  const off = k > 1 ? ((k - 1) / 2 - idx) * 9 : 0
+  const off = k > 1 ? ((k - 1) / 2 - idx) * 14 : 0
   const mx = (a.x + b.x) / 2
   const my = (a.y + b.y) / 2
   let dx = b.x - a.x, dy = b.y - a.y

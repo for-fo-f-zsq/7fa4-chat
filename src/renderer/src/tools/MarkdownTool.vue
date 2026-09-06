@@ -95,6 +95,7 @@ const saving = ref(false)
 const exporting = ref(false)
 const saveConfirmVisible = ref(false)
 const savedContent = ref('') // 最近一次 打开/新建/保存 时的内容（dirty 基准）
+const savedKey = ref('')     // 最近一次保存的工作区文件名（对应 saveDataFile 的键）；改名后保存时据此迁移旧文件
 
 // 未保存标记：内容与已保存基准不一致
 const dirty = computed(() => content.value !== savedContent.value)
@@ -283,6 +284,7 @@ function startEditName() {
   })
 }
 
+// 重命名：仅更新内存中的文件名；实际"改名"在下次保存时按 savedKey → 新名 迁移（见 save）
 function commitName() {
   if (!editingName.value) return
   editingName.value = false
@@ -294,17 +296,6 @@ function cancelName() {
   editingName.value = false
 }
 
-// base64 编码 UTF-8 文本（分块避免栈溢出）
-function textToBase64(text) {
-  const bytes = new TextEncoder().encode(text)
-  let bin = ''
-  const CHUNK = 0x8000
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK))
-  }
-  return btoa(bin)
-}
-
 async function openFile() {
   const r = await window.api.selectFile()
   if (!r.success) return
@@ -312,37 +303,76 @@ async function openFile() {
   try {
     const binary = atob(r.data)
     const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0))
-    content.value = new TextDecoder('utf-8').decode(bytes)
+    const text = new TextDecoder('utf-8').decode(bytes)
+    content.value = text
     fileName.value = r.name
-    savedContent.value = content.value
+    savedKey.value = r.name
+    savedContent.value = text
+    // 打开的磁盘文件可编辑后按同一文件名保存回工作区（userData / localStorage），
+    // 之后"保存"不再弹出系统对话框
+    await window.api.saveDataFile(r.name, text)
   } catch (e) {
     alert('读取文件失败：' + e.message)
   }
 }
 
-function newFile() {
+// 工作区里是否已存在该文件（用于覆盖确认）
+async function workspaceExists(name) {
+  try {
+    const r = await window.api.loadDataFile(name)
+    return !!(r && r.success)
+  } catch { return false }
+}
+
+// 删除旧工作区文件（重命名/覆盖时清理），忽略"文件不存在"
+async function removeWorkspaceFile(name) {
+  try { await window.api.deleteDataFile?.(name) } catch {}
+}
+
+async function newFile() {
   if (content.value.trim() && !confirm('当前内容未保存，确定新建并丢弃？')) return
+  // 已保存过的文件保留在工作区，仅清空编辑区开始新文档
   content.value = ''
   fileName.value = ''
+  savedKey.value = ''
   savedContent.value = ''
 }
 
+// 保存到工作区：文件名即存储键。规则：
+//  - savedKey 为空（首次保存）或与当前名一致：直接写入；
+//  - 文件名变化（重命名）：删除旧键再写入新键；
+//  - 目标名已存在且不是自己：弹窗确认后才覆盖，避免"覆盖已有文件"。
 async function save() {
   if (saving.value) return
+  const name = (fileName.value && fileName.value.trim()) || '未命名.md'
+  const prevKey = savedKey.value
+  const renamed = prevKey && prevKey !== name
+  if (prevKey !== name) {
+    const exists = await workspaceExists(name)
+    if (exists && !renamed) {
+      if (!confirm(`工作区已存在 ${name}，确定覆盖？`)) return
+    } else if (exists && renamed) {
+      // 重命名到已存在的文件：同样需要确认覆盖
+      if (!confirm(`工作区已存在 ${name}，确定覆盖（原 ${prevKey} 将被删除）？`)) return
+    }
+  }
   saving.value = true
   try {
-    const name = fileName.value || '未命名.md'
-    const base64 = textToBase64(content.value)
-    const r = await window.api.downloadFile(base64, name, 'text/markdown')
-    if (r.success) {
-      fileName.value = r.path ? r.path.split(/[\\/]/).pop() : fileName.value
-      savedContent.value = content.value
-      alert('已保存')
+    const r = await window.api.saveDataFile(name, content.value)
+    if (!r || !r.success) {
+      alert('保存失败：' + ((r && r.error) || '未知错误'))
+      return
     }
+    if (renamed) await removeWorkspaceFile(prevKey)
+    fileName.value = name
+    savedKey.value = name
+    savedContent.value = content.value
+    alert('已保存')
   } catch (e) {
     alert('保存失败：' + e.message)
+  } finally {
+    saving.value = false
   }
-  saving.value = false
 }
 
 async function exportPng() {

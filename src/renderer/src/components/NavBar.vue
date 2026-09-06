@@ -71,6 +71,16 @@
     <div class="feedback-box">
       <div class="feedback-head"><h3>意见反馈</h3><button class="feedback-close" @click="feedbackVisible = false"><i class="fas fa-times"></i></button></div>
       <textarea class="feedback-input" v-model="feedbackText" rows="5" maxlength="2000" placeholder="写下你的建议、问题或 Bug 描述…"></textarea>
+      <div class="feedback-pics" v-if="feedbackImage">
+        <div class="feedback-pic-item">
+          <img :src="feedbackImageUrl" class="feedback-pic-img" />
+          <button class="feedback-pic-remove" title="移除图片" @click="feedbackImage = null"><i class="fas fa-times"></i></button>
+        </div>
+      </div>
+      <div class="feedback-tools">
+        <button class="feedback-add-pic" @click="pickFeedbackImage"><i class="fas fa-image"></i> 添加截图（可选）</button>
+      </div>
+      <div class="feedback-client" v-if="feedbackClientText"><i class="fas fa-info-circle"></i> {{ feedbackClientText }}</div>
       <div class="feedback-status" :class="{ ok: feedbackStatus === 'ok', err: feedbackStatus === 'err' }" v-if="feedbackStatus">{{ feedbackMsg }}</div>
       <div class="feedback-actions">
         <button class="feedback-btn" @click="feedbackVisible = false">取消</button>
@@ -84,6 +94,7 @@
 import { ref, computed } from 'vue'
 import { vClickOutside } from '../composables/vClickOutside.js'
 import { store } from '../store.js'
+import { compressBase64Image } from '../utils.js'
 
 // 意见反馈
 const feedbackVisible = ref(false)
@@ -91,32 +102,87 @@ const feedbackText = ref('')
 const feedbackSending = ref(false)
 const feedbackStatus = ref('') // '' | 'ok' | 'err'
 const feedbackMsg = ref('')
+const feedbackImage = ref(null) // 可选截图（base64 JPEG，≤300KB）
+const feedbackImageUrl = ref('')
+const feedbackClientText = ref('')
+
 function openFeedback() {
   userMenu.value = false
   feedbackText.value = ''
   feedbackStatus.value = ''
   feedbackMsg.value = ''
+  feedbackImage.value = null
+  feedbackImageUrl.value = ''
   feedbackVisible.value = true
+  // 打开即展示客户端信息（平台/版本/UID）
+  collectClientInfo().catch(() => {})
 }
+
+// 客户端信息（随反馈提交，便于定位问题）：平台（Windows/Linux/macOS/Android/Web）+ 版本号 + UID
+async function collectClientInfo() {
+  // 桌面端由主进程按 OS 细分（get-platform → windows/linux/macos）；Android/Web 用平台标记
+  let platform = 'desktop'
+  try {
+    if (window.api && typeof window.api.getPlatform === 'function') {
+      platform = await window.api.getPlatform()
+    } else if (window.__7FA4_PLATFORM__) {
+      platform = window.__7FA4_PLATFORM__
+    }
+  } catch {}
+  let version = ''
+  try { version = await window.api.getVersion() } catch {}
+  const info = {
+    platform,
+    version: version || '',
+    uid: Number(store.self?.uid) || 0,
+    user: store.self?.username || store.self?.nickname || ''
+  }
+  const label = { windows: 'Windows', linux: 'Linux', macos: 'macOS', android: 'Android', web: '网页端', desktop: '桌面端' }[platform] || platform
+  feedbackClientText.value = `${label}${version ? ' v' + version : ''}${info.uid ? ' · UID ' + info.uid : ''}`
+  return info
+}
+
 // 版本公告：通过全局事件通知 App 显示（公告组件由 App 层管理）
 function openAnnouncement() {
   userMenu.value = false
   window.dispatchEvent(new CustomEvent('open-announcement'))
 }
+
+async function pickFeedbackImage() {
+  try {
+    const sel = await window.api.selectImage()
+    if (!sel || !sel.success || !sel.data) return
+    let data = sel.data
+    let mime = sel.mime || 'image/jpeg'
+    // 压缩到 ≤100KB（复用 compressBase64Image 的降质循环），控制反馈体积
+    if (!/^image\/gif$/i.test(mime)) {
+      const r = await compressBase64Image(data, mime)
+      if (r) { data = r.data; mime = 'image/jpeg' }
+    }
+    feedbackImage.value = data
+    feedbackImageUrl.value = `data:${mime};base64,${data}`
+  } catch {}
+}
+
 async function submitFeedback() {
   const content = feedbackText.value.trim()
   if (!content || feedbackSending.value) return
   feedbackSending.value = true
   try {
+    const client = await collectClientInfo()
     const r = await window.api.sendFeedback({
       content,
-      user: store.self?.username || store.self?.nickname || '',
-      uid: store.self?.uid || 0,
+      user: client.user,
+      uid: client.uid,
+      client: { platform: client.platform, version: client.version },
+      image: feedbackImageUrl.value || '', // data URL（含 mime），服务器直接存储展示
     })
     if (r && r.success) {
       feedbackStatus.value = 'ok'
       feedbackMsg.value = '反馈已提交，感谢你的支持！'
       feedbackText.value = ''
+      feedbackImage.value = null
+      feedbackImageUrl.value = ''
     } else {
       feedbackStatus.value = 'err'
       feedbackMsg.value = (r && r.error) || '提交失败，请稍后重试'

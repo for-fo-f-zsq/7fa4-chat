@@ -194,11 +194,8 @@
     position: relative;
     padding: 0 6px;
 }
-    color: var(--text-secondary);
-    transition: color var(--duration-fast) ease;
-}
 
-.error {
+.counter-line .error {
     font-size: var(--font-size-base, 14px);
     background: var(--bg-code-inline);
     border-radius: var(--radius);
@@ -206,7 +203,7 @@
     height: 25px;
     min-width: 150px;
     border: 1px solid var(--border-row);
-    color: var(--text-error);
+    color: var(--text-error, #FA5151);
     animation: errorShake 0.4s ease;
     flex-shrink: 0;
 }

@@ -47,17 +47,20 @@ function appRestart() {
     // 借助 stdin/stdout 或退出码 0 平滑退出；quitAndInstall 的 quit 流程足够干净。
     // 关键差异：Linux 下不要用 app.exit(0)（硬杀），否则新实例在旧实例释放单实例锁之前启动 → 误判已有实例而退出。
     app.isQuitting = true;
-    const relaunchArgs = [];
-    // AppImage：新进程会以同一个 APPIMAGE 环境变量作为可执行路径启动（electron-builder 写法）
-    const relaunchOpts = {};
-    if (process.platform === 'linux') {
-      if (process.env.APPIMAGE) {
-        // 使用 APPIMAGE 环境变量指向的真实 AppImage 路径，避免 execPath 指向已卸载的临时挂载点
-        relaunchOpts.execPath = process.env.APPIMAGE;
-        if (process.env.APPIMAGE_EXTRA_ARGS) relaunchArgs.push(...process.env.APPIMAGE_EXTRA_ARGS.split(' '));
-      }
+    if (process.platform === 'linux' && process.env.APPIMAGE) {
+      // AppImage：app.relaunch() 在 Linux 上不可靠（新实例与旧实例的单实例锁竞态，导致新实例立即退出、看起来"只关闭不重开"）。
+      // 改为派生一个分离的等待进程：等本进程退出（单实例锁随之释放）后再执行同一个 AppImage 重新打开。
+      const { spawn } = require('child_process');
+      const appImage = process.env.APPIMAGE;
+      const pid = process.pid;
+      // sh 存活循环等 pid 消失 → 再等 1s 让锁/挂载稳定 → exec 变成 AppImage 进程（detached 不受本进程退出影响）
+      const script = `while kill -0 ${pid} 2>/dev/null; do sleep 0.2; done; sleep 1; exec "${appImage}"`;
+      const child = spawn('sh', ['-c', script], { detached: true, stdio: 'ignore' });
+      child.unref();
+      app.exit(0); // 数据已 flush 完成，直接退出释放单实例锁
+      return;
     }
-    app.relaunch(relaunchOpts);
+    app.relaunch();
     app.quit();
   } catch (err) {
     console.error('[Restart] 重启失败:', err && err.message);
@@ -367,6 +370,15 @@ ipcMain.handle('get-user-data-path', (event, filename) => {
 });
 
 ipcMain.handle('get-version', () => app.getVersion());
+
+// 客户端平台（反馈客户端信息按 OS 细分：windows/linux/macos；web/android 由各自适配层提供）
+ipcMain.handle('get-platform', () => {
+  const p = process.platform;
+  if (p === 'win32') return 'windows';
+  if (p === 'darwin') return 'macos';
+  if (p === 'linux') return 'linux';
+  return 'desktop';
+});
 
 let cachedSetting = null;
 
@@ -711,6 +723,15 @@ ipcMain.handle('load-data-file', async (event, filename) => {
     } catch (e) { return { success: false, error: e.message }; }
 });
 
+// 删除工作区文件（Markdown 工具重命名/覆盖时清理旧文件）
+ipcMain.handle('delete-data-file', async (event, filename) => {
+    try {
+        const filePath = safeUserDataPath(filename);
+        await fs.unlink(filePath);
+        return { success: true };
+    } catch (e) { return { success: false, error: e.message }; }
+});
+
 // ========== SQLite 用户数据存储（data.db，AES-256-GCM 加密） ==========
 // 取代旧的单文件 data/<uid>.7c：拆分 convos/messages/prefs/kv 四表 + 事务写入 + 加密
 function storeReady() {
@@ -1032,13 +1053,13 @@ ipcMain.handle('fetch-changelog', async () => {
 // ========== 新增功能 IPC ==========
 
 // 通用：向官网 website-api 发起 HTTPS 请求（feedback/sponsors）
-function httpsApiJson(path, method = 'GET', bodyObj) {
+function httpsApiJson(path, method = 'GET', bodyObj, timeoutMs = 10000) {
   return new Promise((resolve) => {
     const url = new URL('https://chat.forfof.cloud' + path);
     const body = bodyObj ? JSON.stringify(bodyObj) : null;
     const headers = { 'Accept': 'application/json' };
     if (body) { headers['Content-Type'] = 'application/json'; headers['Content-Length'] = Buffer.byteLength(body); }
-    const req = https.request(url, { method, timeout: 10000, headers }, (res) => {
+    const req = https.request(url, { method, timeout: timeoutMs, headers }, (res) => {
       const chunks = [];
       res.on('data', (c) => chunks.push(c));
       res.on('end', () => {
@@ -1054,9 +1075,17 @@ function httpsApiJson(path, method = 'GET', bodyObj) {
   });
 }
 
-// #6 提交反馈
-ipcMain.handle('send-feedback', async (event, { content, user, uid } = {}) => {
-    const r = await httpsApiJson('/api/feedback', 'POST', { content: String(content || ''), user: String(user || ''), uid: Number(uid) || 0 });
+// #6 提交反馈（含客户端信息与可选截图；截图已在渲染进程压缩到 ≤100KB）
+ipcMain.handle('send-feedback', async (event, { content, user, uid, client, image } = {}) => {
+    const body = {
+        content: String(content || ''),
+        user: String(user || ''),
+        uid: Number(uid) || 0,
+        client: client && typeof client === 'object' ? client : null,
+        image: String(image || ''),
+    };
+    // 图片 base64 可能较大：放宽超时到 30s
+    const r = await httpsApiJson('/api/feedback', 'POST', body, 30000);
     if (r.status >= 200 && r.status < 300 && r.data && r.data.ok) {
         return { success: true, id: r.data.id };
     }

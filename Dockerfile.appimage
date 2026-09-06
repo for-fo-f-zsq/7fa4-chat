@@ -1,0 +1,32 @@
+# 本地 Linux AppImage 打包（Docker 构建，产物在容器 /app/build/*.AppImage）
+# 本机已预拉 electronuserland/builder:22（electron-builder 专用构建镜像，含 node 22）
+FROM electronuserland/builder:22
+
+# 国内镜像：npm registry / electron 分发 / electron-builder 二进制
+ENV npm_config_registry=https://registry.npmmirror.com \
+    ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ \
+    ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/ \
+    NODE_OPTIONS=--max-old-space-size=8192
+
+WORKDIR /app
+
+# Electron 运行时系统库（jsc 字节码编译需以 ELECTRON_RUN_AS_NODE 启动 electron 二进制）
+RUN apt-get update -qq && apt-get install -y --no-install-recommends \
+    libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 \
+    libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 \
+    libasound2 libpango-1.0-0 libcairo2 libx11-6 libxcb1 libxext6 libxi6 \
+    libxtst6 libxss1 libglib2.0-0 libgtk-3-0
+
+COPY . .
+
+# 安装依赖（electron postinstall 会按 ELECTRON_MIRROR 下载 linux 版 electron）
+RUN npm ci --no-audit --no-fund
+
+# 编译渲染层/主进程 + jsc 字节码
+RUN npm run build
+
+# 打包 Linux AppImage（x64）
+RUN npx electron-builder --linux AppImage --x64
+
+# 产物列出
+RUN ls -la /app/build/*.AppImage

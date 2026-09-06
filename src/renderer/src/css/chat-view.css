@@ -227,8 +227,13 @@
     background: var(--bg-conversation-hover);
 }
 .preview-body { padding: 16px; overflow: auto; flex: 1; }
-/* 图片预览：纯黑遮罩 + 仅图片，无框（与赞助码放大一致） */
-.preview-overlay-image { background: rgba(0, 0, 0, 0.85); cursor: zoom-out; }
+/* 图片预览：纯黑遮罩 + 图片，支持缩放与平移 */
+.preview-overlay-image { background: rgba(0, 0, 0, 0.9); }
+.image-stage {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+}
 .preview-image-zoom {
     max-width: 90vw;
     max-height: 90vh;
@@ -237,7 +242,32 @@
     border-radius: 6px;
     box-shadow: var(--shadow-modal);
     user-select: none;
+    transform-origin: center center;
+    cursor: zoom-in;
 }
+.image-toolbar {
+    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(20, 24, 34, 0.72);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 6px 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    z-index: 2;
+}
+.image-toolbar button {
+    border: none; background: transparent; color: #dde3f0;
+    width: 32px; height: 32px; border-radius: 8px;
+    font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s;
+}
+.image-toolbar button:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
+.image-zoom-label {
+    color: #cbd3e2; font-size: 12px; min-width: 44px; text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.image-toolbar-sep { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.16); margin: 0 2px; }
 .preview-text {
     white-space: pre-wrap; word-break: break-all;
     font-size: var(--font-size-small); color: var(--text-primary);

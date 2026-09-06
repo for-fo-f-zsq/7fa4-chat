@@ -88,9 +88,9 @@
         --bg-gradient-end: #073642;
         --border-3d-light: rgba(255, 255, 255, 0.15);
         --border-3d-dark: rgba(0, 0, 0, 0.4);
-        --grade-x4: #e8b87a; --grade-x5: #d4994d; --grade-x6: #c07a20;
-        --grade-c1: #5cd4eb; --grade-c2: #3bbdd6; --grade-c3: #1aa6c1;
-        --grade-g1: #6ee09a; --grade-g2: #4cc878; --grade-g3: #2ab056;
-        --grade-d1: #94a8e8; --grade-d2: #7590d6; --grade-d3: #5678c4; --grade-d4: #3760b2;
-        --grade-by: #b0b0b0; --grade-jl: #f090b0; --grade-uk: #999999;
+--grade-x4: #F2B467; --grade-x5: #E09B3D; --grade-x6: #CC8225;
+--grade-c1: #45D8C6; --grade-c2: #2BBFAC; --grade-c3: #17A692;
+--grade-g1: #6DE08F; --grade-g2: #50C972; --grade-g3: #38B258;
+--grade-d1: #9AB3F5; --grade-d2: #7C9BE8; --grade-d3: #5E83DA; --grade-d4: #4469C8;
+--grade-by: #AEB6C2; --grade-jl: #F089B0; --grade-uk: #9AA2AE;
 }

@@ -28,3 +28,6 @@ website-dev/
 /android/.idea/
 /android/app/release.keystore
 /android/.keystore-pass
+
+# Linux AppImage 本地打包产物（Docker 构建输出，体积大）
+/artifacts/

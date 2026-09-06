@@ -87,6 +87,7 @@
       @selectSticker="onStickerSelect"
       @addSticker="addSticker"
       @removeSticker="removeSticker"
+      @previewSticker="previewSticker"
     />
   </div>
 </template>
@@ -253,29 +254,27 @@ const sending = ref(false);
 const errorMessage = ref('');
 const tokenInfo = ref(null);
 // ---- token 恢复（滑动窗口）：每条消息发送后 recoverySeconds 秒恢复该条 token ----
-const TOKEN_SENDS_KEY = 'token_sends';
+// 恢复时刻从消息数据统计：自己发送的消息（store.messages 中 sender=自己）消耗 1 token，
+// 该 token 在 send_time + 恢复周期 时恢复。不落 localStorage（多端一致、重启后仍准确）。
 const tokenTipVisible = ref(false);
 const tokenRecovery = ref([]); // 未恢复的发送记录：[{ time, left(秒) }] 按发送时间排序
 let tokenTipTimer = null;
 
-function loadTokenSends() {
-  try { return JSON.parse(localStorage.getItem(TOKEN_SENDS_KEY) || '[]') } catch { return [] }
-}
-
-function recordTokenSend() {
-  const arr = loadTokenSends();
-  arr.push({ time: Date.now() });
-  if (arr.length > 50) arr.splice(0, arr.length - 50);
-  try { localStorage.setItem(TOKEN_SENDS_KEY, JSON.stringify(arr)) } catch {}
-}
-
 function refreshRecovery() {
   const sec = (tokenInfo.value && tokenInfo.value.recoverySeconds) || store.tokenLimit?.time_limit || 2400;
   const now = Date.now();
-  const pending = loadTokenSends()
-    .map(s => ({ time: s.time, left: Math.max(0, (s.time + sec * 1000 - now) / 1000) }))
-    .filter(s => s.left > 0)
-    .sort((a, b) => a.time - b.time);
+  const uid = store.self && store.self.uid;
+  const pending = [];
+  if (uid != null) {
+    for (const m of Object.values(store.messages)) {
+      if (!m || m.sender != uid) continue; // 只统计自己发出去的消息
+      const t = Number(m.send_time) * 1000;
+      if (!t || now - t > sec * 1000) continue; // 已在窗口外，视为已恢复
+      pending.push({ time: t, left: Math.max(0, (t + sec * 1000 - now) / 1000) });
+    }
+    pending.sort((a, b) => a.time - b.time);
+    if (pending.length > 50) pending.length = 50; // 仅展示最近 50 条，避免长 tooltip
+  }
   tokenRecovery.value = pending;
 }
 
@@ -295,13 +294,12 @@ function fmtLeft(sec) {
   return String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
 }
 
-// token 数量变化：remain 减少 = 发送消耗 → 记录发送时间（滑动窗口恢复起点）；
-// 同时用服务器 limit 校准 total 与恢复周期
-watch(tokenInfo, (v, old) => {
+// token 数量变化：用服务器 limit 校准 total 与恢复周期；
+// 恢复倒计时不依赖"remain 下降时记录发送"，而是直接由消息数据统计（refreshRecovery）
+watch(tokenInfo, (v) => {
   if (!v) return;
   if (store.tokenLimit?.count_limit) v.total = store.tokenLimit.count_limit;
   if (!v.recoverySeconds) v.recoverySeconds = store.tokenLimit?.time_limit || 2400;
-  if (old && old.remain != null && v.remain < old.remain) recordTokenSend();
 });
 
 onUnmounted(() => {
@@ -718,6 +716,13 @@ async function onStickerSelect(sticker) {
   } catch {
     errorMessage.value = '发送失败';
   }
+}
+
+// 右键放大预览自定义表情（走 ContentPreviewModal 的可缩放图片预览）
+function previewSticker(sticker) {
+  if (!sticker || !sticker.data) return
+  const src = sticker.mime ? `data:${sticker.mime};base64,${sticker.data}` : ''
+  emit('openPreview', { type: 'image', title: sticker.name || '表情', src, text: '' })
 }
 
 async function addSticker() {

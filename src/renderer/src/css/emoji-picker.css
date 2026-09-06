@@ -13,6 +13,24 @@
     flex-direction: column;
     background: var(--bg-primary);
 }
+.emoji-drag-bar {
+    flex-shrink: 0;
+    height: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: ns-resize;
+    user-select: none;
+    border-bottom: 1px solid var(--border-light);
+}
+.emoji-drag-bar i {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border-light);
+    transition: background 0.15s;
+}
+.emoji-drag-bar:hover i { background: var(--accent); }
 .emoji-mode-switch {
     display: flex;
     border-bottom: 1px solid var(--border-light);

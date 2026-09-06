@@ -1,3 +1,17 @@
+<h2>3.4.7</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>意见反馈支持附带截图，并自动带上客户端信息（平台 / 版本号 / UID）</li>
+  <li><span class="change-tag new">新功能</span>安卓端可检测最新版本并跳转官网下载页；网页端与安卓端版本信息改由服务端统一获取，兼容性更好</li>
+  <li><span class="change-tag fix">修复</span>修复发送失败等错误提示显示异常的问题</li>
+  <li><span class="change-tag fix">修复</span>修复 Linux 系统重启应用后无法自动打开的问题</li>
+  <li><span class="change-tag fix">修复</span>修复网页端切换会话未自动滚到最新消息、顶部加载更多重复触发与样式异常的问题</li>
+  <li><span class="change-tag fix">修复</span>修复图编辑器重边权重标签重叠的问题</li>
+  <li><span class="change-tag fix">修复</span>修复图片编辑器点击发送无反应的问题</li>
+  <li><span class="change-tag improve">优化</span>token 恢复倒计时改为按消息记录统计，多端一致且重启后准确</li>
+  <li><span class="change-tag improve">优化</span>图编辑器力导向布局整体增强，排版更舒展</li>
+  <li><span class="change-tag improve">优化</span>Markdown 编辑器保存与重命名逻辑重构，重命名生效且避免覆盖已有文件</li>
+  <li><span class="change-tag improve">优化</span>年级颜色全新设计：按学段分色系（小学橙棕 / 初中青 / 高中绿 / 大学蓝靛），深浅主题各配一档，更好分辨</li>
+</ul>
 <h2>3.4.6</h2>
 <ul>
   <li><span class="change-tag new">新功能</span>关于页新增作者与 AI 协作者展示，列出参与开发的 DeepSeek、GLM、腾讯混元等模型</li>

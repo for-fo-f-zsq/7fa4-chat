@@ -124,6 +124,7 @@
       :current-tool="currentTool"
       @open-tool="currentTool = $event"
       @dirty-change="toolsDirty = $event"
+      @send-image="onImageToolSend"
     />
     <SettingsPanel
       v-if="pageType==='settings'"
@@ -239,10 +240,12 @@
     @confirm="onMuteMinutesConfirm"
   />
   <ForwardModal
+    ref="forwardModalRef"
     v-if="forwardModalVisible"
+    :title="imageSendPending ? '发送图片' : '转发消息'"
     :msgContent="forwardMsgContent"
-    @close="forwardModalVisible = false"
-    @forward="doForward"
+    @close="closeForwardModal"
+    @forward="onForwardConfirm"
   />
   <ContentPreviewModal
     v-if="previewData.show"
@@ -256,13 +259,14 @@
     @copy="onPreviewCopy"
     @forward="onPreviewForward"
     @download="onPreviewDownload"
+    @edit="onPreviewEdit"
   />
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, startVisitReport, stopVisitReport, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, markMsgDirty, takeDirtyMsgKeys } from '../utils.js';
+import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, startVisitReport, stopVisitReport, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys } from '../utils.js';
 
 import NavBar from '../components/NavBar.vue';
 import ConversationList from '../components/ConversationList.vue';
@@ -415,6 +419,8 @@ const themeModal = ref(false);
 const shortcutModal = ref(false);
 const forwardModalVisible = ref(false);
 const forwardMsgContent = ref('');
+const forwardModalRef = ref(null);
+const imageSendPending = ref(null); // 待发送的图片消息对象（图片编辑器"发送"→ 选接收方后发送）
 const previewData = reactive({ show: false, type: '', title: '', src: '', text: '', rawContent: '', showActions: false });
 
 // --- computed ---
@@ -744,6 +750,99 @@ async function doForward({ type, targetId, msgContent }) {
     await forwardToTarget(type, targetId, msgContent);
   }
   forwardModalVisible.value = false;
+}
+
+// 转发弹窗确认：优先发送"待发送图片"（图片编辑器 → 选择接收方），否则走普通转发
+async function onForwardConfirm({ type, targetId, msgContent }) {
+  if (imageSendPending.value) {
+    const msgObj = imageSendPending.value;
+    const label = msgObj.name || '图片';
+    imageSendPending.value = null;
+    forwardModalVisible.value = false;
+    const r = await sendChatMessage({ type, targetId, msgObj });
+    if (r.success) {
+      if (inputFooterRef.value) inputFooterRef.value.errorMessage = '';
+      const { tokenInfo } = applyChatToStore(r, type, targetId);
+      if (inputFooterRef.value) inputFooterRef.value.tokenInfo = tokenInfo;
+      alert('已发送到' + (type === 'group' ? (store.groups?.[targetId]?.name || '群聊') : (store.users?.[targetId]?.nickname || store.users?.[targetId]?.realname || '对方')));
+    } else {
+      const msg = r.err?.message || '发送失败';
+      if (inputFooterRef.value) inputFooterRef.value.errorMessage = msg;
+      alert('发送失败：' + msg);
+    }
+    return;
+  }
+  await doForward({ type, targetId, msgContent });
+}
+
+function closeForwardModal() {
+  forwardModalVisible.value = false;
+  imageSendPending.value = null;
+}
+
+// 图片编辑器"发送"：立即弹出接收方选择；压缩在后台进行（结果就绪后更新待发数据）
+async function onImageToolSend({ data, base64, mime, name } = {}) {
+  // 兼容两种字段名：文件消息约定用 data，图片编辑器 flatten() 内部用 base64
+  const imgData = data || base64;
+  if (!imgData) return;
+  const finalName = (name || 'image').replace(/\.[^.]+$/, mime === 'image/jpeg' ? '.jpg' : '.png');
+  imageSendPending.value = {
+    type: 'file',
+    name: finalName,
+    size: Math.round(imgData.length * 3 / 4),
+    data: imgData,
+    mime: mime || 'image/png'
+  };
+  forwardModalVisible.value = true;
+  nextTick(() => forwardModalRef.value?.focus?.());
+  // 后台压缩（成功则替换为更小体积；失败保留原图，不影响发送）
+  try {
+    if (mime && !/^image\/gif$/i.test(mime)) {
+      const r = await compressBase64Image(imgData, mime);
+      if (r && r.data && imageSendPending.value) {
+        imageSendPending.value.data = r.data;
+        imageSendPending.value.mime = 'image/jpeg';
+        imageSendPending.value.size = Math.round(r.data.length * 3 / 4);
+      }
+    }
+  } catch {}
+}
+
+// 预览"编辑"：把预览图片载入图片编辑器（data:/blob: 均可）
+async function onPreviewEdit() {
+  const src = previewData.src || '';
+  if (!src || (!src.startsWith('data:') && !src.startsWith('blob:'))) {
+    alert('无法编辑该图片（仅支持本地图片）');
+    return;
+  }
+  let data = '', mime = 'image/png';
+  try {
+    if (src.startsWith('data:')) {
+      const m = src.match(/^data:([^;,]+);base64,(.*)$/);
+      if (!m) { alert('无法编辑该图片'); return; }
+      mime = m[1] || 'image/png';
+      data = m[2];
+    } else {
+      const blob = await (await fetch(src)).blob();
+      mime = blob.type || 'image/png';
+      data = await new Promise((res, rej) => {
+        const fr = new FileReader();
+        fr.onload = () => res(String(fr.result || '').split(',')[1] || '');
+        fr.onerror = rej;
+        fr.readAsDataURL(blob);
+      });
+    }
+  } catch { alert('无法编辑该图片'); return; }
+  previewData.show = false;
+  // 进入图片编辑工具并载入图片
+  pageType.value = 'tools';
+  pageId.value = null;
+  currentTool.value = 'image';
+  if (inputFooterRef.value) { inputFooterRef.value.mentionVisible = false; inputFooterRef.value.emojiVisible = false; }
+  closeSearch();
+  await nextTick();
+  await nextTick();
+  toolsPageRef.value?.imageOpen?.(data, mime, previewData.title || '图片');
 }
 
 async function onDropFile({ targetType, targetId, file }) {

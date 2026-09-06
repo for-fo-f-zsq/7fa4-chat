@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   getUserDataPath: (filename) => ipcRenderer.invoke('get-user-data-path', filename),
   getVersion: () => ipcRenderer.invoke('get-version'),
+  getPlatform: () => ipcRenderer.invoke('get-platform'),
   loadSetting: () => ipcRenderer.invoke('load-setting'),
   saveSetting: (data) => ipcRenderer.invoke('save-setting', data),
   notify: (sender, content, chatType, targetId) => ipcRenderer.invoke('notify', { sender, content, chatType, targetId }),
@@ -37,6 +38,7 @@ contextBridge.exposeInMainWorld('api', {
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   saveDataFile: (filename, content) => ipcRenderer.invoke('save-data-file', filename, content),
   loadDataFile: (filename) => ipcRenderer.invoke('load-data-file', filename),
+  deleteDataFile: (filename) => ipcRenderer.invoke('delete-data-file', filename),
   // --- SQLite 用户数据存储（加密） ---
   storeInit: (uid) => ipcRenderer.invoke('store-init', uid),
   storeLoadConvos: (uid) => ipcRenderer.invoke('store-load-convos', uid),

@@ -13,6 +13,7 @@
         <button class="md-ws-btn md-ws-btn-icon" title="打开图片" @click="openImage"><i class="fas fa-folder-open"></i></button>
         <button class="md-ws-btn md-ws-btn-icon" title="新建空白画布" @click="newCanvas"><i class="fas fa-plus-square"></i></button>
         <button class="md-ws-btn md-ws-btn-icon" title="保存到文件" :disabled="!canvasReady || saving" @click="save"><i class="fas fa-save"></i></button>
+        <button class="md-ws-btn md-ws-btn-send" title="发送到会话（选择接收方）" :disabled="loading" @click="sendToChat"><i class="fas fa-paper-plane"></i> 发送</button>
       </div>
     </div>
 
@@ -42,6 +43,7 @@
             <span class="img-size-val">{{ size }}</span>
           </div>
           <div class="img-tool-sep"></div>
+          <button class="img-tool-btn" title="旋转 90°" @click="rotate90"><i class="fas fa-redo-alt"></i></button>
           <button class="img-tool-btn" title="撤销 (Ctrl+Z)" :disabled="!canUndo" @click="undo"><i class="fas fa-undo"></i></button>
           <button class="img-tool-btn" title="清除本次绘制" @click="clearCanvas"><i class="fas fa-trash"></i></button>
           <div class="img-tool-sep"></div>
@@ -113,7 +115,7 @@ import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
 import SaveConfirmModal from '../components/SaveConfirmModal.vue'
 import './ide/ide-tool.css'
 
-const emit = defineEmits(['back', 'dirty-change'])
+const emit = defineEmits(['back', 'dirty-change', 'sendImage'])
 
 const tools = [
   { id: 'brush', title: '画笔', icon: 'fas fa-pen' },
@@ -598,6 +600,7 @@ function newCanvas() {
 }
 
 function loadImageData(base64Data, imgMime, name, blankW = 0, blankH = 0) {
+  return new Promise((resolve) => {
   loading.value = true
   loadError.value = ''
   const img = new Image()
@@ -606,7 +609,7 @@ function loadImageData(base64Data, imgMime, name, blankW = 0, blankH = 0) {
     if (pixels > MAX_EDIT_PIXELS || img.naturalWidth > MAX_EDIT_SIDE || img.naturalHeight > MAX_EDIT_SIDE) {
       loadError.value = `图片过大（${img.naturalWidth}×${img.naturalHeight}），暂不支持编辑`
       loading.value = false
-      return
+      return resolve(false)
     }
     // 撤销深度：按像素分级，相比旧版整体提高（旧 10/5/3 → 30/15/8/5），内存峰值约 240-400MB
     undoDepth = pixels > 12e6 ? 5 : pixels > 4e6 ? 8 : pixels > 1e6 ? 15 : 30
@@ -646,10 +649,12 @@ function loadImageData(base64Data, imgMime, name, blankW = 0, blankH = 0) {
     pushUndo()
     render()
     loading.value = false
+    resolve(true)
   }
   img.onerror = () => {
     loadError.value = '图片解析失败'
     loading.value = false
+    resolve(false)
   }
   if (blankW > 0 && blankH > 0) {
     const tmp = document.createElement('canvas')
@@ -659,28 +664,44 @@ function loadImageData(base64Data, imgMime, name, blankW = 0, blankH = 0) {
   } else {
     img.src = `data:${imgMime};base64,${base64Data}`
   }
+  })
+}
+
+// 顺时针旋转 90°：把当前画面（底图+编辑+文字）扁平化旋转后重建为新的底图
+async function rotate90() {
+  if (!canvasReady.value || loading.value) return
+  const flat = flatten()
+  const img = new Image()
+  await new Promise((resolve) => {
+    img.onload = () => {
+      const nw = img.naturalHeight
+      const nh = img.naturalWidth
+      const out = document.createElement('canvas')
+      out.width = nw
+      out.height = nh
+      const octx = out.getContext('2d')
+      octx.translate(nw, 0)
+      octx.rotate(Math.PI / 2)
+      octx.drawImage(img, 0, 0)
+      const rotated = out.toDataURL('image/png').split(',')[1]
+      loadImageData(rotated, 'image/png', currentName.value).then(() => {
+        // loadImageData 会把 dirty 置为未修改，旋转是编辑动作，补记 dirty + 撤销
+        dirty.value = true
+        pushUndo()
+        resolve()
+      })
+    }
+    img.onerror = () => resolve()
+    img.src = `data:${flat.mime};base64,${flat.base64}`
+  })
 }
 
 async function save() {
   if (!dirty.value || !displayCanvas || saving.value) return
   saving.value = true
   try {
-    const isJpeg = mime.value === 'image/jpeg'
-    const out = document.createElement('canvas')
-    out.width = displayCanvas.width
-    out.height = displayCanvas.height
-    const octx = out.getContext('2d')
-    if (isJpeg) {
-      octx.fillStyle = '#ffffff'
-      octx.fillRect(0, 0, out.width, out.height)
-    }
-    octx.drawImage(baseCanvas, 0, 0)
-    octx.drawImage(editCanvas, 0, 0)
-    renderTextObjects(octx)
-    const dataUrl = out.toDataURL(isJpeg ? 'image/jpeg' : 'image/png', isJpeg ? 0.92 : undefined)
-    const base64 = dataUrl.split(',')[1]
-    const name = (currentName.value || 'image').replace(/\.[^.]+$/, isJpeg ? '.jpg' : '.png')
-    const r = await window.api.downloadFile(base64, name, isJpeg ? 'image/jpeg' : 'image/png')
+    const { base64, mime: outMime, name } = flatten()
+    const r = await window.api.downloadFile(base64, name, outMime)
     if (!r.success) {
       if (!r.canceled) alert('保存失败：' + (r.error || '未知错误'))
       return
@@ -692,6 +713,45 @@ async function save() {
     alert('保存失败：' + e.message)
   }
   saving.value = false
+}
+
+// 扁平化当前画布（底图 + 编辑层 + 文字）为可发送/保存的图像数据
+function flatten() {
+  const isJpeg = mime.value === 'image/jpeg'
+  const out = document.createElement('canvas')
+  out.width = displayCanvas.width
+  out.height = displayCanvas.height
+  const octx = out.getContext('2d')
+  if (isJpeg) {
+    octx.fillStyle = '#ffffff'
+    octx.fillRect(0, 0, out.width, out.height)
+  }
+  octx.drawImage(baseCanvas, 0, 0)
+  octx.drawImage(editCanvas, 0, 0)
+  renderTextObjects(octx)
+  const dataUrl = out.toDataURL(isJpeg ? 'image/jpeg' : 'image/png', isJpeg ? 0.92 : undefined)
+  const base64 = dataUrl.split(',')[1]
+  const name = (currentName.value || 'image').replace(/\.[^.]+$/, isJpeg ? '.jpg' : '.png')
+  return { base64, mime: isJpeg ? 'image/jpeg' : 'image/png', name }
+}
+
+// 发送到会话：给出扁平化图片，由上层选择接收方（并负责压缩）
+// 注意：上层按文件消息约定取 data 字段，flatten() 内部用的是 base64，此处必须转换字段名
+function sendToChat() {
+  if (loading.value) return
+  if (!canvasReady.value) {
+    alert('请先打开图片或新建画布，再进行发送')
+    return
+  }
+  const f = flatten()
+  emit('sendImage', { data: f.base64, mime: f.mime, name: f.name })
+}
+
+// 供上层/预览"编辑"入口载入图片（有未保存绘制时确认丢弃）
+function imageOpen(base64Data, mime, name) {
+  if (dirty.value && !confirm('当前有未保存的绘制，确定丢弃并载入新图片？')) return false
+  loadImageData(base64Data, mime, name)
+  return true
 }
 
 onMounted(() => {
@@ -711,5 +771,5 @@ onUnmounted(() => {
   document.removeEventListener('wheel', onWheel, true)
 })
 
-defineExpose({ save })
+defineExpose({ save, imageOpen })
 </script>
