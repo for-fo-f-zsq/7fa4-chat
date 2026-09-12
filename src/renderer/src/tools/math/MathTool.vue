@@ -1,7 +1,7 @@
 <template>
   <div class="math-official">
     <div class="math-official-header">
-      <button class="math-official-back" title="返回工具列表" @click="$emit('back')">
+      <button class="math-official-back" title="返回" @click="$emit('back')">
         <i class="fas fa-arrow-left"></i>
       </button>
       <span class="math-official-title">

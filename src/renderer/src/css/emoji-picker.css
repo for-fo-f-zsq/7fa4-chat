@@ -4,7 +4,11 @@
     box-shadow: var(--shadow-emoji-picker), inset 0 1px 0 var(--border-3d-light);
     margin-top: 6px;
     flex: 1;
-    min-height: 200px;
+    /* 最小高度 = 固定头部(拖拽条+模式切换+分类+搜索 ≈110) + 一排表情网格(60) + 边框，
+       窗口矮时收缩到这里：只显示一排完整表情，不会露出半截第二排。
+       注意必须显式写死 —— 本元素 overflow:hidden，flex 子项的 auto 最小高度会退化成 0，
+       不写就会被压到只剩头部。 */
+    min-height: 172px;
     max-height: 320px;
     overflow: hidden;
     animation: ctxFade 0.15s ease;
@@ -105,7 +109,8 @@
     padding: 8px 6px;
     overflow-y: auto;
     flex: 1;
-    min-height: 0;
+    /* 一排表情的完整高度（item 44 + 上下 padding 16）：撑住表情框的最小高度 */
+    min-height: 60px;
     overscroll-behavior: contain;
 }
 .emoji-item {

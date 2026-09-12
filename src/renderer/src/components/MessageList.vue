@@ -47,7 +47,7 @@
               <span class="time">{{ gettime2(item.data.send_time) }}</span>
             </div>
             <div class="bubble" :class="{ collapsed: collapsedMsgs[item.data.id] }"
-              @contextmenu.prevent="onMsgMenu($event, item.data)"><div class="bubble-content" v-html="renderContent(item.data.content, item.data.sender)"></div></div>
+              @contextmenu.prevent="onMsgMenu($event, item.data)"><div class="bubble-content luogu-md" v-html="renderContent(item.data.content, item.data.sender)"></div></div>
             <div class="expand-btn" v-if="collapsedMsgs[item.data.id]" @click="openMsgPreview(item.data)">查看更多</div>
           </div>
         </template>
@@ -60,7 +60,7 @@
               <span class="time">{{ gettime2(item.data.send_time) }}</span>
             </div>
             <div class="bubble" :class="{ collapsed: collapsedMsgs[item.data.id] }"
-              @contextmenu.prevent="onMsgMenu($event, item.data)"><div class="bubble-content" v-html="renderContent(item.data.content, item.data.sender)"></div></div>
+              @contextmenu.prevent="onMsgMenu($event, item.data)"><div class="bubble-content luogu-md" v-html="renderContent(item.data.content, item.data.sender)"></div></div>
             <div class="expand-btn" v-if="collapsedMsgs[item.data.id]" @click="openMsgPreview(item.data)">查看更多</div>
           </div>
         </template>

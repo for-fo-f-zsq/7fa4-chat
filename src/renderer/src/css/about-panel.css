@@ -175,6 +175,27 @@
     color: var(--text-hint);
     text-align: center;
 }
+/* 新手指引入口 */
+.about-guide-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 10px;
+    padding: 2px 9px;
+    border: 1px solid var(--border-light);
+    border-bottom-width: 2px;
+    border-radius: var(--radius);
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all var(--duration-fast) ease;
+}
+.about-guide-link:hover {
+    color: var(--accent);
+    background: var(--bg-conversation-hover);
+}
+
 .about-content::before {
     content: '';
     position: absolute;

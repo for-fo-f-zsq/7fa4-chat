@@ -272,13 +272,11 @@
     white-space: pre-wrap; word-break: break-all;
     font-size: var(--font-size-small); color: var(--text-primary);
     font-family: 'Consolas', 'Monaco', monospace;
-    max-height: 70vh; overflow: auto;
     user-select: text;
 }
 .preview-html {
     font-size: var(--font-size-base, 14px); color: var(--text-primary);
     line-height: 1.6; word-break: break-word;
-    max-height: 70vh; overflow: auto;
     user-select: text;
 }
 .preview-pdf {

@@ -61,7 +61,7 @@
           <div class="about-feat-icon"><i class="fas fa-wrench"></i></div>
           <div class="about-feat-body">
             <div class="about-feat-name">内置工具箱</div>
-            <div class="about-feat-desc">Monaco 代码编辑器（本地判题）、终端、Markdown 编辑器、图片编辑与 PDF 查看，开箱即用。</div>
+            <div class="about-feat-desc">Markdown 编辑与预览、图片编辑、交互式 Graph Editor、科学计算器与 GeoGebra 数学画板，开箱即用。</div>
           </div>
         </div>
         <div class="about-feat">
@@ -103,7 +103,10 @@
         <span class="tech-tag">GeoGebra</span>
         <span class="tech-tag">Font Awesome</span>
       </div>
-      <div class="about-footer">© 2026 for_fo_f 独立开发维护 · 反馈请到头像菜单「意见反馈」</div>
+      <div class="about-footer">
+        © 2026 for_fo_f 独立开发维护 · 反馈请到头像菜单「意见反馈」
+        <button class="about-guide-link" @click="openGuide"><i class="fas fa-book-open"></i> 重新查看新手指引</button>
+      </div>
     </div>
   </div>
 </template>
@@ -114,6 +117,11 @@ import BackButton from './BackButton.vue'
 
 const props = defineProps({ version: { type: String, default: '' } })
 const emit = defineEmits(['back'])
+
+// 关于页入口：让 App 重新打开新手指引（已看过的用户也能回看）
+function openGuide() {
+  window.dispatchEvent(new Event('open-onboarding'))
+}
 
 // 兜底：外层异步传入可能为空，面板自身再拉一次版本号
 const version = ref(props.version || '')
@@ -133,10 +141,12 @@ function openLink(url) {
 const aiModels = [
   { name: 'DeepSeek V4 Flash · 0731', color: '#3b5bfd' },
   { name: 'DeepSeek V4 Flash Vision (Exp)', color: '#6176ff' },
+  { name: 'DeepSeek V4.1 Flash', color: '#8797ff' },
   { name: 'GLM-5.1', color: '#0a7a4b' },
   { name: 'GLM-5.2', color: '#0b8f5a' },
   { name: 'GLM-5.3', color: '#10a86b' },
   { name: 'GLM-5.3 Flash', color: '#28c18a' },
   { name: 'Hy3', color: '#e07b39' },
+  { name: 'Hy4 Preview', color: '#eda366' },
 ]
 </script>

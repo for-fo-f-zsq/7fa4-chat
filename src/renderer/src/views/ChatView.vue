@@ -116,15 +116,49 @@
       @download="onFavDownload"
       @back="backToChatList"
     />
+    <!-- 工具列表为入口页；各工具在外层独立渲染：返回时按打开来源回到工具列表或对应会话 -->
     <ToolsPage
-      v-if="pageType==='tools'"
-      ref="toolsPageRef"
+      v-if="pageType==='tools' && currentTool==='list'"
       class="fade-content"
       :class="{ 'fade-out': contentFading }"
-      :current-tool="currentTool"
-      @open-tool="currentTool = $event"
+      @open-tool="onOpenTool"
+    />
+    <MarkdownTool
+      v-else-if="pageType==='tools' && currentTool==='markdown'"
+      ref="markdownToolRef"
+      class="ide-host fade-content"
+      :class="{ 'fade-out': contentFading }"
+      @back="onToolBack"
+      @dirty-change="toolsDirty = $event"
+    />
+    <ImageTool
+      v-else-if="pageType==='tools' && currentTool==='image'"
+      ref="imageToolRef"
+      class="ide-host fade-content"
+      :class="{ 'fade-out': contentFading }"
+      @back="onToolBack"
       @dirty-change="toolsDirty = $event"
       @send-image="onImageToolSend"
+    />
+    <GraphTool
+      v-else-if="pageType==='tools' && currentTool==='graph_editor'"
+      class="ide-host fade-content"
+      :class="{ 'fade-out': contentFading }"
+      @back="onToolBack"
+    />
+    <CalculatorTool
+      v-else-if="pageType==='tools' && currentTool==='calculator'"
+      class="ide-host fade-content"
+      :class="{ 'fade-out': contentFading }"
+      @back="onToolBack"
+    />
+    <MathTool
+      v-else-if="pageType==='tools' && currentTool==='math'"
+      ref="mathToolRef"
+      class="ide-host fade-content"
+      :class="{ 'fade-out': contentFading }"
+      @back="onToolBack"
+      @dirty-change="toolsDirty = $event"
     />
     <SettingsPanel
       v-if="pageType==='settings'"
@@ -290,6 +324,11 @@ import GroupActionMenu from '../components/GroupActionMenu.vue';
 import SearchPanel from '../components/SearchPanel.vue';
 import FavoritesPanel from '../components/FavoritesPanel.vue';
 import ToolsPage from '../tools/ToolsPage.vue';
+import MarkdownTool from '../tools/MarkdownTool.vue';
+import ImageTool from '../tools/ImageTool.vue';
+import GraphTool from '../tools/graph/GraphTool.vue';
+import CalculatorTool from '../tools/calculator/CalculatorTool.vue';
+import MathTool from '../tools/math/MathTool.vue';
 import SaveConfirmModal from '../components/SaveConfirmModal.vue';
 import { useWindowControls } from '../composables/useWindowControls.js';
 import { useMuteConfirm } from '../composables/useMuteConfirm.js';
@@ -320,7 +359,11 @@ import '../../css/font-awesome/css/all.min.css';
 const pageType = ref('chat');
 const pageId = ref(null);
 const currentTool = ref('list');
-const toolsPageRef = ref(null);
+const imageToolRef = ref(null);
+const markdownToolRef = ref(null);
+const mathToolRef = ref(null);
+// 工具打开来源：'list'=从工具列表进入（返回回列表）；chat 会话=记住来源会话（返回回到对应消息界面）
+let toolOrigin = { type: 'list' };
 const toolsDirty = ref(false); // 图片编辑未保存标记（ImageTool 上报）
 const saveConfirmVisible = ref(false);
 let pendingSwitch = null; // 被未保存拦截的切换动作（保存/不保存后执行）
@@ -538,13 +581,14 @@ function switchPage(type) {
   // “工具”入口：点击时进入工具列表；已在工具页（可能正打开某个工具）则回到列表
   if (type === 'tools') {
     if (pageType.value === 'tools') {
-      if (currentTool.value !== 'list') currentTool.value = 'list';
+      if (currentTool.value !== 'list') { currentTool.value = 'list'; toolOrigin = { type: 'list' }; }
       return;
     }
     groupModal.show = false;
     pageType.value = 'tools';
     pageId.value = null;
     currentTool.value = 'list';
+    toolOrigin = { type: 'list' };
     if (inputFooterRef.value) {
       inputFooterRef.value.mentionVisible = false;
       inputFooterRef.value.emojiVisible = false;
@@ -587,18 +631,46 @@ function onBackFromChat() {
   updateBadgeCount();
 }
 
+// 从工具列表进入某个工具：来源=工具列表（返回回列表）
+function onOpenTool(tool) {
+  toolOrigin = { type: 'list' };
+  currentTool.value = tool;
+}
+
+// 工具内返回：按打开来源回跳（会话 → 对应消息界面；工具列表 → 工具列表）
+function onToolBack() {
+  // 未保存内容先拦截确认
+  if (toolsDirty.value) {
+    pendingSwitch = { type: 'tool-back' };
+    saveConfirmVisible.value = true;
+    return;
+  }
+  leaveToolToOrigin();
+}
+
+function leaveToolToOrigin() {
+  if (toolOrigin.type === 'chat' && toolOrigin.pageId != null) {
+    // 回到打开工具前的会话（走 onSelectConversation，保证已读标记/滚动等状态一致）
+    onSelectConversation({ type: toolOrigin.pageType, id: toolOrigin.pageId });
+  } else {
+    currentTool.value = 'list';
+  }
+  toolOrigin = { type: 'list' };
+}
+
 // 未保存拦截弹窗：保存后离开
 async function onSaveConfirmSave() {
   saveConfirmVisible.value = false;
   // 按当前打开的工具调用对应保存
-  if (currentTool.value === 'image') await toolsPageRef.value?.imageSave();
-  else if (currentTool.value === 'markdown') await toolsPageRef.value?.markdownSave();
-  else if (currentTool.value === 'math') await toolsPageRef.value?.mathSave();
+  if (currentTool.value === 'image') await imageToolRef.value?.save();
+  else if (currentTool.value === 'markdown') await markdownToolRef.value?.save();
+  else if (currentTool.value === 'math') await mathToolRef.value?.save();
   // 保存成功后 dirty=false → emit 更新 toolsDirty=false；失败/取消则留在页面
   if (!toolsDirty.value && pendingSwitch) {
     const t = pendingSwitch.type;
     pendingSwitch = null;
-    switchPage(t);
+    if (t === 'tool-back') leaveToolToOrigin();
+    else switchPage(t);
   } else {
     pendingSwitch = null;
   }
@@ -613,7 +685,8 @@ function onSaveConfirmDiscard() {
     // 丢弃未保存内容：清除 dirty 标记，否则 switchPage 会再次命中未保存拦截，
     // 弹窗关闭后立刻重开，表现为"不保存"无法点击/点了没反应
     toolsDirty.value = false;
-    switchPage(t);
+    if (t === 'tool-back') leaveToolToOrigin();
+    else switchPage(t);
   }
 }
 
@@ -834,7 +907,8 @@ async function onPreviewEdit() {
     }
   } catch { alert('无法编辑该图片'); return; }
   previewData.show = false;
-  // 进入图片编辑工具并载入图片
+  // 进入图片编辑工具并载入图片；记住来源会话，工具内返回时回到对应消息界面
+  toolOrigin = { type: 'chat', pageType: pageType.value || 'chat', pageId: pageId.value };
   pageType.value = 'tools';
   pageId.value = null;
   currentTool.value = 'image';
@@ -842,7 +916,7 @@ async function onPreviewEdit() {
   closeSearch();
   await nextTick();
   await nextTick();
-  toolsPageRef.value?.imageOpen?.(data, mime, previewData.title || '图片');
+  imageToolRef.value?.imageOpen?.(data, mime, previewData.title || '图片');
 }
 
 async function onDropFile({ targetType, targetId, file }) {
@@ -1757,8 +1831,16 @@ function onWindowFocus() {
   for (const k of Object.keys(notifPendingCount)) notifPendingCount[k] = 0;
 }
 
+// --- 新用户引导：引导层派发的动作（打开会话 / 切换页面） ---
+function onOnboardingAction(e) {
+  const d = e.detail || {}
+  if (d.action === 'openUser' && d.id) onSelectConversation({ type: 'user', id: Number(d.id) })
+  else if (d.action === 'switch' && d.page) switchPage(d.page)
+}
+
 // --- 生命周期 ---
 onMounted(async () => {
+  document.addEventListener('onboarding-action', onOnboardingAction);
   store.initializing = true;
   setting.value = await window.api.loadSetting();
   store.setting = setting.value;
@@ -1822,6 +1904,7 @@ onUnmounted(() => {
   if (autoSaveTimer) clearInterval(autoSaveTimer);
   document.removeEventListener('keydown', onDocKeydown);
   document.removeEventListener('click', onDocClick);
+  document.removeEventListener('onboarding-action', onOnboardingAction);
   window.removeEventListener('online', onOnline);
   window.removeEventListener('offline', onOffline);
   window.removeEventListener('focus', onWindowFocus);

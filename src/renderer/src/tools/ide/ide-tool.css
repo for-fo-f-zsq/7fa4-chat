@@ -1,6 +1,7 @@
 .md-tool {
     flex: 1;
     min-width: 0;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -200,6 +201,8 @@
 .ide-host {
     flex: 1;
     min-height: 0;
+    /* 工具已提升为外层独立页（不再嵌套在 .tools-page 内），自带与工具列表一致的背景 */
+    background: linear-gradient(160deg, var(--bg-app), var(--bg-gradient-end));
 }
 
 .md-tool-body {
@@ -247,6 +250,18 @@
 .md-preview-fill blockquote { border-left: 3px solid var(--border-row); padding-left: 10px; margin: 4px 0; color: var(--text-blockquote); }
 .md-preview-fill ul, .md-preview-fill ol { padding-left: 20px; margin: 4px 0; }
 .md-preview-fill .katex-display { overflow-x: auto; overflow-y: hidden; padding: 2px 0; max-width: 100%; }
+
+/* ---- Markdown 编辑器外壳 ----
+   界面（工具栏/分屏/状态栏/弹窗）由 MarkdownTool.vue 自绘，样式见
+   tools/markdown-tool.css；这里只负责给编辑器根容器尺寸。 */
+.md-tool-body .md-editor {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
 
 .md-name-edit { cursor: text; }
 .md-name-edit-icon { font-size: 10px; opacity: 0.5; margin-left: 4px; }

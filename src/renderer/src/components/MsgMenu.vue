@@ -30,7 +30,7 @@ const show = computed(() => true)
 
 const menuItems = computed(() => {
   const items = [
-    { value: 'reply', label: '回复', icon: 'fas fa-reply' },
+    { value: 'reply', label: '引用', icon: 'fas fa-quote-left' },
     { value: 'copy', label: '复制', icon: 'fas fa-copy' },
     { value: 'forward', label: '转发', icon: 'fas fa-share' }
   ]

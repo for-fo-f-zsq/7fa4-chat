@@ -1,94 +1,42 @@
 <template>
   <div class="tools-page">
-    <template v-if="currentTool === 'list'">
-      <div class="tools-header">
-        <h2><i class="fas fa-toolbox"></i> 工具</h2>
+    <div class="tools-header">
+      <h2><i class="fas fa-toolbox"></i> 工具</h2>
+    </div>
+    <div class="tools-grid">
+      <div class="tool-card" @click="$emit('openTool', 'markdown')">
+        <i class="fas fa-file-alt"></i>
+        <div class="tool-card-name">Markdown 编辑</div>
+        <div class="tool-card-desc">Markdown 编写与预览；打开文件 / 新建 / 保存到文件 / 导出为图片</div>
       </div>
-      <div class="tools-grid">
-        <div class="tool-card" @click="$emit('openTool', 'markdown')">
-          <i class="fas fa-file-alt"></i>
-          <div class="tool-card-name">Markdown 编辑</div>
-          <div class="tool-card-desc">Markdown 编写与预览；打开文件 / 新建 / 保存到文件 / 导出为图片</div>
-        </div>
-        <div class="tool-card" @click="$emit('openTool', 'image')">
-          <i class="fas fa-paint-brush"></i>
-          <div class="tool-card-name">图片编辑</div>
-          <div class="tool-card-desc">画笔/橡皮/直线/矩形/椭圆；撤销；新建画布；保存到文件</div>
-        </div>
-        <div class="tool-card" @click="$emit('openTool', 'graph_editor')">
-          <i class="fas fa-project-diagram"></i>
-          <div class="tool-card-name">Graph Editor</div>
-          <div class="tool-card-desc">交互式图编辑器：点击建点、拖拽连边、力导向布局、连通分量/桥/MST/二分图高亮</div>
-        </div>
-        <div class="tool-card" @click="$emit('openTool', 'calculator')">
-          <i class="fas fa-calculator"></i>
-          <div class="tool-card-name">计算器</div>
-          <div class="tool-card-desc">科学计算器：表达式求值、阶乘、快速幂、对数、组合排列、gcd/lcm、质因数分解、模逆元</div>
-        </div>
-        <div class="tool-card" @click="$emit('openTool', 'math')">
-          <i class="fas fa-chart-line"></i>
-          <div class="tool-card-name">GeoGebra</div>
-          <div class="tool-card-desc">GeoGebra 官方绘图计算器（本地离线版）：函数图像、几何画板、滑动条动画、测量、变换、轨迹、CAS 等全部二维功能</div>
-        </div>
+      <div class="tool-card" @click="$emit('openTool', 'image')">
+        <i class="fas fa-paint-brush"></i>
+        <div class="tool-card-name">图片编辑</div>
+        <div class="tool-card-desc">画笔/橡皮/直线/矩形/椭圆；撤销；新建画布；保存到文件</div>
       </div>
-    </template>
-    <template v-else-if="currentTool === 'markdown'">
-      <MarkdownTool
-        ref="markdownToolRef"
-        class="ide-host"
-        @back="$emit('openTool', 'list')"
-        @dirty-change="$emit('dirty-change', $event)"
-      />
-    </template>
-    <template v-else-if="currentTool === 'image'">
-      <ImageTool
-        ref="imageToolRef"
-        class="ide-host"
-        @back="$emit('openTool', 'list')"
-        @dirty-change="$emit('dirty-change', $event)"
-        @sendImage="(p) => $emit('send-image', p)"
-      />
-    </template>
-    <template v-else-if="currentTool === 'graph_editor'">
-      <GraphTool class="ide-host" @back="$emit('openTool', 'list')" />
-    </template>
-    <template v-else-if="currentTool === 'calculator'">
-      <CalculatorTool class="ide-host" @back="$emit('openTool', 'list')" />
-    </template>
-    <template v-else-if="currentTool === 'math'">
-      <MathTool
-        ref="mathToolRef"
-        class="ide-host"
-        @back="$emit('openTool', 'list')"
-        @dirty-change="$emit('dirty-change', $event)"
-      />
-    </template>
+      <div class="tool-card" @click="$emit('openTool', 'graph_editor')">
+        <i class="fas fa-project-diagram"></i>
+        <div class="tool-card-name">Graph Editor</div>
+        <div class="tool-card-desc">交互式图编辑器：点击建点、拖拽连边、力导向布局、连通分量/桥/MST/二分图高亮</div>
+      </div>
+      <div class="tool-card" @click="$emit('openTool', 'calculator')">
+        <i class="fas fa-calculator"></i>
+        <div class="tool-card-name">计算器</div>
+        <div class="tool-card-desc">科学计算器：表达式求值、阶乘、快速幂、对数、组合排列、gcd/lcm、质因数分解、模逆元</div>
+      </div>
+      <div class="tool-card" @click="$emit('openTool', 'math')">
+        <i class="fas fa-chart-line"></i>
+        <div class="tool-card-name">GeoGebra</div>
+        <div class="tool-card-desc">{{ isWeb ? '网页端不支持 GeoGebra，请下载本地版使用' : 'GeoGebra 官方绘图计算器（本地离线版）：函数图像、几何画板、滑动条动画、测量、变换、轨迹、CAS 等全部二维功能' }}</div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import MarkdownTool from './MarkdownTool.vue'
-import ImageTool from './ImageTool.vue'
-import GraphTool from './graph/GraphTool.vue'
-import CalculatorTool from './calculator/CalculatorTool.vue'
-import MathTool from './math/MathTool.vue'
+// 纯入口列表：各工具由外层（ChatView）直接渲染，便于按打开来源控制返回逻辑
+defineEmits(['openTool'])
 
-defineProps({
-  currentTool: { type: String, default: 'list' }
-})
-
-const emit = defineEmits(['openTool', 'dirty-change', 'send-image'])
-
-const imageToolRef = ref(null)
-const markdownToolRef = ref(null)
-const mathToolRef = ref(null)
-
-// 供父级在切换页面时调用（未保存拦截：保存后再离开）
-defineExpose({
-  imageSave: () => imageToolRef.value?.save(),
-  markdownSave: () => markdownToolRef.value?.save(),
-  mathSave: () => mathToolRef.value?.save(),
-  imageOpen: (data, mime, name) => imageToolRef.value?.imageOpen(data, mime, name)
-})
+// 网页端（window.__7FA4_WEB__）：GeoGebra 离线包体积过大，仅提示下载本地版
+const isWeb = !!(window.__7FA4_WEB__)
 </script>

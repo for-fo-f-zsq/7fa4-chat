@@ -1,12 +1,14 @@
 {
   "name": "7fa4-chat",
-  "version": "3.4.7",
+  "version": "3.4.8",
   "description": "7FA4 Chat",
   "main": "./out/main/index.js",
   "desktopName": "7fa4-chat.desktop",
   "scripts": {
     "dev": "electron-vite dev -- --no-sandbox",
     "build": "electron-vite build && node scripts/build-jsc.mjs",
+    "test:md": "node scripts/test-markdown.mjs && node scripts/test-typora-input.mjs && node scripts/test-input-footer.mjs && node scripts/test-markdown-tool.mjs && node scripts/test-msg-fmt.mjs",
+    "sync:luogu": "node scripts/sync-luogu.mjs",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder"
   },
@@ -39,10 +41,10 @@
     "express": "^5.2.1",
     "html2canvas": "^1.4.1",
     "http-proxy-middleware": "^3.0.5",
-    "katex": "^0.16.44",
-    "markdown-it": "^14.1.1",
+    "katex": "^0.18.7",
     "md5": "^2.3.0",
     "monaco-editor": "^0.56.0",
+    "prismjs": "^1.30.0",
     "vue": "^3.5.13"
   },
   "build": {

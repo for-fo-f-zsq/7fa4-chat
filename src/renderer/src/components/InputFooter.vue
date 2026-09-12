@@ -1,5 +1,5 @@
 <template>
-  <div class="input-footer" :class="{ sending: sending, disabled: inputDisabled, 'drag-over': inputDragOver }" v-if="pageType === 'group' || (pageType === 'user' && targetUser)"
+  <div class="input-footer" :class="{ sending: sending, disabled: inputDisabled, 'drag-over': inputDragOver, 'emoji-open': emojiVisible }" v-if="pageType === 'group' || (pageType === 'user' && targetUser)"
     @dragover.prevent="onInputDragOver"
     @dragleave="onInputDragLeave"
     @drop.prevent="onInputDrop">
@@ -23,11 +23,27 @@
         <button class="pending-file-remove" @click.stop="removePendingFile(idx)"><i class="fas fa-times"></i></button>
       </div>
     </div>
+
+    <!-- 输入区：与「工具 → Markdown」同一版式 —— 左源码、右预览，中间可拖拽分隔条。
+         左侧是原生 textarea（源码为唯一真源，中文输入法与撤销栈与普通文本框一致），
+         右侧走 renderMarkdownPreview，与消息气泡同一个渲染器，表情/公式/代码高亮一并保留。
+         滚动是双向跟随：拖任一侧，另一侧按比例对齐。 -->
     <div class="input-row">
-      <div class="input-split">
-        <div class="input-split-left" :style="splitLeftWidth ? { width: splitLeftWidth + 'px', flex: 'none' } : {}">
-          <div class="textarea-wrap">
-            <div class="input-editor" ref="inputEl" :contenteditable="sending || inputDisabled ? 'false' : 'true'" :data-placeholder="sendPlaceholder" @keydown="onInputKeydown" @input="onInputChange" @paste="onPaste" @compositionend="onCompositionEnd" @scroll="syncPreviewFromInput"></div>
+    <div class="input-split" :class="{ 'collapse-left': collapseSide === 'left', 'collapse-right': collapseSide === 'right' }">
+      <div class="input-split-left" v-show="collapseSide !== 'left'" :style="splitLeftWidth && !collapseSide ? { width: splitLeftWidth + 'px', flex: 'none' } : {}">
+        <div class="textarea-wrap">
+            <textarea
+              class="input-editor"
+              ref="inputEl"
+              v-model="inputText"
+              spellcheck="false"
+              :disabled="sending || inputDisabled"
+              :placeholder="sendPlaceholder"
+              @keydown="onInputKeydown"
+              @input="onInputChange"
+              @paste="onPaste"
+              @scroll="syncPreviewFromInput"
+            ></textarea>
             <div class="mention-popup" v-if="mentionVisible" :style="mentionPopupStyle">
               <div class="mention-item mention-all-item" :class="{ active: mentionIndex === 0 }" @click="applyMentionAll" v-if="pageType === 'group'">
                 <i class="fas fa-users"></i> 所有人
@@ -38,10 +54,16 @@
             </div>
           </div>
         </div>
-        <div class="input-split-divider" @mousedown="onSplitDragStart"></div>
-        <div class="input-split-right">
+        <div class="input-split-divider" title="拖动调整双栏宽度，拖到边缘继续拖可隐藏该侧" @mousedown="onSplitDragStart"></div>
+        <div class="input-split-right" v-show="collapseSide !== 'right'">
           <div class="input-preview-label">预览</div>
-          <div class="input-preview-content" ref="inputPreviewRef" v-if="inputText.trim()" v-html="renderMdPreview()" @scroll="syncInputFromPreview"></div>
+          <div
+            class="input-preview-content luogu-md"
+            ref="inputPreviewRef"
+            v-if="inputText.trim()"
+            v-html="renderMdPreview()"
+            @scroll="syncInputFromPreview"
+          ></div>
           <div class="input-preview-empty" v-else>输入内容后在此预览</div>
         </div>
       </div>
@@ -49,6 +71,10 @@
     </div>
     <div class="counter-line">
       <div class="input-actions">
+        <div class="fmt-toggle" title="消息格式：纯文本原样显示，Markdown 支持渲染">
+          <button :class="{ active: msgFmt === 'txt' }" @click="msgFmt = 'txt'">纯文本</button>
+          <button :class="{ active: msgFmt === 'md' }" @click="msgFmt = 'md'">MD</button>
+        </div>
         <button id="emoji_btn" @click.stop="toggleEmoji" :disabled="sending || inputDisabled"><i class="fas fa-smile"></i></button>
         <button id="file_btn" @click="sendFileMessage" :disabled="sending || inputDisabled"><i class="fas fa-paperclip"></i></button>
         <button class="favorites-btn" title="从收藏中选择发送" @click="favoritesVisible = !favoritesVisible"><i class="fas fa-star"></i></button>
@@ -95,9 +121,10 @@
 <script setup>
 import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
 import { store } from '../store.js';
-import { displayName, parseMsgContent, renderMarkdown, renderMarkdownPreview, applyChatToStore, sendChatMessage, getConvoKey, formatSize, compressImage, compressBase64Image, extractMentions, isSingleEmoji } from '../utils.js';
+import { displayName, parseMsgContent, renderMarkdownPreview, applyChatToStore, sendChatMessage, getConvoKey, formatSize, compressImage, compressBase64Image, extractMentions, isSingleEmoji, esc } from '../utils.js';
 import EmojiPicker from './EmojiPicker.vue';
 import { QUANCODE, qqfaceUrl, qqfaceShortCode } from '../qqface-data.js';
+import { createScrollSync } from '../markdown/scroll-sync.js';
 import '../css/input-footer.css';
 
 const props = defineProps({
@@ -110,144 +137,142 @@ const props = defineProps({
 
 const emit = defineEmits(['openPreview']);
 
+const sendShortcut = computed(() => store.setting?.shortcuts?.sendMessage || 'enter');
+
+const sendPlaceholder = computed(() => {
+  const sc = sendShortcut.value.toLowerCase();
+  if (sc === 'ctrl+enter') return '输入消息... (Ctrl+Enter发送)';
+  if (sc === 'shift+enter') return '输入消息... (Shift+Enter发送)';
+  return '输入消息... (Enter发送, Ctrl+Enter换行)';
+});
+
+// ===== 输入区：左源码 + 右预览 =====
+// inputText（Markdown 源码）是唯一真源：左侧 textarea 直接编辑它，右侧是它的渲染视图。
+// 渲染走 renderMarkdownPreview —— 与消息气泡同一个渲染器，表情/公式/代码高亮全部一致。
 const inputText = ref('');
 const inputEl = ref(null);
+const inputPreviewRef = ref(null);
+/** 左侧栏宽度；0 表示用 flex 默认比例（两栏对半） */
+const splitLeftWidth = ref(0);
 
-// ===== QQ 表情：contenteditable 富文本编辑支持 =====
-// 序列化：DOM 节点 → 发送文本（img.qqface 还原为 /code）
-function serializeEditorFromFragment(frag) {
-  let out = '';
-  const walk = (node) => {
-    node.childNodes.forEach((child) => {
-      if (child.nodeType === Node.TEXT_NODE) out += child.textContent.replace(/\u200B/g, '');
-      else if (child.nodeName === 'BR') out += '\n';
-      else if (child.nodeName === 'IMG' && child.classList.contains('qqface')) out += child.dataset.code || '';
-      else if (child.nodeName === 'DIV' || child.nodeName === 'P') walk(child);
-      else walk(child);
-    });
-  };
-  walk(frag);
-  return out;
-}
+/** 消息格式：'md' = Markdown 渲染（默认，历史消息均按此）；'txt' = 纯文本原样显示 */
+const msgFmt = ref('md');
 
-function serializeEditor() {
-  const el = inputEl.value;
-  if (!el) return '';
-  return serializeEditorFromFragment(el);
-}
-
-// 计算光标在序列化文本中的字符偏移
-function getCaretSerializedOffset() {
-  const el = inputEl.value;
-  if (!el) return 0;
-  const sel = window.getSelection();
-  if (!sel || !sel.rangeCount) return serializeEditor().length;
-  const range = sel.getRangeAt(0);
-  if (!el.contains(range.endContainer)) return serializeEditor().length;
-  const pre = range.cloneRange();
-  pre.selectNodeContents(el);
-  pre.setEnd(range.endContainer, range.endOffset);
-  return serializeEditorFromFragment(pre.cloneContents()).length;
-}
-
-// 把光标设到序列化文本的第 offset 字符处
-function setCaretBySerializedOffset(offset) {
-  const el = inputEl.value;
-  if (!el) return;
-  const sel = window.getSelection();
-  if (!sel) return;
-  const range = document.createRange();
-  let acc = 0;
-  let placed = false;
-  const walk = (node) => {
-    if (placed) return;
-    for (const child of node.childNodes) {
-      if (placed) return;
-      if (child.nodeType === Node.TEXT_NODE) {
-        const len = child.textContent.replace(/\u200B/g, '').length;
-        if (acc + len >= offset) { range.setStart(child, Math.min(offset - acc, child.textContent.length)); range.collapse(true); placed = true; return; }
-        acc += len;
-      } else if (child.nodeName === 'BR') {
-        if (acc >= offset) { range.setStartBefore(child); range.collapse(true); placed = true; return; }
-        acc += 1;
-      } else if (child.nodeName === 'IMG' && child.classList.contains('qqface')) {
-        const len = (child.dataset.code || '').length;
-        if (acc + len >= offset) { range.setStartAfter(child); range.collapse(true); placed = true; return; }
-        acc += len;
-      } else if (child.nodeName === 'DIV' || child.nodeName === 'P') {
-        walk(child);
-        if (placed) return;
-      } else {
-        walk(child);
-        if (placed) return;
-      }
-    }
-  };
-  walk(el);
-  if (!placed) { range.selectNodeContents(el); range.collapse(false); }
-  sel.removeAllRanges();
-  sel.addRange(range);
-}
-
-function escHtmlForEditor(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-// 把序列化文本渲染为 DOM（#1：输入框不渲染表情，纯文本显示 /code，\n → br）
-// 表情渲染仅发生在"发送后/预览"（见 utils.renderMarkdown / renderMarkdownPreview）
-function renderSerializedToHtml(text) {
-  let html = '';
-  const re = /(\n)/g;
-  let last = 0; let m;
-  while ((m = re.exec(text))) {
-    if (m.index > last) html += escHtmlForEditor(text.slice(last, m.index));
-    html += '<br>';
-    last = re.lastIndex;
+function renderMdPreview() {
+  // 纯文本模式：预览也是原样文本（转义 + 保留换行），不做 Markdown / 表情渲染
+  if (msgFmt.value === 'txt') {
+    return inputText.value ? '<div class="plain-msg">' + esc(inputText.value) + '</div>' : '';
   }
-  if (last < text.length) html += escHtmlForEditor(text.slice(last));
-  return html;
+  return renderMarkdownPreview(inputText.value);
 }
 
-function renderEditor(text, caretOffset) {
-  const el = inputEl.value;
-  if (!el) return;
-  el.innerHTML = renderSerializedToHtml(text);
-  setCaretBySerializedOffset(caretOffset);
-  autoResizeTextarea();
+// ---------- 双向跟随滚动 ----------
+// 与「工具 → Markdown」同一套实现（上游编辑器算法移植，见 markdown/scroll-sync.js）：
+// rAF 合并 + 位置回声检测（WeakMap 记程序化 scrollTop，1.5px 容差）+
+// [data-src-line] 行锚点二分插值。视口顶部所在源码行驱动对侧，不再用高度比例。
+const scrollSync = createScrollSync({
+  getTextarea: () => inputEl.value,
+  getPreview: () => inputPreviewRef.value,
+})
+
+function syncPreviewFromInput() {
+  scrollSync.sync('editor')
 }
 
-// 找序列化偏移对应的 DOM 位置（用于局部替换）
-function domPosFromSerializedOffset(offset) {
-  const el = inputEl.value;
-  if (!el) return null;
-  let acc = 0;
-  let result = null;
-  const walk = (node) => {
-    if (result) return;
-    for (const child of node.childNodes) {
-      if (result) return;
-      if (child.nodeType === Node.TEXT_NODE) {
-        const len = child.textContent.replace(/\u200B/g, '').length;
-        if (acc + len >= offset) { result = { node: child, offset: offset - acc }; return; }
-        acc += len;
-      } else if (child.nodeName === 'BR') {
-        if (acc >= offset) { result = { node: child, offset: 0 }; return; }
-        acc += 1;
-      } else if (child.nodeName === 'IMG' && child.classList.contains('qqface')) {
-        const len = (child.dataset.code || '').length;
-        if (acc + len >= offset) { result = { node: child, offset: 0 }; return; }
-        acc += len;
-      } else if (child.nodeName === 'DIV' || child.nodeName === 'P') {
-        walk(child);
-        if (result) return;
-      } else {
-        walk(child);
-        if (result) return;
-      }
+function syncInputFromPreview() {
+  scrollSync.sync('preview')
+}
+
+// 内容变化：预览 DOM 被 v-html 整体重建，锚点缓存必须失效后再按左侧位置对齐。
+// 预览被拖拽收起（display:none）时测量全是 0，不能让引擎按它给 textarea 写尾部 padding。
+// 表情框打开时输入区只有一排高，滚动对齐无意义，且会算出上百 px 的尾部 padding。
+watch(inputText, () => {
+  nextTick(() => {
+    const ta = inputEl.value
+    const pv = inputPreviewRef.value
+    if (ta && (!pv || collapseSide.value === 'right')) {
+      // 还原引擎写入的内联尾部 padding
+      ta.style.paddingBottom = ''
+      return
     }
-  };
-  walk(el);
-  return result;
+    if (!ta || !pv) return
+    scrollSync.invalidate()
+    scrollSync.syncEditorTailPadding()
+    scrollSync.sync('editor')
+  })
+})
+onUnmounted(() => scrollSync.destroy())
+
+// ---------- 光标与插入 ----------
+function caretOffset() {
+  const ta = inputEl.value;
+  if (!ta) return inputText.value.length;
+  return ta.selectionStart ?? ta.value.length;
+}
+
+/** 在光标处插入文本（替换当前选区），插入后光标落在插入内容之后 */
+function insertAtCaret(text, caretDelta) {
+  const ta = inputEl.value;
+  if (!ta) {
+    inputText.value += text;
+    return;
+  }
+  const start = ta.selectionStart ?? ta.value.length;
+  const end = ta.selectionEnd ?? start;
+  ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
+  const caret = start + (caretDelta === undefined ? text.length : caretDelta);
+  ta.selectionStart = ta.selectionEnd = caret;
+  inputText.value = ta.value;
+  nextTick(() => ta.focus());
+}
+
+function onInputChange() {
+  const before = inputText.value.slice(0, caretOffset());
+  const atMatch = before.match(/@([^\s@]*)$/);
+  if (atMatch && props.pageType === 'group') {
+    mentionQuery.value = atMatch[1];
+    mentionVisible.value = true;
+    mentionIndex.value = 0;
+    nextTick(updateMentionPosition);
+  } else {
+    mentionVisible.value = false;
+  }
+}
+
+// 键位：@提及导航优先，其次发送快捷键家族。
+// 发送快捷键为 Enter 时，Ctrl+Enter 保持"换行"语义（textarea 原生行为）。
+function onInputKeydown(e) {
+  if (mentionVisible.value && mentionAllCandidates.value.length) {
+    const n = mentionAllCandidates.value.length;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      mentionIndex.value = (mentionIndex.value + 1) % n;
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      mentionIndex.value = (mentionIndex.value - 1 + n) % n;
+      return;
+    }
+    if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
+      e.preventDefault();
+      selectMentionByIndex(mentionIndex.value);
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      mentionVisible.value = false;
+      return;
+    }
+  }
+  if (e.key === 'Enter') {
+    const sc = sendShortcut.value.toLowerCase();
+    const plain = !e.shiftKey && !e.ctrlKey && !e.altKey;
+    if (sc === 'enter' && plain) { e.preventDefault(); sendMessage(); return; }
+    if (sc === 'enter' && e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); insertAtCaret('\n'); return; }
+    if (sc === 'ctrl+enter' && e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); sendMessage(); return; }
+    if (sc === 'shift+enter' && e.shiftKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); sendMessage(); return; }
+  }
 }
 
 const sending = ref(false);
@@ -311,19 +336,12 @@ const mentionVisible = ref(false);
 const mentionIndex = ref(0);
 const mentionQuery = ref('');
 const inputDragOver = ref(false);
-const splitLeftWidth = ref(0); // 0 表示使用默认 flex 比例
 const pendingFiles = ref([]); // 待发送文件列表 [{ name, size, data, mime, isImage, thumbUrl }]
 
-const sendShortcut = computed(() => store.setting?.shortcuts?.sendMessage || 'enter');
-
-const sendPlaceholder = computed(() => {
-  const sc = sendShortcut.value.toLowerCase();
-  if (sc === 'ctrl+enter') return '输入消息... (Ctrl+Enter发送)';
-  if (sc === 'shift+enter') return '输入消息... (Shift+Enter发送)';
-  return '输入消息... (Enter发送, Ctrl+Enter换行)';
-});
-
 // --- 草稿保存/恢复 ---
+// InputFooter 不随会话重建（ChatView 只改 pageId 这个 prop），草稿全靠这个 watcher：
+//   immediate 必须开 —— 否则①首次打开会话不恢复草稿（要切走再切回来才恢复），
+//   ②首个会话切走时 lastConvoKey 还是 null，那份草稿永远不会被保存。
 const convoKey = computed(() => getConvoKey(props.pageType, props.pageId));
 let lastConvoKey = null;
 watch(convoKey, (newKey) => {
@@ -348,13 +366,7 @@ watch(convoKey, (newKey) => {
   // 恢复草稿内容
   const draftText = store.drafts?.[newKey] || '';
   const isFileDraft = draftText.startsWith('📄 ');
-  if (isFileDraft) {
-    inputText.value = '';
-    if (inputEl.value) inputEl.value.innerHTML = '';
-  } else {
-    inputText.value = draftText;
-    renderEditor(draftText, draftText.length);
-  }
+  inputText.value = isFileDraft ? '' : draftText;
   // 恢复待发送文件
   const savedFiles = store.drafts?.[newKey + '_files'];
   pendingFiles.value = Array.isArray(savedFiles) ? savedFiles : [];
@@ -362,8 +374,7 @@ watch(convoKey, (newKey) => {
   delete store.drafts[newKey];
   delete store.drafts[newKey + '_files'];
   lastConvoKey = newKey;
-  nextTick(() => autoResizeTextarea());
-});
+}, { immediate: true });
 
 // --- 发送消息 ---
 // （@提及解析已移至 utils.extractMentions：发送时从文本按昵称反查 uid，与拍一拍同模式）
@@ -403,7 +414,7 @@ async function sendFavorite(fav) {
   const obj = parseMsgContent(fav.content);
   if (!obj) { errorMessage.value = '收藏内容无效'; return; }
   let msgObj = null;
-  if (obj.type === 'text') msgObj = { type: 'text', content: obj.content || '' };
+  if (obj.type === 'text') msgObj = { type: 'text', content: obj.content || '', fmt: obj.fmt || 'md' };
   else if (obj.type === 'emoji') msgObj = { type: 'emoji', content: obj.content || '' };
   else if (obj.type === 'file') msgObj = { type: 'file', name: obj.name, size: obj.size, data: obj.data, mime: obj.mime };
   else if (obj.type === 'sticker') msgObj = { type: 'sticker', data: obj.data, mime: obj.mime, name: obj.name };
@@ -424,8 +435,9 @@ async function sendFavorite(fav) {
 }
 
 async function sendMessage() {
-  inputText.value = serializeEditor();
-  const hasText = inputText.value.trim().length > 0;
+  // 末尾空行只是键入习惯，发送前统一去掉
+  const text = inputText.value.replace(/\n+$/, '');
+  const hasText = text.trim().length > 0;
   const hasFiles = pendingFiles.value.length > 0;
   if (!hasText && !hasFiles) {
     errorMessage.value = '不能发送空消息';
@@ -445,19 +457,20 @@ async function sendMessage() {
       const { tokenInfo: info } = applyChatToStore(r, props.pageType, props.pageId);
       tokenInfo.value = info;
     }
-    // 文字单独发送（不与文件合并成一条消息）；仅单个 emoji 时发为 emoji 消息（微信风格放大），多个表情按普通文本 content 发送
+    // 文字单独发送（不与文件合并成一条消息）；仅 md 模式下单个 emoji 时发为 emoji 消息
+    // （微信风格放大），纯文本模式一切按字面发送
     if (hasText) {
-      const trimmed = inputText.value.trim()
-      const singleEmojiMsg = isSingleEmoji(trimmed) || !!QUANCODE.get(trimmed.toLowerCase())
+      const trimmed = text.trim()
+      const singleEmojiMsg = msgFmt.value === 'md' && (isSingleEmoji(trimmed) || !!QUANCODE.get(trimmed.toLowerCase()))
       const msgObj = singleEmojiMsg
         ? { type: 'emoji', content: trimmed }
-        : { type: 'text', content: inputText.value };
+        : { type: 'text', content: text, fmt: msgFmt.value };
       if (replyTo.value) {
         msgObj.reply_to = replyTo.value.id;
         msgObj.reply_content = replyTo.value.content;
       }
       if (props.pageType === 'group') {
-        const mentions = extractMentions(inputText.value);
+        const mentions = extractMentions(text);
         if (mentions.length) msgObj.mentions = mentions;
       }
       const r = await sendChatMessage({ type: props.pageType, targetId: props.pageId, msgObj });
@@ -471,7 +484,6 @@ async function sendMessage() {
     }
     errorMessage.value = '';
     inputText.value = '';
-    if (inputEl.value) inputEl.value.innerHTML = '';
     replyTo.value = null;
     pendingFiles.value = [];
     delete store.drafts[convoKey.value];
@@ -480,7 +492,6 @@ async function sendMessage() {
     errorMessage.value = '发送失败';
   }
   sending.value = false;
-  nextTick(() => autoResizeTextarea());
 }
 
 async function sendFileMessage() {
@@ -505,201 +516,147 @@ async function sendFileMessage() {
   sending.value = false;
 }
 
-// --- 粘贴：图片直接发送；文本强制纯文本（剥 HTML 样式）；表情粘贴源码（/code） ---
+// --- 粘贴：图片转成待发送文件；文本走 textarea 默认行为（纯文本，保留撤销栈） ---
 async function onPaste(e) {
   const items = e.clipboardData?.items;
   if (!items) return;
-  // 取剪贴板文本（text/plain 优先，text/html 剥标签）
-  let text = e.clipboardData.getData('text/plain');
-  if (!text) {
-    const html = e.clipboardData.getData('text/html');
-    if (html) {
-      const doc = new DOMParser().parseFromString(html, 'text/html');
-      text = (doc.body ? doc.body.innerText : '') || '';
-    }
-  }
-  // 表情粘贴（剪贴板同时含文本+图片，文本为 /code 表情码）：插入源码，不发送图片
-  const codeText = (text || '').trim();
-  if (codeText && /^\/[\p{L}\p{N}_]+$/u.test(codeText) && QUANCODE.has(codeText.toLowerCase())) {
-    e.preventDefault();
-    insertPastedText(codeText);
-    return;
-  }
-  // 普通图片：阻止默认粘贴（避免文字同时被插入），压缩后发送
+  const codeText = (e.clipboardData.getData('text/plain') || '').trim();
+  // 表情粘贴：剪贴板同时含文本与图片，其中文本是 /code 表情码——放行默认粘贴即可得到源码
+  if (codeText && /^\/[\p{L}\p{N}_]+$/u.test(codeText) && QUANCODE.has(codeText.toLowerCase())) return;
   let imgItem = null;
   for (const item of items) {
     if (item.type.startsWith('image/')) { imgItem = item; break; }
   }
-  if (imgItem) {
-    e.preventDefault();
-    const file = imgItem.getAsFile();
-    if (!file) return;
-    sending.value = true;
-    try {
-      const result = await compressImage(file);
-      if (!result) { sending.value = false; return; }
-      addPendingFile(`pasted_${Date.now()}.png`, result.size, result.data, 'image/jpeg');
-    } catch {
-      errorMessage.value = '粘贴图片发送失败';
-    }
-    sending.value = false;
-    return;
-  }
-  // 无图片：阻止默认富文本粘贴，仅插入纯文本
+  if (!imgItem) return;
+  // 普通图片：阻止默认粘贴，压缩后进待发送列表
   e.preventDefault();
-  if (!text) return;
-  insertPastedText(text);
-}
-
-// 在光标处插入纯文本（contenteditable 重渲染）
-function insertPastedText(text) {
-  const caret = getCaretSerializedOffset();
-  const before = inputText.value.slice(0, caret);
-  const after = inputText.value.slice(caret);
-  inputText.value = before + text + after;
-  renderEditor(inputText.value, caret + text.length);
-  onInputChange();
-}
-
-// --- Markdown 预览（全量渲染 + 块内插值定位，同步滚动） ---
-function renderMdPreview() {
-  return renderMarkdownPreview(inputText.value);
-}
-
-const inputPreviewRef = ref(null);
-let inputScrollSyncing = false;
-let inputScrollSyncTimer = null;
-let inputPendingLine = null;
-let inputRafPending = false;
-
-function lockInputScroll() {
-  inputScrollSyncing = true;
-  clearTimeout(inputScrollSyncTimer);
-  inputScrollSyncTimer = setTimeout(() => { inputScrollSyncing = false }, 120);
-}
-
-function taLineHeight() {
-  const ta = inputEl.value;
-  if (!ta) return 22;
-  const lh = parseFloat(getComputedStyle(ta).lineHeight);
-  return Number.isFinite(lh) && lh > 0 ? lh : 22;
-}
-
-// 元素在滚动容器内的可视偏移（getBoundingClientRect 差值，不依赖 offsetParent）
-function elOffsetIn(el, container) {
-  return el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
-}
-
-// 源码行 line → 预览滚动位置：找包含 line 的块，按行号比例在块内插值
-function locatePreviewLine(line) {
-  const pv = inputPreviewRef.value;
-  if (!pv) return null;
-  const blocks = pv.querySelectorAll('[data-line]');
-  if (!blocks.length) return null;
-  let cur = null;
-  for (const b of blocks) {
-    if (Number(b.dataset.line) <= line) cur = b;
-    else break;
+  const file = imgItem.getAsFile();
+  if (!file) return;
+  sending.value = true;
+  try {
+    const result = await compressImage(file);
+    if (!result) { sending.value = false; return; }
+    addPendingFile(`pasted_${Date.now()}.png`, result.size, result.data, 'image/jpeg');
+  } catch {
+    errorMessage.value = '粘贴图片发送失败';
   }
-  if (!cur) return Math.round(elOffsetIn(blocks[0], pv));
-  const curStart = Number(cur.dataset.line);
-  let top = elOffsetIn(cur, pv);
-  let next = null;
-  for (const b of blocks) {
-    if (Number(b.dataset.line) > curStart) { next = b; break }
-  }
-  if (next) {
-    const nextTop = elOffsetIn(next, pv);
-    const height = Math.max(nextTop - top, 1);
-    const span = Math.max(Number(next.dataset.line) - curStart, 1);
-    const ratio = Math.min(Math.max((line - curStart) / span, 0), 0.99);
-    top += height * ratio;
-  }
-  return Math.round(top);
+  sending.value = false;
 }
 
-// 预览顶部 → 对应源码行（locatePreviewLine 的逆运算）
-function previewVisibleLine() {
-  const pv = inputPreviewRef.value;
-  if (!pv) return null;
-  const blocks = pv.querySelectorAll('[data-line]');
-  if (!blocks.length) return null;
-  let best = null;
-  for (const b of blocks) {
-    if (elOffsetIn(b, pv) <= pv.scrollTop + 8) best = b;
-    else break;
+// --- @提及 ---
+const mentionCandidates = computed(() => {
+  const q = mentionQuery.value.toLowerCase();
+  let candidates = [];
+  if (props.pageType === 'group' && props.targetGroup) {
+    candidates = props.targetGroup.users
+      .map(u => store.users[u.user_id] || { uid: u.user_id })
+      .filter(Boolean);
+  } else {
+    candidates = [];
   }
-  if (!best) return 1;
-  const curStart = Number(best.dataset.line);
-  const top = elOffsetIn(best, pv);
-  let line = curStart;
-  let next = null;
-  for (const b of blocks) {
-    if (Number(b.dataset.line) > curStart) { next = b; break }
-  }
-  if (next) {
-    const nextTop = elOffsetIn(next, pv);
-    const height = Math.max(nextTop - top, 1);
-    const span = Math.max(Number(next.dataset.line) - curStart, 1);
-    const ratio = Math.min(Math.max((pv.scrollTop - top) / height, 0), 0.99);
-    line = curStart + Math.round(ratio * span);
-  }
-  return line;
-}
-
-function syncRatioToPreview() {
-  const ta = inputEl.value;
-  const pv = inputPreviewRef.value;
-  if (!ta || !pv || inputScrollSyncing) return;
-  const maxScroll = ta.scrollHeight - ta.clientHeight;
-  const ratio = maxScroll > 1 ? ta.scrollTop / maxScroll : 0;
-  const pvMax = pv.scrollHeight - pv.clientHeight;
-  lockInputScroll();
-  pv.scrollTop = ratio * pvMax;
-}
-
-function syncPreviewFromInput() {
-  syncRatioToPreview();
-}
-
-function syncInputFromPreview() {
-  const ta = inputEl.value;
-  const pv = inputPreviewRef.value;
-  if (!ta || !pv || inputScrollSyncing) return;
-  const pvMax = pv.scrollHeight - pv.clientHeight;
-  const ratio = pvMax > 1 ? pv.scrollTop / pvMax : 0;
-  const maxScroll = ta.scrollHeight - ta.clientHeight;
-  lockInputScroll();
-  ta.scrollTop = ratio * maxScroll;
-}
-
-// 内容变化：预览按滚动比例同步（contenteditable 无行号，用比例对齐）
-watch(inputText, () => {
-  nextTick(() => {
-    const ta = inputEl.value;
-    const pv = inputPreviewRef.value;
-    if (!ta || !pv || inputScrollSyncing) return;
-    const maxScroll = ta.scrollHeight - ta.clientHeight;
-    const ratio = maxScroll > 1 ? ta.scrollTop / maxScroll : 0;
-    const pvMax = pv.scrollHeight - pv.clientHeight;
-    pv.scrollTop = ratio * pvMax;
+  if (!q) return candidates;
+  return candidates.filter(u => {
+    const name = (u.nickname || u.username || '').toLowerCase();
+    const uid = String(u.uid);
+    return name.includes(q) || uid.includes(q);
   });
 });
 
+const mentionAllCandidates = computed(() => {
+  const all = props.pageType === 'group' ? [{ uid: 'all', nickname: '所有人', _isAll: true }] : [];
+  return [...all, ...mentionCandidates.value];
+});
+
+const mentionPopupStyle = ref({ display: 'none' });
+
+function updateMentionPosition() {
+  const el = inputEl.value;
+  if (!el) { mentionPopupStyle.value = { display: 'none' }; return; }
+  const rect = el.getBoundingClientRect();
+  mentionPopupStyle.value = {
+    left: rect.left + 'px',
+    bottom: (window.innerHeight - rect.top + 4) + 'px',
+    width: Math.max(rect.width, 160) + 'px'
+  };
+}
+
+function selectMentionByIndex(idx) {
+  const candidate = mentionAllCandidates.value[idx];
+  if (!candidate) return;
+  if (candidate._isAll) applyMentionAll();
+  else applyMention(candidate);
+}
+
+// 把光标前那段 "@查询串" 换成 "@uid "（或 "@所有人 "）
+function replaceMentionQuery(replacement) {
+  const before = inputText.value.slice(0, caretOffset());
+  const m = before.match(/@([^\s@]*)$/);
+  if (!m) { mentionVisible.value = false; return; }
+  const start = before.length - m[0].length;
+  const ta = inputEl.value;
+  if (ta) {
+    ta.setSelectionRange(start, before.length);
+    insertAtCaret(replacement);
+  } else {
+    inputText.value = inputText.value.slice(0, start) + replacement + inputText.value.slice(before.length);
+  }
+  mentionVisible.value = false;
+  nextTick(() => inputEl.value?.focus());
+}
+
+function applyMention(user) {
+  replaceMentionQuery('@' + user.uid + ' ');
+}
+
+function applyMentionAll() {
+  replaceMentionQuery('@所有人 ');
+}
+
+// --- 拖拽（仅保留系统文件拖入） ---
+function onInputDragOver(e) {
+  if (e.dataTransfer?.types?.includes('Files')) {
+    e.dataTransfer.dropEffect = 'copy';
+    inputDragOver.value = true;
+  }
+}
+
+function onInputDragLeave() {
+  inputDragOver.value = false;
+}
+
+async function onInputDrop(e) {
+  inputDragOver.value = false;
+
+  // 仅保留系统文件拖入（dropFile）
+  if (e.dataTransfer?.files?.length > 0) {
+    const file = e.dataTransfer.files[0];
+    await sendDroppedFile(file);
+  }
+}
+
+async function sendDroppedFile(file) {
+  if (sending.value) return;
+  sending.value = true;
+  try {
+    const result = await compressImage(file);
+    if (!result) { sending.value = false; return; }
+    const mime = file.type?.startsWith('image/') ? 'image/jpeg' : (file.type || 'application/octet-stream');
+    addPendingFile(file.name || 'unnamed_file', result.size, result.data, mime);
+  } catch (e) {
+    console.error('[sendDroppedFile] 上传失败:', e);
+    errorMessage.value = '上传失败: ' + (e.message || String(e));
+  }
+  sending.value = false;
+}
+
 // 判断文本是否为「单个」emoji —— 已移至 utils.isSingleEmoji（渲染端共用，防 API 伪造）
 
-// 微信风格：点击表情仅在输入框光标位置插入，不直接发送
+// 微信风格：点击表情仅插入到光标处，不直接发送
 // 默认插入最短快捷码（/jy 而非 /惊讶 /jingya）；表情码后补一个空格：
 // 渲染端用 /code(?=\s|$) 判定，连点多个表情时需空格分隔才能逐个识别
 function onEmojiSelect(face) {
-  const caret = getCaretSerializedOffset()
-  const text = inputText.value
   const code = qqfaceShortCode(face)
-  const inserted = code + ' '
-  const newText = text.slice(0, caret) + inserted + text.slice(caret)
-  inputText.value = newText
-  renderEditor(newText, caret + inserted.length)
-  nextTick(() => inputEl.value?.focus())
+  insertAtCaret(code + ' ')
 }
 
 async function onStickerSelect(sticker) {
@@ -765,227 +722,34 @@ function startReply(msg) {
     summary = msg.content;
   }
   replyTo.value = { id: msg.id, content: summary.slice(0, 80) };
-  nextTick(() => inputEl.value?.focus());
+  nextTick(() => focus());
 }
 
 function toggleEmoji() {
   emojiVisible.value = !emojiVisible.value;
 }
 
-// --- @提及 ---
-const mentionCandidates = computed(() => {
-  const q = mentionQuery.value.toLowerCase();
-  let candidates = [];
-  if (props.pageType === 'group' && props.targetGroup) {
-    candidates = props.targetGroup.users
-      .map(u => store.users[u.user_id] || { uid: u.user_id })
-      .filter(Boolean);
-  } else {
-    candidates = [];
-  }
-  if (!q) return candidates;
-  return candidates.filter(u => {
-    const name = (u.nickname || u.username || '').toLowerCase();
-    const uid = String(u.uid);
-    return name.includes(q) || uid.includes(q);
-  });
-});
-
-const mentionAllCandidates = computed(() => {
-  const all = props.pageType === 'group' ? [{ uid: 'all', nickname: '所有人', _isAll: true }] : [];
-  return [...all, ...mentionCandidates.value];
-});
-
-const mentionPopupStyle = ref({ display: 'none' });
-
-function updateMentionPosition() {
-  const el = inputEl.value;
-  if (!el) { mentionPopupStyle.value = { display: 'none' }; return; }
-  const rect = el.getBoundingClientRect();
-  mentionPopupStyle.value = {
-    left: rect.left + 'px',
-    bottom: (window.innerHeight - rect.top + 4) + 'px',
-    width: Math.max(rect.width, 160) + 'px'
-  };
+function focus() {
+  inputEl.value?.focus();
 }
 
-function autoResizeTextarea() {
-  const el = inputEl.value;
-  if (!el) return;
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
-  // #13 编译器式滚动：光标跟随——内容超高出现滚动条后，确保光标始终可见
-  scrollCaretIntoView(el);
-}
-
-// 把输入框滚动到光标处（编译器式光标跟随）
-function scrollCaretIntoView(el) {
-  if (!el) return;
-  // 仅当有滚动溢出时才调整（无/低内容时不必要）
-  if (el.scrollHeight <= el.clientHeight + 1) return;
-  const sel = window.getSelection();
-  if (!sel || !sel.rangeCount) return;
-  const range = sel.getRangeAt(0);
-  if (!el.contains(range.endContainer)) return;
-  const rect = range.getBoundingClientRect();
-  const elRect = el.getBoundingClientRect();
-  const relTop = rect.top - elRect.top;
-  const relBottom = rect.bottom - elRect.top;
-  // 光标在可视区外时滚动到可见（保留 8px 边距）
-  if (relTop < el.scrollTop + 8) {
-    el.scrollTop = relTop - 8;
-  } else if (relBottom > el.scrollTop + el.clientHeight - 8) {
-    el.scrollTop = relBottom - el.clientHeight + 8;
-  }
-}
-
-function onInputChange(e) {
-  inputText.value = serializeEditor();
-  autoResizeTextarea();
-  const caret = getCaretSerializedOffset();
-  const before = inputText.value.slice(0, caret);
-  const atMatch = before.match(/@([^\s@]*)$/);
-  if (atMatch && props.pageType === 'group') {
-    mentionQuery.value = atMatch[1];
-    mentionVisible.value = true;
-    mentionIndex.value = 0;
-    nextTick(updateMentionPosition);
-  } else {
-    mentionVisible.value = false;
-  }
-  // #1 输入框不实时渲染表情：发送/预览时才由 markdown 渲染
-}
-
-function onCompositionEnd() {
-  onInputChange();
-}
-
-function onInputKeydown(e) {
-  if (mentionVisible.value && mentionAllCandidates.value.length) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      mentionIndex.value = (mentionIndex.value + 1) % mentionAllCandidates.value.length;
-      return;
-    }
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      mentionIndex.value = (mentionIndex.value - 1 + mentionAllCandidates.value.length) % mentionAllCandidates.value.length;
-      return;
-    }
-    if (e.key === 'Enter' && !e.ctrlKey && !e.shiftKey) {
-      e.preventDefault();
-      selectMentionByIndex(mentionIndex.value);
-      return;
-    }
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      mentionVisible.value = false;
-      return;
-    }
-  }
-  if (e.key === 'Enter') {
-    const sc = sendShortcut.value.toLowerCase();
-    const isEnter = sc === 'enter';
-    const isCtrlEnter = sc === 'ctrl+enter';
-    const isShiftEnter = sc === 'shift+enter';
-    if (isEnter && !e.shiftKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); sendMessage(); }
-    else if (isEnter && e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); insertNewline(); }
-    else if (isCtrlEnter && e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); sendMessage(); }
-    else if (isShiftEnter && e.shiftKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); sendMessage(); }
-  }
-}
-
-function insertNewline() {
-  const caret = getCaretSerializedOffset();
-  const text = inputText.value;
-  const newText = text.slice(0, caret) + '\n' + text.slice(caret);
-  inputText.value = newText;
-  renderEditor(newText, caret + 1);
-  nextTick(() => inputEl.value?.focus());
-}
-
-function selectMentionByIndex(idx) {
-  const candidate = mentionAllCandidates.value[idx];
-  if (!candidate) return;
-  if (candidate._isAll) applyMentionAll();
-  else applyMention(candidate);
-}
-
-function applyMention(user) {
-  const caret = getCaretSerializedOffset();
-  const text = inputText.value;
-  const before = text.slice(0, caret);
-  const after = text.slice(caret);
-  const replaced = before.replace(/@([^\s@]*)$/, '@' + user.uid + ' ');
-  const newText = replaced + after;
-  inputText.value = newText;
-  renderEditor(newText, replaced.length);
-  mentionVisible.value = false;
-  nextTick(() => inputEl.value?.focus());
-}
-
-function applyMentionAll() {
-  const caret = getCaretSerializedOffset();
-  const text = inputText.value;
-  const before = text.slice(0, caret);
-  const after = text.slice(caret);
-  const replaced = before.replace(/@([^\s@]*)$/, '@所有人 ');
-  const newText = replaced + after;
-  inputText.value = newText;
-  renderEditor(newText, replaced.length);
-  mentionVisible.value = false;
-  nextTick(() => inputEl.value?.focus());
-}
-
-// --- 拖拽（仅保留系统文件拖入） ---
-function onInputDragOver(e) {
-  if (e.dataTransfer?.types?.includes('Files')) {
-    e.dataTransfer.dropEffect = 'copy';
-    inputDragOver.value = true;
-  }
-}
-
-function onInputDragLeave() {
-  inputDragOver.value = false;
-}
-
-async function onInputDrop(e) {
-  inputDragOver.value = false;
-
-  // 仅保留系统文件拖入（dropFile）
-  if (e.dataTransfer?.files?.length > 0) {
-    const file = e.dataTransfer.files[0];
-    await sendDroppedFile(file);
-  }
-}
-
-async function sendDroppedFile(file) {
-  if (sending.value) return;
-  sending.value = true;
-  try {
-    const result = await compressImage(file);
-    if (!result) { sending.value = false; return; }
-    const mime = file.type?.startsWith('image/') ? 'image/jpeg' : (file.type || 'application/octet-stream');
-    addPendingFile(file.name || 'unnamed_file', result.size, result.data, mime);
-  } catch (e) {
-    console.error('[sendDroppedFile] 上传失败:', e);
-    errorMessage.value = '上传失败: ' + (e.message || String(e));
-  }
-  sending.value = false;
-}
-
-// --- 分割线拖动 ---
+// --- 双栏宽度拖拽 ---
+// 拖到边缘再继续拖 SNAP 像素 → 收起该侧（左极限隐藏输入栏、右极限隐藏预览）；
+// 收起后分隔条贴边保留，往回拖过 SNAP 即恢复。
+const collapseSide = ref('');
 function onSplitDragStart(e) {
   e.preventDefault();
   const splitEl = e.currentTarget.parentElement;
   if (!splitEl) return;
   const splitRect = splitEl.getBoundingClientRect();
+  const W = splitRect.width;
+  const SNAP = 56;
   const onMove = (ev) => {
-    let newWidth = ev.clientX - splitRect.left;
-    const minW = 120;
-    const maxW = splitRect.width - 120;
-    newWidth = Math.max(minW, Math.min(maxW, newWidth));
-    splitLeftWidth.value = newWidth;
+    const x = ev.clientX - splitRect.left;
+    if (W > 2 * SNAP && x < SNAP) { collapseSide.value = 'left'; return; }
+    if (W > 2 * SNAP && x > W - SNAP) { collapseSide.value = 'right'; return; }
+    if (collapseSide.value) collapseSide.value = '';
+    splitLeftWidth.value = Math.max(120, Math.min(W - 120, x));
   };
   const onUp = () => {
     document.removeEventListener('mousemove', onMove);
@@ -999,10 +763,6 @@ function onSplitDragStart(e) {
   document.addEventListener('mouseup', onUp);
 }
 
-function focus() {
-  inputEl.value?.focus();
-}
-
 // --- 待发送文件管理 ---
 function isImageFile(name) {
   return /\.(jpg|jpeg|png|gif|bmp|webp|ico)$/i.test(name || '');
@@ -1012,7 +772,7 @@ function addPendingFile(name, size, data, mime) {
   const isImage = isImageFile(name);
   const thumbUrl = isImage && data && mime ? `data:${mime};base64,${data}` : '';
   pendingFiles.value.push({ name, size, data, mime, isImage, thumbUrl });
-  nextTick(() => inputEl.value?.focus());
+  nextTick(() => focus());
 }
 
 function removePendingFile(idx) {
@@ -1034,5 +794,5 @@ function previewPendingFile(pf) {
   }
 }
 
-defineExpose({ inputEl, focus, autoResizeTextarea, mentionVisible, emojiVisible, replyTo, sending, errorMessage, tokenInfo, startReply, pendingFiles });
+defineExpose({ inputEl, focus, mentionVisible, emojiVisible, replyTo, sending, errorMessage, tokenInfo, startReply, pendingFiles });
 </script>

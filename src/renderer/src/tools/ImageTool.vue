@@ -2,7 +2,7 @@
   <div class="md-tool">
     <div class="md-tool-header">
       <div class="md-tool-title">
-        <button class="md-back-btn" title="返回工具列表" @click="onBack"><i class="fas fa-arrow-left"></i></button>
+        <button class="md-back-btn" title="返回" @click="onBack"><i class="fas fa-arrow-left"></i></button>
         <i class="fas fa-paint-brush"></i> 工具
         <span class="md-tool-sep">/</span>
         图片编辑

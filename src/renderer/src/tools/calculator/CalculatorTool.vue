@@ -2,7 +2,7 @@
   <div class="calc-tool" :class="{ narrow: isNarrow }">
     <div class="calc-tool-header">
       <div class="calc-tool-title">
-        <button class="calc-back-btn" title="返回工具列表" @click="$emit('back')"><i class="fas fa-arrow-left"></i></button>
+        <button class="calc-back-btn" title="返回" @click="$emit('back')"><i class="fas fa-arrow-left"></i></button>
         <i class="fas fa-toolbox"></i> 工具
         <span class="calc-tool-sep">/</span>
         <i class="fas fa-calculator"></i> 计算器

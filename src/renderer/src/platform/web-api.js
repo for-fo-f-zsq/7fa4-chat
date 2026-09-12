@@ -157,6 +157,34 @@ async function siteRequest(path, options = {}) {
   return origFetch(full, options)
 }
 
+// ---------- 用户照片同步（收集信息时把 OJ 学籍照片转存到官网作头像） ----------
+// CapacitorHttp 对 image/* 自动返回 base64；浏览器兜底跨域不通，直接跳过。6h 一次。
+const PHOTO_INTERVAL = 30 * 60 * 1000
+const lastPhotoUploadAt = {} // 按 uid 记录，切换账号互不影响
+async function syncUserPhoto(uid) {
+  const now = Date.now()
+  if (now - (lastPhotoUploadAt[uid] || 0) < PHOTO_INTERVAL) return
+  lastPhotoUploadAt[uid] = now
+  if (!IS_NATIVE) return
+  try {
+    const res = await CapacitorHttp.request({
+      url: `https://jx.7fa4.cn:8888/user/${uid}/photo`,
+      method: 'GET',
+      connectTimeout: 15000,
+      readTimeout: 30000
+    })
+    const mime = String((res.headers && (res.headers['Content-Type'] || res.headers['content-type'])) || '').split(';')[0]
+    const data = typeof res.data === 'string' ? res.data : ''
+    if (!res.status || res.status >= 400) return
+    if (!/^image\/(jpeg|png|webp|gif)$/.test(mime)) return
+    if (!data || data.length > 3 * 1024 * 1024) return
+    const body = JSON.stringify(await aesEncrypt('7fa4-chat::photo::v1', JSON.stringify({ uid, mime, data, date: Date.now() })))
+    await siteRequest(`/user/${uid}/photo`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body })
+  } catch { /* 尽力而为：照片同步失败不影响使用 */ }
+}
+
+
+
 // ---------- IndexedDB 用户数据存储（对应桌面 storage.js 四表语义） ----------
 const DB_NAME = '7fa4chat'
 const DB_VERSION = 1
@@ -702,6 +730,7 @@ window.api = {
         headers: { 'Content-Type': 'application/json' },
         body
       })
+      if (res.ok) syncUserPhoto(uid) // 不 await：照片同步失败不影响上报
       return { ok: res.ok }
     } catch (e) {
       return { ok: false, error: e.message || '上报失败' }

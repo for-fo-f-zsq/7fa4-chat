@@ -12,6 +12,12 @@
     border-top: 1px solid var(--border-3d-dark);
 }
 
+/* 表情框打开时放开高度上限：面板占的是消息区的空间（消息列表 flex:1 自动让位），
+   否则「分栏输入 + 计数行 + 表情框」超出 400px，表情框被挤出窗口 */
+.input-footer.emoji-open {
+    max-height: none;
+}
+
 .input-resize-bar {
     position: absolute;
     top: -3px;
@@ -116,6 +122,32 @@
     position: static;
 }
 .input-actions button:hover { color: var(--accent); background: var(--bg-conversation-hover); }
+
+/* 纯文本 / Markdown 格式切换 */
+.fmt-toggle {
+    display: flex;
+    align-items: center;
+    align-self: center;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-right: 4px;
+}
+.fmt-toggle button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1;
+    padding: 5px 8px;
+    cursor: pointer;
+    transition: color 0.2s, background 0.2s;
+}
+.fmt-toggle button + button { border-left: 1px solid var(--border-light); }
+.fmt-toggle button.active {
+    color: var(--text-on-accent);
+    background: var(--accent);
+}
 
 .input-row {
     display: flex;
@@ -326,159 +358,6 @@
 }
 .textarea-wrap textarea::placeholder { color: var(--text-placeholder); }
 
-/* 左右分栏 */
-.input-split {
-  flex: 1;
-  display: flex;
-  min-width: 0;
-  min-height: 40px;
-  max-height: 200px;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: var(--bg-input);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-.input-split-left {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-.input-split-left .textarea-wrap {
-  flex: 1;
-}
-.input-split-left .textarea-wrap textarea {
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  max-height: none;
-}
-.input-split-left .textarea-wrap textarea:focus {
-  box-shadow: none;
-  background: transparent;
-}
-.input-split-divider {
-  width: 5px;
-  cursor: col-resize;
-  background: var(--border-light);
-  flex-shrink: 0;
-  position: relative;
-  transition: background 0.2s;
-}
-.input-split-divider:hover,
-.input-split-divider:active {
-  background: var(--accent);
-}
-.input-split-divider::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 3px;
-  height: 20px;
-  border-radius: 2px;
-  background: var(--text-secondary);
-  opacity: 0.3;
-  transition: opacity 0.2s;
-}
-.input-split-divider:hover::after {
-  opacity: 0.7;
-  background: var(--text-on-accent);
-}
-.input-split-right {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--bg-app);
-}
-.input-preview-label {
-  font-size: var(--font-size-small);
-  color: var(--text-secondary);
-  padding: 4px 10px 0;
-  flex-shrink: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.input-preview-content {
-  flex: 1;
-  padding: 6px 10px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  font-size: var(--font-size-base, 14px);
-  line-height: 1.5;
-  color: var(--text-primary);
-  word-break: break-word;
-  user-select: text;
-  min-height: 0;
-}
-.input-preview-content pre {
-  background: var(--bg-code-block);
-  padding: 6px 10px;
-  border-radius: var(--radius);
-  overflow-x: auto;
-  margin: 4px 0;
-  user-select: text;
-}
-.input-preview-content code {
-  background: var(--bg-code-inline);
-  padding: 1px 4px;
-  border-radius: var(--radius);
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 0.9em;
-  user-select: text;
-}
-.input-preview-content pre code {
-  background: transparent;
-  padding: 0;
-}
-.input-preview-content a {
-  color: var(--text-link);
-  text-decoration: none;
-}
-.input-preview-content a:hover {
-  text-decoration: underline;
-}
-.input-preview-content img {
-  max-width: 100%;
-  border-radius: var(--radius);
-}
-.input-preview-content blockquote {
-  border-left: 3px solid var(--border-row);
-  padding-left: 10px;
-  margin: 4px 0;
-}
-.input-preview-content ul,
-.input-preview-content ol {
-  padding-left: 20px;
-  margin: 4px 0;
-}
-.input-preview-content table {
-  border-collapse: collapse;
-  margin: 4px 0;
-}
-.input-preview-content th,
-.input-preview-content td {
-  border: 1px solid var(--border-row);
-  padding: 4px 8px;
-}
-.input-preview-empty {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-placeholder);
-  font-size: var(--font-size-small);
-  padding: 10px;
-}
-
 .mention-popup {
   position: fixed;
   background: var(--bg-group-detail);
@@ -618,57 +497,204 @@
   font-weight: 600;
 }
 
-/* ===== contenteditable 输入框（QQ 表情富文本） ===== */
-.textarea-wrap .input-editor {
-  width: 100%;
+/* ===== 输入区：左源码 + 右预览（与「工具 → Markdown」同一版式）=====
+   左栏是原生 textarea 写 Markdown 源码，右栏是它的实时渲染结果；
+   中间分隔条可拖拽调宽，两栏滚动按比例双向跟随。
+   外框（边框/圆角/高度）定义在 .input-split 上，两栏都不再自带边框。 */
+/* 盒模型兜底：base.css 的 `* { box-sizing: border-box }` 由 ChatView 引入，
+   这里显式再声明一次，避免输入框在缺少全局 reset 的场景（自检页、嵌入式复用）
+   因为 content-box 而让 textarea 撑高一个 padding（200px 容器 + 上下 16px = 216px 溢出）。 */
+.input-split,
+.input-split * {
+  box-sizing: border-box;
+}
+.input-split {
+  flex: 1;
+  display: flex;
+  min-width: 0;
   min-height: 40px;
   max-height: 200px;
-  overflow-y: auto;
-  background: var(--bg-input);
   border: 1px solid var(--border-light);
   border-bottom: 2px solid var(--border-3d-dark);
   border-radius: var(--radius);
-  padding: 10px 14px;
-  font-size: var(--font-size-base, 14px);
-  font-family: inherit;
-  line-height: 1.4;
-  color: var(--text-primary);
-  resize: none;
-  white-space: pre-wrap;
-  word-break: break-word;
-  outline: none;
+  overflow: hidden;
+  background: var(--bg-input);
   box-shadow: var(--shadow-input);
-  transition: background var(--duration-normal) ease, box-shadow var(--duration-normal) ease, border-color var(--duration-normal) ease;
+  transition: border-color var(--duration-normal) ease, box-shadow var(--duration-normal) ease;
 }
-.textarea-wrap .input-editor:focus {
-  background: var(--bg-input-focus);
+.input-split:focus-within {
   border-color: var(--accent);
   border-bottom-color: var(--accent);
   box-shadow: var(--shadow-input-focus);
 }
-.textarea-wrap .input-editor:empty:before {
-  content: attr(data-placeholder);
-  color: var(--text-placeholder);
-  pointer-events: none;
+
+/* 左栏：源码 */
+.input-split-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
-.input-footer.sending .textarea-wrap .input-editor,
-.input-footer.disabled .textarea-wrap .input-editor {
-  opacity: 0.6;
-  pointer-events: none;
+.input-split-left .textarea-wrap {
+  flex: 1;
+  display: flex;
+  min-height: 0;
 }
-.input-footer.drag-over .textarea-wrap .input-editor {
-  border-color: var(--accent);
-}
-.input-split-left .textarea-wrap .input-editor {
+.input-split-left .textarea-wrap textarea {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
   border: none;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-  max-height: none;
+  padding: 8px 12px;
 }
-.input-split-left .textarea-wrap .input-editor:focus {
+.input-split-left .textarea-wrap textarea:focus {
   background: transparent;
-  border-color: transparent;
-  border-bottom-color: transparent;
   box-shadow: none;
+  border-color: transparent;
+}
+
+/* 分隔条 */
+.input-split-divider {
+  width: 5px;
+  cursor: col-resize;
+  background: var(--border-light);
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.2s;
+}
+.input-split-divider:hover,
+.input-split-divider:active {
+  background: var(--accent);
+}
+.input-split-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3px;
+  height: 20px;
+  border-radius: 2px;
+  background: var(--text-secondary);
+  opacity: 0.3;
+  transition: opacity 0.2s;
+}
+.input-split-divider:hover::after {
+  opacity: 0.7;
+  background: var(--text-on-accent);
+}
+
+/* 收起态：一侧被拖到边缘隐藏后，分隔条贴边保留（往回拖即恢复），淡色提示还有内容 */
+.input-split.collapse-left .input-split-divider,
+.input-split.collapse-right .input-split-divider {
+  background: var(--accent-light);
+}
+
+/* 右栏：预览 */
+.input-split-right {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-app);
+}
+.input-preview-label {
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+  padding: 4px 10px 0;
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.input-preview-content {
+  flex: 1;
+  padding: 6px 10px 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-size: var(--font-size-base, 14px);
+  line-height: 1.5;
+  color: var(--text-primary);
+  word-break: break-word;
+  user-select: text;
+  min-height: 0;
+}
+.input-preview-content pre {
+  background: var(--bg-code-block);
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  margin: 4px 0;
+  user-select: text;
+}
+.input-preview-content code {
+  background: var(--bg-code-inline);
+  padding: 1px 4px;
+  border-radius: var(--radius);
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.9em;
+  user-select: text;
+}
+.input-preview-content pre code {
+  background: transparent;
+  padding: 0;
+}
+.input-preview-content a {
+  color: var(--text-link);
+  text-decoration: none;
+}
+.input-preview-content a:hover {
+  text-decoration: underline;
+}
+.input-preview-content img {
+  max-width: 100%;
+  border-radius: var(--radius);
+}
+.input-preview-content blockquote {
+  border-left: 3px solid var(--border-row);
+  padding-left: 10px;
+  margin: 4px 0;
+}
+.input-preview-content ul,
+.input-preview-content ol {
+  padding-left: 20px;
+  margin: 4px 0;
+}
+.input-preview-content table {
+  border-collapse: collapse;
+  margin: 4px 0;
+}
+.input-preview-content th,
+.input-preview-content td {
+  border: 1px solid var(--border-row);
+  padding: 4px 8px;
+}
+.input-preview-content .chat-image {
+  vertical-align: middle;
+}
+.input-preview-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-placeholder);
+  font-size: var(--font-size-small);
+  padding: 10px;
+}
+
+.input-footer.sending .input-split,
+.input-footer.disabled .input-split {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.input-footer.drag-over .input-split {
+  border-color: var(--accent);
 }

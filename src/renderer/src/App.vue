@@ -3,6 +3,7 @@
     <LoginView v-if="!store.logined && !store.guestMode" @login="onLogin" @guest="onGuest" />
     <ChatView v-else :key="loginSeq" />
   </div>
+  <Onboarding v-if="showOnboarding" @close="closeOnboarding" />
   <Announcement v-if="showAnnouncement" @close="closeAnnouncement" />
   <div v-if="store.initializing && store.logined" class="init-loading">
     <div class="init-spinner"></div>
@@ -17,6 +18,7 @@ import { store } from './store.js';
 import LoginView from './views/LoginView.vue';
 import ChatView from './views/ChatView.vue';
 import Announcement from './components/Announcement.vue';
+import Onboarding from './components/Onboarding.vue';
 import { loadUsersDb } from './utils.js';
 
 const canvasEl = ref(null)
@@ -29,8 +31,22 @@ const mousePos = { x: -9999, y: -9999 }
 const viewFading = ref(false)
 const loginSeq = ref(0)
 
+// --- 新用户引导：只在首次启动（本地无标记）时展示一次 ---
+const showOnboarding = ref(false)
+const ONBOARDING_KEY = 'onboarding-seen'
+try {
+  if (localStorage.getItem(ONBOARDING_KEY) !== '1') showOnboarding.value = true
+} catch {}
+function closeOnboarding() {
+  showOnboarding.value = false
+  try { localStorage.setItem(ONBOARDING_KEY, '1') } catch {}
+  // 首次启动两件事都有：引导关掉后再弹版本公告，避免两层叠在一起
+  if (announcementPending.value) showAnnouncement.value = true
+}
+
 // --- 版本公告：本地记录已看过的最高版本，首次打开新版本时展示 ---
 const showAnnouncement = ref(false)
+const announcementPending = ref(false)
 const SEEN_VERSION_KEY = 'announcement-seen-version'
 function compareVersions(a, b) {
   const pa = String(a).split('.').map(Number)
@@ -45,7 +61,11 @@ async function checkAnnouncement() {
   try {
     const v = await window.api.getVersion()
     const seen = localStorage.getItem(SEEN_VERSION_KEY) || '0'
-    if (compareVersions(v, seen) > 0) showAnnouncement.value = true
+    if (compareVersions(v, seen) > 0) {
+      // 新用户引导还开着就先挂起，等引导关掉再弹
+      if (showOnboarding.value) announcementPending.value = true
+      else showAnnouncement.value = true
+    }
   } catch {}
 }
 async function closeAnnouncement() {
@@ -55,6 +75,8 @@ async function closeAnnouncement() {
 checkAnnouncement()
 // 头像菜单"版本公告"入口：全局事件触发显示公告
 window.addEventListener('open-announcement', () => { showAnnouncement.value = true })
+// 关于页"新手指引"入口：全局事件重新打开引导（看完不改写已看标记，可随时回看）
+window.addEventListener('open-onboarding', () => { showOnboarding.value = true })
 
 // #2 登录持久化：localStorage 有登录标记 → 直接进入已登录主界面（重启/reload 不退出登录）
 try {

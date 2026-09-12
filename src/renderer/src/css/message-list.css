@@ -148,8 +148,9 @@
 .left .bubble { border-bottom-left-radius: 4px; }
 
 /* 图片/表情/文件消息不显示气泡框（微信风格：内容直接展示）
-   仅当气泡内只有图片/表情/文件（不含 file-text-content 文字）时生效 */
-.msg-row:has(.chat-image):not(:has(.file-text-content)) .bubble,
+   chat-image 只有带 data-image-msg 标记（整条就是图片的「图片消息」）才生效 ——
+   普通文本消息里渲染出来的图片（luogu-img → chat-image）不能套用，否则长文会被去框+隐藏文字 */
+.msg-row:has(.chat-image[data-image-msg="1"]) .bubble,
 .msg-row:has(.sticker-msg):not(:has(.file-text-content)) .bubble,
 .msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble,
 .msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble {
@@ -158,8 +159,8 @@
     box-shadow: none;
     padding: 0;
 }
-.msg-row:has(.chat-image):not(:has(.file-text-content)) .bubble::before,
-.msg-row:has(.chat-image):not(:has(.file-text-content)) .bubble::after,
+.msg-row:has(.chat-image[data-image-msg="1"]) .bubble::before,
+.msg-row:has(.chat-image[data-image-msg="1"]) .bubble::after,
 .msg-row:has(.sticker-msg):not(:has(.file-text-content)) .bubble::before,
 .msg-row:has(.sticker-msg):not(:has(.file-text-content)) .bubble::after,
 .msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble::before,
@@ -168,7 +169,7 @@
 .msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble::after {
     display: none;
 }
-.msg-row:has(.chat-image):not(:has(.file-text-content)) .bubble:hover,
+.msg-row:has(.chat-image[data-image-msg="1"]) .bubble:hover,
 .msg-row:has(.sticker-msg):not(:has(.file-text-content)) .bubble:hover,
 .msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble:hover,
 .msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble:hover {
@@ -176,7 +177,7 @@
     box-shadow: none;
 }
 /* 去框后消除行高带来的底部空隙 */
-.msg-row:has(.chat-image):not(:has(.file-text-content)) .bubble-content,
+.msg-row:has(.chat-image[data-image-msg="1"]) .bubble-content,
 .msg-row:has(.sticker-msg):not(:has(.file-text-content)) .bubble-content,
 .msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble-content,
 .msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content {
@@ -407,6 +408,12 @@
     40% { transform: translateX(4px) rotate(2deg); }
     60% { transform: translateX(-3px) rotate(-1deg); }
     80% { transform: translateX(2px) rotate(1deg); }
+}
+
+/* 纯文本消息（fmt: txt）：原样显示，保留换行，不做任何 Markdown / 表情渲染 */
+.plain-msg {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .reply-quote {

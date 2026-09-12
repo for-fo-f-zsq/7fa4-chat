@@ -2,7 +2,7 @@
   <div class="graph-tool" :class="{ narrow: isNarrow }">
     <div class="graph-tool-header">
       <div class="graph-tool-title">
-        <button class="graph-back-btn" title="返回工具列表" @click="$emit('back')"><i class="fas fa-arrow-left"></i></button>
+        <button class="graph-back-btn" title="返回" @click="$emit('back')"><i class="fas fa-arrow-left"></i></button>
         <i class="fas fa-toolbox"></i> 工具
         <span class="graph-tool-sep">/</span>
         Graph Editor

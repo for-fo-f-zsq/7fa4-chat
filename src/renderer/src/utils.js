@@ -1,8 +1,13 @@
-import MarkdownIt from 'markdown-it'
-import katex from 'katex'
 import { reactive } from 'vue'
 import { store } from './store.js';
 import { QUANCODE, qqfaceUrl } from './qqface-data.js';
+// 渲染引擎已整体切换到洛谷解析器（见 ./markdown/index.js）：支持洛谷全部扩展语法
+// （折叠框 / 表格合并 / Tuack / 脚注 / B 站嵌入 / 行号与指定行高亮），
+// 同时保留本项目原有的 QQ 表情快捷码与 .chat-image 图片档位。
+import {
+  renderMarkdown as renderLuoguMarkdown,
+  renderMarkdownPreview as renderLuoguPreview,
+} from './markdown/index.js'
 
 // ========== 用户姓名数据库（加密存储） ==========
 // 明文 users.json 已从仓库移除，改打包为 AES-256-GCM 加密的 users.7c，
@@ -27,8 +32,6 @@ export async function loadUsersDb() {
     return false;
   }
 }
-
-const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 
 // ========== 年级颜色系统 ==========
 const COLOR_KEYS = ['x4', 'x5', 'x6', 'c1', 'c2', 'c3', 'g1', 'g2', 'g3', 'd1', 'd2', 'd3', 'd4', 'by', 'jl', 'uk']
@@ -642,153 +645,18 @@ export function getLastMessageTime(messageIds, messages) {
   return lastTime
 }
 
-const katexBlockRule = /^\$\$([\s\S]+?)\$\$/
-const katexInlineRule = /\$\$([^\$\n]+?)\$\$|\$([^\$\n]+?)\$/
-
-md.inline.ruler.after('escape', 'katex_inline', function (state, silent) {
-  // 关键：仅在当前位置就是 $ 时才尝试公式匹配，
-  // 否则会从当前位置向后误匹配后面的 $...$，导致中间文本（如 **最小**）被错误跳过
-  if (state.src[state.pos] !== '$') return false
-  const match = katexInlineRule.exec(state.src.slice(state.pos))
-  if (!match) return false
-  if (!silent) {
-    const token = state.push('katex_inline', 'math', 0)
-    token.content = match[1] || match[2]
-    token.markup = match[1] ? '$$' : '$'
-    token.meta = { displayMode: !!match[1] }
-  }
-  state.pos += match[0].length
-  return true
-})
-
-// QQ 表情快捷码（/微笑 /wx /jy 等）：改为在 renderMarkdown 预处理阶段处理（见下方）。
-// （原 markdown-it inline 规则会因 text 规则吞并 token 内斜杠而无法命中"中间位置"的 /code，
-//   已移除，改用带后边界的预处理替换，能正确命中 bist/st dc 这类场景。）
-
-md.block.ruler.before('paragraph', 'katex_block', function (state, startLine, endLine, silent) {
-  const pos = state.bMarks[startLine] + state.tShift[startLine]
-  const max = state.eMarks[startLine]
-  const line = state.src.slice(pos, max)
-  const match = katexBlockRule.exec(line)
-  if (!match) return false
-  if (!silent) {
-    const token = state.push('katex_block', 'math_block', 0)
-    token.content = match[1].trim()
-    token.markup = '$$'
-    token.map = [startLine, startLine + 1]
-  }
-  state.line = startLine + 1
-  return true
-})
-
-md.renderer.rules.katex_inline = function (tokens, idx) {
-  const displayMode = tokens[idx].meta && tokens[idx].meta.displayMode
-  // output:'html'：仅输出视觉层，避免 KaTeX 默认 MathML+HTML 双份导致复制/转 markdown 时文本重复
-  try { return katex.renderToString(tokens[idx].content, { throwOnError: false, displayMode, output: 'html' }) }
-  catch { return esc(tokens[idx].content) }
-}
-
-// QQ 表情快捷码渲染（/微笑 /wx /jy 等）：/xx → <img>
-// 前置字符守卫：避免误匹配 URL 协议 (https://、file://) 与转义 (\/)
-md.renderer.rules.qqface_inline = function (tokens, idx) {
-  const t = tokens[idx]
-  const src = t.attrGet('src')
-  const code = t.attrGet('data-code')
-  const alt = t.attrGet('alt') || ''
-  return '<img class="qqface" src="' + esc(src) + '" data-code="' + esc(code) + '" alt="' + esc(alt) + '">'
-}
-
-// 网络图片（![alt](url)）：按应用 image 类型显示——套用 .chat-image 样式（缩略尺寸），
-// 点击由 MessageList 的 .chat-image 命中逻辑打开大图预览（与图片消息一致）
-md.renderer.rules.image = function (tokens, idx) {
-  const t = tokens[idx]
-  const src = t.attrGet('src') || ''
-  const title = t.attrGet('title') || ''
-  const alt = t.content || ''
-  return '<img class="chat-image" src="' + esc(src) + '" alt="' + esc(alt) + '" title="' + esc(title) + '" loading="lazy">'
-}
-
-md.renderer.rules.katex_block = function (tokens, idx) {
-  try { return '<p>' + katex.renderToString(tokens[idx].content, { throwOnError: false, displayMode: true, output: 'html' }) + '</p>' }
-  catch { return '<p>' + esc(tokens[idx].content) + '</p>' }
-}
-
-function preprocessKatexBlock(text) {
-  const lines = text.split('\n')
-  const result = []
-  let i = 0
-  while (i < lines.length) {
-    if (/^\s*\$\$\s*$/.test(lines[i])) {
-      let content = ''
-      let j = i + 1
-      while (j < lines.length && !/^\s*\$\$\s*$/.test(lines[j])) {
-        if (content) content += ' '
-        content += lines[j].trim()
-        j++
-      }
-      if (j < lines.length) {
-        result.push('$$' + content + '$$')
-        i = j + 1
-        continue
-      }
-    }
-    result.push(lines[i])
-    i++
-  }
-  return result.join('\n')
-}
-
-// 给块级元素注入 data-line（markdown 源码行号，1-based），供分屏同步滚动按顶部行对齐
-const LINE_MAP_BLOCK_TYPES = new Set([
-  'paragraph_open', 'heading_open', 'bullet_list_open', 'ordered_list_open',
-  'list_item_open', 'blockquote_open', 'fence', 'table_open', 'hr', 'code_block'
-])
-for (const type of LINE_MAP_BLOCK_TYPES) {
-  const orig = md.renderer.rules[type]
-  md.renderer.rules[type] = function (tokens, idx, options, env, self) {
-    const html = orig ? orig(tokens, idx, options, env, self) : self.renderToken(tokens, idx, options)
-    const t = tokens[idx]
-    if (t.map && typeof html === 'string') {
-      const line = t.map[0] + 1
-      return html.replace(/^<([a-zA-Z][^ >]*)/, (m, tag) => `<${tag} data-line="${line}"`)
-    }
-    return html
-  }
-}
-
-// 有效的 QQ 表情码占位符（预处理阶段用，防止被 markdown-it 转义/吞并）。
-  // 用私用区字符 \uE000 包裹：markdown-it 原样保留、不会替换成 �，输出后安全还原
-  export function renderMarkdown(text) {
-    if (!text) return ''
-    // 预处理：把"后跟空白/行尾"的有效 /code 表情码替换为占位符（仅后边界判定的正确渲染）。
-    // 后边界只允许不可见字符（空格/换行/行尾），避免 /jx. /abc. 等路径或 URL 片段被误渲染成表情。
-    // 另跳过 URL 内部片段（http(s):// 或 www. 之后的部分），如 http://jx.7fa4.cn/api/xx 不应渲染成表情
-    const urlSpans = []
-    const textNoUrl = String(text).replace(/\b(?:https?|ftp):\/\/[^\s<>"')\]]+|\bwww\.[^\s<>"')\]]+/gi, (m) => {
-      urlSpans.push(m)
-      return '\uE100URL' + (urlSpans.length - 1) + 'URL\uE101'
-    })
-    const qfRe = /\/[\p{L}\p{N}_]{1,16}(?=\s|$)/gu
-  const qfMap = {}
-  let qfCount = 0
-  const serialized = preprocessKatexBlock(textNoUrl.replace(qfRe, (m) => {
-    const face = QUANCODE.get(m.toLowerCase())
-    if (!face) return m
-    const ph = '\uE000QF' + (qfCount++) + 'QF\uE000'
-    qfMap[ph] = `<img class="qqface" data-code="${m}" src="${qqfaceUrl(face.file)}" alt="${m}">`
-    return ph
-  }))
-  let out = md.render(serialized).replace(/\n+$/, '')
-  // 还原占位符为表情 <img>（单遍正则替换，O(L)；避免逐 key split/join 导致的 O(N²) 卡顿）
-  out = out.replace(/\uE000QF(\d+)QF\uE000/g, (_, k) => qfMap['\uE000QF' + k + 'QF\uE000'] || '')
-  // 还原 URL 占位符
-  out = out.replace(/\uE100URL(\d+)URL\uE101/g, (_, i) => esc(urlSpans[+i] ?? ''))
-  return out
+// Markdown 渲染：引擎细节见 ./markdown/index.js。
+// 对外只保留这两个签名，历史调用点（消息气泡、输入框预览、卡片消息）无需改动。
+// 已被移除的旧实现包括：markdown-it 实例、自写 KaTeX 行内/行间规则、
+// QQ 表情预处理占位符、以及给块级元素注入 data-line 的锚点逻辑——
+// 这些能力现在由洛谷解析器原生提供（锚点改名为 data-src-line，覆盖也更完整）。
+export function renderMarkdown(text) {
+  return renderLuoguMarkdown(text)
 }
 
 // 输入框预览：与显示框统一使用 renderMarkdown（预览与消息显示完全一致）
 export function renderMarkdownPreview(text) {
-  return renderMarkdown(text)
+  return renderLuoguPreview(text)
 }
 
 export function formatSize(bytes) {
@@ -884,7 +752,33 @@ export function parseContent(raw, senderId) {
   return result
 }
 
+// 整条消息只由图片语法构成时，按「图片消息」类型显示（点击看大图、不带气泡文字样式）。
+// 文字里夹带的 ![]() 不算图片消息 —— 那是普通文本消息，Markdown 照常渲染。
+const SOLO_IMAGE_LINE_RE = /^!\[[^\]]*\]\(\s*([^\s)]+)(?:\s+"[^"]*")?\s*\)$/
+const SAFE_IMG_SRC_RE = /^(?:https?:\/\/|data:image\/|file:\/\/|\/|\.\/)/i
+
+/** 整条都是图片语法 → 返回图片地址数组；否则返回 null */
+function parseSoloImages(raw) {
+  const lines = String(raw).split('\n').map((l) => l.trim()).filter(Boolean)
+  if (!lines.length) return null
+  const urls = []
+  for (const line of lines) {
+    const m = SOLO_IMAGE_LINE_RE.exec(line)
+    if (!m || !SAFE_IMG_SRC_RE.test(m[1])) return null
+    urls.push(m[1])
+  }
+  return urls
+}
+
 function _parseContentImpl(raw, senderId) {
+  // 仅 ![]() 的消息 = 图片类型；其余（含图文混排）走普通文本/Markdown 渲染
+  const soloImages = parseSoloImages(raw)
+  if (soloImages) {
+    return soloImages
+      // data-image-msg：CSS 用它区分「图片消息」与「带图的文本消息」（决定气泡样式）
+      .map((u) => `<img class="chat-image" data-image-msg="1" src="${esc(u)}" data-media="${esc(u)}">`)
+      .join('')
+  }
   const obj = parseMsgContent(raw)
   if (!obj) return renderMarkdown(raw)
   if (obj.type === 'file') {
@@ -892,7 +786,7 @@ function _parseContentImpl(raw, senderId) {
     let fileHtml = ''
     if (isImage) {
       const src = mediaUrlFromData(obj.data || '', obj.mime || 'image/png')
-      fileHtml = `<img class="chat-image" src="${esc(src)}" data-media="${esc(src)}" data-mime="${esc(obj.mime || '')}">`
+      fileHtml = `<img class="chat-image" data-image-msg="1" src="${esc(src)}" data-media="${esc(src)}" data-mime="${esc(obj.mime || '')}">`
     } else {
       // 微信风格文件卡片：左侧后缀图标，右侧文件名 + 大小
       const fi = getFileIconInfo(obj.name || '')
@@ -906,7 +800,7 @@ function _parseContentImpl(raw, senderId) {
 </div>`
     }
     if (obj.content && obj.content.trim()) {
-      fileHtml += '<div class="file-text-content">' + renderMarkdown(obj.content) + '</div>'
+      fileHtml += '<div class="file-text-content luogu-md">' + renderMarkdown(obj.content) + '</div>'
     }
     return fileHtml
   }
@@ -954,7 +848,13 @@ function _parseContentImpl(raw, senderId) {
       const replyContent = esc(obj.reply_content || '').slice(0, 80)
       html += '<div class="reply-quote" data-reply-id="' + obj.reply_to + '"><i class="fas fa-quote-left reply-quote-icon"></i><span class="reply-quote-text">' + replyContent + '</span></div>'
     }
-    html += renderMarkdown(obj.content || '')
+    // fmt: 'txt' = 纯文本消息（只做转义与换行保留，不做任何 Markdown / 表情码渲染）；
+    // 无 fmt 或 fmt: 'md' = Markdown（历史消息全部归 md）
+    if (obj.fmt === 'txt') {
+      html += '<div class="plain-msg">' + esc(obj.content || '') + '</div>'
+    } else {
+      html += renderMarkdown(obj.content || '')
+    }
     // @提及 渲染：文本中是 @UID（输入框插入），渲染时补全为 昵称(姓名) 标签
     if (obj.mentions && obj.mentions.length) {
       if (obj.mentions.includes('all')) {

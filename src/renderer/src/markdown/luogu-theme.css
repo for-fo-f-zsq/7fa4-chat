@@ -1,0 +1,1433 @@
+/*
+ * 洛谷 Markdown 渲染样式 —— 由 scripts/sync-luogu.mjs 从上游自动生成，请勿手工编辑。
+ *
+ * 上游：wudream813/luogu-markdown-editor v1.23.1（MIT License）
+ * https://github.com/wudream813/luogu-markdown-editor
+ *
+ * 本文件只含上游 styles.css 中 .luogu-* / .typora-* / .preview-content 相关规则
+ * （共 146 条）。上游的 :root 主题变量不在此处引入，改为下面的 --lg-* 映射层，
+ * 取值全部落到 7fa4-chat 自己的主题变量上，因此自动跟随 21 套主题（含暗色）切换。
+ */
+
+/* ---- 变量映射层：上游变量名 → --lg-* → 7fa4-chat 主题变量 ---- */
+:root {
+  --lg-bg-primary: transparent;
+  --lg-bg-secondary: var(--bg-code-block);
+  --lg-bg-tertiary: var(--bg-table-header);
+  --lg-border-color: var(--border-light);
+  --lg-code-bg: var(--bg-code-block);
+  --lg-code-fg: var(--text-primary);
+  --lg-font-mono: "Cascadia Code","Fira Code",Consolas,"Courier New",monospace;
+  --lg-luogu-blue: var(--accent);
+  --lg-luogu-blue-dark: var(--accent-hover);
+  --lg-luogu-blue-light: var(--accent-light);
+  --lg-luogu-green: var(--success);
+  --lg-luogu-green-light: color-mix(in srgb, var(--success) 14%, transparent);
+  --lg-luogu-orange: var(--warning);
+  --lg-luogu-orange-light: color-mix(in srgb, var(--warning) 14%, transparent);
+  --lg-luogu-red: var(--danger);
+  --lg-luogu-red-light: color-mix(in srgb, var(--danger) 14%, transparent);
+  --lg-luogu-purple: var(--notice);
+  --lg-radius-sm: 4px;
+  --lg-radius-md: 6px;
+  --lg-shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+  --lg-shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1),0 2px 4px -1px rgba(0,0,0,0.06);
+  --lg-text-primary: var(--text-primary);
+  --lg-text-secondary: var(--text-secondary);
+  --lg-text-muted: var(--text-placeholder);
+  --lg-surface: var(--bg-app);
+}
+
+/* ---- 上游规则 ---- */
+.luogu-md {
+  flex: 1;
+  padding: 24px 32px;
+  overflow-y: auto;
+  /* Positioning context for Typora's overlay editors, which are placed in the
+     scroll container's own coordinate space. */
+  position: relative;
+  line-height: 1.75;
+  color: var(--lg-text-primary);
+  word-break: break-word;
+}
+
+/* Hint that blocks are clickable, without the noise of a permanent outline. */
+.luogu-md.typora-mode > * {
+  border-radius: 4px;
+  transition: background-color 0.12s ease;
+}
+
+.luogu-md.typora-mode > *:hover {
+  cursor: text;
+}
+
+/* Only tint blocks that have no surface of their own. A code block / table / bilibili
+   card / callout paints its own background, and washing --bg-secondary over it made
+   the light theme show pale syntax colours on white. */
+.luogu-md.typora-mode > *:hover:not(.luogu-code-block-wrapper):not(.luogu-code-block-wrap):not(.luogu-table-wrapper):not(.luogu-bilibili-container):not(details.luogu-callout):not(ul):not(ol) {
+  background-color: var(--lg-bg-secondary);
+}
+
+/* A list is edited one item at a time, so the hover affordance must point at the
+   item under the pointer rather than washing over the whole list. Innermost wins:
+   on a nested list only the deepest <li> containing the pointer lights up. */
+.luogu-md.typora-mode li:hover {
+  cursor: text;
+}
+
+.luogu-md.typora-mode li:hover > :not(ul):not(ol),
+.luogu-md.typora-mode li:hover {
+  background-color: var(--lg-bg-secondary);
+  border-radius: 4px;
+}
+
+.luogu-md.typora-mode li:hover ul,
+.luogu-md.typora-mode li:hover ol,
+.luogu-md.typora-mode li:has(li:hover) {
+  background-color: transparent;
+}
+
+/* Blocks that paint their own background must not be tinted by the generic hover
+   above: a code block has a dark surface of its own, and washing --bg-secondary over
+   it (or over a table's zebra striping) produced visibly wrong colours. Highlight
+   them with a ring instead, which reads on both light and dark themes. */
+.luogu-md.typora-mode > .luogu-code-block-wrapper:hover,
+.luogu-md.typora-mode > .luogu-code-block-wrap:hover,
+.luogu-md.typora-mode > .luogu-table-wrapper:hover,
+.luogu-md.typora-mode > .luogu-bilibili-container:hover,
+.luogu-md.typora-mode > details.luogu-callout:hover {
+  /* Deliberately does NOT touch background-color. These blocks paint their own
+     surface (a code block stays dark even under the light theme); an earlier version
+     forced `transparent` here, which dropped that background and left pale syntax
+     colours on white. The ring alone is enough of a hover affordance. */
+  box-shadow: 0 0 0 2px var(--lg-luogu-blue-light, rgba(52, 152, 219, 0.35));
+}
+
+/* Inside those blocks, highlight the actual sub-target instead. */
+.luogu-md.typora-mode .luogu-table td:hover,
+.luogu-md.typora-mode .luogu-table th:hover {
+  box-shadow: inset 0 0 0 2px var(--lg-luogu-blue);
+  cursor: text;
+}
+
+/* Only the title text is editable, so it is the only part of the header that gets a
+   text cursor and an edit affordance; the rest of the summary still toggles. */
+.luogu-md.typora-mode .luogu-callout-title:hover {
+  cursor: text;
+  text-decoration: underline dashed;
+  text-underline-offset: 3px;
+  background: rgba(52, 152, 219, 0.12);
+  border-radius: 3px;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.12);
+}
+
+.luogu-md.typora-mode .luogu-callout-summary {
+  cursor: pointer;
+}
+
+.luogu-md.typora-mode .luogu-callout-icon:hover {
+  cursor: pointer;
+  filter: brightness(1.25);
+}
+
+.luogu-md.typora-mode pre[data-code-body]:hover {
+  cursor: text;
+}
+
+/* Sub-block editors sit inside an existing block, so they must not inherit the
+   full-width block spacing the top-level editor uses. */
+.typora-partial {
+  margin: 0;
+}
+
+.typora-code-input {
+  border-radius: 0;
+  border-color: var(--lg-luogu-blue);
+  background: var(--lg-code-bg, #2d2d2d);
+  color: var(--lg-code-fg, #ccc);
+  tab-size: 4;
+}
+
+/* A cell / title editor should read as inline text, not as a block form field. */
+.typora-inline-input {
+  min-height: 0;
+  padding: 2px 6px;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.luogu-md.typora-mode:focus {
+  outline: none;
+}
+
+/* The in-place source editor swapped in for the block being edited. */
+.typora-editing {
+  margin: 4px 0;
+}
+
+.typora-block-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 2.4em;
+  padding: 10px 12px;
+  border: 1px solid var(--lg-luogu-blue);
+  border-radius: 4px;
+  background: var(--lg-bg-primary);
+  color: var(--lg-text-primary);
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.7;
+  resize: none;
+  overflow: hidden;
+  outline: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  tab-size: 4;
+}
+
+.typora-block-input:focus {
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.18);
+}
+
+.typora-block-input::placeholder {
+  color: var(--lg-text-secondary);
+  opacity: 0.6;
+}
+
+/* A brand-new paragraph is dashed until it has content, so it reads as a draft
+   rather than as a block that already exists in the document. */
+.typora-inserting .typora-block-input {
+  border-style: dashed;
+}
+
+/* ==========================================================================
+   Luogu Markdown Rendered Content Styles (预览与排版样式)
+   ========================================================================== */
+
+.luogu-md h1,
+.luogu-md h2,
+.luogu-md h3,
+.luogu-md h4,
+.luogu-md h5,
+.luogu-md h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.6em;
+  font-weight: 600;
+  color: var(--lg-text-primary);
+  line-height: 1.35;
+}
+
+.luogu-md h1 { font-size: 1.85em; border-bottom: 1px solid var(--lg-border-color); padding-bottom: 0.3em; }
+
+.luogu-md h2 { font-size: 1.5em; border-bottom: 1px solid var(--lg-border-color); padding-bottom: 0.25em; }
+
+.luogu-md h3 { font-size: 1.25em; }
+
+.luogu-md h4 { font-size: 1.1em; }
+
+.luogu-md h5 { font-size: 1em; }
+
+.luogu-md h6 { font-size: 0.9em; color: var(--lg-text-secondary); }
+
+.luogu-md p {
+  margin-bottom: 1em;
+}
+
+/* Emphasis & Inline Elements */
+.luogu-md strong {
+  font-weight: 600;
+  color: var(--lg-text-primary);
+}
+
+.luogu-md em {
+  font-style: italic;
+}
+
+.luogu-md del {
+  text-decoration: line-through;
+  color: var(--lg-text-muted);
+}
+
+/* GFM footnotes. Rendered as a trailing <section> separated from the body, with
+   small superscript references in the text. Mirrors remark-gfm's structure so the
+   result matches what Luogu produces. */
+.luogu-footnote-ref a {
+  text-decoration: none;
+  padding: 0 1px;
+}
+
+.luogu-footnotes {
+  margin-top: 32px;
+  padding-top: 12px;
+  border-top: 1px solid var(--lg-border-color, #d0d7de);
+  font-size: 0.9em;
+}
+
+.luogu-footnotes-title {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: var(--lg-text-secondary, #57606a);
+}
+
+.luogu-footnotes-list {
+  margin: 0;
+  padding-left: 24px;
+}
+
+.luogu-footnote-item {
+  margin: 4px 0;
+}
+
+.luogu-footnote-item p {
+  margin: 0;
+}
+
+.luogu-footnote-back {
+  text-decoration: none;
+  margin-left: 4px;
+}
+
+.luogu-inline-code {
+  font-family: var(--lg-font-mono);
+  font-size: 0.88em;
+  padding: 2px 6px;
+  background: var(--lg-bg-tertiary);
+  color: #e06c75;
+  border-radius: var(--lg-radius-sm);
+  border: 1px solid var(--lg-border-color);
+}
+
+.luogu-md hr.luogu-hr {
+  height: 2px;
+  border: none;
+  background: var(--lg-border-color);
+  margin: 1.5em 0;
+}
+
+.luogu-md blockquote.luogu-blockquote {
+  margin: 1em 0;
+  padding: 8px 16px;
+  border-left: 4px solid var(--lg-luogu-blue);
+  background: var(--lg-bg-secondary);
+  color: var(--lg-text-secondary);
+  border-radius: 0 var(--lg-radius-sm) var(--lg-radius-sm) 0;
+}
+
+.luogu-md blockquote blockquote {
+  margin: 0.5em 0;
+  border-left-color: var(--lg-luogu-purple);
+}
+
+/* Links & Images */
+.luogu-md a.luogu-link {
+  color: var(--lg-luogu-blue);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.luogu-md a.luogu-link:hover {
+  text-decoration: underline;
+  color: var(--lg-luogu-blue-dark);
+}
+
+.luogu-img-wrapper {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0.5em 0;
+}
+
+.luogu-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--lg-radius-sm);
+  box-shadow: var(--lg-shadow-sm);
+}
+
+.luogu-img-error {
+  border: 1px dashed var(--lg-luogu-red);
+  padding: 10px;
+  color: var(--lg-luogu-red);
+  background: var(--lg-luogu-red-light);
+}
+
+/* Lists & Tasks */
+.luogu-md ul.luogu-list,
+.luogu-md ol.luogu-list {
+  padding-left: 24px;
+  margin-bottom: 1em;
+}
+
+.luogu-md li {
+  margin-bottom: 0.35em;
+}
+
+.luogu-md ul.luogu-task-list {
+  list-style-type: none;
+  padding-left: 4px;
+}
+
+.luogu-task-item {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.luogu-task-item > .luogu-checkbox-label {
+  display: flex;
+  align-items: center;
+}
+
+.luogu-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.luogu-task-checkbox {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--lg-luogu-blue);
+  cursor: pointer;
+  flex: none;
+}
+
+/* The checkbox is the only place that toggles; everything else on the row edits the
+   item. Make that split visible: a pointer cursor on the box, a text caret on the
+   label text (which would otherwise inherit the label's pointer). */
+.luogu-md.typora-mode .luogu-checkbox-label { cursor: text; }
+
+.luogu-md.typora-mode .luogu-task-checkbox { cursor: pointer; }
+
+.luogu-md.typora-mode .luogu-task-checkbox:hover {
+  outline: 2px solid var(--lg-luogu-blue-light, rgba(52, 152, 219, 0.45));
+  outline-offset: 1px;
+}
+
+/* Luogu Code Blocks - with Auto-Wrapping in Preview */
+.luogu-code-block-wrapper {
+  margin: 1.2em 0;
+  border-radius: var(--lg-radius-md);
+  border: 1px solid var(--lg-border-color);
+  background: #282c34;
+  color: #abb2bf;
+  box-shadow: var(--lg-shadow-sm);
+  overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.luogu-code-pre,
+.luogu-code-pre code,
+.luogu-code-pre code[class*="language-"],
+.luogu-code-pre pre[class*="language-"],
+pre[class*="language-"],
+code[class*="language-"] {
+  white-space: pre-wrap !important;
+  word-break: break-all !important;
+  word-wrap: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+
+.luogu-code-pre code,
+.luogu-code-pre code[class*="language-"] {
+  display: block !important;
+  /* Grow to the widest line rather than to the visible width, so that when the
+     block is scrolled right the highlight backgrounds keep covering the row
+     instead of ending at the original fold. min-width keeps short blocks full
+     width so a highlight still spans the pane. */
+  width: max-content !important;
+  min-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.luogu-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px;
+  background: #21252b;
+  border-bottom: 1px solid #181a1f;
+  font-size: 11px;
+  font-weight: 600;
+  user-select: none;
+  gap: 8px;
+}
+
+.luogu-code-lang {
+  color: #61afef;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.luogu-code-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  white-space: nowrap !important;
+}
+
+.luogu-code-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 3px 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--lg-radius-sm);
+  color: #abb2bf;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  min-width: 64px;
+  height: 24px;
+  line-height: 1;
+}
+
+.luogu-code-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.luogu-code-copy-btn .copy-text {
+  white-space: nowrap !important;
+  display: inline-block;
+}
+
+.luogu-code-copy-btn .copy-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.luogu-code-pre {
+  margin: 0;
+  padding: 12px 0;
+  font-family: var(--lg-font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  /* The whole block scrolls horizontally, so a single scrollbar sits at the very
+     bottom of the code block. Scrolling per line instead gave every overflowing
+     line its own scrollbar, wedged between that line and the next — it ate into
+     the line's height and covered the line below it. The gutter numbers stay put
+     because they are position:sticky against this scroll container. */
+  overflow-x: auto !important;
+  width: 100%;
+  box-sizing: border-box;
+  display: block !important;
+}
+
+/* Tables & Merged Cells */
+.luogu-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin: 1.2em 0;
+}
+
+.luogu-table-center-wrapper {
+  display: flex;
+  justify-content: center;
+  margin: 1.4em auto;
+}
+
+.luogu-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  border: 1px solid var(--lg-border-color);
+  background: var(--lg-bg-primary);
+}
+
+.luogu-table-center-wrapper .luogu-table {
+  width: auto;
+  max-width: 100%;
+}
+
+.luogu-table th,
+.luogu-table td {
+  padding: 8px 14px;
+  border: 1px solid var(--lg-border-color);
+}
+
+.luogu-table th {
+  background: var(--lg-bg-secondary);
+  font-weight: 600;
+  color: var(--lg-text-primary);
+}
+
+.luogu-table tr:nth-child(even) td {
+  background: var(--lg-bg-secondary);
+}
+
+/* Tuack / Cute-Table Style (洛谷 Tuack 竞赛风格表格) */
+.luogu-tuack-table {
+  border: 2px solid var(--lg-luogu-blue);
+  border-radius: var(--lg-radius-sm);
+  box-shadow: var(--lg-shadow-sm);
+}
+
+.luogu-tuack-table th {
+  background: var(--lg-luogu-blue);
+  color: #ffffff;
+  border: 1px solid var(--lg-luogu-blue-dark);
+  font-weight: 600;
+  text-align: center;
+}
+
+.luogu-tuack-table td {
+  border: 1px solid #d4e6f1;
+}
+
+.luogu-tuack-table tr:nth-child(even) td {
+  background: #f4f9fd;
+}
+
+.luogu-tuack-table tr:hover td {
+  background: #eaf2f8;
+}
+
+.luogu-cute-centered-table {
+  border: 1px solid var(--lg-border-color);
+  border-radius: var(--lg-radius-sm);
+}
+
+.luogu-cute-centered-table th {
+  background: var(--lg-luogu-blue-light);
+  color: #1f618d;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* Align Blocks (居中 & 居右排版) */
+.luogu-align-center {
+  text-align: center;
+  margin: 1em 0;
+}
+
+.luogu-align-right {
+  text-align: right;
+  margin: 1em 0;
+}
+
+.luogu-md.typora-mode [class*="luogu-align-"]::before {
+  position: absolute;
+  top: -0.75em;
+  left: 10px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--lg-bg-primary);
+  color: var(--lg-text-secondary);
+  font-family: var(--lg-font-mono, monospace);
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+.luogu-md.typora-mode .luogu-align-left::before { content: "居左"; }
+
+.luogu-md.typora-mode .luogu-align-center::before { content: "居中"; }
+
+.luogu-md.typora-mode .luogu-align-right::before { content: "居右"; }
+
+/* The badge is the control that switches left/center/right, so make it read as
+   clickable rather than as a passive label. */
+.luogu-md.typora-mode [class*="luogu-align-"]::before { cursor: pointer; }
+
+.luogu-md.typora-mode [class*="luogu-align-"]:hover::before {
+  background: var(--lg-luogu-blue, var(--lg-luogu-blue));
+  color: #fff;
+}
+
+.luogu-md.typora-mode [class*="luogu-align-"]:hover {
+  border-color: var(--lg-luogu-blue);
+}
+
+.luogu-md.typora-mode .luogu-epigraph {
+  border: 1px dashed var(--lg-border-color);
+  border-radius: 4px;
+  margin-top: 1.6em;
+}
+
+.luogu-md.typora-mode .luogu-epigraph::after {
+  content: "引言";
+  position: absolute;
+  top: -0.75em;
+  left: 10px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--lg-bg-primary);
+  color: var(--lg-text-secondary);
+  font-family: var(--lg-font-mono, monospace);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+/* Epigraph (引言) */
+.luogu-epigraph {
+  position: relative;
+  margin: 1.5em 0;
+  padding: 16px 20px 16px 48px;
+  background: var(--lg-bg-secondary);
+  border-left: 4px solid var(--lg-luogu-blue);
+  border-radius: var(--lg-radius-md);
+  box-shadow: var(--lg-shadow-sm);
+}
+
+.luogu-epigraph-quote-mark {
+  position: absolute;
+  top: 6px;
+  left: 14px;
+  font-size: 38px;
+  line-height: 1;
+  font-family: Georgia, serif;
+  color: var(--lg-luogu-blue);
+  opacity: 0.5;
+  user-select: none;
+}
+
+.luogu-epigraph-body {
+  font-style: italic;
+  font-size: 14px;
+  color: var(--lg-text-primary);
+  margin-bottom: 6px;
+}
+
+.luogu-epigraph-author {
+  text-align: right;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--lg-text-secondary);
+}
+
+/* Foldable Callouts (折叠框: info, success, warning, error) */
+.luogu-callout {
+  margin: 1.2em 0;
+  border-radius: var(--lg-radius-md);
+  border: 1px solid var(--lg-border-color);
+  background: var(--lg-bg-primary);
+  box-shadow: var(--lg-shadow-sm);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.luogu-callout-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  transition: background 0.15s;
+}
+
+.luogu-callout-summary::-webkit-details-marker {
+  display: none;
+}
+
+.luogu-callout-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.luogu-callout-title {
+  /* Only as wide as the text, with `margin-right:auto` keeping the arrow pinned
+     right. It used to be `flex:1`, which stretched the span across the whole
+     summary — so in Typora mode a click anywhere on the header row landed on the
+     title and opened the rename editor instead of expanding the box. */
+  flex: 0 1 auto;
+  margin-right: auto;
+  min-width: 0;
+}
+
+.luogu-callout-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  transition: transform 0.2s ease;
+}
+
+.luogu-callout[open] > .luogu-callout-summary .luogu-callout-arrow {
+  transform: rotate(180deg);
+}
+
+.luogu-callout-content {
+  padding: 12px 16px;
+  border-top: 1px solid var(--lg-border-color);
+  background: var(--lg-bg-primary);
+  font-size: 13px;
+}
+
+/* Callout Color Schemes */
+.luogu-callout-info {
+  border-left: 4px solid var(--lg-luogu-blue);
+}
+
+.luogu-callout-info > .luogu-callout-summary {
+  background: var(--lg-luogu-blue-light);
+  color: #1f618d;
+}
+
+.luogu-callout-success {
+  border-left: 4px solid var(--lg-luogu-green);
+}
+
+.luogu-callout-success > .luogu-callout-summary {
+  background: var(--lg-luogu-green-light);
+  color: #196f3d;
+}
+
+.luogu-callout-warning {
+  border-left: 4px solid var(--lg-luogu-orange);
+}
+
+.luogu-callout-warning > .luogu-callout-summary {
+  background: var(--lg-luogu-orange-light);
+  color: #b9770e;
+}
+
+.luogu-callout-error {
+  border-left: 4px solid var(--lg-luogu-red);
+}
+
+.luogu-callout-error > .luogu-callout-summary {
+  background: var(--lg-luogu-red-light);
+  color: #943126;
+}
+
+/* Bilibili Video Container */
+.luogu-bilibili-container {
+  margin: 1.5em 0;
+  border-radius: var(--lg-radius-md);
+  border: 1px solid var(--lg-border-color);
+  overflow: hidden;
+  background: #000000;
+  box-shadow: var(--lg-shadow-md);
+}
+
+.luogu-bilibili-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: #232323;
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.luogu-bilibili-badge {
+  background: #fb7299;
+  color: #ffffff;
+  padding: 1px 6px;
+  border-radius: var(--lg-radius-sm);
+  font-weight: bold;
+}
+
+.luogu-bilibili-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #00a1d6;
+  text-decoration: none;
+}
+
+.luogu-bilibili-link:hover {
+  text-decoration: underline;
+}
+
+.luogu-bilibili-player-wrapper {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%; /* 16:9 ratio */
+}
+
+.luogu-bilibili-player-wrapper iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* Click-to-load placeholder shown in place of the Bilibili iframe. Keeps the app
+   fully offline (and free of third-party trackers) until the user opts in. */
+.luogu-bilibili-facade {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  background: #111827;
+  color: #e5e7eb;
+  font-size: 13px;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.luogu-bilibili-facade:hover {
+  background: #1f2937;
+}
+
+.luogu-bilibili-facade:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: -2px;
+}
+
+.luogu-bilibili-play-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #fb7299;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.luogu-bilibili-play-icon svg {
+  width: 28px;
+  height: 28px;
+  margin-left: 3px;
+}
+
+/* KaTeX Formulas */
+.luogu-math-display {
+  margin: 1.2em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  text-align: center;
+  padding: 6px 0;
+}
+
+.luogu-math-inline {
+  display: inline-block;
+  padding: 0 2px;
+}
+
+/* A container name the renderer does not know (e.g. a typo like ":::s"). Shown as
+   literal text rather than being coerced into an info box, with a hint that it is
+   probably a mistake. */
+.luogu-unknown-container {
+  font-family: var(--lg-font-mono);
+  color: var(--lg-text-muted);
+  background: var(--lg-bg-secondary);
+  border-left: 3px solid var(--lg-border-color);
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+.luogu-unclosed-warning {
+  color: #b26a00;
+  background: rgba(255, 170, 0, 0.1);
+  border-left: 3px solid #ffaa00;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 0.92em;
+}
+
+.luogu-unclosed-warning code {
+  background: rgba(0, 0, 0, 0.08);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* Merged-cell hover: the cell is temporarily un-merged, and the positions it had
+   swallowed come back as real cells showing their own source text. Dashed borders
+   and a tinted background mark them as a transient preview rather than content. */
+.luogu-md.typora-mode td.typora-unmerged-origin,
+.luogu-md.typora-mode th.typora-unmerged-origin {
+  outline: 2px solid var(--lg-luogu-blue);
+  outline-offset: -2px;
+}
+
+.luogu-md.typora-mode td.typora-unmerged-cell,
+.luogu-md.typora-mode th.typora-unmerged-cell {
+  border: 1px dashed var(--lg-luogu-blue) !important;
+  background: rgba(52, 152, 219, 0.08) !important;
+  color: var(--lg-text-secondary);
+  font-family: var(--lg-font-mono, monospace);
+  text-align: center;
+  /* The revealed markers are metadata, not prose: keep them from being selected or
+     dragged while the pointer is just passing over the table. */
+  user-select: none;
+}
+
+/* An editor pinned over the element it edits, leaving the document's own layout
+   untouched. A merged table cell cannot host an inline editor without the table
+   reflowing around it, so the cell editor floats instead. */
+.luogu-md.typora-mode .typora-editing/* Cell-local editing: the marker text is replaced by the input inside the same
+   <td>, so the un-merged skeleton around it keeps its own markers on screen. */
+.luogu-md.typora-mode td.typora-host-editing,
+.luogu-md.typora-mode th.typora-host-editing {
+  padding: 0 !important;
+  /* Collapse the cell's own text nodes: the editor replaces the marker, so the
+     original glyph must not linger above the input. */
+  font-size: 0;
+  line-height: 0;
+}
+
+.luogu-md.typora-mode .typora-host-editing .typora-editing {
+  display: block;
+  font-size: 13px;
+}
+
+.luogu-md.typora-mode .typora-host-editing .typora-block-input {
+  width: 100%;
+  /* Ignore the textarea's `cols` intrinsic width so it cannot widen the column. */
+  min-inline-size: 0;
+  field-sizing: content;
+  /* No min-width in em: a wide editor forces the whole column wider and squeezes
+     the neighbouring marker cell down to nothing. The cell already reserves the
+     space it had before the edit. */
+  min-width: 0;
+  box-sizing: border-box;
+  border: 2px solid var(--lg-luogu-blue, var(--lg-luogu-blue));
+  border-radius: 3px;
+  padding: 2px 4px;
+  text-align: center;
+  background: #fff;
+}
+
+.typora-overlay {
+  position: absolute;
+  z-index: 40;
+  margin: 0;
+  padding: 0;
+}
+
+.luogu-md.typora-mode .typora-editing.typora-overlay .typora-block-input {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 2px 6px;
+  border: 2px solid var(--lg-luogu-blue);
+  border-radius: 3px;
+  background: var(--lg-bg-primary);
+  text-align: center;
+  resize: none;
+}
+
+.luogu-md .typora-hidden,
+.luogu-md .typora-hidden code,
+.luogu-md .typora-hidden pre {
+  display: none !important;
+}
+
+/* Callout type picker (Typora mode). Appended to <body> so it is never clipped by
+   the preview pane's overflow. */
+.typora-type-menu {
+  position: fixed;
+  z-index: 9999;
+  min-width: 128px;
+  padding: 4px;
+  background: var(--lg-bg-primary);
+  border: 1px solid var(--lg-border-color);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+.typora-type-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--lg-text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.typora-type-item:hover {
+  background: var(--lg-bg-secondary);
+}
+
+.typora-type-item.is-current {
+  font-weight: 600;
+}
+
+.typora-type-item.is-current::after {
+  content: "✓";
+  margin-left: auto;
+  color: var(--lg-luogu-blue);
+}
+
+.typora-type-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+
+
+/* ---- 根类契约：.luogu-md 只借用上游的排版，不借用外壳布局 ----
+   上游 .preview-content 同时承担了滚动容器职责（flex:1 / padding:24px 32px /
+   overflow-y:auto）。7fa4-chat 里滚动与内边距由各自容器（消息气泡、输入框预览、
+   工具分屏）决定，所以这里把外壳属性清零，只保留排版与定位。 */
+.luogu-md {
+  flex: initial;
+  padding: 0;
+  overflow: visible;
+  min-height: 0;
+  margin: 0;
+  position: relative;
+  line-height: 1.75;
+  color: var(--lg-text-primary);
+  word-break: break-word;
+}
+
+/* 气泡内不额外撑高；段落首尾不留多余外边距 */
+.luogu-md > :first-child { margin-top: 0; }
+.luogu-md > :last-child { margin-bottom: 0; }
+
+/* ---- 补丁：上游用字面量写死的少量颜色在项目主题下需要跟随 ---- */
+.typora-host-editing .typora-block-input {
+  background: var(--lg-surface);
+  color: var(--text-primary);
+}
+/* ---- 补丁：上游代码块外壳把 One Dark 底色写死了，浅色主题下会顶着一块深底 ---- */
+.luogu-code-block-wrapper {
+  background: var(--lg-code-bg);
+  color: var(--lg-code-fg);
+}
+.luogu-code-header {
+  background: color-mix(in srgb, var(--lg-code-bg) 88%, var(--text-primary));
+  border-bottom-color: var(--lg-border-color);
+}
+.luogu-code-lang {
+  color: var(--lg-token-function);
+}
+.luogu-code-copy-btn {
+  background: var(--bg-conversation-hover);
+  border-color: var(--lg-border-color);
+  color: var(--lg-code-fg);
+}
+.luogu-code-copy-btn:hover {
+  background: var(--bg-conversation-hover);
+  color: var(--text-primary);
+}
+
+.typora-block-input {
+  background: var(--lg-surface);
+  color: var(--text-primary);
+  border-color: var(--border-light);
+}
+
+/* ---- 暗色主题覆盖（主题清单由 --bg-app 亮度自动判定）---- */
+.theme-abyss /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
+   instead of the hardcoded light blue. */
+[data-theme="dark"] .luogu-tuack-table,
+.theme-aurora /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
+   instead of the hardcoded light blue. */
+[data-theme="dark"] .luogu-tuack-table,
+.theme-carbon /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
+   instead of the hardcoded light blue. */
+[data-theme="dark"] .luogu-tuack-table,
+.theme-crimson /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
+   instead of the hardcoded light blue. */
+[data-theme="dark"] .luogu-tuack-table,
+.theme-cyberpunk /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
+   instead of the hardcoded light blue. */
+[data-theme="dark"] .luogu-tuack-table,
+.theme-dracula /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
+   instead of the hardcoded light blue. */
+[data-theme="dark"] .luogu-tuack-table,
+.theme-emerald /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
+   instead of the hardcoded light blue. */
+[data-theme="dark"] .luogu-tuack-table,
+.theme-monokai /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
+   instead of the hardcoded light blue. */
+[data-theme="dark"] .luogu-tuack-table,
+.theme-nord /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
+   instead of the hardcoded light blue. */
+[data-theme="dark"] .luogu-tuack-table,
+.theme-obsidian /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
+   instead of the hardcoded light blue. */
+[data-theme="dark"] .luogu-tuack-table,
+.theme-plasma /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
+   instead of the hardcoded light blue. */
+[data-theme="dark"] .luogu-tuack-table,
+.theme-solarized /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
+   instead of the hardcoded light blue. */
+[data-theme="dark"] .luogu-tuack-table {
+  border-color: #1f6feb;
+}
+
+.theme-abyss .luogu-tuack-table th,
+.theme-aurora .luogu-tuack-table th,
+.theme-carbon .luogu-tuack-table th,
+.theme-crimson .luogu-tuack-table th,
+.theme-cyberpunk .luogu-tuack-table th,
+.theme-dracula .luogu-tuack-table th,
+.theme-emerald .luogu-tuack-table th,
+.theme-monokai .luogu-tuack-table th,
+.theme-nord .luogu-tuack-table th,
+.theme-obsidian .luogu-tuack-table th,
+.theme-plasma .luogu-tuack-table th,
+.theme-solarized .luogu-tuack-table th {
+  background: #1f6feb;
+  border-color: #1759c4;
+}
+
+.theme-abyss .luogu-tuack-table td,
+.theme-aurora .luogu-tuack-table td,
+.theme-carbon .luogu-tuack-table td,
+.theme-crimson .luogu-tuack-table td,
+.theme-cyberpunk .luogu-tuack-table td,
+.theme-dracula .luogu-tuack-table td,
+.theme-emerald .luogu-tuack-table td,
+.theme-monokai .luogu-tuack-table td,
+.theme-nord .luogu-tuack-table td,
+.theme-obsidian .luogu-tuack-table td,
+.theme-plasma .luogu-tuack-table td,
+.theme-solarized .luogu-tuack-table td {
+  border-color: #2d3a4a;
+}
+
+.theme-abyss .luogu-tuack-table tr:nth-child(even) td,
+.theme-aurora .luogu-tuack-table tr:nth-child(even) td,
+.theme-carbon .luogu-tuack-table tr:nth-child(even) td,
+.theme-crimson .luogu-tuack-table tr:nth-child(even) td,
+.theme-cyberpunk .luogu-tuack-table tr:nth-child(even) td,
+.theme-dracula .luogu-tuack-table tr:nth-child(even) td,
+.theme-emerald .luogu-tuack-table tr:nth-child(even) td,
+.theme-monokai .luogu-tuack-table tr:nth-child(even) td,
+.theme-nord .luogu-tuack-table tr:nth-child(even) td,
+.theme-obsidian .luogu-tuack-table tr:nth-child(even) td,
+.theme-plasma .luogu-tuack-table tr:nth-child(even) td,
+.theme-solarized .luogu-tuack-table tr:nth-child(even) td {
+  background: #1c2530;
+}
+
+.theme-abyss .luogu-tuack-table tr:hover td,
+.theme-aurora .luogu-tuack-table tr:hover td,
+.theme-carbon .luogu-tuack-table tr:hover td,
+.theme-crimson .luogu-tuack-table tr:hover td,
+.theme-cyberpunk .luogu-tuack-table tr:hover td,
+.theme-dracula .luogu-tuack-table tr:hover td,
+.theme-emerald .luogu-tuack-table tr:hover td,
+.theme-monokai .luogu-tuack-table tr:hover td,
+.theme-nord .luogu-tuack-table tr:hover td,
+.theme-obsidian .luogu-tuack-table tr:hover td,
+.theme-plasma .luogu-tuack-table tr:hover td,
+.theme-solarized .luogu-tuack-table tr:hover td {
+  background: #24303e;
+}
+
+.theme-abyss .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
+.theme-abyss .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
+.theme-abyss .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
+.theme-abyss .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
+.theme-abyss .luogu-cute-centered-table th { color: #79b8f3; }
+.theme-abyss .luogu-unclosed-warning { color: #f0b27a; }
+.theme-abyss .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
+.theme-abyss .luogu-footnotes-title { color: var(--text-secondary); }
+.theme-aurora .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
+.theme-aurora .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
+.theme-aurora .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
+.theme-aurora .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
+.theme-aurora .luogu-cute-centered-table th { color: #79b8f3; }
+.theme-aurora .luogu-unclosed-warning { color: #f0b27a; }
+.theme-aurora .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
+.theme-aurora .luogu-footnotes-title { color: var(--text-secondary); }
+.theme-carbon .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
+.theme-carbon .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
+.theme-carbon .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
+.theme-carbon .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
+.theme-carbon .luogu-cute-centered-table th { color: #79b8f3; }
+.theme-carbon .luogu-unclosed-warning { color: #f0b27a; }
+.theme-carbon .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
+.theme-carbon .luogu-footnotes-title { color: var(--text-secondary); }
+.theme-crimson .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
+.theme-crimson .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
+.theme-crimson .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
+.theme-crimson .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
+.theme-crimson .luogu-cute-centered-table th { color: #79b8f3; }
+.theme-crimson .luogu-unclosed-warning { color: #f0b27a; }
+.theme-crimson .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
+.theme-crimson .luogu-footnotes-title { color: var(--text-secondary); }
+.theme-cyberpunk .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
+.theme-cyberpunk .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
+.theme-cyberpunk .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
+.theme-cyberpunk .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
+.theme-cyberpunk .luogu-cute-centered-table th { color: #79b8f3; }
+.theme-cyberpunk .luogu-unclosed-warning { color: #f0b27a; }
+.theme-cyberpunk .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
+.theme-cyberpunk .luogu-footnotes-title { color: var(--text-secondary); }
+.theme-dracula .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
+.theme-dracula .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
+.theme-dracula .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
+.theme-dracula .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
+.theme-dracula .luogu-cute-centered-table th { color: #79b8f3; }
+.theme-dracula .luogu-unclosed-warning { color: #f0b27a; }
+.theme-dracula .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
+.theme-dracula .luogu-footnotes-title { color: var(--text-secondary); }
+.theme-emerald .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
+.theme-emerald .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
+.theme-emerald .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
+.theme-emerald .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
+.theme-emerald .luogu-cute-centered-table th { color: #79b8f3; }
+.theme-emerald .luogu-unclosed-warning { color: #f0b27a; }
+.theme-emerald .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
+.theme-emerald .luogu-footnotes-title { color: var(--text-secondary); }
+.theme-monokai .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
+.theme-monokai .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
+.theme-monokai .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
+.theme-monokai .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
+.theme-monokai .luogu-cute-centered-table th { color: #79b8f3; }
+.theme-monokai .luogu-unclosed-warning { color: #f0b27a; }
+.theme-monokai .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
+.theme-monokai .luogu-footnotes-title { color: var(--text-secondary); }
+.theme-nord .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
+.theme-nord .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
+.theme-nord .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
+.theme-nord .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
+.theme-nord .luogu-cute-centered-table th { color: #79b8f3; }
+.theme-nord .luogu-unclosed-warning { color: #f0b27a; }
+.theme-nord .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
+.theme-nord .luogu-footnotes-title { color: var(--text-secondary); }
+.theme-obsidian .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
+.theme-obsidian .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
+.theme-obsidian .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
+.theme-obsidian .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
+.theme-obsidian .luogu-cute-centered-table th { color: #79b8f3; }
+.theme-obsidian .luogu-unclosed-warning { color: #f0b27a; }
+.theme-obsidian .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
+.theme-obsidian .luogu-footnotes-title { color: var(--text-secondary); }
+.theme-plasma .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
+.theme-plasma .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
+.theme-plasma .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
+.theme-plasma .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
+.theme-plasma .luogu-cute-centered-table th { color: #79b8f3; }
+.theme-plasma .luogu-unclosed-warning { color: #f0b27a; }
+.theme-plasma .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
+.theme-plasma .luogu-footnotes-title { color: var(--text-secondary); }
+.theme-solarized .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
+.theme-solarized .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
+.theme-solarized .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
+.theme-solarized .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
+.theme-solarized .luogu-cute-centered-table th { color: #79b8f3; }
+.theme-solarized .luogu-unclosed-warning { color: #f0b27a; }
+.theme-solarized .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
+.theme-solarized .luogu-footnotes-title { color: var(--text-secondary); }
+
+/* ---- 代码高亮 token 配色：随主题在 One Light / One Dark 之间切换 ----
+   底色已跟随 --bg-code-block（浅色主题是浅底），token 必须一起换，否则浅底浅字看不见。
+   暗色主题清单由 --bg-app 亮度自动判定。 ---- */
+:root {
+  --lg-token-comment: #a0a1a7;
+  --lg-token-punctuation: #383a42;
+  --lg-token-keyword: #a626a4;
+  --lg-token-string: #50a14f;
+  --lg-token-number: #986801;
+  --lg-token-function: #4078f2;
+  --lg-token-property: #e45649;
+  --lg-token-operator: #0184bc;
+  --lg-token-deleted: #e45649;
+  --lg-token-inserted: #50a14f;
+}
+
+.theme-abyss,
+.theme-aurora,
+.theme-carbon,
+.theme-crimson,
+.theme-cyberpunk,
+.theme-dracula,
+.theme-emerald,
+.theme-monokai,
+.theme-nord,
+.theme-obsidian,
+.theme-plasma,
+.theme-solarized {
+  --lg-token-comment: #7f848e;
+  --lg-token-punctuation: #abb2bf;
+  --lg-token-keyword: #c678dd;
+  --lg-token-string: #98c379;
+  --lg-token-number: #d19a66;
+  --lg-token-function: #61afef;
+  --lg-token-property: #e06c75;
+  --lg-token-operator: #56b6c2;
+  --lg-token-deleted: #e06c75;
+  --lg-token-inserted: #98c379;
+}
+
+.luogu-md .token.comment,
+.luogu-md .token.prolog,
+.luogu-md .token.cdata,
+.luogu-md .token.doctype {
+  color: var(--lg-token-comment);
+}
+.luogu-md .token.punctuation {
+  color: var(--lg-token-punctuation);
+}
+.luogu-md .token.keyword,
+.luogu-md .token.selector,
+.luogu-md .token.important,
+.luogu-md .token.atrule,
+.luogu-md .token.rule {
+  color: var(--lg-token-keyword);
+}
+.luogu-md .token.string,
+.luogu-md .token.char,
+.luogu-md .token.attr-value,
+.luogu-md .token.regex {
+  color: var(--lg-token-string);
+}
+.luogu-md .token.number,
+.luogu-md .token.boolean,
+.luogu-md .token.constant,
+.luogu-md .token.symbol {
+  color: var(--lg-token-number);
+}
+.luogu-md .token.function,
+.luogu-md .token.class-name,
+.luogu-md .token.title {
+  color: var(--lg-token-function);
+}
+.luogu-md .token.property,
+.luogu-md .token.tag,
+.luogu-md .token.attr-name,
+.luogu-md .token.variable {
+  color: var(--lg-token-property);
+}
+.luogu-md .token.operator,
+.luogu-md .token.entity,
+.luogu-md .token.url {
+  color: var(--lg-token-operator);
+}
+.luogu-md .token.deleted {
+  color: var(--lg-token-deleted);
+}
+.luogu-md .token.inserted {
+  color: var(--lg-token-inserted);
+}
+
+.luogu-md .token.bold { font-weight: 700; }
+.luogu-md .token.italic { font-style: italic; }
