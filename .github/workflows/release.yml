@@ -91,11 +91,32 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
+      # 注：不再使用 android-actions/setup-android@v3
+      #   该 action 内部执行 `sdkmanager tools`，而新版 Android SDK 仓库已下线 `tools` 包
+      #   → 恒报 "Failed to find package 'tools'" 并以 exit 1 中断（2026-09-18 起）。
+      #   ubuntu runner 已预装 cmdline-tools / platform-tools，直接使用即可。
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        run: |
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          if [ ! -d "$SDK" ]; then echo "::error::未找到 Android SDK: $SDK"; exit 1; fi
+          SDKMGR=$(ls "$SDK"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | tail -1)
+          if [ -z "$SDKMGR" ]; then echo "::error::未找到 sdkmanager"; exit 1; fi
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "SDKMGR=$SDKMGR" >> "$GITHUB_ENV"
+          echo "$(dirname "$SDKMGR")" >> "$GITHUB_PATH"
+          echo "$SDK/platform-tools" >> "$GITHUB_PATH"
+          echo "SDK=$SDK"
+          echo "sdkmanager=$SDKMGR"
+          "$SDKMGR" --version
 
       - name: Install SDK components
-        run: yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" >/dev/null
+        run: |
+          # 接受许可后安装工程所需组件（compileSdk 35）；已安装时秒过
+          yes | "$SDKMGR" --licenses >/dev/null 2>&1 || true
+          yes | "$SDKMGR" "platforms;android-35" "build-tools;35.0.0" >/dev/null
+          echo "--- platforms ---"; ls "$ANDROID_HOME/platforms" || true
+          echo "--- build-tools ---"; ls "$ANDROID_HOME/build-tools" || true
 
       - name: Install dependencies
         run: npm install
