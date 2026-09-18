@@ -21,6 +21,16 @@
       <i class="fas fa-wrench"></i>
       <span>工具</span>
     </div>
+    <!-- 网页端专属：客户端下载入口（强调色高亮，侧栏/底栏始终可见） -->
+    <div
+      v-if="isWeb"
+      class="nav-icon nav-download"
+      title="下载客户端（Windows / Linux / macOS / Android）"
+      @click="openDownload"
+    >
+      <i class="fas fa-download"></i>
+      <span>下载</span>
+    </div>
     <!-- 底部用户头像（左下角固定）：个人信息 + 登录/退登 + 设置/关于入口 -->
     <div class="nav-user-wrap">
       <div class="nav-user" :title="userTitle" @click.stop="userMenu = !userMenu">
@@ -52,6 +62,7 @@
           <div class="nav-user-menu-item" v-if="loggedIn" @click="go('favorites')"><i class="fas fa-star"></i><span>收藏</span></div>
           <div class="nav-user-menu-item" @click="go('settings')"><i class="fas fa-cog"></i><span>设置</span></div>
           <div class="nav-user-menu-item" @click="go('update')"><i class="fas fa-cloud-upload-alt"></i><span>版本更新</span></div>
+          <div class="nav-user-menu-item" v-if="isWeb" @click="openDownload"><i class="fas fa-download"></i><span>下载客户端</span></div>
           <div class="nav-user-menu-item" @click="go('donate')"><i class="fas fa-heart"></i><span>赞助</span></div>
           <div class="nav-user-menu-item" @click="go('about')"><i class="fas fa-info-circle"></i><span>关于</span></div>
           <div class="nav-user-menu-item" @click="openAnnouncement"><i class="fas fa-bullhorn"></i><span>版本公告</span></div>
@@ -238,5 +249,13 @@ function go(page) {
 // 左上角标识：点击打开官网
 function openSite() {
   window.api.openExternal('https://chat.forfof.cloud')
+}
+
+// 网页端（浏览器访问）：客户端下载入口
+// 网页端功能受浏览器限制（无本地存储、无 GeoGebra 离线包等），引导用户下载完整客户端
+const isWeb = !!(window.__7FA4_WEB__)
+function openDownload() {
+  userMenu.value = false
+  try { window.api.openExternal('https://chat.forfof.cloud/#download') } catch {}
 }
 </script>

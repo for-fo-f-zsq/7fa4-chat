@@ -117,6 +117,28 @@
 .navbar .nav-icon:hover { transform: scale(1.1) translateY(-1px); box-shadow: 0 4px 12px var(--gradient-subtle), 0 2px 4px rgba(0, 0, 0, 0.04); }
 .navbar .nav-icon:hover i { transform: scale(1.1); }
 
+/* ========== 网页端专属：客户端下载入口 ==========
+   网页端功能受限（无本地消息存储、无 GeoGebra 离线包等），用强调色 + 呼吸光晕让它始终显眼 */
+.nav-icon.nav-download {
+    color: var(--accent);
+    background: var(--bg-sidebar-active);
+    box-shadow: 0 2px 10px var(--gradient-accent), inset 0 1px 0 var(--border-3d-light);
+    animation: downloadBreathe 2.6s ease-in-out infinite;
+}
+.nav-icon.nav-download i { font-size: 19px; }
+@keyframes downloadBreathe {
+    0%, 100% { box-shadow: 0 2px 8px var(--gradient-subtle), inset 0 1px 0 var(--border-3d-light); }
+    50% { box-shadow: 0 4px 16px var(--gradient-accent), inset 0 1px 0 var(--border-3d-light); }
+}
+.nav-icon.nav-download:hover {
+    color: var(--accent);
+    transform: scale(1.1) translateY(-1px);
+}
+.app-body.narrow .nav-icon.nav-download {
+    color: var(--accent);
+    border-radius: var(--radius);
+}
+
 .nav-logo {
     margin-bottom: 12px;
     cursor: pointer;
