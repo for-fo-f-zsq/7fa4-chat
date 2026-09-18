@@ -1,6 +1,6 @@
 {
   "name": "7fa4-chat",
-  "version": "3.4.8",
+  "version": "3.4.9",
   "description": "7FA4 Chat",
   "main": "./out/main/index.js",
   "desktopName": "7fa4-chat.desktop",
@@ -43,7 +43,6 @@
     "http-proxy-middleware": "^3.0.5",
     "katex": "^0.18.7",
     "md5": "^2.3.0",
-    "monaco-editor": "^0.56.0",
     "prismjs": "^1.30.0",
     "vue": "^3.5.13"
   },

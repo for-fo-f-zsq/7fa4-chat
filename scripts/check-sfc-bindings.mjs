@@ -37,6 +37,12 @@ for (const f of files) {
   }
   const refs = [...new Set([...tpl.code.matchAll(/_ctx\.([A-Za-z_$][\w$]*)/g)].map((m) => m[1]))]
   const suspicious = refs.filter((n) => !ALLOWED.has(n) && !n.startsWith('_'))
+  // 组件盲区补漏：模板里用了、但 <script setup> 里没导入/声明的组件会被编译成
+  // _resolveComponent("X")（而不是 _ctx.X），只看 _ctx.* 会漏掉这类错误。
+  const bindings = script.bindings || {}
+  const unknownComp = [...new Set([...tpl.code.matchAll(/_resolveComponent\("([^"]+)"\)/g)].map((m) => m[1]))]
+    .filter((n) => !(n in bindings))
+  suspicious.push(...unknownComp.map((n) => n + '(组件未导入)'))
   if (suspicious.length) {
     console.log(' FAIL  ' + path.relative(process.cwd(), f) + '  → 模板引用了 setup 里没有的: ' + suspicious.join(', '))
     bad++

@@ -1,0 +1,159 @@
+/* 应用主题强调色板（每套主题一组，取自该主题色系并适度提纯）。
+   用途：需要「跟随主题、且比 --accent 更鲜艳、还要多个互不相同的颜色」的场景
+   —— 计时器四格（timer-tool.css）、公告栏条目（announcement.css）。
+   用法：`var(--palette-1..4)`，缺省回落 :root（= default 主题）。
+   :root 必须写在前面：:root 与 .theme-x 特指度相同，靠顺序决定覆盖。 */
+
+:root {
+        --palette-1: #2E7BE8;
+        --palette-2: #0EA86A;
+        --palette-3: #EF8A00;
+        --palette-4: #E0367B;
+}
+
+.theme-wechat {
+        --palette-1: #07C160;
+        --palette-2: #2E7DD9;
+        --palette-3: #F0A020;
+        --palette-4: #E0407E;
+}
+
+.theme-aurora {
+        --palette-1: #50DCB4;
+        --palette-2: #6FA8FF;
+        --palette-3: #C08BFF;
+        --palette-4: #FF7FC0;
+}
+
+.theme-abyss {
+        --palette-1: #00D4FF;
+        --palette-2: #00FFA0;
+        --palette-3: #8A7BFF;
+        --palette-4: #FF8A3D;
+}
+
+.theme-rose {
+        --palette-1: #DB3858;
+        --palette-2: #E86F3D;
+        --palette-3: #8A4DD6;
+        --palette-4: #1F9E8F;
+}
+
+.theme-lavender {
+        --palette-1: #8A2BE2;
+        --palette-2: #2F6FE0;
+        --palette-3: #D62A8F;
+        --palette-4: #0F9E8A;
+}
+
+.theme-mint {
+        --palette-1: #00B37E;
+        --palette-2: #1E7FD9;
+        --palette-3: #E8890B;
+        --palette-4: #D62A8F;
+}
+
+.theme-peach {
+        --palette-1: #E0602E;
+        --palette-2: #E8A020;
+        --palette-3: #D6336C;
+        --palette-4: #2E9E7E;
+}
+
+.theme-amber {
+        --palette-1: #E8890B;
+        --palette-2: #D6402E;
+        --palette-3: #2E9E7E;
+        --palette-4: #7B5CD6;
+}
+
+.theme-coral {
+        --palette-1: #E85A33;
+        --palette-2: #D6336C;
+        --palette-3: #1F9E8F;
+        --palette-4: #7B5CD6;
+}
+
+.theme-sage {
+        --palette-1: #6E9440;
+        --palette-2: #2E8C7A;
+        --palette-3: #B5803A;
+        --palette-4: #7A5CA8;
+}
+
+.theme-slate {
+        --palette-1: #3E6FA8;
+        --palette-2: #1E8C7A;
+        --palette-3: #8A4D9E;
+        --palette-4: #B5732E;
+}
+
+.theme-obsidian {
+        --palette-1: #9B6CFF;
+        --palette-2: #58A6FF;
+        --palette-3: #FF6FB5;
+        --palette-4: #35D6C4;
+}
+
+.theme-crimson {
+        --palette-1: #FF4D5E;
+        --palette-2: #FF8A3D;
+        --palette-3: #FF3D9A;
+        --palette-4: #B388FF;
+}
+
+.theme-emerald {
+        --palette-1: #12D693;
+        --palette-2: #35D6F0;
+        --palette-3: #A8E63A;
+        --palette-4: #FF9F45;
+}
+
+.theme-carbon {
+        --palette-1: #C6CBD1;
+        --palette-2: #6FC7D8;
+        --palette-3: #D9A94F;
+        --palette-4: #B08BD8;
+}
+
+.theme-plasma {
+        --palette-1: #FF3DE0;
+        --palette-2: #29D8FF;
+        --palette-3: #A97BFF;
+        --palette-4: #FFB020;
+}
+
+.theme-nord {
+        --palette-1: #8FCDE0;
+        --palette-2: #A9C892;
+        --palette-3: #F0D091;
+        --palette-4: #C09BD8;
+}
+
+.theme-dracula {
+        --palette-1: #BD93F9;
+        --palette-2: #50FA7B;
+        --palette-3: #FF79C6;
+        --palette-4: #8BE9FD;
+}
+
+.theme-monokai {
+        --palette-1: #A6E22E;
+        --palette-2: #66D9EF;
+        --palette-3: #FD971F;
+        --palette-4: #F92672;
+}
+
+.theme-cyberpunk {
+        --palette-1: #FCEE09;
+        --palette-2: #00F0FF;
+        --palette-3: #FF2E97;
+        --palette-4: #B14CFF;
+}
+
+.theme-solarized {
+        --palette-1: #3BA3E8;
+        --palette-2: #9CBF20;
+        --palette-3: #E8A33D;
+        --palette-4: #E0529C;
+}

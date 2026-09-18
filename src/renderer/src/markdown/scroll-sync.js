@@ -395,12 +395,21 @@ export function createScrollSync(opts) {
     }
 
     const cs = window.getComputedStyle(ta)
-    // 复制所有可能影响断行的属性
-    ;[
+    // 复制所有可能影响断行的属性。逐行 div 也要带同一份（见下方 lineStyle）：
+    // base.css 有一条全局 `* { font-family: -apple-system, ... }`，它直接命中每个元素，
+    // 动态创建的行 div 因此不会继承容器声明的 font-family（容器只是自己用内联赢下了）。
+    // 后果是镜像改用比例字体度量断行，长行的折行位置与 textarea（等宽字体）不一致 ——
+    // 该行之后的行号整体上移一行，表现为"最后一个行号少一"。样式显式落到行 div 上后，
+    // 将来再被别的全局规则穿透也不会影响测量。
+    const STYLE_KEYS = [
       'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing',
       'lineHeight', 'textTransform', 'wordSpacing', 'whiteSpace',
       'overflowWrap', 'wordBreak', 'tabSize', 'textIndent',
-    ].forEach((k) => { mirrorEl.style[k] = cs[k] })
+    ]
+    STYLE_KEYS.forEach((k) => { mirrorEl.style[k] = cs[k] })
+    const lineStyle = STYLE_KEYS
+      .map((k) => `${k.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`)}:${cs[k]}`)
+      .join(';')
     mirrorEl.style.width = `${width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)}px`
     mirrorEl.style.padding = '0'
     mirrorEl.style.border = '0'
@@ -410,6 +419,7 @@ export function createScrollSync(opts) {
     const frag = document.createDocumentFragment()
     const spans = lines.map((ln) => {
       const el = document.createElement('div')
+      el.style.cssText = lineStyle
       // 行尾零宽空格让空行也可测量
       el.textContent = ln.length ? ln : '\u200b'
       frag.appendChild(el)

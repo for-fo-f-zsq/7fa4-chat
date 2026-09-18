@@ -99,7 +99,7 @@
         <span class="tech-tag">SQLite</span>
         <span class="tech-tag">Markdown</span>
         <span class="tech-tag">KaTeX</span>
-        <span class="tech-tag">Monaco</span>
+        <span class="tech-tag">Prism</span>
         <span class="tech-tag">GeoGebra</span>
         <span class="tech-tag">Font Awesome</span>
       </div>

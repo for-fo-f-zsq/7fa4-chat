@@ -86,7 +86,7 @@ const outfile = path.join(os.tmpdir(), `md-tool-${process.pid}-${Date.now()}.mjs
 await esbuild.build({
   stdin: {
     contents: `
-      export { default as MarkdownTool } from './src/renderer/src/tools/MarkdownTool.vue'
+      export { default as MarkdownTool } from './src/renderer/src/views/tools/MarkdownTool.vue'
       export { createApp, nextTick } from 'vue'
     `,
     resolveDir: ROOT,

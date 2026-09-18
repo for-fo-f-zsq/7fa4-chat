@@ -1,3 +1,10 @@
+<h2>3.4.9</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>新增「计时器」工具，支持四宫格倒计时与结束提示音</li>
+  <li><span class="change-tag improve">优化</span>重构工具架构，各工具独立成页</li>
+  <li><span class="change-tag fix">修复</span>修复 Markdown 编辑器长行折行后行号错位的问题</li>
+  <li><span class="change-tag fix">修复</span>修复从工具返回时重复弹出未保存提示的问题</li>
+</ul>
 <h2>3.4.8</h2>
 <ul>
   <li><span class="change-tag new">新功能</span>新手引导全新设计，不再遮挡操作，完成由真实操作判定，可随时跳过</li>

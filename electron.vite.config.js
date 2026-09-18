@@ -60,9 +60,7 @@ export default defineConfig({
     },
     resolve: {
       alias: {
-        '@': resolve('src/renderer/src'),
-        // monaco-editor 的 exports 只暴露 .js 子路径，CSS 需 alias 直指实际文件
-        'monaco-editor/min/vs/editor/editor.main.css': resolve('node_modules/monaco-editor/min/vs/editor/editor.main.css')
+        '@': resolve('src/renderer/src')
       }
     },
     server: {

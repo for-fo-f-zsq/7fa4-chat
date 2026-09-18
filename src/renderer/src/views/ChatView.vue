@@ -116,8 +116,8 @@
       @download="onFavDownload"
       @back="backToChatList"
     />
-    <!-- 工具列表为入口页；各工具在外层独立渲染：返回时按打开来源回到工具列表或对应会话 -->
-    <ToolsPage
+    <!-- 工具入口页（仅列表）；各工具在外层独立渲染：返回时按打开来源回到工具列表或对应会话 -->
+    <ToolsView
       v-if="pageType==='tools' && currentTool==='list'"
       class="fade-content"
       :class="{ 'fade-out': contentFading }"
@@ -148,6 +148,12 @@
     />
     <CalculatorTool
       v-else-if="pageType==='tools' && currentTool==='calculator'"
+      class="ide-host fade-content"
+      :class="{ 'fade-out': contentFading }"
+      @back="onToolBack"
+    />
+    <TimerTool
+      v-else-if="pageType==='tools' && currentTool==='timer'"
       class="ide-host fade-content"
       :class="{ 'fade-out': contentFading }"
       @back="onToolBack"
@@ -323,12 +329,13 @@ import AddFriendModal from '../components/AddFriendModal.vue';
 import GroupActionMenu from '../components/GroupActionMenu.vue';
 import SearchPanel from '../components/SearchPanel.vue';
 import FavoritesPanel from '../components/FavoritesPanel.vue';
-import ToolsPage from '../tools/ToolsPage.vue';
-import MarkdownTool from '../tools/MarkdownTool.vue';
-import ImageTool from '../tools/ImageTool.vue';
-import GraphTool from '../tools/graph/GraphTool.vue';
-import CalculatorTool from '../tools/calculator/CalculatorTool.vue';
-import MathTool from '../tools/math/MathTool.vue';
+import ToolsView from './ToolsView.vue';
+import MarkdownTool from './tools/MarkdownTool.vue';
+import ImageTool from './tools/ImageTool.vue';
+import GraphTool from './tools/graph/GraphTool.vue';
+import CalculatorTool from './tools/calculator/CalculatorTool.vue';
+import TimerTool from './tools/timer/TimerTool.vue';
+import MathTool from './tools/math/MathTool.vue';
 import SaveConfirmModal from '../components/SaveConfirmModal.vue';
 import { useWindowControls } from '../composables/useWindowControls.js';
 import { useMuteConfirm } from '../composables/useMuteConfirm.js';
