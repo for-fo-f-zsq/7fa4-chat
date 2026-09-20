@@ -53,11 +53,13 @@
           </div>
         </div>
         <div class="options-col">
-          <div class="option-row">
+          <!-- 以下两项只由 Electron 主进程消费（见 src/main/index.js），
+               网页端与安卓端没有任何实现，显示出来会让人误以为"自动更新"已开启 -->
+          <div class="option-row" v-if="isElectron">
             <span class="option-label">保持后台运行</span>
             <label class="toggle-label"><input type="checkbox" :checked="setting.minimizeToTray !== false" @change="onSettingChange('minimizeToTray', $event.target.checked)" /><span class="toggle-slider"></span></label>
           </div>
-          <div class="option-row">
+          <div class="option-row" v-if="isElectron">
             <span class="option-label">自动更新</span>
             <label class="toggle-label"><input type="checkbox" :checked="setting.autoUpdate !== false" @change="onSettingChange('autoUpdate', $event.target.checked)" /><span class="toggle-slider"></span></label>
           </div>
@@ -72,6 +74,10 @@
           <div class="option-row">
             <span class="option-label">免打扰</span>
             <label class="toggle-label"><input type="checkbox" :checked="setting.dndEnabled" @change="onSettingChange('dndEnabled', $event.target.checked)" /><span class="toggle-slider"></span></label>
+          </div>
+          <div class="option-row">
+            <span class="option-label">隐藏非双向好友<i class="fas fa-circle-info option-info" title="开启后，会话列表只保留互相关注的好友（单向关注的关系将隐藏，数据不会被删除）"></i></span>
+            <label class="toggle-label"><input type="checkbox" :checked="setting.hideNonMutual === true" @change="onSettingChange('hideNonMutual', $event.target.checked)" /><span class="toggle-slider"></span></label>
           </div>
         </div>
       </div>
@@ -112,6 +118,10 @@ onMounted(() => { loadCacheSize() })
 const apiUrlOpen = ref(false)
 const effectOpen = ref(false)
 const cacheSize = ref(null)
+
+// 是否 Electron 桌面端：直接读 __7FA4_WEB__（= 「非 Electron」）。
+// 不要用 isWebBrowser()——它对 Electron 和 Android 都返回 false，会把安卓也算成桌面端。
+const isElectron = !window.__7FA4_WEB__
 
 const themes = THEMES
 
@@ -192,16 +202,16 @@ async function exportData() {
     // 从 SQLite 全量导出（含所有历史消息，内存可能只加载了活跃会话）
     const r = await window.api.storeExportAll(uid)
     if (!r.success) { alert('备份失败：' + (r.error || '存储不可用')); return }
+    // 全量备份：系统数据（prefs 聚合）+ 设置（setting）
+    const prefs = { ...((r.prefs && typeof r.prefs === 'object') ? r.prefs : {}) }
     const data = JSON.stringify({
+      kind: 'full',
+      version: 1,
       users: r.users,
       groups: r.groups,
       messages: r.messages,
-      drafts: (r.prefs && r.prefs.drafts) || {},
-      favorites: (r.prefs && r.prefs.favorites) || [],
-      stickers: (r.prefs && r.prefs.stickers) || [],
-      mutedConvos: (r.prefs && r.prefs.mutedConvos) || {},
-      hiddenConvos: (r.prefs && r.prefs.hiddenConvos) || {},
-      deletedMsgIds: (r.prefs && r.prefs.deletedMsgIds) || []
+      prefs,
+      setting: { ...(props.setting || {}) }
     })
     const saveR = await window.api.exportData(data)
     if (saveR.success) alert('备份成功：' + saveR.path)
@@ -215,15 +225,19 @@ async function importData() {
     const r = await window.api.importData()
     if (!r.success || !r.data) return
     const loaded = JSON.parse(r.data)
+    // v1 格式：prefs 聚合 + setting
     if (loaded.users) store.users = loaded.users
     if (loaded.groups) store.groups = loaded.groups
     if (loaded.messages) store.messages = loaded.messages
-    if (loaded.stickers) store.stickers = loaded.stickers
-    if (loaded.drafts) store.drafts = loaded.drafts
-    if (loaded.favorites) store.favorites = loaded.favorites
-    if (loaded.mutedConvos) store.mutedConvos = loaded.mutedConvos
-    if (loaded.hiddenConvos) store.hiddenConvos = loaded.hiddenConvos
-    if (loaded.deletedMsgIds) store.deletedMsgIds = loaded.deletedMsgIds
+    if (loaded.prefs && typeof loaded.prefs === 'object') {
+      const CORE = ['users', 'groups', 'messages', 'self', 'setting']
+      for (const [k, v] of Object.entries(loaded.prefs)) {
+        if (!CORE.includes(k) && k in store) store[k] = v
+      }
+    }
+    if (loaded.setting && typeof loaded.setting === 'object') {
+      emit('settingChange', loaded.setting) // 整体恢复设置（主题 / 年级颜色 / API 地址等）
+    }
     // 同步写入 SQLite（消息按会话归属，事务批量）
     const imp = await window.api.storeImportAll(uid, loaded)
     if (!imp.success) { alert('恢复警告：写入本地存储失败（' + (imp.error || '') + '）'); return }

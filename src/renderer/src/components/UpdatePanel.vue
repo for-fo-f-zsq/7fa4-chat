@@ -34,11 +34,14 @@
         </div>
         <div class="update-actions">
           <button v-if="updateStatus === 'available'" class="update-btn" @click="downloadUpdate">
-            <i class="fas fa-download"></i> {{ isMobileWeb ? '前往官网下载' : '下载更新' }}
+            <i class="fas fa-download"></i> {{ isMobileWeb ? (apkUrl ? '下载新版 APK' + apkSizeText : '前往官网下载') : '下载更新' }}
           </button>
           <button v-if="updateStatus === 'downloaded'" class="update-btn update-btn-install" @click="installUpdate">
             <i class="fas fa-sync-alt"></i> 安装并重启
           </button>
+        </div>
+        <div v-if="isAndroid && updateStatus === 'available' && apkUrl" class="update-apk-hint">
+          将调用系统浏览器下载安装包，下载完成后点击安装即可升级
         </div>
       </div>
 
@@ -63,6 +66,8 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
 import BackButton from './BackButton.vue'
+import { compareVersion, checkAppUpdate } from '../utils.js'
+import { store } from '../store.js'
 
 const props = defineProps({ version: { type: String, default: '' } })
 const emit = defineEmits(['back'])
@@ -86,7 +91,7 @@ const updateError = ref('')
 
 const updateStatusText = computed(() => {
   // 仅当检测到的 latest ≥ 当前版本时才在后缀显示版本号（发版过渡期 latest 可能暂时低于当前）
-  const showLatest = latestVersion.value && compareVersions(latestVersion.value, version.value) >= 0;
+  const showLatest = latestVersion.value && compareVersion(latestVersion.value, version.value) >= 0;
   switch (updateStatus.value) {
     case 'idle': return '未检查'
     case 'checking': return '正在检查...'
@@ -118,23 +123,29 @@ function handleUpdateStatus(data) {
   if (data.error) updateError.value = data.error
 }
 
-// 版本号比较：返回 1（a>b）/ 0 / -1
-function compareVersions(a, b) {
-  const pa = String(a || '').split('.').map(Number)
-  const pb = String(b || '').split('.').map(Number)
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const x = pa[i] || 0, y = pb[i] || 0
-    if (x !== y) return x > y ? 1 : -1
-  }
-  return 0
-}
+// 版本号比较：compareVersion 统一在 utils.js（原来这里/App.vue 各有一份副本）
 
-// 网页端/安卓端（window.__7FA4_WEB__）：无 electron-updater，latest 来自本地后端 /web/api/version
+// 非桌面端（网页端 + Android）：没有 electron-updater，latest 来自后端 /web/api/version，
+// 「更新」动作改为跳官网下载页 —— 安卓端也需要这个分支，所以这里就该读 __7FA4_WEB__（非 Electron），
+// **不要**改成 isWebBrowser()。
 const isMobileWeb = !!(window.__7FA4_WEB__)
+// 安卓 APK：没有自动更新通道，能拿到 APK 直链时直接下安装包，比让用户自己去下载页找快得多
+const isAndroid = window.__7FA4_PLATFORM__ === 'android' || window.__7FA4_NATIVE__ === true
+const apkUrl = computed(() => (isAndroid ? (store.update.apkUrl || '') : ''))
+const apkSizeText = computed(() => {
+  const b = store.update.apkSize || 0
+  return b ? `（${(b / 1024 / 1024).toFixed(1)}MB）` : ''
+})
 
 // 非桌面端：跳转官网下载页（含 Android/桌面各平台安装包）
 function gotoDownloadPage() {
   window.api.openExternal?.('https://chat.forfof.cloud')
+}
+
+// 非桌面端：优先直接下 APK，拿不到直链才退回下载页
+function openApkOrPage() {
+  if (apkUrl.value) window.api.openExternal?.(apkUrl.value)
+  else gotoDownloadPage()
 }
 
 async function checkForUpdate() {
@@ -142,20 +153,17 @@ async function checkForUpdate() {
   updateError.value = ''
   try {
     if (isMobileWeb && window.api.fetchVersionInfo) {
-      const r = await window.api.fetchVersionInfo()
-      if (r && r.success) {
-        const latest = r.latestVersion || ''
-        if (latest && compareVersions(latest, version.value) > 0) {
-          updateStatus.value = 'available'
-          updateInfo.value = { version: latest }
-          latestVersion.value = latest
-        } else {
-          updateStatus.value = 'not-available'
-          latestVersion.value = latest
-        }
-      } else {
+      // 与启动时的静默检查共用一套逻辑，结果写进 store.update（NavBar 红点同源）
+      const u = await checkAppUpdate()
+      latestVersion.value = u.latest || ''
+      if (u.error && !u.latest) {
         updateStatus.value = 'error'
-        updateError.value = (r && r.error) || '获取最新版本失败'
+        updateError.value = u.error
+      } else if (u.hasUpdate) {
+        updateStatus.value = 'available'
+        updateInfo.value = { version: u.latest }
+      } else {
+        updateStatus.value = 'not-available'
       }
       return
     }
@@ -167,7 +175,7 @@ async function checkForUpdate() {
 }
 
 async function downloadUpdate() {
-  if (isMobileWeb) { gotoDownloadPage(); return }
+  if (isMobileWeb) { openApkOrPage(); return }
   try {
     await window.api.downloadUpdate()
   } catch (e) {
@@ -177,7 +185,7 @@ async function downloadUpdate() {
 }
 
 function installUpdate() {
-  if (isMobileWeb) { gotoDownloadPage(); return }
+  if (isMobileWeb) { openApkOrPage(); return }
   window.api.installUpdate()
 }
 

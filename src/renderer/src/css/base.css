@@ -251,3 +251,12 @@ body.web [contenteditable] {
     user-select: text;
     -webkit-user-select: text;
 }
+
+/* 搜索关键词高亮（utils.highlightKeyword 产出的 <mark class="search-highlight">）
+   此前一直没有样式定义，各处都在吃浏览器默认的黄底黑字，在深色主题下很突兀 */
+mark.search-highlight {
+    background: var(--accent-light);
+    color: var(--accent);
+    border-radius: 3px;
+    padding: 0 2px;
+}

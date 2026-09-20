@@ -114,7 +114,19 @@
       @forward="onFavForward"
       @copy="onFavCopy"
       @download="onFavDownload"
+      @jump="onFavJump"
       @back="backToChatList"
+    />
+    <!-- 发现页：推荐（人/群）+ 聚合搜索 -->
+    <DiscoverView
+      v-if="pageType==='discover'"
+      class="fade-content"
+      :class="{ 'fade-out': contentFading }"
+      @open-user="openuserinfo"
+      @add-friend="addfriend"
+      @open-convo="onSelectConversation"
+      @open-message="onSearchJump"
+      @open-favorite="switchPage('favorites')"
     />
     <!-- 工具入口页（仅列表）；各工具在外层独立渲染：返回时按打开来源回到工具列表或对应会话 -->
     <ToolsView
@@ -142,9 +154,11 @@
     />
     <GraphTool
       v-else-if="pageType==='tools' && currentTool==='graph_editor'"
+      ref="graphToolRef"
       class="ide-host fade-content"
       :class="{ 'fade-out': contentFading }"
       @back="onToolBack"
+      @dirty-change="toolsDirty = $event"
     />
     <CalculatorTool
       v-else-if="pageType==='tools' && currentTool==='calculator'"
@@ -306,7 +320,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, startVisitReport, stopVisitReport, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys } from '../utils.js';
+import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, startVisitReport, stopVisitReport, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys, isUserHiddenBySetting, checkAppUpdate, normalizeFavorites, makeFavorite } from '../utils.js';
 
 import NavBar from '../components/NavBar.vue';
 import ConversationList from '../components/ConversationList.vue';
@@ -321,6 +335,7 @@ import UpdatePanel from '../components/UpdatePanel.vue';
 import DonatePanel from '../components/DonatePanel.vue';
 import TargetMenu from '../components/TargetMenu.vue';
 import UserInfoModal from '../components/UserInfoModal.vue';
+import DiscoverView from './DiscoverView.vue';
 import GroupModal from '../components/GroupModal.vue';
 import ThemeModal from '../components/ThemeModal.vue';
 import ShortcutModal from '../components/ShortcutModal.vue';
@@ -357,6 +372,7 @@ import '../css/user-info.css';
 import '../css/addfriend-modal.css';
 import '../css/search-panel.css';
 import '../css/favorites-panel.css';
+import '../css/discover-view.css';
 import '../css/announcement.css';
 
 import 'katex/dist/katex.min.css';
@@ -369,6 +385,7 @@ const currentTool = ref('list');
 const imageToolRef = ref(null);
 const markdownToolRef = ref(null);
 const mathToolRef = ref(null);
+const graphToolRef = ref(null);
 // 工具打开来源：'list'=从工具列表进入（返回回列表）；chat 会话=记住来源会话（返回回到对应消息界面）
 let toolOrigin = { type: 'list' };
 const toolsDirty = ref(false); // 图片编辑未保存标记（ImageTool 上报）
@@ -387,7 +404,7 @@ const showNavBar = computed(() => {
 
 // 游客模式：聊天/收藏不可用，落到关于页浏览
 watch(() => store.logined, (logged) => {
-  if (!logged && (isChatPage.value || pageType.value === 'favorites')) {
+  if (!logged && (isChatPage.value || pageType.value === 'favorites' || pageType.value === 'discover')) {
     pageType.value = 'about';
     pageId.value = null;
   }
@@ -577,8 +594,8 @@ function startListResize(e) {
 
 // --- 页面导航 ---
 function switchPage(type) {
-  // 游客模式：聊天/收藏不可用，拦截导航
-  if (!store.logined && (type === 'chat' || type === 'favorites')) return;
+  // 游客模式：聊天/收藏/发现不可用，拦截导航
+  if (!store.logined && (type === 'chat' || type === 'favorites' || type === 'discover')) return;
   // 未保存的工具内容（图片/Markdown）：离开工具前先确认（保存/不保存/取消）
   if (toolsDirty.value && pageType.value === 'tools' && currentTool.value !== 'list') {
     pendingSwitch = { type };
@@ -672,6 +689,7 @@ async function onSaveConfirmSave() {
   if (currentTool.value === 'image') await imageToolRef.value?.save();
   else if (currentTool.value === 'markdown') await markdownToolRef.value?.save();
   else if (currentTool.value === 'math') await mathToolRef.value?.save();
+  else if (currentTool.value === 'graph_editor') await graphToolRef.value?.save();
   // 保存成功后 dirty=false → emit 更新 toolsDirty=false；失败/取消则留在页面
   if (!toolsDirty.value && pendingSwitch) {
     const t = pendingSwitch.type;
@@ -1008,15 +1026,7 @@ function batchFavorite() {
     const msg = store.messages[msgId];
     if (!msg) continue;
     if (!store.favorites.some(f => f.id === msgId)) {
-      store.favorites.push({
-        id: msgId,
-        content: msg.content,
-        sender: msg.sender,
-        send_time: msg.send_time,
-        fromType: pageType.value,
-        fromId: pageId.value,
-        savedAt: Date.now()
-      });
+      store.favorites.push(makeFavorite(msg, pageType.value, pageId.value));
     }
   }
   messageListRef.value?.exitMultiSelect();
@@ -1040,7 +1050,7 @@ function markAllRead() {
 // --- 未读计数 badge ---
 function updateBadgeCount() {
   let total = 0;
-  for (const u of Object.values(store.users)) total += (u.unread || 0);
+  for (const u of Object.values(store.users)) { if (!isUserHiddenBySetting(u)) total += (u.unread || 0); }
   for (const g of Object.values(store.groups)) total += (g.unread || 0);
   if (window.api.setBadgeCount) window.api.setBadgeCount(total);
 }
@@ -1140,6 +1150,14 @@ function onFavDownload(fav) {
   if (obj && (obj.type === 'file' || obj.type === 'sticker') && obj.data) {
     window.api.downloadFile(obj.data, obj.name || 'download', obj.mime);
   }
+}
+
+// 收藏 → 跳转原消息：先确保目标会话的消息已从 SQLite 懒加载，再走全局跨会话跳转通路。
+// 原消息已被删除时，jumpToMessage 定位不到，届时由消息列表自身给出"未找到"反馈。
+async function onFavJump(data) {
+  if (!data || !data.convoType || data.convoId == null) return;
+  try { await ensureConvoMessages(data.convoType, Number(data.convoId)); } catch {}
+  onSearchJump(data);
 }
 
 function onPreviewCopy() {
@@ -1373,7 +1391,8 @@ async function addfriend(q) {
 }
 
 // --- 快捷键 ---
-const DEFAULT_SHORTCUTS = { sendMessage: 'enter', search: 'ctrl+f', switchToChat: 'ctrl+1', switchToFavorites: 'ctrl+2', switchToTools: 'ctrl+3', switchToSettings: 'ctrl+4', switchToAbout: 'ctrl+5', newConversation: 'ctrl+n' };
+// 编号严格跟随 NavBar 主导航顺序：消息 / 发现 / 工具 / 设置；收藏与关于排在其后
+const DEFAULT_SHORTCUTS = { sendMessage: 'enter', search: 'ctrl+f', switchToChat: 'ctrl+1', switchToDiscover: 'ctrl+2', switchToTools: 'ctrl+3', switchToSettings: 'ctrl+4', switchToFavorites: 'ctrl+5', switchToAbout: 'ctrl+6', newConversation: 'ctrl+n' };
 function getShortcutValue(action) { return setting.value?.shortcuts?.[action] || DEFAULT_SHORTCUTS[action]; }
 function parseShortcut(shortcut) {
   const parts = shortcut.toLowerCase().split('+');
@@ -1411,9 +1430,10 @@ function handleGlobalShortcuts(e) {
     return true;
   }
   if (matchShortcut(e, getShortcutValue('switchToChat'))) { e.preventDefault(); switchPage('chat'); return true; }
-  if (matchShortcut(e, getShortcutValue('switchToFavorites'))) { e.preventDefault(); switchPage('favorites'); return true; }
+  if (matchShortcut(e, getShortcutValue('switchToDiscover'))) { e.preventDefault(); switchPage('discover'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToTools'))) { e.preventDefault(); switchPage('tools'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToSettings'))) { e.preventDefault(); switchPage('settings'); return true; }
+  if (matchShortcut(e, getShortcutValue('switchToFavorites'))) { e.preventDefault(); switchPage('favorites'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToAbout'))) { e.preventDefault(); switchPage('about'); return true; }
   if (matchShortcut(e, getShortcutValue('newConversation'))) { e.preventDefault(); showAddFriendModal.value = true; return true; }
   return false;
@@ -1477,7 +1497,19 @@ async function update(result) {
   if (!infoLoopRunning) return;
   // token 限制（滑动窗口恢复周期/容量）：/chat/info limit { time_limit, count_limit, ... }
   if (result.limit && typeof result.limit === 'object') store.tokenLimit = result.limit;
-  Object.assign(store.self, { uid: result.user.id, username: result.user.uid, nickname: result.user.nickname, realname: result.user.real_name, school: result.user.school, seat: result.user.seat });
+  // 完整承载 OJ 档案（发现页与访问上报需要 grade_class / graduate_year / school_short 等）；
+  // 先展开再覆盖，保持既有键语义：uid = 内部数字 id，username = 登录名。
+  // 注意 OJ 的字段命名陷阱：user.username 是【学号】，user.uid 才是登录名 —— 别被名字带偏。
+  Object.assign(store.self, {
+    ...result.user,
+    uid: result.user.id,
+    username: result.user.uid,
+    student_no: result.user.username,
+    nickname: result.user.nickname,
+    realname: result.user.real_name,
+    school: result.user.school,
+    seat: result.user.seat
+  });
   const friendsMap = Object.fromEntries(result.friends
     .filter(f => f.watchee === true || f.watcher === true) // 既非我关注、也非关注我的关系条目不显示
     .map(f => {
@@ -1686,7 +1718,7 @@ async function loadData() {
     }
     if (pr && pr.success && pr.data) {
       const d = pr.data
-      if (d.favorites) store.favorites = d.favorites
+      if (d.favorites) store.favorites = normalizeFavorites(d.favorites)
       if (d.drafts) store.drafts = d.drafts
       if (d.mutedConvos) store.mutedConvos = d.mutedConvos
       if (d.hiddenConvos) store.hiddenConvos = d.hiddenConvos
@@ -1854,6 +1886,9 @@ onMounted(async () => {
   if (setting.value.fontSize) applyFontSize(setting.value.fontSize);
   store.online = navigator.onLine;
   try { version.value = await window.api.getVersion(); } catch {}
+  // 非 Electron（网页端/安卓端）静默检查更新：安卓端 APK 没有自动更新通道，
+  // 不做启动检查用户就永远不知道有新版本。放游客 return 之前，游客也要能收到提醒。
+  checkAppUpdate();
   const root = document.documentElement;
   if (setting.value.theme && setting.value.theme !== 'default' && setting.value.theme !== 'custom') root.classList.add(`theme-${setting.value.theme}`);
   if (setting.value.theme === 'custom' && setting.value.customVars) { for (const [k, v] of Object.entries(setting.value.customVars)) root.style.setProperty(k, v); }

@@ -62,52 +62,174 @@
     gap: 2px;
     flex-shrink: 0;
 }
-.favorites-picker {
-    position: absolute;
-    left: 6px;
-    bottom: calc(100% + 4px);
-    width: 280px;
-    max-height: 300px;
-    display: flex;
-    flex-direction: column;
-    background: var(--bg-app);
+/* ===== 收藏选择面板（与表情面板同形态：嵌入输入区上方、可拖拽调高）===== */
+.favpick {
     border: 1px solid var(--border-3d-dark);
     border-radius: var(--radius);
-    box-shadow: var(--shadow-modal);
-    z-index: 9999;
+    box-shadow: var(--shadow-emoji-picker), inset 0 1px 0 var(--border-3d-light);
+    margin-top: 6px;
+    flex: 1;
+    min-height: 172px;
+    max-height: 320px;
     overflow: hidden;
+    animation: ctxFade 0.15s ease;
+    backdrop-filter: blur(12px);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-primary);
 }
-.favorites-picker-title {
-    padding: 8px 12px;
-    font-size: var(--font-size-small);
-    font-weight: 600;
-    color: var(--text-secondary);
+.favpick-drag {
+    flex-shrink: 0;
+    height: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: ns-resize;
+    user-select: none;
     border-bottom: 1px solid var(--border-light);
+}
+.favpick-drag i {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border-3d-dark);
+}
+.favpick-head {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px 8px;
+}
+.favpick-title {
+    flex: 1;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.favpick-title i {
+    color: var(--accent);
+    margin-right: 6px;
+}
+.favpick-count {
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: var(--accent-light);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+}
+.favpick-search {
+    position: relative;
+    padding: 0 10px 8px;
     flex-shrink: 0;
 }
-.favorites-picker-list {
-    overflow-y: auto;
-    max-height: 250px;
-    padding: 4px 6px;
-}
-.favorites-picker-empty {
-    padding: 20px;
-    text-align: center;
+.favpick-search i {
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
     color: var(--text-secondary);
+    pointer-events: none;
+}
+.favpick-search input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 10px 6px 28px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border-light);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: var(--font-size-small);
+    outline: none;
+}
+.favpick-search input:focus {
+    border-color: var(--accent);
+}
+.favpick-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 0 8px 8px;
+}
+.favpick-empty {
+    text-align: center;
+    padding: 26px 12px;
+    color: var(--text-secondary);
+}
+.favpick-empty i {
+    display: block;
+    font-size: 26px;
+    opacity: 0.4;
+    margin-bottom: 8px;
+}
+.favpick-empty p {
+    margin: 0 0 3px;
     font-size: var(--font-size-small);
 }
-.favorites-picker-item {
-    padding: 7px 10px;
+.favpick-empty-sub {
+    font-size: calc(var(--font-size-small) - 1.5px) !important;
+    opacity: 0.7;
+}
+.favpick-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    border: none;
     border-radius: var(--radius);
+    background: transparent;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.12s;
+}
+.favpick-item:hover {
+    background: var(--bg-conversation-hover);
+}
+.favpick-item:active {
+    transform: scale(0.99);
+}
+.favpick-icon {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+.favpick-icon.t-text { background: rgba(75, 122, 232, 0.14); color: #4B7AE8; }
+.favpick-icon.t-file { background: rgba(217, 126, 36, 0.14); color: #D97E24; }
+.favpick-icon.t-sticker { background: rgba(156, 106, 222, 0.14); color: #9C6ADE; }
+.favpick-icon.t-emoji { background: rgba(16, 160, 147, 0.14); color: #10A093; }
+.favpick-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.favpick-kind {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+.favpick-preview {
     font-size: var(--font-size-small);
     color: var(--text-primary);
-    cursor: pointer;
-    line-height: 1.4;
-    word-break: break-all;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
-.favorites-picker-item:hover {
-    background: var(--bg-conversation-hover);
-    color: var(--accent);
+.favpick-time {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--text-secondary);
+    opacity: 0.8;
 }
 .input-actions button {
     background: none;

@@ -1,12 +1,12 @@
 {
   "name": "7fa4-chat",
-  "version": "3.4.9",
+  "version": "3.5.0",
   "description": "7FA4 Chat",
   "main": "./out/main/index.js",
   "desktopName": "7fa4-chat.desktop",
   "scripts": {
     "dev": "electron-vite dev -- --no-sandbox",
-    "build": "electron-vite build && node scripts/build-jsc.mjs",
+    "build": "electron-vite build && node scripts/sync-katex-assets.mjs && node scripts/prune-renderer-assets.mjs && node scripts/build-jsc.mjs",
     "test:md": "node scripts/test-markdown.mjs && node scripts/test-typora-input.mjs && node scripts/test-input-footer.mjs && node scripts/test-markdown-tool.mjs && node scripts/test-msg-fmt.mjs",
     "sync:luogu": "node scripts/sync-luogu.mjs",
     "pack": "npm run build && electron-builder --dir",
@@ -19,37 +19,39 @@
   "homepage": "https://jx.7fa4.cn:9080/student-archive/zsq-7fa4-chat",
   "license": "MIT",
   "devDependencies": {
-    "@capacitor/cli": "^7.6.8",
-    "@vitejs/plugin-vue": "^5.2.3",
-    "electron": "^41.7.1",
-    "electron-builder": "^26.8.1",
-    "electron-vite": "^5.0.0",
-    "fake-indexeddb": "^6.2.5",
-    "happy-dom": "^20.11.12"
-  },
-  "dependencies": {
     "@capacitor/android": "^7.6.8",
     "@capacitor/app": "^7.1.2",
     "@capacitor/browser": "^7.0.5",
+    "@capacitor/cli": "^7.6.8",
     "@capacitor/core": "^7.6.8",
     "@capacitor/filesystem": "^7.1.8",
     "@capacitor/local-notifications": "^7.0.7",
     "@capacitor/share": "^7.0.4",
-    "bytenode": "^1.6.0",
+    "@vitejs/plugin-vue": "^5.2.3",
+    "electron": "^41.7.1",
+    "electron-builder": "^26.8.1",
     "electron-builder-sandbox-fix": "^1.1.1",
-    "electron-updater": "^6.8.9",
-    "express": "^5.2.1",
+    "electron-vite": "^5.0.0",
+    "fake-indexeddb": "^6.2.5",
+    "happy-dom": "^20.11.12",
     "html2canvas": "^1.4.1",
-    "http-proxy-middleware": "^3.0.5",
     "katex": "^0.18.7",
     "md5": "^2.3.0",
     "prismjs": "^1.30.0",
     "vue": "^3.5.13"
   },
+  "//dependencies": "只保留主进程运行时真正 require 的包。渲染层依赖（vue/prismjs/html2canvas/md5）由 vite bundle 进 out/renderer；katex 运行期只需 katex.min.css + woff2，由 scripts/sync-katex-assets.mjs 同步到 resources/katex 并走 extraResources；@capacitor/* 只在渲染层 platform/web-api.js 被 import（vite 已 bundle），Android 的插件发现走 @capacitor/cli 的 getDependencies()，它同时读 dependencies 与 devDependencies（dist/plugin.js:71-72），故放 devDependencies 不影响 cap sync。electron-builder 只按 dependencies 收集 node_modules，放进去会被原样打进 app.asar（实测每端多出约 23MB）。注意：因此 node_modules 必须全量安装（npm install，不要带 --omit=dev）。files 里不要再列 package.json：electron-builder 的 fileTransformer 会兜底注入一份含 main 的 package.json，显式列出反而会把开发用的完整 package.json（含 build 配置与注释）原样打进 asar。",
+  "dependencies": {
+    "bytenode": "^1.6.0",
+    "electron-updater": "^6.8.9",
+    "express": "^5.2.1",
+    "http-proxy-middleware": "^3.0.5"
+  },
   "build": {
     "appId": "com.7fa4.chat",
     "productName": "7FA4 Chat",
     "npmRebuild": false,
+    "compression": "maximum",
     "directories": {
       "output": "build"
     },
@@ -131,23 +133,31 @@
     },
     "asar": true,
     "asarUnpack": [],
+    "electronLanguages": [
+      "zh-CN"
+    ],
     "extraMetadata": {
       "main": "./out/main/loader.js"
     },
     "files": [
       "out/**/*",
-      "package.json",
       "!node_modules/.cache",
       "!src",
-      "!node_modules/@capacitor/**",
-      "!node_modules/@capacitor/*/**",
-      "!node_modules/html2canvas/**",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "!node_modules/@types/**",
+      "!node_modules/undici-types/**"
     ],
     "extraResources": [
       {
         "from": "icon/",
         "to": "icon/",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "resources/katex",
+        "to": "katex",
         "filter": [
           "**/*"
         ]
@@ -160,7 +170,7 @@
         ]
       }
     ],
-    "afterPack": "electron-builder-sandbox-fix",
+    "afterPack": "./scripts/after-pack.cjs",
     "publish": {
       "provider": "generic",
       "url": "https://jx.7fa4.cn:9080/api/v4/projects/886/packages/generic/7FA4-Chat/latest"

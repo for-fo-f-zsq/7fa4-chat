@@ -14,12 +14,31 @@
       <span v-if="chatUnread" class="nav-badge"></span>
     </div>
     <div
+      v-if="loggedIn"
+      class="nav-icon"
+      :class="{ active: pageType === 'discover' }"
+      title="发现：可能认识的人 / 群，以及全量搜索"
+      @click="$emit('switch', 'discover')"
+    >
+      <i class="fas fa-compass"></i>
+      <span>发现</span>
+    </div>
+    <div
       class="nav-icon"
       :class="{ active: pageType === 'tools' }"
       @click="$emit('switch', 'tools')"
     >
       <i class="fas fa-wrench"></i>
       <span>工具</span>
+    </div>
+    <div
+      class="nav-icon"
+      :class="{ active: pageType === 'settings' }"
+      title="设置"
+      @click="$emit('switch', 'settings')"
+    >
+      <i class="fas fa-cog"></i>
+      <span>设置</span>
     </div>
     <!-- 网页端专属：客户端下载入口（强调色高亮，侧栏/底栏始终可见） -->
     <div
@@ -36,6 +55,8 @@
       <div class="nav-user" :title="userTitle" @click.stop="userMenu = !userMenu">
         <span v-if="selfInitial" class="nav-user-initial">{{ selfInitial }}</span>
         <i v-else class="fas fa-user nav-user-fallback"></i>
+        <!-- 非桌面端启动静默检查到新版本：红点提醒（桌面端由 electron-updater 自行弹窗，不置位） -->
+        <span v-if="store.update.hasUpdate" class="nav-update-dot" title="有新版本可用"></span>
       </div>
       <div class="nav-user-menu" v-if="userMenu" @click.stop v-click-outside="() => (userMenu = false)">
         <div class="nav-user-menu-head">
@@ -60,8 +81,7 @@
         <!-- 导航分组 -->
         <div class="nav-user-menu-group">
           <div class="nav-user-menu-item" v-if="loggedIn" @click="go('favorites')"><i class="fas fa-star"></i><span>收藏</span></div>
-          <div class="nav-user-menu-item" @click="go('settings')"><i class="fas fa-cog"></i><span>设置</span></div>
-          <div class="nav-user-menu-item" @click="go('update')"><i class="fas fa-cloud-upload-alt"></i><span>版本更新</span></div>
+          <div class="nav-user-menu-item" @click="go('update')"><i class="fas fa-cloud-upload-alt"></i><span>版本更新</span><span v-if="store.update.hasUpdate" class="nav-update-tag">有新版本</span></div>
           <div class="nav-user-menu-item" v-if="isWeb" @click="openDownload"><i class="fas fa-download"></i><span>下载客户端</span></div>
           <div class="nav-user-menu-item" @click="go('donate')"><i class="fas fa-heart"></i><span>赞助</span></div>
           <div class="nav-user-menu-item" @click="go('about')"><i class="fas fa-info-circle"></i><span>关于</span></div>
@@ -105,7 +125,7 @@
 import { ref, computed } from 'vue'
 import { vClickOutside } from '../composables/vClickOutside.js'
 import { store } from '../store.js'
-import { compressBase64Image } from '../utils.js'
+import { compressBase64Image, isUserHiddenBySetting, isWebBrowser } from '../utils.js'
 
 // 意见反馈
 const feedbackVisible = ref(false)
@@ -219,7 +239,7 @@ const emit = defineEmits(['switch', 'user-action'])
 const userMenu = ref(false)
 
 const chatUnread = computed(() =>
-  Object.values(props.users || {}).some(u => u.unread > 0) ||
+  Object.values(props.users || {}).some(u => u.unread > 0 && !isUserHiddenBySetting(u)) ||
   Object.values(props.groups || {}).some(g => g.unread > 0 && !g.exited)
 )
 
@@ -251,9 +271,10 @@ function openSite() {
   window.api.openExternal('https://chat.forfof.cloud')
 }
 
-// 网页端（浏览器访问）：客户端下载入口
-// 网页端功能受浏览器限制（无本地存储、无 GeoGebra 离线包等），引导用户下载完整客户端
-const isWeb = !!(window.__7FA4_WEB__)
+// 纯网页浏览器端：客户端下载入口（引导下载完整客户端）
+// 必须用 isWebBrowser()：window.__7FA4_WEB__ 在 Android App 里也是 true（共用 platform/web-api.js），
+// 直接用它会害得安卓端底栏也冒出一个「下载」。
+const isWeb = isWebBrowser()
 function openDownload() {
   userMenu.value = false
   try { window.api.openExternal('https://chat.forfof.cloud/#download') } catch {}

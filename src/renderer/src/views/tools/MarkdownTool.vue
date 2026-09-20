@@ -1046,10 +1046,17 @@ async function openFile() {
     const binary = atob(r.data)
     const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0))
     const text = new TextDecoder('utf-8').decode(bytes)
+    // 先写入工作区；只有写入成功才算「已保存」，否则保留为未保存状态并说明原因
+    const w = await window.api.saveDataFile(r.name, text)
     fileName.value = r.name
-    savedKey.value = r.name
-    savedContent.value = text
-    await window.api.saveDataFile(r.name, text)
+    if (w && w.success) {
+      savedKey.value = r.name
+      savedContent.value = text
+    } else {
+      savedKey.value = ''
+      savedContent.value = ''
+      alert('文件已打开，但写入工作区失败，请重新保存：' + ((w && w.error) || '未知错误'))
+    }
     loadDocument(text)
   } catch (e) {
     alert('读取文件失败：' + e.message)
@@ -1090,13 +1097,17 @@ async function save() {
   saving.value = true
   try {
     const r = await window.api.saveDataFile(name, content.value)
-    if (!r || !r.success) return
+    if (!r || !r.success) {
+      alert('保存失败：' + ((r && r.error) || '未知错误'))
+      return
+    }
     if (renamed) await removeWorkspaceFile(prevKey)
     fileName.value = name
     savedKey.value = name
     savedContent.value = content.value
   } catch (e) {
     console.error('save failed:', e)
+    alert('保存失败：' + ((e && e.message) || '未知错误'))
   } finally {
     saving.value = false
   }
@@ -1107,9 +1118,12 @@ async function exportPng() {
   if (!content.value.trim()) return
   exporting.value = true
   try {
-    await window.api.exportMarkdownPng(fileName.value || '未命名.md', renderDocument(content.value))
+    const r = await window.api.exportMarkdownPng(fileName.value || '未命名.md', renderDocument(content.value))
+    if (r && r.success) alert('已导出图片')
+    else if (!r || !r.canceled) alert('导出失败：' + ((r && r.error) || '未知错误'))
   } catch (e) {
     console.error('export failed:', e)
+    alert('导出失败：' + ((e && e.message) || '未知错误'))
   }
   exporting.value = false
 }

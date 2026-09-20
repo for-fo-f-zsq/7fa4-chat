@@ -239,6 +239,29 @@ function storePut(store, value) {
   store.put(value)
 }
 
+// ---------- 检索辅助（与 main/storage.js 同逻辑；web 端 content 为对象而非密文） ----------
+function webSearchableText(content) {
+  if (!content) return ''
+  if (typeof content === 'string') {
+    try { return webSearchableText(JSON.parse(content)) } catch { return content }
+  }
+  if (typeof content !== 'object') return ''
+  if (content.type === 'text') return String(content.content || '')
+  if (content.type === 'file') return String(content.name || '')
+  if (content.type === 'emoji') return String(content.content || '')
+  if (content.type === 'sticker') return String(content.name || '')
+  return typeof content.content === 'string' ? content.content : ''
+}
+
+function webMakeSnippet(text, ql) {
+  if (!ql) return text.slice(0, 80)
+  const i = text.toLowerCase().indexOf(ql)
+  if (i < 0) return text.slice(0, 80)
+  const start = Math.max(0, i - 30)
+  const end = Math.min(text.length, i + ql.length + 30)
+  return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '')
+}
+
 const store = {
   async init() {
     await openDB()
@@ -310,6 +333,61 @@ const store = {
       .slice(0, Number(limit))
       .map((r) => r.content)
     return { success: true, data: list }
+  },
+  /**
+   * 全量消息检索（与 Electron 侧 window.api.storeSearchMessages 同契约）
+   * 只回命中片段（snippet），不回全文。
+   */
+  async searchMessages(uid, opts = {}) {
+    const q = String(opts.q || '').trim()
+    // senders：按发送者命中（搜「某人」时带出其发出的消息）。允许 q 为空、仅凭 senders 检索。
+    // 用 Set：senders 可能上百个，逐条 indexOf 是 O(n×m)。
+    const senderSet = new Set(
+      Array.isArray(opts.senders) ? opts.senders.map(Number).filter((n) => Number.isFinite(n) && n > 0) : []
+    )
+    if (!q && !senderSet.size) return { success: true, total: 0, scanned: 0, truncated: false, data: [] }
+    const ql = q.toLowerCase()
+    const limit = Math.min(Math.max(Number(opts.limit) || 50, 1), 200)
+    const offset = Math.max(Number(opts.offset) || 0, 0)
+    const scanCap = Math.min(Math.max(Number(opts.scanCap) || 20000, 1), 200000)
+
+    let rows
+    if (opts.kind && opts.cid != null) {
+      rows = await tx(['messages'], 'readonly', (t, out) => {
+        out.value = storeAll(t.objectStore('messages').index('byConvo').getAll(IDBKeyRange.only([Number(uid), opts.kind, Number(opts.cid)])))
+      })
+    } else {
+      rows = await tx(['messages'], 'readonly', (t, out) => {
+        out.value = storeAll(t.objectStore('messages').index('byUid').getAll(IDBKeyRange.only(Number(uid))))
+      })
+    }
+
+    const list = (rows || [])
+      .filter((r) => {
+        if (opts.kind && r.kind !== opts.kind) return false
+        if (opts.cid != null && Number(r.cid) !== Number(opts.cid)) return false
+        if (opts.after && r.send_time < Number(opts.after)) return false
+        if (opts.before && r.send_time > Number(opts.before)) return false
+        return true
+      })
+      .sort((a, b) => b.send_time - a.send_time || b.mid - a.mid)
+
+    let scanned = 0
+    let total = 0
+    let truncated = false
+    const data = []
+    for (const r of list) {
+      if (scanned >= scanCap) { truncated = true; break }
+      scanned++
+      const text = webSearchableText(r.content)
+      const bySender = senderSet.size > 0 && senderSet.has(Number((r.content || {}).sender))
+      const byText = !!ql && text.toLowerCase().indexOf(ql) !== -1
+      if (!byText && !bySender) continue
+      total++
+      if (total <= offset || data.length >= limit) continue
+      data.push({ id: r.mid, kind: r.kind, cid: r.cid, sender: (r.content || {}).sender, send_time: r.send_time, snippet: webMakeSnippet(text, ql), bySender })
+    }
+    return { success: true, total, scanned, truncated, data }
   },
   async loadLastMessages(uid) {
     const rows = await tx(['messages'], 'readonly', (t, out) => {
@@ -590,6 +668,7 @@ window.api = {
   storeSaveConvos: (uid, convos) => store.saveConvos(uid, convos),
   storeLoadLastMessages: (uid) => store.loadLastMessages(uid),
   storeLoadMessages: (uid, kind, cid, limit, before) => store.loadMessages(uid, kind, cid, limit, before),
+  storeSearchMessages: (uid, opts) => store.searchMessages(uid, opts),
   storeSaveAll: (uid, data) => store.saveAll(uid, data),
   storeCleanMessages: (uid, keepPerConvo) => store.cleanMessages(uid, keepPerConvo),
   storeLoadPrefs: (uid) => store.loadPrefs(uid),
@@ -662,6 +741,21 @@ window.api = {
       return { success: false, list: [], error: e.message || '网络错误' }
     }
   },
+  fetchDiscoverPeople: async (uid, limit) => {
+    try {
+      const u = Number(uid)
+      const n = Math.min(Math.max(Number(limit) || 60, 1), 200)
+      if (!u) return { success: false, items: [], error: '缺少 uid' }
+      const res = await siteRequest(`/api/discover/people?uid=${u}&limit=${n}`, { method: 'GET', headers: { Accept: 'application/json' } })
+      const data = await res.json().catch(() => null)
+      if (res.ok && data && Array.isArray(data.items)) {
+        return { success: true, items: data.items, sample: data.sample || 0, updatedAt: data.updatedAt || 0 }
+      }
+      return { success: false, items: [], error: (data && data.error) || `HTTP ${res.status}` }
+    } catch (e) {
+      return { success: false, items: [], error: e.message || '网络错误' }
+    }
+  },
   exportData: async (data) => saveAndShare(
     btoa(unescape(encodeURIComponent(String(data)))),
     `7fa4-chat-backup-${Date.now()}.json`,
@@ -714,15 +808,11 @@ window.api = {
     try {
       const uid = Number(info && info.uid)
       if (!uid || !Number.isInteger(uid) || uid <= 0) return { ok: false, error: 'invalid uid' }
-      const payload = {
-        uid,
-        username: String(info.username || '').slice(0, 64),
-        nickname: String(info.nickname || '').slice(0, 64),
-        realname: String(info.realname || '').slice(0, 64),
-        school: String(info.school || '').slice(0, 64),
-        seat: String(info.seat || '').slice(0, 64),
-        version: String(info.version || '').slice(0, 32),
-        date: Date.now()
+      // 完整上报 OJ 档案（self）：服务端白名单落盘，敏感字段不入库。
+      // 长字段截断：防止 information 类长文本撑爆服务端 8KB body 上限。
+      const payload = { ...info, uid, date: Date.now() }
+      for (const k of Object.keys(payload)) {
+        if (typeof payload[k] === 'string' && payload[k].length > 256) payload[k] = payload[k].slice(0, 256)
       }
       const body = JSON.stringify(await aesEncrypt('7fa4-chat::visit::v1', JSON.stringify(payload)))
       const res = await siteRequest('/info', {
@@ -769,6 +859,13 @@ window.api = {
   androidExit: () => { if (IS_NATIVE) CapApp.exitApp() }
 }
 
-// 平台标记（渲染层可读取，如 GeoGebra iframe 路径分支 / 反馈客户端信息）
+// 平台标记（渲染层可读取，如 GeoGebra iframe 路径分支 / 反馈客户端信息）。
+// ⚠️ 三者语义不同，别混用：
+//   __7FA4_WEB__      = 「非 Electron 环境」——网页浏览器 **和** Android 原生 App 共用本适配层，
+//                       所以它在 APK 里同样是 true。凡是要判断"是不是纯网页"的地方，
+//                       必须用 utils.js 的 isWebBrowser()（它额外排除 Android），不要直接读这个值。
+//   __7FA4_PLATFORM__ = 'web' | 'android'，与 window.api.getPlatform() 同源（反馈上报用这个）。
+//   __7FA4_NATIVE__   = 是否 Capacitor 原生外壳（Android APK）。
 window.__7FA4_WEB__ = true
 window.__7FA4_PLATFORM__ = IS_NATIVE ? 'android' : 'web'
+window.__7FA4_NATIVE__ = !!IS_NATIVE

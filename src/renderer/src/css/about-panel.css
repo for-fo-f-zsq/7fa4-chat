@@ -351,6 +351,12 @@
     gap: 8px;
     flex-wrap: wrap;
 }
+/* 安卓端直下 APK 时的说明（仅安卓 + 有新版本 + 拿到直链时显示） */
+.update-apk-hint {
+    margin-top: 8px;
+    font-size: var(--font-size-small);
+    color: var(--text-secondary);
+}
 .update-btn {
     display: inline-flex;
     align-items: center;

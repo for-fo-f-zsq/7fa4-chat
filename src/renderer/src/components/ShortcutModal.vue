@@ -49,14 +49,16 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'settingChange'])
 
+// 编号严格跟随 NavBar 主导航顺序：消息 / 发现 / 工具 / 设置；收藏与关于排在其后
 const defaultShortcuts = {
   sendMessage: 'enter',
   search: 'ctrl+f',
   switchToChat: 'ctrl+1',
-  switchToFavorites: 'ctrl+2',
+  switchToDiscover: 'ctrl+2',
   switchToTools: 'ctrl+3',
   switchToSettings: 'ctrl+4',
-  switchToAbout: 'ctrl+5',
+  switchToFavorites: 'ctrl+5',
+  switchToAbout: 'ctrl+6',
   newConversation: 'ctrl+n'
 }
 
@@ -64,9 +66,10 @@ const shortcutItems = [
   { action: 'sendMessage', label: '发送消息' },
   { action: 'search', label: '搜索' },
   { action: 'switchToChat', label: '切换到消息' },
-  { action: 'switchToFavorites', label: '切换到收藏' },
+  { action: 'switchToDiscover', label: '切换到发现' },
   { action: 'switchToTools', label: '切换到工具' },
   { action: 'switchToSettings', label: '切换到设置' },
+  { action: 'switchToFavorites', label: '切换到收藏' },
   { action: 'switchToAbout', label: '切换到关于' },
   { action: 'newConversation', label: '新建会话' }
 ]

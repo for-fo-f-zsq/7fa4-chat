@@ -85,6 +85,9 @@
       <div v-if="searchQuery && filteredConversations.length === 0" class="list-search-empty">
         无搜索结果
       </div>
+      <div v-else-if="filteredConversations.length === 0 && hiddenNonMutualCount > 0" class="list-search-empty">
+        已隐藏 {{ hiddenNonMutualCount }} 个非双向好友
+      </div>
     </div>
   </div>
 </template>
@@ -92,7 +95,7 @@
 <script setup>
 import { computed, ref, watch, nextTick } from 'vue'
 import { store } from '../store.js'
-import { getLastMessage, getLastMessageSender, getLastMessageTime, gettime1, displayName, getGradeColor, getGradeLabel, getAvatarInitial, getConvoKey, isConvoMuted } from '../utils.js'
+import { getLastMessage, getLastMessageSender, getLastMessageTime, gettime1, displayName, getGradeColor, getGradeLabel, getAvatarInitial, getConvoKey, isConvoMuted, isUserHiddenBySetting } from '../utils.js'
 
 const props = defineProps({
   pageType: String,
@@ -130,7 +133,7 @@ const activeType = computed(() => {
 
 // --- 未读/草稿/免打扰辅助 ---
 const hasUnread = computed(() => {
-  return Object.values(props.users || {}).some(u => u.unread > 0) ||
+  return Object.values(props.users || {}).some(u => u.unread > 0 && !isUserHiddenBySetting(u)) ||
          Object.values(props.groups || {}).some(g => g.unread > 0)
 })
 
@@ -147,10 +150,16 @@ function isMuted(type, id) {
   return isConvoMuted(type, id)
 }
 
+// 因「隐藏非双向好友」被隐藏的数量（用于空列表提示）
+const hiddenNonMutualCount = computed(() =>
+  Object.values(props.users || {}).filter(u => isUserHiddenBySetting(u)).length
+)
+
 // --- 合并后的会话列表 ---
 const sortedConversations = computed(() => {
   const userItems = Object.values(props.users || {})
     .filter(u => u.show !== false && !store.hiddenConvos?.[getConvoKey('user', u.uid)])
+    .filter(u => !isUserHiddenBySetting(u))
     .map(u => ({
       type: 'user',
       id: u.uid,
@@ -160,6 +169,7 @@ const sortedConversations = computed(() => {
       message_ids: u.message_ids,
       realname: u.realname,
       watcher: u.watcher === true,
+      watchee: u.watchee === true,
       displayName: displayName(u),
       groupName: null,
       mentioned: false,

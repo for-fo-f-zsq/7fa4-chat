@@ -339,3 +339,30 @@
     left: auto;
     right: 12px;
 }
+
+/* 有新版本（仅非桌面端会置位）：头像红点 + 菜单项标签。
+   颜色用 var(--danger, ...) 带兜底 —— 21 套主题里只有 default.css 定义了 --danger。 */
+.nav-user { position: relative; }
+.nav-update-dot {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 10px;
+    height: 10px;
+    background-color: var(--danger, #e64340);
+    border-radius: 50%;
+    border: 1.5px solid var(--bg-sidebar);
+    box-sizing: border-box;
+    z-index: 10;
+    pointer-events: none;
+    animation: badgePulse 2s ease-in-out infinite;
+}
+.nav-user-menu-item span.nav-update-tag {
+    flex: 0 0 auto;
+    font-size: 11px;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: 8px;
+    color: #fff;
+    background: var(--danger, #e64340);
+}

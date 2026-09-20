@@ -39,9 +39,13 @@
 </template>
 
 <script setup>
+import { isWebBrowser } from '../utils.js'
+
 // 纯入口列表：各工具由外层（ChatView）直接渲染，便于按打开来源控制返回逻辑
 defineEmits(['openTool'])
 
-// 网页端（window.__7FA4_WEB__）：GeoGebra 离线包体积过大，仅提示下载本地版
-const isWeb = !!(window.__7FA4_WEB__)
+// 纯网页浏览器端：GeoGebra 离线包体积过大（49MB），仅提示下载本地版。
+// 必须用 isWebBrowser()：Android 端已把 GeoGebra 打进 APK（scripts/build-web.mjs 复制到 /geogebra/），
+// 直接读 window.__7FA4_WEB__ 会把安卓误判成网页、把工具描述写错。
+const isWeb = isWebBrowser()
 </script>

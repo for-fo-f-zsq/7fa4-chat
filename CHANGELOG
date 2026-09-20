@@ -1,3 +1,15 @@
+<h2>3.5.0</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>新增「发现」页：推荐可能认识的人与可能相关的群</li>
+  <li><span class="change-tag new">新功能</span>新增聚合搜索：一次搜出用户、消息、群聊与收藏</li>
+  <li><span class="change-tag new">新功能</span>消息搜索升级为全量检索</li>
+  <li><span class="change-tag new">新功能</span>收藏夹全面升级：支持搜索、标签、备注、置顶、批量管理与跳转原消息</li>
+  <li><span class="change-tag improve">优化</span>搜索结果分区展示，可一键查看某一类的全部结果</li>
+  <li><span class="change-tag improve">优化</span>收藏发送面板改版，支持搜索并与表情面板同形态</li>
+  <li><span class="change-tag improve">优化</span>主题设置改版，年级颜色与主题变量同处编辑，可整体导出导入</li>
+  <li><span class="change-tag improve">优化</span>备份导出包含全部数据与设置，可一次恢复</li>
+  <li><span class="change-tag improve">优化</span>设置入口移至导航栏，头像菜单精简</li>
+</ul>
 <h2>3.4.9</h2>
 <ul>
   <li><span class="change-tag new">新功能</span>新增「计时器」工具，支持四宫格倒计时与结束提示音</li>

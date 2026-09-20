@@ -7,45 +7,24 @@
           <img src="/icon.png" alt="7FA4 Chat" class="announcement-logo-img" />
         </div>
         <p class="announcement-sub">全新版本发布</p>
-        <h1>V3.4.9</h1>
+        <h1>V3.5.0</h1>
         <div class="announcement-decor"></div>
       </div>
-      <!-- 页 2：特别公告（纪念通栏 + 正中一条 + 左下 / 右下各一条） -->
-      <div v-else-if="page === 1" class="announcement-page announcement-bulletin">
-        <h2><i class="fas fa-bullhorn"></i> 特别公告</h2>
-        <div class="bulletin-mourn">
-          <i class="fas fa-bell"></i>
-          <span class="bulletin-mourn-text">勿忘国耻，警钟长鸣！</span>
-        </div>
-        <div class="bulletin-stage">
-          <div class="bulletin-item bulletin-main">
-            <span class="bulletin-icon"><i class="fas fa-trophy"></i></span>
-            <span class="bulletin-text">祝所有同学在 <b>CSP-J/S 一轮</b> 中取得优异成绩</span>
-          </div>
-          <div class="bulletin-corners">
-            <div class="bulletin-item bulletin-left">
-              <span class="bulletin-icon"><i class="fas fa-birthday-cake"></i></span>
-              <span class="bulletin-text">祝 <span class="bulletin-mention">@Alisa</span> 生日快乐</span>
-            </div>
-            <div class="bulletin-item bulletin-right">
-              <span class="bulletin-icon"><i class="fas fa-champagne-glasses"></i></span>
-              <span class="bulletin-text">庆祝 <b>7FA4-Chat</b> 累计用户数量破百</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <!-- 页 3：本次更新 -->
-      <div v-else-if="page === 2" class="announcement-page">
+      <!-- 页 2：本次更新 -->
+      <div v-else-if="page === 1" class="announcement-page">
         <h2><i class="fas fa-star"></i> 本次更新</h2>
         <ul class="announcement-list">
-          <li>新增「计时器」工具，支持四宫格倒计时与结束提示音</li>
-          <li>重构工具架构，各工具独立成页</li>
-          <li>修复 Markdown 编辑器长行折行后行号错位的问题</li>
-          <li>修复从工具返回时重复弹出未保存提示的问题</li>
+          <li>新增「发现」页，推荐可能认识的人和可能相关的群</li>
+          <li>新增聚合搜索：一次搜用户、消息、群聊与收藏</li>
+          <li>消息搜索升级为全量检索</li>
+          <li>收藏夹大改版：搜索、标签、备注、置顶与批量管理</li>
+          <li>收藏可从输入框直接选择发送，支持搜索</li>
+          <li>主题设置改版：年级颜色与主题变量同处编辑，可导出导入</li>
+          <li>备份导出包含全部数据与设置</li>
         </ul>
       </div>
-      <!-- 页 4：更新日志 -->
-      <div v-else-if="page === 3" class="announcement-page">
+      <!-- 页 3：更新日志 -->
+      <div v-else-if="page === 2" class="announcement-page">
         <h2><i class="fas fa-file-alt"></i> 更新日志</h2>
         <div class="announcement-changelog">
           <div v-if="changelogLoading" class="changelog-loading"><i class="fas fa-spinner fa-spin"></i> 加载中...</div>
@@ -54,8 +33,8 @@
           <div v-else class="changelog-empty">暂无更新日志</div>
         </div>
       </div>
-      <!-- 页 5：欢迎赞赏 -->
-      <div v-else-if="page === 4" class="announcement-page announcement-thanks">
+      <!-- 页 4：欢迎赞赏 -->
+      <div v-else-if="page === 3" class="announcement-page announcement-thanks">
         <h2><i class="fas fa-heart"></i> 喜欢这个应用吗？</h2>
         <p>由 for_fo_f 独立开发维护，你的每一份赞赏都是持续更新的动力</p>
         <img :src="DONATE_URL" alt="赞赏码" class="announcement-donate" @click="donateZoom = true" />
@@ -79,11 +58,11 @@
       <div class="announcement-nav">
         <button class="announcement-btn" @click="$emit('close')"><i class="fas fa-times"></i> 跳过</button>
         <div class="announcement-dots">
-          <span v-for="i in 5" :key="i" class="announcement-dot" :class="{ active: page === i - 1 }"></span>
+          <span v-for="i in 4" :key="i" class="announcement-dot" :class="{ active: page === i - 1 }"></span>
         </div>
         <div class="announcement-nav-right">
           <button v-if="page > 0" class="announcement-btn" @click="page--"><i class="fas fa-chevron-left"></i> 上一页</button>
-          <button v-if="page < 4" class="announcement-btn announcement-btn-primary" @click="page++">下一页 <i class="fas fa-chevron-right"></i></button>
+          <button v-if="page < 3" class="announcement-btn announcement-btn-primary" @click="page++">下一页 <i class="fas fa-chevron-right"></i></button>
           <button v-else class="announcement-btn announcement-btn-primary" @click="$emit('close')">开始使用 <i class="fas fa-check"></i></button>
         </div>
       </div>
@@ -115,9 +94,9 @@ async function loadSponsors() {
 }
 loadSponsors()
 
-// 进入第 4 页时加载官方更新日志
+// 进入第 3 页（更新日志）时加载官方更新日志
 watch(page, (p) => {
-  if (p === 3 && !changelogHtml.value && !changelogLoading.value) fetchChangelog()
+  if (p === 2 && !changelogHtml.value && !changelogLoading.value) fetchChangelog()
 })
 async function fetchChangelog() {
   changelogLoading.value = true

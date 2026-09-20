@@ -38,7 +38,7 @@ const menuItems = computed(() => {
     items.push({ value: 'favorite', label: '收藏消息', icon: 'fas fa-bookmark' })
   }
   if (props.canCollect) {
-    items.push({ value: 'collect', label: '收藏表情', icon: 'fas fa-star' })
+    items.push({ value: 'collect', label: '添加表情', icon: 'fas fa-star' })
   }
   if (props.canDownload) {
     items.push({ value: 'download', label: '下载', icon: 'fas fa-download' })

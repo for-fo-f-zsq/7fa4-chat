@@ -222,15 +222,60 @@ function colorKeyOf(uid) {
   return colorKey || ''
 }
 
-export function getGradeColor(uid) {
-  const colorKey = colorKeyOf(uid)
+// 取色优先级：自定义 > 主题 CSS 变量 > 硬编码默认
+function paletteColor(colorKey) {
   if (!colorKey) return ''
-  // 优先级：自定义 > 主题CSS变量 > 硬编码默认
   const customPalette = store.setting?.gradeColors || {}
   if (customPalette[colorKey]) return customPalette[colorKey]
   const cssVar = getComputedStyle(document.documentElement).getPropertyValue(`--grade-${colorKey}`).trim()
   if (cssVar) return cssVar
   return DEFAULT_PALETTE[colorKey] || ''
+}
+
+export function getGradeColor(uid) {
+  return paletteColor(colorKeyOf(uid))
+}
+
+// 无年级信息时的兜底分组键：只用色相差异大、亮度足够的键
+// （避免落到 #284DB2 / #0B8379 这类深色上，小字号下看起来像没上色）
+const FALLBACK_COLOR_KEYS = ['d1', 'g1', 'c1', 'x4', 'jl', 'x5']
+
+/**
+ * 轻量字符串哈希。
+ * 注意：不能用 `uid % n` —— OJ 的 uid 存在等差规律（实测 1637 / 1013 / 1069 都 ≡ 5 mod 8），
+ * 取模会让一大批用户撞进同一个键（当时全都变成 d3 深蓝，视觉上像"名字没颜色"）。
+ */
+function uidHash(uid) {
+  const s = String(uid == null ? '' : uid)
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 1000003
+  return h
+}
+
+/**
+ * 远端用户（不在 store.users 中，如发现页推荐）的名字颜色。
+ * 有年级 → 与好友列表一致的年级色；没有年级 → 按 uid 稳定派生一个协调色（不随刷新跳变）。
+ * 注意：getAvatarInitial / getGradeColor 的参数是 uid（内部查 store.users），
+ * 对远端对象必须用本函数，不能把对象直接传进去。
+ */
+export function getNameColorFor(uid, grade) {
+  const byGrade = gradeToColorKey(grade || '')
+  if (byGrade) return paletteColor(byGrade)
+  return paletteColor(FALLBACK_COLOR_KEYS[uidHash(uid) % FALLBACK_COLOR_KEYS.length])
+}
+
+/**
+ * 头像首字：基于对象自身的字段（远端对象不在 store.users 里，不能用 getAvatarInitial）。
+ * 优先级与 getAvatarInitial 保持一致：真名 > 昵称 > 用户名 > uid。
+ */
+export function getInitialOfUser(u) {
+  if (!u) return '?'
+  // 逐个候选取首个非空白字符：空字符串 / 纯空白的字段要跳过，而不是原地失败
+  for (const c of [u.realname, u.nickname, u.username, u.uid]) {
+    const ch = String(c == null ? '' : c).trim().charAt(0)
+    if (ch) return ch
+  }
+  return '?'
 }
 
 export function getGradeLabel(uid) {
@@ -470,13 +515,11 @@ async function _reportVisit() {
   _reporting = true
   try {
     if (!window.api?.reportVisit) return
+    // 完整上报 OJ 档案（store.self）；服务端白名单落盘，敏感字段不入库。
+    // grade 取 ranklist 快照（/chat/info 的 self 对象里没有该字段）。
     await window.api.reportVisit({
-      uid: s.uid,
-      username: s.username || '',
-      nickname: s.nickname || '',
-      realname: s.realname || '',
-      school: s.school || '',
-      seat: s.seat || '',
+      ...s,
+      grade: store.users?.[s.uid]?.grade || '',
       version: await _getAppVersion() // 上报应用版本，供 /dev 分析页展示
     })
   } catch (e) {
@@ -883,6 +926,29 @@ export function isConvoMuted(pageType, pageId) {
   return !!store.mutedConvos?.[key];
 }
 
+/**
+ * 是否为「纯网页浏览器」环境。
+ *
+ * 注意 window.__7FA4_WEB__ 只表示「非 Electron」——Android App 走的也是同一套 platform/web-api.js
+ * 适配层，所以 APK 里它同样是 true（曾导致安卓端冒出网页端专属的「下载」入口与
+ * 「网页端不支持 GeoGebra」文案）。判断"是不是网页"一律走这里，别直接读 __7FA4_WEB__。
+ */
+export function isWebBrowser() {
+  if (typeof window === 'undefined') return false;
+  if (!window.__7FA4_WEB__) return false; // Electron 桌面端
+  if (window.__7FA4_NATIVE__ === true) return false; // Android 原生外壳
+  return window.__7FA4_PLATFORM__ !== 'android'; // 兜底：老版本注入的标记
+}
+
+/**
+ * 「隐藏非双向好友」设置：单向关注（仅我关注 TA，或仅 TA 关注我）的好友被隐藏。
+ * 只影响列表/未读展示，store 中的数据与消息历史完整保留，关掉开关即恢复。
+ */
+export function isUserHiddenBySetting(u) {
+  if (store.setting?.hideNonMutual !== true) return false;
+  return !(u?.watchee === true && u?.watcher === true);
+}
+
 export function isDndTime(setting) {
   return !!setting?.dndEnabled;
 }
@@ -896,6 +962,52 @@ export function shouldNotify(pageType, pageId, setting) {
 export function getNotifContent(content, setting) {
   if (setting?.notifPrivacy) return '收到一条新消息';
   return content;
+}
+
+// ========== 更新检查（非 Electron） ==========
+/** 版本号比较：返回 1（a>b）/ 0 / -1 */
+export function compareVersion(a, b) {
+  const pa = String(a || '').split('.').map(Number);
+  const pb = String(b || '').split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0, y = pb[i] || 0;
+    if (x !== y) return x > y ? 1 : -1;
+  }
+  return 0;
+}
+
+/**
+ * 静默检查更新，把结果写进 store.update，供 NavBar 红点与 UpdatePanel 复用。
+ * 只在「非 Electron」（网页端 / 安卓端）执行 —— 桌面端由 electron-updater 自己查，
+ * 且 preload 不提供 fetchVersionInfo。安卓端尤其需要：APK 没有自动更新通道，
+ * 不做启动检查用户就永远不会知道有新版本。
+ */
+export async function checkAppUpdate() {
+  if (!window.__7FA4_WEB__) return store.update;
+  if (typeof window.api?.fetchVersionInfo !== 'function') return store.update;
+  store.update.checking = true;
+  try {
+    const r = await window.api.fetchVersionInfo();
+    if (r && r.success) {
+      const latest = r.latestVersion || '';
+      const cur = await window.api.getVersion().catch(() => '');
+      store.update.current = cur || '';
+      store.update.latest = latest;
+      store.update.hasUpdate = !!latest && compareVersion(latest, cur) > 0;
+      const apk = (r.artifacts || []).find(a => a && a.platform === 'android');
+      store.update.apkUrl = (apk && apk.url) || '';
+      store.update.apkSize = (apk && apk.size) || 0;
+      store.update.error = '';
+    } else {
+      store.update.error = (r && r.error) || '获取最新版本失败';
+    }
+  } catch (e) {
+    store.update.error = (e && e.message) || '网络错误';
+  } finally {
+    store.update.checking = false;
+    store.update.checked = true;
+  }
+  return store.update;
 }
 
 // ========== 日期分组 ==========
@@ -927,6 +1039,68 @@ export function highlightKeyword(text, keyword) {
   const escaped = esc(text);
   const re = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
   return escaped.replace(re, '<mark class="search-highlight">$1</mark>');
+}
+
+// ========== 收藏结构归一化 ==========
+// v2 起新增 tags / note / pinned。读取时补默认值但不写回（避免轮询期间频繁改动响应式数据），
+// 由 saveAll 的自然落盘完成升级；旧客户端读到多余字段会忽略 → 新旧版本双向兼容。
+export const FAVORITES_SCHEMA = 2
+
+/**
+ * 构造一条收藏记录（唯一入口）。
+ * 各处收藏按钮都走这里，避免写入结构不一致 —— 曾出现 MessageList 与 ChatView 两处
+ * 都只写旧 7 字段，导致新收藏缺 tags/note/pinned，每次渲染都要重新归一化。
+ */
+export function makeFavorite(msg, fromType, fromId) {
+  return {
+    id: msg.id ?? msg.mid,
+    content: msg.content || '',
+    sender: msg.sender,
+    send_time: msg.send_time,
+    fromType: fromType ?? null,
+    fromId: fromId ?? null,
+    savedAt: Date.now(),
+    tags: [],
+    note: '',
+    pinned: false,
+    schema: FAVORITES_SCHEMA
+  }
+}
+
+export function normalizeFavorites(list) {
+  if (!Array.isArray(list)) return []
+  return list.map((f) => {
+    if (!f || typeof f !== 'object' || f.schema === FAVORITES_SCHEMA) return f
+    return {
+      ...f,
+      tags: Array.isArray(f.tags) ? f.tags : [],
+      note: typeof f.note === 'string' ? f.note : '',
+      pinned: f.pinned === true,
+      schema: FAVORITES_SCHEMA
+    }
+  })
+}
+
+// ========== 全量消息检索（三端统一入口） ==========
+// Electron: preload → 主进程 storage.searchMessages（逐条解密）
+// 网页/安卓: platform/web-api.js 的同名实现（IndexedDB）
+// senders：按发送者命中 —— 搜「某人」时带出他发出的消息（微信式搜索）
+export async function searchAllMessages({ q, senders, kind, cid, after, before, limit = 50, offset = 0, scanCap } = {}) {
+  const keyword = String(q || '').trim()
+  const senderList = Array.isArray(senders)
+    ? senders.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+    : []
+  // 关键词与发送者至少要有一个，否则等同于全量扫描
+  if (!keyword && !senderList.length) return { success: true, total: 0, scanned: 0, truncated: false, data: [] }
+  const uid = store.self?.uid
+  if (!uid) return { success: false, error: '未登录' }
+  const fn = window.api?.storeSearchMessages
+  if (typeof fn !== 'function') return { success: false, error: '当前平台不支持全量检索' }
+  try {
+    return await fn(uid, { q: keyword, senders: senderList, kind, cid, after, before, limit, offset, scanCap })
+  } catch (e) {
+    return { success: false, error: e.message || '检索失败' }
+  }
 }
 
 // ========== 通知声音 ==========

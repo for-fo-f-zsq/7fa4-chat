@@ -15,6 +15,9 @@ const ggbDst = resolve(outRenderer, 'geogebra');
 console.log('[build-web] electron-vite build ...');
 execSync('npx electron-vite build', { cwd: root, stdio: 'inherit' });
 
+// 去掉 out/renderer/assets 里 Chromium 用不到的非 woff2 字体（约 1.4MB）
+execSync('node scripts/prune-renderer-assets.mjs', { cwd: root, stdio: 'inherit' });
+
 if (!existsSync(outRenderer)) {
   console.error('[build-web] 构建产物缺失: out/renderer');
   process.exit(1);

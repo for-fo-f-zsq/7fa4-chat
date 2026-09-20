@@ -4,7 +4,7 @@
 // loader 先 require('bytenode') 再加载 index.jsc，打包产物里不包含主进程源码明文。
 import { spawnSync } from 'child_process';
 import { createRequire } from 'module';
-import { copyFileSync, existsSync } from 'fs';
+import { copyFileSync, existsSync, unlinkSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -32,3 +32,10 @@ if (r.status !== 0) {
 
 copyFileSync(join(root, 'src', 'main', 'loader.js'), join(mainDir, 'loader.js'));
 console.log('[jsc] loader.js 已就位:', join(mainDir, 'loader.js'));
+
+// 移除明文入口：build.extraMetadata.main 指向 ./out/main/loader.js，index.js 在打包产物里
+// 不再被引用。留着它等于把主进程明文 JS 一起塞进 app.asar，bytenode 的编译保护形同虚设
+// （2026-09-20 修：此前 asar 内 index.js 47KB 明文与 index.jsc 并存，可直接阅读）。
+// electron-vite dev 不经过本脚本，开发模式仍使用 out/main/index.js。
+unlinkSync(input);
+console.log('[jsc] 已移除明文入口 out/main/index.js');

@@ -87,6 +87,7 @@
 }
 .option-row:hover { background: var(--bg-conversation-hover); }
 .option-label { font-size: var(--font-size-base, 14px); color: var(--text-primary); white-space: nowrap; transition: color 0.35s ease; }
+.option-label .option-info { margin-left: 6px; font-size: 12px; color: var(--text-secondary, #999); cursor: help; }
 
 /* ===== Custom Select ===== */
 .custom-select {

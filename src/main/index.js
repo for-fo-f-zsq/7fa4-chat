@@ -596,8 +596,14 @@ ipcMain.handle('export-markdown-png', async (event, suggestedName, html) => {
 
         const WIDTH = 900;
         const PAD = 28;
-        // 引入 KaTeX 样式与字体，保证公式排版正确（file:// 相对 css 解析字体）
-        const katexCssUrl = pathToFileURL(path.join(app.getAppPath(), 'node_modules/katex/dist/katex.min.css')).href;
+        // 引入 KaTeX 样式与字体，保证公式排版正确（file:// 相对 css 解析字体）。
+        // 打包后读安装包 resources/katex（构建期由 scripts/sync-katex-assets.mjs 生成，
+        // 只含 katex.min.css + woff2 字体）；开发模式回落到 node_modules。
+        // 这样做是为了让运行时不再依赖 node_modules/katex 整个包（3.8MB，含源码/全格式字体）。
+        const katexCssPath = app.isPackaged
+            ? path.join(process.resourcesPath, 'katex', 'katex.min.css')
+            : path.join(app.getAppPath(), 'node_modules', 'katex', 'dist', 'katex.min.css');
+        const katexCssUrl = pathToFileURL(katexCssPath).href;
         const template = `<!DOCTYPE html>
 <html><head><meta charset="utf-8">
 <link rel="stylesheet" href="${katexCssUrl}">
@@ -787,6 +793,12 @@ ipcMain.handle('store-save-all', async (event, uid, data) => {
 ipcMain.handle('store-load-messages', async (event, uid, kind, cid, limit, before) => {
     if (!storeReady()) return { success: false, error: '存储未初始化' };
     return userStore.loadMessages(Number(uid), kind, Number(cid), limit, before);
+});
+
+// 全量消息检索（逐条解密匹配；只回命中片段）
+ipcMain.handle('store-search-messages', async (event, uid, opts) => {
+    if (!storeReady()) return { success: false, error: '存储未初始化' };
+    return userStore.searchMessages(Number(uid), opts || {});
 });
 
 // 每个会话最新一条消息（会话列表预览/排序）
@@ -1101,6 +1113,18 @@ ipcMain.handle('fetch-sponsors', async () => {
     return { success: false, list: [], error: (r.data && r.data.error) || r.error || ('HTTP ' + r.status) };
 });
 
+// 发现页：可能认识的人（服务端基于上报档案聚合）
+ipcMain.handle('discover-people', async (event, uid, limit) => {
+    const u = Number(uid);
+    const n = Math.min(Math.max(Number(limit) || 60, 1), 200);
+    if (!u) return { success: false, items: [], error: '缺少 uid' };
+    const r = await httpsApiJson(`/api/discover/people?uid=${u}&limit=${n}`, 'GET');
+    if (r.status >= 200 && r.status < 300 && r.data && Array.isArray(r.data.items)) {
+        return { success: true, items: r.data.items, sample: r.data.sample || 0, updatedAt: r.data.updatedAt || 0 };
+    }
+    return { success: false, items: [], error: (r.data && r.data.error) || r.error || ('HTTP ' + r.status) };
+});
+
 // 任务栏图标未读数
 ipcMain.handle('set-badge-count', (event, count) => {
     try { app.setBadgeCount(count || 0); return { success: true }; }
@@ -1240,16 +1264,13 @@ ipcMain.handle('report-visit', async (event, info) => {
     try {
         const uid = Number(info && info.uid);
         if (!uid || !Number.isInteger(uid) || uid <= 0) return { ok: false, error: 'invalid uid' };
-        const payload = {
-            uid,
-            username: String(info.username || '').slice(0, 64),
-            nickname: String(info.nickname || '').slice(0, 64),
-            realname: String(info.realname || '').slice(0, 64),
-            school: String(info.school || '').slice(0, 64),
-            seat: String(info.seat || '').slice(0, 64),
-            version: String(info.version || '').slice(0, 32),
-            date: Date.now() // 服务器以此做防重放时间窗口，渲染进程无需传
-        };
+        // 完整上报 OJ 档案（self）：服务端白名单落盘，敏感字段不入库。
+        // 长字段截断：防止 information 类长文本撑爆服务端 8KB body 上限。
+        // date 由主进程补（服务器以此做防重放时间窗口，渲染进程无需传）。
+        const payload = { ...(info || {}), uid, date: Date.now() };
+        for (const k of Object.keys(payload)) {
+            if (typeof payload[k] === 'string' && payload[k].length > 256) payload[k] = payload[k].slice(0, 256);
+        }
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 5000);
         let ok = false;

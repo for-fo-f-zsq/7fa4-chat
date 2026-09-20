@@ -188,6 +188,8 @@
           </div>
           <div class="graph-tool-divider"></div>
           <div class="graph-tool-group">
+            <button class="graph-tool-btn" title="从文件载入图（.json）" @click="openFile"><i class="fas fa-folder-open"></i></button>
+            <button class="graph-tool-btn" title="保存到文件（.json，含节点坐标与排版）" @click="save"><i class="fas fa-save"></i></button>
             <button class="graph-tool-btn" title="导出为 PNG 图片" @click="exportImg"><i class="fas fa-file-image"></i></button>
           </div>
         </div>
@@ -218,7 +220,7 @@ import * as algos from './graphAlgos.js'
 import { useNarrow } from '../../../composables/useNarrow.js'
 import './graph-editor.css'
 
-defineEmits(['back'])
+const emit = defineEmits(['back', 'dirty-change'])
 
 const { isNarrow } = useNarrow()
 // 窄模式默认收起侧栏（画布优先占满；宽模式始终展开）
@@ -320,6 +322,24 @@ let themeObserver = null
 let parseTimer = null
 let labelsTimer = null
 
+// ---------- 未保存标记 ----------
+// 只在「用户改动图」时置脏（加点/加边/删除/清空/随机/改标签/拖动），
+// 力导向布局每帧都在改坐标、不算改动，否则会一直弹未保存提示。
+let dirty = false
+// 挂载时会自动载入示例图，那是「初始化」不是「用户改动」，不能算未保存
+let suppressDirty = false
+function markDirty() {
+  if (suppressDirty) return
+  if (dirty) return
+  dirty = true
+  emit('dirty-change', true)
+}
+function markClean() {
+  if (!dirty) return
+  dirty = false
+  emit('dirty-change', false)
+}
+
 // 高亮计算结果
 let compColors = new Map()
 let bridgeSet = new Set()
@@ -398,6 +418,7 @@ function addNodeAt(wx, wy) {
   }
   nodes.push(n)
   selected = n
+  markDirty()
   syncInputFromGraph()
   invalidate()
   return n
@@ -407,6 +428,7 @@ function addEdge(u, v) {
   if (u === v) return null
   const e = { type: 'edge', u, v, w: null }
   edges.push(e)
+  markDirty()
   syncInputFromGraph()
   return e
 }
@@ -421,6 +443,7 @@ function deleteNode(n) {
   if (selected === n) selected = null
   if (edgeStart === n) edgeStart = null
   if (hoverNode === n) hoverNode = null
+  markDirty()
   syncInputFromGraph()
   invalidate()
 }
@@ -430,6 +453,7 @@ function deleteEdge(e) {
   if (idx >= 0) edges.splice(idx, 1)
   if (selected === e) selected = null
   if (hoverEdge === e) hoverEdge = null
+  markDirty()
   syncInputFromGraph()
   invalidate()
 }
@@ -438,6 +462,7 @@ function clearGraph(syncInput = true) {
   nodes.length = 0
   edges.length = 0
   nextNodeId = 1
+  markDirty()
   selected = null
   edgeStart = null
   dragNode = null
@@ -479,6 +504,7 @@ function applyLabelsLive() {
       n.label = s && s !== '_' ? s : String(n.id)
     }
   })
+  markDirty()
   invalidate()
 }
 
@@ -540,6 +566,128 @@ function exportImg() {
     else if (!r.canceled) alert('导出失败：' + (r.error || '未知错误'))
   }).catch(() => alert('导出失败'))
 }
+
+// ---------- 保存 / 载入 ----------
+// 存的是完整可视快照（含节点坐标与视图变换），所以再打开能原样复原排版。
+// 走 downloadFile / selectFile，桌面端弹文件对话框、网页端下载与上传、安卓端保存到文件并分享，
+// 三端都能用；不用 saveDataFile 是为了让用户能自己选位置、把图当普通文件保存。
+const GRAPH_FILE_VERSION = 1
+const fileName = ref('graph.json')
+
+function b64ToText(b64) {
+  const bin = atob(b64)
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0))
+  return new TextDecoder('utf-8').decode(bytes)
+}
+function textToB64(str) {
+  const bytes = new TextEncoder().encode(str)
+  let bin = ''
+  for (const b of bytes) bin += String.fromCharCode(b)
+  return btoa(bin)
+}
+
+function graphSnapshot() {
+  return {
+    v: GRAPH_FILE_VERSION,
+    app: '7fa4-chat/graph-editor',
+    offset: offset.value,
+    directed: directed.value,
+    view: { x: view.x, y: view.y, scale: view.scale },
+    nodes: nodes.map(n => ({ id: n.id, x: n.x, y: n.y, label: n.label })),
+    edges: edges.map(e => ({ u: e.u, v: e.v, w: e.w }))
+  }
+}
+
+async function save() {
+  if (!nodes.length) { alert('画布为空，无可保存的图'); return }
+  const json = JSON.stringify(graphSnapshot(), null, 2)
+  const name = (fileName.value && fileName.value.trim()) || 'graph.json'
+  try {
+    const r = await window.api.downloadFile(textToB64(json), name, 'application/json')
+    if (r && r.success) { fileName.value = name; markClean(); alert('已保存') }
+    else if (!r || !r.canceled) alert('保存失败：' + ((r && r.error) || '未知错误'))
+  } catch (e) {
+    alert('保存失败：' + ((e && e.message) || '未知错误'))
+  }
+}
+
+async function openFile() {
+  if (dirty && !confirm('当前图未保存，载入文件将丢弃现有内容，确定继续？')) return
+  let r = null
+  try { r = await window.api.selectFile() } catch { alert('打开失败：无法选择文件'); return }
+  if (!r || !r.success || !r.data) return
+  let data = null
+  try { data = JSON.parse(b64ToText(r.data)) } catch {
+    alert('打开失败：文件不是有效的 JSON')
+    return
+  }
+  if (!data || !Array.isArray(data.nodes)) {
+    alert('打开失败：文件不是图编辑器保存的格式')
+    return
+  }
+
+  // 逐项校验后再写入：非法节点/越界 id/重复 id/悬空边一律丢弃，避免坏文件把画布搞坏
+  const cleanNodes = []
+  const seen = new Set()
+  for (const raw of data.nodes) {
+    const id = Number(raw && raw.id)
+    if (!Number.isInteger(id) || id < 1 || id > 600 || seen.has(id)) continue
+    seen.add(id)
+    cleanNodes.push({
+      type: 'node',
+      id,
+      x: Number(raw.x) || 0,
+      y: Number(raw.y) || 0,
+      label: raw.label == null || raw.label === '' ? String(id) : String(raw.label),
+      vx: 0,
+      vy: 0,
+      fixed: false,
+      color: null
+    })
+  }
+  if (!cleanNodes.length) { alert('打开失败：文件里没有有效节点'); return }
+  const cleanEdges = []
+  for (const raw of (Array.isArray(data.edges) ? data.edges : [])) {
+    const u = Number(raw && raw.u)
+    const v = Number(raw && raw.v)
+    if (!seen.has(u) || !seen.has(v) || u === v) continue
+    cleanEdges.push({ type: 'edge', u, v, w: raw.w == null || raw.w === '' ? null : String(raw.w) })
+    if (cleanEdges.length >= 1000) break
+  }
+
+  nodes.length = 0
+  edges.length = 0
+  for (const n of cleanNodes) nodes.push(n)
+  for (const e of cleanEdges) edges.push(e)
+  nextNodeId = cleanNodes.reduce((m, n) => Math.max(m, n.id), 0) + 1
+  offset.value = data.offset === 0 ? 0 : 1
+  directed.value = data.directed === true
+  treeMode.value = false
+  treeEdgeSet = new Set()
+  treeRoot = null
+  selected = null
+  edgeStart = null
+  dragNode = null
+  hoverNode = null
+  hoverEdge = null
+  const v = data.view
+  if (v && Number.isFinite(Number(v.scale))) {
+    view.x = Number(v.x) || 0
+    view.y = Number(v.y) || 0
+    view.scale = Math.max(0.15, Math.min(5, Number(v.scale) || 1))
+  } else {
+    fitView()
+  }
+  syncInputFromGraph()
+  invalidate()
+  requestDraw()
+  fileName.value = r.name || 'graph.json'
+  markClean()
+  alert('已载入 ' + (r.name || '文件'))
+}
+
+// 供外层 ChatView 的「未保存」拦截调用（与 ImageTool / MarkdownTool / MathTool 同一套约定）
+defineExpose({ save, openFile })
 
 function edgesText() {
   const off = offset.value === 0 ? -1 : 0
@@ -677,6 +825,7 @@ function toggleLock() {
 
 function restartLayout() {
   if (locked.value) return
+  markDirty()
   placeCircle()
   fitView()
   runLayout()
@@ -825,6 +974,7 @@ function randomGraph() {
   fitView()
   runLayout()
   invalidate()
+  markDirty()
 }
 
 // ---------- 解析输入 ----------
@@ -981,6 +1131,7 @@ function parseInput(preserve = false, silent = false) {
     runLayout()
   }
   invalidate()
+  markDirty()
 }
 
 function loadExample() {
@@ -1578,6 +1729,7 @@ function onMouseUp(e) {
     const from = dragNode
     dragNode = null
     if (dragMoved) {
+      markDirty() // 坐标是要保存进文件的，所以拖动也算改动
       const target = hitNode(mouseWorld)
       if (target && target !== from && mode.value === 'edit') {
         addEdge(from.id, target.id)
@@ -1685,7 +1837,12 @@ onMounted(async () => {
   window.addEventListener('keydown', onKeyDown)
   view.x = canvasW / 2
   view.y = canvasH / 2
+  suppressDirty = true
   loadExample()
+  suppressDirty = false
+  // 显式同步一次：toolsDirty 是三个工具共享的，刚挂载的图工具一定是干净的
+  dirty = false
+  emit('dirty-change', false)
 })
 
 onBeforeUnmount(() => {

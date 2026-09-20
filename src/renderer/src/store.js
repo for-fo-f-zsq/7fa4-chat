@@ -23,4 +23,15 @@ export const store = reactive({
   multiSelectMode: false, // 多选模式
   selectedMsgIds: [],   // 多选选中的消息ID
   tokenLimit: null,     // /chat/info 的 limit：{ time_limit(秒=恢复周期), count_limit(最大token数), ... }
+  // 更新检查（仅非 Electron：网页端/安卓端由 utils.checkAppUpdate 写入；桌面端交给 electron-updater）
+  update: {
+    checked: false,
+    checking: false,
+    current: '',        // 当前客户端版本
+    latest: '',         // 服务端最新版本
+    hasUpdate: false,
+    apkUrl: '',         // 安卓端 APK 直链
+    apkSize: 0,
+    error: ''
+  },
 });

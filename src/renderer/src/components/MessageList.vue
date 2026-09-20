@@ -91,7 +91,7 @@
 <script setup>
 import { ref, reactive, computed, onUpdated, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown, compressBase64Image } from '../utils.js';
+import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown, compressBase64Image, makeFavorite } from '../utils.js';
 import MsgMenu from './MsgMenu.vue';
 import { useCurrentMessages } from '../composables/useCurrentMessages.js';
 import '../css/message-list.css';
@@ -461,15 +461,7 @@ function favoriteMsg() {
   msgCtx.show = false;
   if (!msg) return;
   if (!store.favorites.some(f => f.id === msgId)) {
-    store.favorites.push({
-      id: msgId,
-      content: msg.content,
-      sender: msg.sender,
-      send_time: msg.send_time,
-      fromType: props.pageType,
-      fromId: props.pageId,
-      savedAt: Date.now()
-    });
+    store.favorites.push(makeFavorite(msg, props.pageType, props.pageId));
   }
 }
 

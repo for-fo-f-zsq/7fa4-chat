@@ -36,7 +36,8 @@ const emit = defineEmits(['back', 'dirty-change'])
 
 const frameRef = ref(null)
 const loaded = ref(false)
-// Electron 走 geo:// 自定义协议（extraResources）；Web/Android 走打包进静态资源的相对路径
+// Electron 走 geo:// 自定义协议（extraResources）；网页端与 Android 都走打进静态资源的 /geogebra/。
+// 这是「是否 Electron」的分支，安卓端必须走 /geogebra/，**不要**改成 isWebBrowser()。
 const frameSrc = window.__7FA4_WEB__ ? '/geogebra/calculator.html' : 'geo://ggb/calculator.html'
 
 function onLoad() {

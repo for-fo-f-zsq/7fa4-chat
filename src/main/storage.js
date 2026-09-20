@@ -66,6 +66,34 @@ function decryptText(payload) {
 const encryptJSON = (obj) => encryptText(JSON.stringify(obj))
 const decryptJSON = (payload) => JSON.parse(decryptText(payload))
 
+// ---------- 检索辅助 ----------
+/** 提取消息的可检索文本（类型分支与渲染层 SearchPanel 保持一致） */
+function searchableText(msg) {
+  const c = msg && msg.content
+  if (typeof c !== 'string') return ''
+  try {
+    const o = JSON.parse(c)
+    if (!o || typeof o !== 'object') return c
+    if (o.type === 'text') return String(o.content || '')
+    if (o.type === 'file') return String(o.name || '')
+    if (o.type === 'emoji') return String(o.content || '')
+    if (o.type === 'sticker') return String(o.name || '')
+    return c
+  } catch {
+    return c
+  }
+}
+
+/** 命中片段：以命中点为中心前后各取 30 字（无关键词时取开头） */
+function makeSnippet(text, ql) {
+  if (!ql) return text.slice(0, 80)
+  const i = text.toLowerCase().indexOf(ql)
+  if (i < 0) return text.slice(0, 80)
+  const start = Math.max(0, i - 30)
+  const end = Math.min(text.length, i + ql.length + 30)
+  return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '')
+}
+
 // ---------- 存储类 ----------
 class UserStore {
   constructor(dbPath) {
@@ -226,6 +254,58 @@ class UserStore {
     }
   }
 
+  /**
+   * 全量消息检索：messages 表逐条 AES-256-GCM 加密，无法 SQL LIKE，必须解密后匹配。
+   * 先用 SQL 按会话/时间粗筛以减少解密量；只回命中片段（snippet），不回全文以控制 IPC 体积。
+   * opts: { q, kind, cid, after, before, limit, offset, scanCap }
+   * 返回: { success, total, scanned, truncated, data:[{id,kind,cid,sender,send_time,snippet}] }
+   */
+  searchMessages(uid, opts = {}) {
+    if (!this.db) return { success: false, error: 'db not ready' }
+    const q = String(opts.q || '').trim()
+    // senders：按发送者命中（搜「某人」时带出其发出的消息）。允许 q 为空、仅凭 senders 检索。
+    // 用 Set：senders 可能上百个，逐条 indexOf 是 O(n×m)。
+    const senderSet = new Set(
+      Array.isArray(opts.senders) ? opts.senders.map(Number).filter((n) => Number.isFinite(n) && n > 0) : []
+    )
+    if (!q && !senderSet.size) return { success: true, total: 0, scanned: 0, truncated: false, data: [] }
+    const ql = q.toLowerCase()
+    const limit = Math.min(Math.max(Number(opts.limit) || 50, 1), 200)
+    const offset = Math.max(Number(opts.offset) || 0, 0)
+    const scanCap = Math.min(Math.max(Number(opts.scanCap) || 20000, 1), 200000)
+    try {
+      let sql = 'SELECT mid, kind, cid, send_time, content FROM messages WHERE uid=?'
+      const params = [uid]
+      if (opts.kind) { sql += ' AND kind=?'; params.push(opts.kind) }
+      if (opts.cid != null) { sql += ' AND cid=?'; params.push(Number(opts.cid)) }
+      if (opts.after) { sql += ' AND send_time>=?'; params.push(Number(opts.after)) }
+      if (opts.before) { sql += ' AND send_time<=?'; params.push(Number(opts.before)) }
+      sql += ' ORDER BY send_time DESC'
+      const rows = this.db.prepare(sql).all(...params)
+
+      let scanned = 0
+      let total = 0
+      let truncated = false
+      const data = []
+      for (const r of rows) {
+        if (scanned >= scanCap) { truncated = true; break }
+        scanned++
+        let msg
+        try { msg = decryptJSON(r.content) } catch { continue } // 单条损坏跳过
+        const text = searchableText(msg)
+        const bySender = senderSet.size > 0 && senderSet.has(Number(msg.sender))
+        const byText = !!ql && text.toLowerCase().indexOf(ql) !== -1
+        if (!byText && !bySender) continue
+        total++
+        if (total <= offset || data.length >= limit) continue // 需继续遍历以得到准确的 total
+        data.push({ id: r.mid, kind: r.kind, cid: r.cid, sender: msg.sender, send_time: r.send_time, snippet: makeSnippet(text, ql), bySender })
+      }
+      return { success: true, total, scanned, truncated, data }
+    } catch (e) {
+      return { success: false, error: e.message }
+    }
+  }
+
   /** 清理：每个会话只保留最近 keepPerConvo 条消息（服务器可重新拉取） */
   cleanMessages(uid, keepPerConvo = 2000) {
     if (!this.db) return { success: false, error: 'db not ready' }
@@ -349,6 +429,7 @@ class UserStore {
 function importLegacyData(store, uid, data) {
   try {
     if (!data || typeof data !== 'object') return { success: false, error: '数据格式异常' }
+    // v1 格式：{ users, groups, messages, prefs(系统数据聚合), setting(由渲染层恢复，不入库) }
     // 建 mid → 会话 映射（一次遍历所有 message_ids）
     const convoMap = new Map()
     if (data.users && typeof data.users === 'object') {
@@ -397,15 +478,9 @@ function importLegacyData(store, uid, data) {
       }
     }
 
-    // 偏好
-    store.savePrefs(uid, {
-      drafts: data.drafts || {},
-      favorites: data.favorites || [],
-      mutedConvos: data.mutedConvos || {},
-      hiddenConvos: data.hiddenConvos || {},
-      deletedMsgIds: data.deletedMsgIds || [],
-      stickers: data.stickers || []
-    })
+    // 偏好（v1：prefs 聚合全量写入；setting 不入 prefs，由渲染层恢复）
+    const prefs = (data.prefs && typeof data.prefs === 'object') ? data.prefs : {}
+    store.savePrefs(uid, prefs)
     return { success: true, messages: totalMsgs }
   } catch (e) {
     return { success: false, error: e.message }

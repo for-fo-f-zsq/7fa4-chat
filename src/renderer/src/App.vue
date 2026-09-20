@@ -19,7 +19,7 @@ import LoginView from './views/LoginView.vue';
 import ChatView from './views/ChatView.vue';
 import Announcement from './components/Announcement.vue';
 import Onboarding from './components/Onboarding.vue';
-import { loadUsersDb } from './utils.js';
+import { loadUsersDb, compareVersion } from './utils.js';
 
 const canvasEl = ref(null)
 let animId = 0
@@ -48,20 +48,11 @@ function closeOnboarding() {
 const showAnnouncement = ref(false)
 const announcementPending = ref(false)
 const SEEN_VERSION_KEY = 'announcement-seen-version'
-function compareVersions(a, b) {
-  const pa = String(a).split('.').map(Number)
-  const pb = String(b).split('.').map(Number)
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const x = pa[i] || 0, y = pb[i] || 0
-    if (x !== y) return x > y ? 1 : -1
-  }
-  return 0
-}
 async function checkAnnouncement() {
   try {
     const v = await window.api.getVersion()
     const seen = localStorage.getItem(SEEN_VERSION_KEY) || '0'
-    if (compareVersions(v, seen) > 0) {
+    if (compareVersion(v, seen) > 0) {
       // 新用户引导还开着就先挂起，等引导关掉再弹
       if (showOnboarding.value) announcementPending.value = true
       else showAnnouncement.value = true
