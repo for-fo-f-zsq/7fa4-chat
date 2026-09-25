@@ -260,3 +260,10 @@ mark.search-highlight {
     border-radius: 3px;
     padding: 0 2px;
 }
+
+/* 一级页面标题（消息 / 发现 / 工具 / 设置）统一带一枚小图标，图标与左侧导航同一套 fa 图标。
+   配色沿用公告页既有约定：--accent + 6px 间距。 */
+.page-title i {
+    color: var(--accent);
+    margin-right: 6px;
+}

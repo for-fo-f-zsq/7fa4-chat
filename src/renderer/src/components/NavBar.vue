@@ -4,21 +4,20 @@
       <img src="../../icon/icon.ico" class="nav-logo-img" />
     </div>
     <div
-      v-if="loggedIn"
       class="nav-icon"
-      :class="{ active: pageType === 'chat' }"
-      @click="$emit('switch', 'chat')"
+      :class="{ active: pageType === 'chat', disabled: isLocked('chat') }"
+      :title="isLocked('chat') ? '登录后可用' : '消息'"
+      @click="onNavClick('chat')"
     >
       <i class="fas fa-comment-dots"></i>
       <span>消息</span>
       <span v-if="chatUnread" class="nav-badge"></span>
     </div>
     <div
-      v-if="loggedIn"
       class="nav-icon"
-      :class="{ active: pageType === 'discover' }"
-      title="发现：可能认识的人 / 群，以及全量搜索"
-      @click="$emit('switch', 'discover')"
+      :class="{ active: pageType === 'discover', disabled: isLocked('discover') }"
+      :title="isLocked('discover') ? '登录后可用' : '发现：可能认识的人 / 群，以及全量搜索'"
+      @click="onNavClick('discover')"
     >
       <i class="fas fa-compass"></i>
       <span>发现</span>
@@ -28,7 +27,7 @@
       :class="{ active: pageType === 'tools' }"
       @click="$emit('switch', 'tools')"
     >
-      <i class="fas fa-wrench"></i>
+      <i class="fas fa-toolbox"></i>
       <span>工具</span>
     </div>
     <div
@@ -80,7 +79,12 @@
         </div>
         <!-- 导航分组 -->
         <div class="nav-user-menu-group">
-          <div class="nav-user-menu-item" v-if="loggedIn" @click="go('favorites')"><i class="fas fa-star"></i><span>收藏</span></div>
+          <div
+            class="nav-user-menu-item"
+            :class="{ disabled: isLocked('favorites') }"
+            :title="isLocked('favorites') ? '登录后可用' : ''"
+            @click="onMenuGo('favorites')"
+          ><i class="fas fa-star"></i><span>收藏</span></div>
           <div class="nav-user-menu-item" @click="go('update')"><i class="fas fa-cloud-upload-alt"></i><span>版本更新</span><span v-if="store.update.hasUpdate" class="nav-update-tag">有新版本</span></div>
           <div class="nav-user-menu-item" v-if="isWeb" @click="openDownload"><i class="fas fa-download"></i><span>下载客户端</span></div>
           <div class="nav-user-menu-item" @click="go('donate')"><i class="fas fa-heart"></i><span>赞助</span></div>
@@ -254,6 +258,14 @@ const selfInitial = computed(() => {
   return n ? n.charAt(0).toUpperCase() : ''
 })
 const userTitle = computed(() => props.loggedIn ? (selfName.value || `UID ${selfUid.value}`) : '未登录')
+
+// 未登录（游客）进不去的入口：不隐藏，改为变浅且不可交互。
+// 隐藏会让人以为软件没这个功能；保留可见 + 灰掉 + 悬停提示"登录后可用"，才知道是登录态限制。
+// 与 ChatView.switchPage 的游客拦截同一份清单（那边是兜底，快捷键也走它）。
+const LOGIN_ONLY_PAGES = ['chat', 'discover', 'favorites'];
+function isLocked(page) { return !props.loggedIn && LOGIN_ONLY_PAGES.includes(page); }
+function onNavClick(page) { if (isLocked(page)) return; emit('switch', page); }
+function onMenuGo(page) { if (isLocked(page)) return; go(page); }
 
 function action(kind) {
   userMenu.value = false

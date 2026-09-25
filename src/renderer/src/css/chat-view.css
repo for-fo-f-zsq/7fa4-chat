@@ -386,9 +386,10 @@
 .network-banner.online {
   background: var(--success);
 }
-/* 未登录（游客）横幅：金色警示，区别于连接失败的红条 */
+/* 未登录（游客）横幅：橙色警示，区别于连接失败的红条。
+   此前是硬编码 #b8860b，不随主题走；改回 --warning（:root 里由默认主题提供，各主题未覆盖即沿用） */
 .network-banner.not-logged-in {
-  background: #b8860b;
+  background: var(--warning);
 }
 .banner-login-btn {
   margin-left: 10px;
@@ -401,3 +402,21 @@
   cursor: pointer;
 }
 .banner-login-btn:hover { background: rgba(255, 255, 255, 0.35); }
+/* 横幅「本次忽略」：只关掉当前这一次，不落盘（重启/状态变化后重新出现），
+   避免把故障提示永久藏掉造成静默失败 */
+.banner-close {
+  margin-left: 8px;
+  padding: 0;
+  width: 18px;
+  height: 18px;
+  line-height: 1;
+  font-size: 11px;
+  color: #fff;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0.75;
+  vertical-align: -2px;
+}
+.banner-close:hover { opacity: 1; background: rgba(255, 255, 255, 0.25); }

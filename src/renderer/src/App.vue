@@ -3,6 +3,7 @@
     <LoginView v-if="!store.logined && !store.guestMode" @login="onLogin" @guest="onGuest" />
     <ChatView v-else :key="loginSeq" />
   </div>
+  <StartupAd v-if="showStartupAd" :duration="STARTUP_AD_MS" @close="showStartupAd = false" />
   <Onboarding v-if="showOnboarding" @close="closeOnboarding" />
   <Announcement v-if="showAnnouncement" @close="closeAnnouncement" />
   <div v-if="store.initializing && store.logined" class="init-loading">
@@ -19,7 +20,15 @@ import LoginView from './views/LoginView.vue';
 import ChatView from './views/ChatView.vue';
 import Announcement from './components/Announcement.vue';
 import Onboarding from './components/Onboarding.vue';
+import StartupAd from './components/StartupAd.vue';
 import { loadUsersDb, compareVersion } from './utils.js';
+
+// --- 启动广告（招新宣传）---
+// 每次启动强制显示，不可跳过；计时从海报加载完成才开始。
+// 物料有时效性（招新季结束就要撤）：下线只需把 STARTUP_AD_ENABLED 改成 false。
+const STARTUP_AD_ENABLED = true;
+const STARTUP_AD_MS = 3000;
+const showStartupAd = ref(STARTUP_AD_ENABLED);
 
 const canvasEl = ref(null)
 let animId = 0

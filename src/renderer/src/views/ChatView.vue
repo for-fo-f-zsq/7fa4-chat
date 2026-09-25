@@ -11,8 +11,8 @@
       </div>
     </div>
     <!-- 网络/登录状态横幅：位于 app-body 外，全宽横条 -->
-    <div class="network-banner" v-if="store.logined && store.netError"><i class="fas fa-wifi"></i> 未连接，正在尝试重新连接… <button class="banner-login-btn" @click="onUserAction('relogin')">重新登录</button></div>
-    <div class="network-banner not-logged-in" v-if="!store.logined"><i class="fas fa-user-lock"></i> 您还未登录，聊天与收藏暂不可用。 <button class="banner-login-btn" @click="gotoLogin">去登录</button></div>
+    <div class="network-banner" v-if="store.logined && store.netError && !netBannerMuted"><i class="fas fa-wifi"></i> 未连接<template v-if="netDownText">，已断线 {{ netDownText }}</template>，正在尝试重新连接… <button class="banner-login-btn" @click="onUserAction('relogin')">重新登录</button><button class="banner-close" title="本次不再提示（重新连接成功后再次断开会重新出现）" @click="netBannerMuted = true"><i class="fas fa-times"></i></button></div>
+    <div class="network-banner not-logged-in" v-if="!store.logined && !guestBannerMuted"><i class="fas fa-user-lock"></i> 您还未登录，聊天与收藏暂不可用。 <button class="banner-login-btn" @click="gotoLogin">去登录</button><button class="banner-close" title="本次不再提示（重新登录或重启后会重新出现）" @click="guestBannerMuted = true"><i class="fas fa-times"></i></button></div>
     <div class="app-body" :class="{ narrow: isNarrowLayout }">
     <NavBar
       v-if="showNavBar"
@@ -191,7 +191,6 @@
       @settingChange="onSettingChange"
       @openThemeModal="openThemeModal"
       @openShortcutModal="shortcutModal = true"
-      @back="backToChatList"
     />
     <AboutPanel
       v-if="pageType==='about'"
@@ -395,10 +394,12 @@ const isChatPage = computed(() => pageType.value === 'chat' || pageType.value ==
 const navPageType = computed(() => isChatPage.value ? 'chat' : pageType.value);
 // 窄模式导航栏：仅消息对象列表（chat/user/group 且未打开具体详情）与工具列表（未进入工具详情）显示，其余页/详情态隐藏
 // 非窄（桌面宽窗）模式：导航栏恒显示，不因进入会话/工具详情隐藏（窄模式专属行为）
+// 发现页 / 设置页是 TabBar 一级入口（底栏有常驻图标），窄模式同样保留导航栏；既有一级入口即无需返回按钮
 const showNavBar = computed(() => {
   if (!isNarrowLayout.value) return true
   if (isChatPage.value && pageId.value) return false
   if (navPageType.value === 'tools') return currentTool.value === 'list'
+  if (navPageType.value === 'discover' || navPageType.value === 'settings') return true
   return navPageType.value === 'chat'
 })
 
@@ -416,6 +417,36 @@ function gotoLogin() {
   store.guestMode = false;
   store.logined = false;
 }
+
+// --- 顶部状态横幅的「本次忽略」 ---
+// 两条横幅都只忽略本次、不落盘：重启自动恢复，状态变化也会复位。
+// 连接失败条尤其不能永久隐藏 —— 静默失败会让用户误以为"没人发消息"，实际是消息根本没收到。
+const netBannerMuted = ref(false);   // 未连接横幅
+const guestBannerMuted = ref(false); // 未登录（游客）横幅
+const netDownAt = ref(0);            // 本次断线起始时间戳（ms），0 = 未断线
+const nowTick = ref(Date.now());     // 驱动断线时长文本刷新
+let downTicker = null;
+
+// 断线时长：<1min 走秒，<1h 走分，更长走时分 —— 让用户能判断是网络抖动还是服务器真挂了
+const netDownText = computed(() => {
+  if (!netDownAt.value) return '';
+  const s = Math.max(0, Math.floor((nowTick.value - netDownAt.value) / 1000));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  return `${Math.floor(s / 3600)}h${Math.floor((s % 3600) / 60)}m`;
+});
+
+watch(() => store.netError, (v, old) => {
+  // false→true = 新的一次断线（含恢复后再断）：重新提示，清掉上一次的"本次忽略"
+  if (v && !old) { netDownAt.value = Date.now(); netBannerMuted.value = false; }
+  if (!v) netDownAt.value = 0;
+  // 只在断线期间跑刷新定时器：恢复即停，避免常驻每秒重渲染
+  if (v && !downTicker) downTicker = setInterval(() => { nowTick.value = Date.now(); }, 1000);
+  if (!v && downTicker) { clearInterval(downTicker); downTicker = null; }
+}, { immediate: true });
+
+// 登录态变化（登录成功 / 退出登录回到游客）都重新提示，避免"本次忽略"跨状态残留
+watch(() => store.logined, () => { guestBannerMuted.value = false; });
 
 // 左下角头像菜单动作：login / relogin / logout
 // relogin = 完整退出但保留密码 + 回登录页；logout = 完整退出清密码 + 回游客主界面
@@ -1944,6 +1975,7 @@ onUnmounted(() => {
   infoLoopRunning = false;
   if (pollTimer) clearInterval(pollTimer);
   if (autoSaveTimer) clearInterval(autoSaveTimer);
+  if (downTicker) clearInterval(downTicker);
   document.removeEventListener('keydown', onDocKeydown);
   document.removeEventListener('click', onDocClick);
   document.removeEventListener('onboarding-action', onOnboardingAction);

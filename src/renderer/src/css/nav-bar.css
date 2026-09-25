@@ -117,6 +117,24 @@
 .navbar .nav-icon:hover { transform: scale(1.1) translateY(-1px); box-shadow: 0 4px 12px var(--gradient-subtle), 0 2px 4px rgba(0, 0, 0, 0.04); }
 .navbar .nav-icon:hover i { transform: scale(1.1); }
 
+/* ========== 未登录（游客）进不去的入口：保留可见，只变浅 + 不可交互 ==========
+   隐藏会让人以为软件没有这个功能；灰掉并悬停提示"登录后可用"，才知道是登录态限制。
+   必须把 hover / active 的缩放与光晕一并压掉，否则看起来仍是可点的。 */
+.nav-icon.disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+}
+.nav-icon.disabled:hover { transform: none; box-shadow: none; }
+.nav-icon.disabled:hover i { transform: none; }
+.nav-icon.disabled:active { transform: none; }
+.app-body.narrow .nav-icon.disabled:hover { transform: none; }
+.nav-icon.disabled .nav-badge { display: none; }
+.nav-user-menu-item.disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+}
+.nav-user-menu-item.disabled:hover { background: transparent; }
+
 /* ========== 网页端专属：客户端下载入口 ==========
    网页端功能受限（无本地消息存储、无 GeoGebra 离线包等），用强调色 + 呼吸光晕让它始终显眼 */
 .nav-icon.nav-download {

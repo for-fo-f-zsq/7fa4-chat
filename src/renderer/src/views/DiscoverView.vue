@@ -1,7 +1,7 @@
 <template>
   <div class="discover-view" ref="rootEl">
     <div class="discover-header">
-      <h2>发现</h2>
+      <h2 class="page-title"><i class="fas fa-compass"></i> 发现</h2>
       <div class="discover-header-spacer"></div>
       <span class="discover-refresh" :class="{ spinning: loading }" title="刷新推荐" @click="loadRemote">
         <i class="fas fa-sync-alt"></i>

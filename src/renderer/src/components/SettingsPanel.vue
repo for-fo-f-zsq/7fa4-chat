@@ -1,14 +1,13 @@
 <template>
   <div class="settings-panel">
     <div class="settings-header">
-      <BackButton title="返回消息列表" @back="emit('back')" />
-      <h2>设置</h2>
+      <h2 class="page-title"><i class="fas fa-cog"></i> 设置</h2>
     </div>
     <div class="settings-card">
       <div class="options-grid">
         <div class="options-col">
           <div class="option-row">
-            <span class="option-label">API 地址</span>
+            <span class="option-label">API 地址<i class="fas fa-circle-info option-info" title="选择连接的服务器：jx.7fa4.cn 为默认站点，in.7fa4.cn 为校内备用入口"></i></span>
             <div class="custom-select" :class="{ open: apiUrlOpen }" @click="apiUrlOpen = !apiUrlOpen" v-click-outside="() => apiUrlOpen = false">
               <div class="custom-select-trigger"><span>{{ apiUrlLabel }}</span><i class="fas fa-chevron-down custom-select-arrow"></i></div>
               <div class="custom-select-dropdown" v-if="apiUrlOpen">
@@ -19,11 +18,11 @@
             </div>
           </div>
           <div class="option-row theme-row" @click="$emit('openThemeModal')">
-            <span class="option-label">主题</span>
+            <span class="option-label">主题<i class="fas fa-circle-info option-info" title="切换界面配色，内置 22 套预设主题与「自定义」；自定义可逐项调整颜色"></i></span>
             <div class="theme-current"><span class="theme-dot" :style="{ background: currentThemeColor }"></span><span>{{ currentThemeLabel }}</span><i class="fas fa-chevron-right theme-row-arrow"></i></div>
           </div>
           <div class="option-row">
-            <span class="option-label">特效</span>
+            <span class="option-label">特效<i class="fas fa-circle-info option-info" title="界面动效强度：性能（无粒子与鼠标渐变）/ 效率（无粒子）/ 精美（全部效果）"></i></span>
             <div class="custom-select" :class="{ open: effectOpen }" @click="effectOpen = !effectOpen" v-click-outside="() => effectOpen = false">
               <div class="custom-select-trigger"><span>{{ effectLabel }}</span><i class="fas fa-chevron-down custom-select-arrow"></i></div>
               <div class="custom-select-dropdown" v-if="effectOpen">
@@ -34,21 +33,21 @@
             </div>
           </div>
           <div class="option-row slider-row">
-            <span class="option-label">轮询间隔</span>
+            <span class="option-label">轮询间隔<i class="fas fa-circle-info option-info" title="多久向服务器拉取一次新消息（1.0–10.0 秒）；越短越及时，也越耗流量与电量"></i></span>
             <div class="slider-wrap">
               <input type="range" class="slider" :value="setting.pollInterval || 1000" @input="onPollChange($event.target.value)" min="1000" max="10000" step="100" />
               <span class="slider-value">{{ formatPoll(setting.pollInterval || 1000) }}</span>
             </div>
           </div>
           <div class="option-row slider-row">
-            <span class="option-label">字体大小</span>
+            <span class="option-label">字体大小<i class="fas fa-circle-info option-info" title="聊天与界面文字的字号（12–20 px），调整后立即生效"></i></span>
             <div class="slider-wrap">
               <input type="range" class="slider" :value="setting.fontSize || 14" @input="onFontSizeChange($event.target.value)" min="12" max="20" step="1" />
               <span class="slider-value">{{ setting.fontSize || 14 }}px</span>
             </div>
           </div>
           <div class="option-row shortcut-entry" @click="$emit('openShortcutModal')">
-            <span class="option-label">快捷键</span>
+            <span class="option-label">快捷键<i class="fas fa-circle-info option-info" title="自定义页面切换与常用操作的键盘快捷键"></i></span>
             <div class="shortcut-entry-right"><span class="shortcut-entry-hint">自定义</span><i class="fas fa-chevron-right theme-row-arrow"></i></div>
           </div>
         </div>
@@ -56,23 +55,23 @@
           <!-- 以下两项只由 Electron 主进程消费（见 src/main/index.js），
                网页端与安卓端没有任何实现，显示出来会让人误以为"自动更新"已开启 -->
           <div class="option-row" v-if="isElectron">
-            <span class="option-label">保持后台运行</span>
+            <span class="option-label">保持后台运行<i class="fas fa-circle-info option-info" title="关闭主窗口后隐藏到系统托盘并继续接收消息；需要彻底退出时用托盘菜单的「退出」（仅桌面端）"></i></span>
             <label class="toggle-label"><input type="checkbox" :checked="setting.minimizeToTray !== false" @change="onSettingChange('minimizeToTray', $event.target.checked)" /><span class="toggle-slider"></span></label>
           </div>
           <div class="option-row" v-if="isElectron">
-            <span class="option-label">自动更新</span>
+            <span class="option-label">自动更新<i class="fas fa-circle-info option-info" title="启动后自动检查并下载新版本（仅桌面端）"></i></span>
             <label class="toggle-label"><input type="checkbox" :checked="setting.autoUpdate !== false" @change="onSettingChange('autoUpdate', $event.target.checked)" /><span class="toggle-slider"></span></label>
           </div>
           <div class="option-row">
-            <span class="option-label">保持登录</span>
+            <span class="option-label">保持登录<i class="fas fa-circle-info option-info" title="在本机保存登录凭据以便下次自动登录；关闭会清除已保存的账号与密码，之后需要重新登录"></i></span>
             <label class="toggle-label css-locked" :class="{ locked: !setting.keepLogin }"><input type="checkbox" :checked="setting.keepLogin" :disabled="!setting.keepLogin" @change="onKeepLoginChange($event.target.checked)" /><span class="toggle-slider"></span></label>
           </div>
           <div class="option-row">
-            <span class="option-label">隐藏弹窗内容</span>
+            <span class="option-label">隐藏弹窗内容<i class="fas fa-circle-info option-info" title="系统通知只显示「收到一条新消息」，不显示消息正文"></i></span>
             <label class="toggle-label"><input type="checkbox" :checked="setting.notifPrivacy" @change="onSettingChange('notifPrivacy', $event.target.checked)" /><span class="toggle-slider"></span></label>
           </div>
           <div class="option-row">
-            <span class="option-label">免打扰</span>
+            <span class="option-label">免打扰<i class="fas fa-circle-info option-info" title="开启后不再弹出任何新消息通知（消息照常接收，只是不提醒）"></i></span>
             <label class="toggle-label"><input type="checkbox" :checked="setting.dndEnabled" @change="onSettingChange('dndEnabled', $event.target.checked)" /><span class="toggle-slider"></span></label>
           </div>
           <div class="option-row">
@@ -83,15 +82,15 @@
       </div>
       <div class="settings-divider"></div>
       <div class="option-row shortcut-entry" @click="exportData">
-        <span class="option-label">备份聊天数据</span>
+        <span class="option-label">备份聊天数据<i class="fas fa-circle-info option-info" title="把本机的聊天记录、群、收藏与设置全部导出为一个文件" @click.stop></i></span>
         <div class="shortcut-entry-right"><span class="shortcut-entry-hint">导出到文件</span><i class="fas fa-download theme-row-arrow"></i></div>
       </div>
       <div class="option-row shortcut-entry" @click="importData">
-        <span class="option-label">恢复聊天数据</span>
+        <span class="option-label">恢复聊天数据<i class="fas fa-circle-info option-info" title="从备份文件恢复聊天记录与设置；会写入并覆盖本机对应数据" @click.stop></i></span>
         <div class="shortcut-entry-right"><span class="shortcut-entry-hint">从文件导入</span><i class="fas fa-upload theme-row-arrow"></i></div>
       </div>
       <div class="option-row shortcut-entry" v-if="cacheSize !== null" @click="clearCache">
-        <span class="option-label">缓存管理</span>
+        <span class="option-label">缓存管理<i class="fas fa-circle-info option-info" title="本机聊天数据的占用空间；点击清理会删除本地缓存并从服务器重新拉取" @click.stop></i></span>
         <div class="shortcut-entry-right"><span class="shortcut-entry-hint">{{ formatSize(cacheSize) }} · 点击清理</span><i class="fas fa-trash theme-row-arrow"></i></div>
       </div>
     </div>
@@ -104,14 +103,13 @@ import { store } from '../store.js'
 import { vClickOutside } from '../composables/vClickOutside.js'
 import { THEMES } from '../composables/constants.js'
 import { applyFontSize, formatSize } from '../utils.js'
-import BackButton from './BackButton.vue'
 
 const props = defineProps({
   self: Object,
   setting: Object
 })
 
-const emit = defineEmits(['logout', 'settingChange', 'openThemeModal', 'openShortcutModal', 'back'])
+const emit = defineEmits(['logout', 'settingChange', 'openThemeModal', 'openShortcutModal'])
 
 onMounted(() => { loadCacheSize() })
 

@@ -1,7 +1,7 @@
 <template>
   <div class="tools-page">
     <div class="tools-header">
-      <h2><i class="fas fa-toolbox"></i> 工具</h2>
+      <h2 class="page-title"><i class="fas fa-toolbox"></i> 工具</h2>
     </div>
     <div class="tools-grid">
       <div class="tool-card" @click="$emit('openTool', 'markdown')">

@@ -237,7 +237,10 @@
 .bubble-content { font-size: var(--font-size-base, 14px); line-height: 1.6; color: var(--text-primary); word-break: break-word; }
 .right .bubble-content { color: var(--message-self-text); }
 
-.bubble-content pre { background: var(--bg-code-block); padding: 8px 12px; border-radius: var(--radius); overflow-x: auto; margin: 4px 0; }
+/* 仅作用于「普通的裸 pre」。洛谷渲染器产出的 .luogu-code-pre 自带外壳
+   （.luogu-code-block-wrapper：底色 + 边框 + 圆角 + 顶栏），再套这层会变成
+   "框里套框"：多出 4px 外边距、10px 圆角、又叠一层底色。 */
+.bubble-content pre:not(.luogu-code-pre) { background: var(--bg-code-block); padding: 8px 12px; border-radius: var(--radius); overflow-x: auto; margin: 4px 0; }
 .bubble-content code { background: var(--bg-code-inline); padding: 2px 6px; border-radius: var(--radius); font-family: 'Consolas', 'Monaco', monospace; font-size: 0.9em; }
 .bubble-content pre code { background: transparent; padding: 0; }
 .right .bubble-content code { background: var(--bg-code-inline-self); }
@@ -352,7 +355,7 @@
   color: var(--text-primary);
   word-break: break-word;
 }
-.file-text-content pre { background: var(--bg-code-block); padding: 8px 12px; border-radius: var(--radius); overflow-x: auto; margin: 4px 0; }
+.file-text-content pre:not(.luogu-code-pre) { background: var(--bg-code-block); padding: 8px 12px; border-radius: var(--radius); overflow-x: auto; margin: 4px 0; }
 .file-text-content code { background: var(--bg-code-inline); padding: 2px 6px; border-radius: var(--radius); font-family: 'Consolas', 'Monaco', monospace; font-size: 0.9em; }
 .file-text-content pre code { background: transparent; padding: 0; }
 .right .file-text-content { color: var(--message-self-text); }

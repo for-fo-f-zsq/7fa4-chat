@@ -1,3 +1,13 @@
+<h2>3.5.1</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>启动时展示社团宣传</li>
+  <li><span class="change-tag improve">优化</span>网络与登录状态提示可手动收起，未连接时显示已断线时长</li>
+  <li><span class="change-tag improve">优化</span>未登录时暂不可用的入口改为置灰展示，不再直接隐藏</li>
+  <li><span class="change-tag improve">优化</span>设置项新增说明，悬停即可查看该项作用</li>
+  <li><span class="change-tag improve">优化</span>导航图标与页面标题统一，窄屏下发现页与设置页保留底栏</li>
+  <li><span class="change-tag fix">修复</span>修复浅色主题下代码块显示异常的问题</li>
+</ul>
+
 <h2>3.5.0</h2>
 <ul>
   <li><span class="change-tag new">新功能</span>新增「发现」页：推荐可能认识的人与可能相关的群</li>

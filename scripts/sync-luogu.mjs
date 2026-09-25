@@ -238,17 +238,20 @@ const TOKEN_GROUPS = {
   deleted: '.token.deleted',
   inserted: '.token.inserted',
 }
+// One Light 原版是给 #fafafa 近白底调的，本身对比度就低（字符串 3.2:1、注释 2.4:1），
+// 落到"浅色主题 + 代码块浅灰底"上更糊。这里保留原本色相，只按 WCAG AA（≥4.5:1）
+// 把每个 token 压深到能在 #F5F5F5 与各浅色主题（sage/rose/slate/wechat）底上读清。
 const TOKEN_LIGHT = {
-  comment: '#a0a1a7',
+  comment: '#616a73',
   punctuation: '#383a42',
   keyword: '#a626a4',
-  string: '#50a14f',
-  number: '#986801',
-  function: '#4078f2',
-  property: '#e45649',
-  operator: '#0184bc',
-  deleted: '#e45649',
-  inserted: '#50a14f',
+  string: '#2f7a34',
+  number: '#8a5c00',
+  function: '#2a5fd0',
+  property: '#c0392b',
+  operator: '#01709e',
+  deleted: '#c0392b',
+  inserted: '#2f7a34',
 }
 const TOKEN_DARK = {
   comment: '#7f848e',
@@ -352,10 +355,27 @@ const footer = `
   background: var(--lg-surface);
   color: var(--text-primary);
 }
-/* ---- 补丁：上游代码块外壳把 One Dark 底色写死了，浅色主题下会顶着一块深底 ---- */
+/* ---- 补丁：上游代码块外壳把 One Dark 底色写死了，浅色主题下会顶着一块深底 ----
+   另外 --lg-code-bg（= --bg-code-block）是半透明 tint，直接当底色用会让**下层容器**的
+   颜色透上来：自己的气泡（浅色主题是浅蓝 #C0E0FF）会把整个代码区染成蓝灰，token 对比度
+   跟着掉到 1.3:1。这里用「tint 叠在 --bg-app 上」把 alpha 拍平 —— 代码块恒为不透明表面，
+   既保留主题自定义的 tint，又不再受气泡/卡片底色影响。 */
 .luogu-code-block-wrapper {
-  background: var(--lg-code-bg);
+  background-color: var(--bg-app);
+  background-image: linear-gradient(var(--lg-code-bg), var(--lg-code-bg));
   color: var(--lg-code-fg);
+}
+/* 通用容器的 .bubble-content code / .input-preview-content code 规则会漏进洛谷代码块：
+   给内层 <code> 再套一层行内底色、圆角，并把字号按 0.9em 压小（13px → 11.7px）。
+   这里把内层还原成纯文本，代码块只保留外壳一层。 */
+.luogu-md .luogu-code-block-wrapper .luogu-code-pre code {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
 }
 .luogu-code-header {
   background: color-mix(in srgb, var(--lg-code-bg) 88%, var(--text-primary));
@@ -369,8 +389,9 @@ const footer = `
   border-color: var(--lg-border-color);
   color: var(--lg-code-fg);
 }
+/* 上游 hover 与常态同色（只换字色），按下去没有反馈；这里给一个真正的加深态 */
 .luogu-code-copy-btn:hover {
-  background: var(--bg-conversation-hover);
+  background: color-mix(in srgb, var(--bg-conversation-hover) 88%, var(--text-primary));
   color: var(--text-primary);
 }
 

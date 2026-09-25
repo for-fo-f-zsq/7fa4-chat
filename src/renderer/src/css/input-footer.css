@@ -749,7 +749,7 @@
   user-select: text;
   min-height: 0;
 }
-.input-preview-content pre {
+.input-preview-content pre:not(.luogu-code-pre) {
   background: var(--bg-code-block);
   padding: 6px 10px;
   border-radius: var(--radius);

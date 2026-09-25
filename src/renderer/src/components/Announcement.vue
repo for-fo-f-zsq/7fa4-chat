@@ -7,20 +7,19 @@
           <img src="/icon.png" alt="7FA4 Chat" class="announcement-logo-img" />
         </div>
         <p class="announcement-sub">全新版本发布</p>
-        <h1>V3.5.0</h1>
+        <h1>V3.5.1</h1>
         <div class="announcement-decor"></div>
       </div>
       <!-- 页 2：本次更新 -->
       <div v-else-if="page === 1" class="announcement-page">
         <h2><i class="fas fa-star"></i> 本次更新</h2>
         <ul class="announcement-list">
-          <li>新增「发现」页，推荐可能认识的人和可能相关的群</li>
-          <li>新增聚合搜索：一次搜用户、消息、群聊与收藏</li>
-          <li>消息搜索升级为全量检索</li>
-          <li>收藏夹大改版：搜索、标签、备注、置顶与批量管理</li>
-          <li>收藏可从输入框直接选择发送，支持搜索</li>
-          <li>主题设置改版：年级颜色与主题变量同处编辑，可导出导入</li>
-          <li>备份导出包含全部数据与设置</li>
+          <li>启动时展示社团宣传</li>
+          <li>网络与登录状态提示可手动收起，未连接时显示已断线时长</li>
+          <li>未登录时暂不可用的入口改为置灰展示，不再隐藏</li>
+          <li>设置项新增说明，悬停即可查看该项作用</li>
+          <li>导航图标与页面标题统一，窄屏下发现页与设置页保留底栏</li>
+          <li>修复浅色主题下代码块显示异常的问题</li>
         </ul>
       </div>
       <!-- 页 3：更新日志 -->

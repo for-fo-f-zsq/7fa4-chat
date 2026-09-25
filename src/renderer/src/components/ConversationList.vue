@@ -5,7 +5,7 @@
     @dragleave="onListDragLeave"
     @drop.prevent="onListDrop">
     <div class="list-header">
-      <h2>消息</h2>
+      <h2 class="page-title"><i class="fas fa-comment-dots"></i> 消息</h2>
       <div class="list-header-actions">
         <button class="inputModal-btn" v-if="hasUnread" @click="$emit('markAllRead')" title="全部已读">
           <i class="fas fa-check-double"></i>
