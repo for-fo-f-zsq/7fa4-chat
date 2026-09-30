@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>截图</title>
+<style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+        width: 100%; height: 100%; overflow: hidden; background: #000;
+        cursor: crosshair;
+        user-select: none; -webkit-user-select: none;
+        font-family: -apple-system, BlinkMacSystemFont, 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+    }
+    /* 底图：整屏快照铺满，未选中的部分由 canvas 压暗 */
+    #bg { position: absolute; inset: 0; width: 100%; height: 100%; -webkit-user-drag: none; }
+    #mask { position: absolute; inset: 0; }
+    #size-tag {
+        position: absolute; display: none; padding: 2px 8px; border-radius: 4px;
+        background: rgba(18, 183, 245, 0.95); color: #fff;
+        font-size: 12px; line-height: 18px; white-space: nowrap; pointer-events: none;
+    }
+    #tip {
+        position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+        padding: 9px 18px; border-radius: 18px; background: rgba(0, 0, 0, 0.72);
+        color: #fff; font-size: 13px; line-height: 1; white-space: nowrap; pointer-events: none;
+    }
+    #tip b { color: #4fc3f7; font-weight: 600; }
+</style>
+</head>
+<body>
+    <img id="bg" alt="">
+    <canvas id="mask"></canvas>
+    <div id="size-tag"></div>
+    <div id="tip">拖动鼠标框选区域 &nbsp;·&nbsp; <b>Enter</b> 截取整屏 &nbsp;·&nbsp; <b>Esc</b> / 右键 取消</div>
+    <script>
+        (function () {
+            const bg = document.getElementById('bg');
+            const mask = document.getElementById('mask');
+            const sizeTag = document.getElementById('size-tag');
+
+            // ---------- 纯计算部分（离线可单测，勿依赖 DOM） ----------
+
+            // 任意方向拖拽 → 左上角原点的正矩形
+            function normalizeRect(x1, y1, x2, y2) {
+                return { x: Math.min(x1, x2), y: Math.min(y1, y2), w: Math.abs(x2 - x1), h: Math.abs(y2 - y1) };
+            }
+
+            // 把矩形钳制在视口内（拖到窗口外/超出屏幕时不出界）
+            function clampRect(r, maxW, maxH) {
+                const x = Math.min(Math.max(r.x, 0), maxW);
+                const y = Math.min(Math.max(r.y, 0), maxH);
+                const w = Math.max(0, Math.min(r.w, maxW - x));
+                const h = Math.max(0, Math.min(r.h, maxH - y));
+                return { x: x, y: y, w: w, h: h };
+            }
+
+            // 逻辑像素选区 → 图像像素裁剪框。
+            // 高 DPI 屏下底图的自然尺寸是物理像素（如 1.25x 屏：1500 逻辑宽 → 1875 图像宽），
+            // 直接用逻辑坐标裁剪会截到左上角一小块，必须按 imgW/viewW 换算。
+            function calcCrop(rect, imgW, imgH, viewW, viewH) {
+                if (!imgW || !imgH || !viewW || !viewH) return null;
+                const r = clampRect(rect, viewW, viewH);
+                if (r.w < 1 || r.h < 1) return null;
+                const kx = imgW / viewW;
+                const ky = imgH / viewH;
+                const sx = Math.min(Math.round(r.x * kx), imgW - 1);
+                const sy = Math.min(Math.round(r.y * ky), imgH - 1);
+                const sw = Math.max(1, Math.min(Math.round(r.w * kx), imgW - sx));
+                const sh = Math.max(1, Math.min(Math.round(r.h * ky), imgH - sy));
+                return { sx: sx, sy: sy, sw: sw, sh: sh };
+            }
+
+            // ---------- 交互 ----------
+
+            let rect = null;
+            let startX = 0;
+            let startY = 0;
+            let dragging = false;
+            let finished = false; // 防止重复提交
+
+            function viewW() { return window.innerWidth; }
+            function viewH() { return window.innerHeight; }
+
+            function draw() {
+                const w = viewW();
+                const h = viewH();
+                if (mask.width !== w) mask.width = w;
+                if (mask.height !== h) mask.height = h;
+                const ctx = mask.getContext('2d');
+                ctx.clearRect(0, 0, w, h);
+                // 整屏压暗，未选区域变暗、选区透出原始画面
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+                ctx.fillRect(0, 0, w, h);
+                if (!rect || rect.w < 1 || rect.h < 1) {
+                    sizeTag.style.display = 'none';
+                    return;
+                }
+                ctx.clearRect(rect.x, rect.y, rect.w, rect.h);
+                ctx.strokeStyle = '#12B7F5';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, Math.max(0, rect.w - 1), Math.max(0, rect.h - 1));
+                drawHandles(ctx, rect);
+                updateTag(rect);
+            }
+
+            // 四角 L 形把手
+            function drawHandles(ctx, r) {
+                const L = Math.min(10, Math.max(4, Math.floor(Math.min(r.w, r.h) / 4)));
+                ctx.strokeStyle = '#12B7F5';
+                ctx.lineWidth = 2;
+                const corners = [
+                    [r.x, r.y, 1, 1],
+                    [r.x + r.w, r.y, -1, 1],
+                    [r.x, r.y + r.h, 1, -1],
+                    [r.x + r.w, r.y + r.h, -1, -1]
+                ];
+                for (let i = 0; i < corners.length; i++) {
+                    const px = corners[i][0], py = corners[i][1], dx = corners[i][2], dy = corners[i][3];
+                    ctx.beginPath();
+                    ctx.moveTo(px + dx * L, py);
+                    ctx.lineTo(px, py);
+                    ctx.lineTo(px, py + dy * L);
+                    ctx.stroke();
+                }
+            }
+
+            // 选区尺寸标签（显示实际输出像素，不是逻辑坐标）
+            function updateTag(r) {
+                const c = calcCrop(r, bg.naturalWidth || 0, bg.naturalHeight || 0, viewW(), viewH());
+                if (!c) { sizeTag.style.display = 'none'; return; }
+                sizeTag.textContent = c.sw + ' × ' + c.sh;
+                sizeTag.style.display = 'block';
+                const tw = sizeTag.offsetWidth;
+                const th = sizeTag.offsetHeight;
+                let left = r.x + r.w + 6;
+                let top = r.y + r.h + 6;
+                // 贴到屏幕边缘时翻到选区内侧，避免标签被裁掉
+                if (left + tw > viewW() - 4) left = r.x + r.w - tw - 6;
+                if (top + th > viewH() - 4) top = r.y + r.h - th - 6;
+                sizeTag.style.left = Math.max(4, left) + 'px';
+                sizeTag.style.top = Math.max(4, top) + 'px';
+            }
+
+            function finish(r) {
+                if (finished) return;
+                const c = calcCrop(r, bg.naturalWidth || 0, bg.naturalHeight || 0, viewW(), viewH());
+                if (!c) { window.shot.cancel(); return; }
+                finished = true;
+                const out = document.createElement('canvas');
+                out.width = c.sw;
+                out.height = c.sh;
+                out.getContext('2d').drawImage(bg, c.sx, c.sy, c.sw, c.sh, 0, 0, c.sw, c.sh);
+                const url = out.toDataURL('image/png');
+                // 只回传纯 base64，与图片编辑器 imageOpen(data, mime, name) 的入参约定一致
+                window.shot.finish({ data: url.slice(url.indexOf(',') + 1), mime: 'image/png' });
+            }
+
+            window.addEventListener('pointerdown', (e) => {
+                if (e.button !== 0 || finished) return;
+                dragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                rect = null;
+                draw();
+            });
+
+            window.addEventListener('pointermove', (e) => {
+                if (!dragging) return;
+                rect = normalizeRect(startX, startY, e.clientX, e.clientY);
+                draw();
+            });
+
+            window.addEventListener('pointerup', (e) => {
+                if (!dragging) return;
+                dragging = false;
+                rect = normalizeRect(startX, startY, e.clientX, e.clientY);
+                // 误点（几个像素）视为没选，退回等待状态
+                if (rect.w < 3 || rect.h < 3) {
+                    rect = null;
+                    draw();
+                    return;
+                }
+                draw();
+                finish(rect);
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    window.shot.cancel();
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    finish({ x: 0, y: 0, w: viewW(), h: viewH() });
+                }
+            });
+
+            window.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                window.shot.cancel();
+            });
+
+            window.addEventListener('resize', () => draw());
+
+            window.shot.onData((d) => {
+                rect = null;
+                dragging = false;
+                finished = false;
+                // 底图解码完成后再重绘一次（首帧只有压暗层，此时窗口还未显示）
+                bg.onload = () => draw();
+                bg.src = d.dataUrl;
+            });
+
+            draw(); // 先铺一层压暗，等底图到达后再重绘
+        })();
+    </script>
+</body>
+</html>

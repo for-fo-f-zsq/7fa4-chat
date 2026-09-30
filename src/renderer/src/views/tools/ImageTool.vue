@@ -10,9 +10,10 @@
       <div class="md-workspace-bar">
         <i class="fas fa-image"></i>
         <span class="md-workspace-path" :title="currentName || '未打开图片'">{{ currentName || '未打开图片' }}</span>
+        <span class="tool-save-state" :class="saveState.cls" :title="savedPath || (savedName || '尚未保存到文件')">{{ saveState.text }}</span>
         <button class="md-ws-btn md-ws-btn-icon" title="打开图片" @click="openImage"><i class="fas fa-folder-open"></i></button>
         <button class="md-ws-btn md-ws-btn-icon" title="新建空白画布" @click="newCanvas"><i class="fas fa-plus-square"></i></button>
-        <button class="md-ws-btn md-ws-btn-icon" title="保存到文件" :disabled="!canvasReady || saving" @click="save"><i class="fas fa-save"></i></button>
+        <button class="md-ws-btn md-ws-btn-icon" title="保存 (Ctrl+S)：首次选位置，之后直接覆盖该文件" :disabled="!canvasReady || saving" @click="save"><i class="fas fa-save"></i></button>
         <button class="md-ws-btn md-ws-btn-send" title="发送到会话（选择接收方）" :disabled="loading" @click="sendToChat"><i class="fas fa-paper-plane"></i> 发送</button>
       </div>
     </div>
@@ -105,6 +106,7 @@
 
 <script setup>
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
+import { saveToolFile, toolSaveState, flashTip } from '../../utils.js'
 import './ide/ide-tool.css'
 
 const emit = defineEmits(['back', 'dirty-change', 'sendImage'])
@@ -150,6 +152,12 @@ const mime = ref('image/png')
 const zoomScale = ref(1)
 const currentName = ref('')
 const saving = ref(false)
+// 已保存过的文件：savedName 为空 = 还没落盘过任何文件（此时不能显示「已保存」）；
+// savedPath 是磁盘绝对路径（仅桌面端有），让「保存」能直接写回同一个文件。
+const savedName = ref('')
+const savedPath = ref('')
+
+const saveState = computed(() => toolSaveState({ hasFile: !!savedName.value, dirty: dirty.value }))
 
 // dirty 变化上报父级（切换页面/离开工具时的未保存拦截由 ChatView 统一负责，
 // 工具内不再自带确认弹窗，避免返回时连续弹出两次）
@@ -567,11 +575,17 @@ function resizeCanvas() {
 async function openImage() {
   const r = await window.api.selectImage()
   if (!r.success) return
-  loadImageData(r.data, r.mime, r.name)
+  // 记住来源文件：与磁盘一致 → 已保存；「保存」可直接写回该文件（路径经主进程白名单校验）
+  savedName.value = r.name || ''
+  savedPath.value = r.path || ''
+  await loadImageData(r.data, r.mime, r.name)
 }
 
 function newCanvas() {
   if (dirty.value && !confirm('当前有未保存的绘制，确定新建并丢弃？')) return
+  // 空白画布：透明背景。还没有落盘过任何文件 → 状态为「未保存」，保存时先选位置
+  savedName.value = ''
+  savedPath.value = ''
   // 空白画布：透明背景
   loadImageData(null, 'image/png', '未命名.png', 800, 600)
 }
@@ -674,18 +688,26 @@ async function rotate90() {
 }
 
 async function save() {
-  if (!dirty.value || !displayCanvas || saving.value) return
+  if (saving.value) return
+  // 以前这里是静默 return：没打开图片、或没有任何改动时按 Ctrl+S 完全没反馈，
+  // 用户无法判断是「不需要保存」还是「保存坏了」。
+  if (!canvasReady.value || !displayCanvas) { flashTip('还没有可保存的画面：请先打开图片或新建画布'); return }
+  if (!dirty.value) { flashTip('没有需要保存的改动'); return }
   saving.value = true
   try {
     const { base64, mime: outMime, name } = flatten()
-    const r = await window.api.downloadFile(base64, name, outMime)
+    // 文件名未变 → 直接写回上次的文件；改过名 → 走另存为
+    const reusePath = savedName.value === name ? savedPath.value : ''
+    const r = await saveToolFile(base64, name, outMime, reusePath)
     if (!r.success) {
       if (!r.canceled) alert('保存失败：' + (r.error || '未知错误'))
       return
     }
     dirty.value = false
+    savedName.value = name
+    savedPath.value = r.path || reusePath || ''
     if (r.path) currentName.value = r.path.split(/[\\/]/).pop()
-    alert('已保存')
+    flashTip('已保存：' + (r.path || name))
   } catch (e) {
     alert('保存失败：' + e.message)
   }
@@ -727,6 +749,9 @@ function sendToChat() {
 // 供上层/预览"编辑"入口载入图片（有未保存绘制时确认丢弃）
 function imageOpen(base64Data, mime, name) {
   if (dirty.value && !confirm('当前有未保存的绘制，确定丢弃并载入新图片？')) return false
+  // 从会话预览进来的图没有磁盘路径 → 状态为「未保存」，保存时先让用户选位置
+  savedName.value = ''
+  savedPath.value = ''
   loadImageData(base64Data, mime, name)
   return true
 }

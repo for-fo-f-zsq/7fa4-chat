@@ -7,19 +7,19 @@
           <img src="/icon.png" alt="7FA4 Chat" class="announcement-logo-img" />
         </div>
         <p class="announcement-sub">全新版本发布</p>
-        <h1>V3.5.1</h1>
+        <h1>V3.5.2</h1>
         <div class="announcement-decor"></div>
       </div>
       <!-- 页 2：本次更新 -->
       <div v-else-if="page === 1" class="announcement-page">
         <h2><i class="fas fa-star"></i> 本次更新</h2>
         <ul class="announcement-list">
-          <li>启动时展示社团宣传</li>
-          <li>网络与登录状态提示可手动收起，未连接时显示已断线时长</li>
-          <li>未登录时暂不可用的入口改为置灰展示，不再隐藏</li>
-          <li>设置项新增说明，悬停即可查看该项作用</li>
-          <li>导航图标与页面标题统一，窄屏下发现页与设置页保留底栏</li>
-          <li>修复浅色主题下代码块显示异常的问题</li>
+          <li>工具新增「截图」：框选屏幕任意区域，截图后自动在图片编辑器中打开</li>
+          <li>新增海报功能：启动随机展示、发现页海报墙，登录用户可投稿</li>
+          <li>工具保存统一：首次保存选位置，之后按 Ctrl+S 直接覆盖原文件</li>
+          <li>教练身份在年级显示中优先，不再被默认的「毕业」覆盖</li>
+          <li>修复群聊中收到 @ 仍显示「有人@你」、收藏分类丢失等问题</li>
+          <li>修复 Linux 系统下应用启动缓慢的问题</li>
         </ul>
       </div>
       <!-- 页 3：更新日志 -->

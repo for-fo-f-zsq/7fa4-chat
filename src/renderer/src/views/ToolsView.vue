@@ -4,6 +4,11 @@
       <h2 class="page-title"><i class="fas fa-toolbox"></i> 工具</h2>
     </div>
     <div class="tools-grid">
+      <div v-if="!isWeb" class="tool-card" @click="startCapture">
+        <i class="fas fa-crop-alt"></i>
+        <div class="tool-card-name">截图</div>
+        <div class="tool-card-desc">{{ captureDesc }}</div>
+      </div>
       <div class="tool-card" @click="$emit('openTool', 'markdown')">
         <i class="fas fa-file-alt"></i>
         <div class="tool-card-name">Markdown 编辑</div>
@@ -39,6 +44,7 @@
 </template>
 
 <script setup>
+import { ref, computed, onMounted } from 'vue'
 import { isWebBrowser } from '../utils.js'
 
 // 纯入口列表：各工具由外层（ChatView）直接渲染，便于按打开来源控制返回逻辑
@@ -48,4 +54,43 @@ defineEmits(['openTool'])
 // 必须用 isWebBrowser()：Android 端已把 GeoGebra 打进 APK（scripts/build-web.mjs 复制到 /geogebra/），
 // 直接读 window.__7FA4_WEB__ 会把安卓误判成网页、把工具描述写错。
 const isWeb = isWebBrowser()
+
+// 截图：Win+Shift+S 全局快捷键的等价入口（快捷键被系统占用、或不记得按键时用）。
+// 主进程弹出全屏框选遮罩，框选完成后自动跳进图片编辑器打开截图。
+function startCapture() {
+  window.api.captureScreen?.()
+}
+
+// 主进程会按候选列表自动降级注册，这里如实展示「实际生效的键」：
+// 否则用户按 Win+Shift+S 没反应，完全不知道发生了什么（曾经的坑：只在控制台 warn）。
+const hotkey = ref({ accelerator: null, registered: true, fallback: false, skipped: false })
+
+onMounted(async () => {
+  try {
+    const r = await window.api.getScreenshotHotkey?.()
+    if (r) hotkey.value = r
+  } catch {}
+})
+
+// Electron accelerator 名对用户不友好：Super+Shift+S → Win + Shift + S
+function prettyAccelerator(acc) {
+  if (!acc) return ''
+  return acc.split('+').map((k) => {
+    const s = k.trim().toLowerCase()
+    if (s === 'super' || s === 'meta' || s === 'cmd' || s === 'command') return 'Win'
+    if (s === 'control' || s === 'ctrl') return 'Ctrl'
+    if (s === 'alt' || s === 'option') return 'Alt'
+    if (s === 'shift') return 'Shift'
+    return k.trim().toUpperCase()
+  }).join(' + ')
+}
+
+const captureDesc = computed(() => {
+  const h = hotkey.value
+  if (h.skipped) return '点击本卡片框选屏幕任意区域，截图后自动在图片编辑器中打开'
+  if (!h.registered) return '点击本卡片框选屏幕任意区域 · 全局快捷键已被系统或其他程序占用，未能注册'
+  const now = prettyAccelerator(h.accelerator)
+  if (h.fallback) return `按 ${now} 框选屏幕任意区域（点击本卡片等效）· Win + Shift + S 被系统截图占用，已自动改用此键`
+  return `按 ${now} 框选屏幕任意区域（点击本卡片等效），截图后自动在图片编辑器中打开`
+})
 </script>

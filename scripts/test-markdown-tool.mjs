@@ -59,10 +59,21 @@ globalThis.confirm = () => true
 // ---------- 2. window.api 打桩 ----------
 const savedFiles = {}
 const apiCalls = []
+let lastDialogPath = ''
 win.api = globalThis.api = {
-  async saveDataFile(name, content) { apiCalls.push(['save', name]); savedFiles[name] = content; return { success: true } },
-  async loadDataFile(name) { return savedFiles[name] !== undefined ? { success: true, data: savedFiles[name] } : { success: false } },
-  async deleteDataFile(name) { delete savedFiles[name]; return { success: true } },
+  // 另存为（首次保存 / 另存为 / Ctrl+Shift+S）：模拟用户在对话框里选了路径，回真实路径
+  async downloadFile(base64, name) {
+    apiCalls.push(['saveAs', name])
+    lastDialogPath = '/tmp/tool/' + name
+    savedFiles[lastDialogPath] = Buffer.from(base64, 'base64').toString('utf8')
+    return { success: true, path: lastDialogPath }
+  },
+  // 已记住路径后的静默覆写（Ctrl+S / 再次点保存）
+  async saveFileTo(p, base64) {
+    apiCalls.push(['overwrite', p])
+    savedFiles[p] = Buffer.from(base64, 'base64').toString('utf8')
+    return { success: true }
+  },
   async selectFile() { return { success: false } },
   async exportMarkdownPng() { return { success: true } },
 }
@@ -180,21 +191,39 @@ closeMath.click()
 await nextTick()
 
 // ---------- 9. 保存 / Ctrl+S ----------
+// 语义（3.5.1 起）：首次保存弹「另存为」选真实位置；之后同一文件名静默覆写，不再询问。
+// 不再写入应用内部工作区（用户既不知道存哪、重开也找不回）。
 apiCalls.length = 0
 host.querySelector('.md-ws-btn[title^="保存"]').click()
 await sleep(80)
 await nextTick()
-chk('保存：写入了工作区文件', apiCalls.some(([k, n]) => k === 'save' && n === '未命名.md'), JSON.stringify(apiCalls))
-chk('保存：落盘内容包含正文', /你好/.test(savedFiles['未命名.md'] || ''))
+chk('保存：首次保存走另存为对话框', apiCalls.some(([k]) => k === 'saveAs'), JSON.stringify(apiCalls))
+const firstPath = Object.keys(savedFiles)[0] || ''
+chk('保存：落盘内容包含正文', /你好/.test(savedFiles[firstPath] || ''), JSON.stringify(Object.keys(savedFiles)))
 chk('保存：状态栏回到已保存', host.querySelector('.md-status-right')?.textContent.includes('已保存'))
+
+apiCalls.length = 0
+host.querySelector('.md-ws-btn[title^="保存"]').click()
+await sleep(80)
+await nextTick()
+chk('保存：再次保存静默覆写同一路径（不弹框）',
+  apiCalls.length === 1 && apiCalls[0][0] === 'overwrite' && apiCalls[0][1] === lastDialogPath,
+  JSON.stringify(apiCalls))
 
 apiCalls.length = 0
 const ev = new win.KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true })
 ta.dispatchEvent(ev)
 await sleep(80)
 await nextTick()
-chk('Ctrl+S：触发保存', apiCalls.some(([k]) => k === 'save'), JSON.stringify(apiCalls))
+chk('Ctrl+S：触发保存（覆写已选文件）', apiCalls.some(([k]) => k === 'overwrite'), JSON.stringify(apiCalls))
 chk('Ctrl+S：阻止了默认行为', ev.defaultPrevented)
+
+apiCalls.length = 0
+const evSaveAs = new win.KeyboardEvent('keydown', { key: 'S', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true })
+ta.dispatchEvent(evSaveAs)
+await sleep(80)
+await nextTick()
+chk('Ctrl+Shift+S：另存为（重新弹框选位置）', apiCalls.some(([k]) => k === 'saveAs'), JSON.stringify(apiCalls))
 
 // ---------- 10. 视图模式 ----------
 const previewOnlyBtn = host.querySelector('.md-tb-btn[title="纯预览"]')

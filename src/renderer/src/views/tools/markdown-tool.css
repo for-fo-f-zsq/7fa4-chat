@@ -206,13 +206,8 @@
   white-space: nowrap;
 }
 
-.md-status-right.is-dirty {
-  color: var(--warning);
-}
-
-.md-status-right.is-clean {
-  color: var(--success);
-}
+/* 状态文案与配色统一到全局 .tool-save-state（见 css/base.css），
+   文案由 utils.toolSaveState() 给出，这里只保留状态栏自己的排版。 */
 
 /* ── 弹窗 ───────────────────────────────────────────────────────────────── */
 

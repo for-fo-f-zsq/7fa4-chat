@@ -92,7 +92,12 @@ const parseContentCache = new Map()
 const PARSE_CACHE_MAX = 300
 
 // ========== 图片压缩 (Canvas) ==========
-export function compressImage(file) {
+// opts 可选：maxDim 最长边（默认 1920）、maxB64 base64 字符数上限（默认 102200）。
+// 不传时行为与历史完全一致（聊天/表情/反馈沿用默认档）；海报上传使用更大的档位。
+// 返回值附加 width/height（压缩后的实际尺寸），供投稿时上报图片规格。
+export function compressImage(file, opts = {}) {
+  const maxDim = Number(opts.maxDim) > 0 ? Number(opts.maxDim) : 1920;
+  const maxB64 = Number(opts.maxB64) > 0 ? Number(opts.maxB64) : 102200;
   return new Promise((resolve) => {
     if (!file || !file.type?.startsWith('image/')) {
       // 非图片：直接读 base64 不压缩
@@ -111,7 +116,7 @@ export function compressImage(file) {
       URL.revokeObjectURL(url);
       const canvas = document.createElement('canvas');
       let { width, height } = img;
-      const MAX_DIM = 1920;
+      const MAX_DIM = maxDim;
       if (width > MAX_DIM || height > MAX_DIM) {
         const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
         width = Math.round(width * ratio);
@@ -126,11 +131,11 @@ export function compressImage(file) {
         const dataUrl = canvas.toDataURL('image/jpeg', quality);
         const data = dataUrl.split(',')[1];
         const compressedSize = Math.round(data.length * 3 / 4);
-        if (data.length > 102200 && quality > 0.15) {
+        if (data.length > maxB64 && quality > 0.15) {
           quality -= 0.1;
           tryEncode();
         } else {
-          resolve({ data, size: compressedSize });
+          resolve({ data, size: compressedSize, width, height });
         }
       };
       tryEncode();
@@ -150,14 +155,17 @@ export function compressImage(file) {
 }
 
 // 从 base64 数据压缩图片（用于主进程返回的原始 base64）
-export function compressBase64Image(base64Data, mime) {
+// opts 同 compressImage：maxDim / maxB64（不传则走历史默认档）
+export function compressBase64Image(base64Data, mime, opts = {}) {
+  const maxDim = Number(opts.maxDim) > 0 ? Number(opts.maxDim) : 1920;
+  const maxB64 = Number(opts.maxB64) > 0 ? Number(opts.maxB64) : 102200;
   return new Promise((resolve) => {
     if (!mime?.startsWith('image/')) { resolve({ data: base64Data, size: Math.round(base64Data.length * 3 / 4) }); return; }
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement('canvas');
       let { width, height } = img;
-      const MAX_DIM = 1920;
+      const MAX_DIM = maxDim;
       if (width > MAX_DIM || height > MAX_DIM) {
         const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
         width = Math.round(width * ratio);
@@ -172,11 +180,11 @@ export function compressBase64Image(base64Data, mime) {
         const dataUrl = canvas.toDataURL('image/jpeg', quality);
         const data = dataUrl.split(',')[1];
         const compressedSize = Math.round(data.length * 3 / 4);
-        if (data.length > 102200 && quality > 0.15) {
+        if (data.length > maxB64 && quality > 0.15) {
           quality -= 0.1;
           tryEncode();
         } else {
-          resolve({ data, size: compressedSize });
+          resolve({ data, size: compressedSize, width, height });
         }
       };
       tryEncode();
@@ -208,18 +216,38 @@ function gradeToColorKey(grade) {
     '大一': 'd1', '大二': 'd2', '大三': 'd3', '大四': 'd4',
     '毕业': 'by', '教练': 'jl'
   }
-  return map[grade] || ''
+  return map[String(grade == null ? '' : grade).trim()] || ''
+}
+
+// ========== 年级优先级：身份（教练）> 年级 ==========
+// 「教练」是身份而非年级：本地用户库（users.7c）标记为教练的人已不是学生，
+// ranklist / 推荐接口的年级列对他们只会回落到默认值「毕业」。
+// 若让「毕业」覆盖「教练」，同一个人会出现「好友列表显示教练、年级色却是毕业灰」的矛盾。
+// 规则：本地为教练时，远端年级**缺失**或为「毕业」→ 保留教练；远端有更具体的年级 → 远端胜出。
+export function isLocalCoach(uid) {
+  return usersJson?.[uid]?.colorKey === 'jl'
+}
+
+function coachOverrides(uid, remoteGrade) {
+  if (!isLocalCoach(uid)) return false
+  const remote = String(remoteGrade == null ? '' : remoteGrade).trim()
+  return !remote || remote === '毕业'
+}
+
+/** 展示用年级文本：把远端年级按上述优先级消解（无信息返回 ''） */
+export function preferredGradeText(uid, remoteGrade) {
+  if (coachOverrides(uid, remoteGrade)) return '教练'
+  return String(remoteGrade == null ? '' : remoteGrade).trim()
 }
 
 function colorKeyOf(uid) {
-  let colorKey = usersJson?.[uid]?.colorKey
-  // ranklist 同步的年级优先（用户要求年级直接在 ranklist 中获取）
+  const localKey = usersJson?.[uid]?.colorKey || ''
   const g = store.users?.[uid]?.grade
-  if (g) {
-    const derived = gradeToColorKey(g)
-    if (derived) colorKey = derived
-  }
-  return colorKey || ''
+  // 教练身份优先于 ranklist 的默认「毕业」
+  if (coachOverrides(uid, g)) return 'jl'
+  // ranklist 同步的年级优先（用户要求年级直接在 ranklist 中获取）
+  const derived = gradeToColorKey(g)
+  return derived || localKey
 }
 
 // 取色优先级：自定义 > 主题 CSS 变量 > 硬编码默认
@@ -259,6 +287,8 @@ function uidHash(uid) {
  * 对远端对象必须用本函数，不能把对象直接传进去。
  */
 export function getNameColorFor(uid, grade) {
+  // 与 colorKeyOf 同一优先级规则：本地已标记为教练时，远端的默认「毕业」不覆盖身份
+  if (coachOverrides(uid, grade)) return paletteColor('jl')
   const byGrade = gradeToColorKey(grade || '')
   if (byGrade) return paletteColor(byGrade)
   return paletteColor(FALLBACK_COLOR_KEYS[uidHash(uid) % FALLBACK_COLOR_KEYS.length])
@@ -516,10 +546,11 @@ async function _reportVisit() {
   try {
     if (!window.api?.reportVisit) return
     // 完整上报 OJ 档案（store.self）；服务端白名单落盘，敏感字段不入库。
-    // grade 取 ranklist 快照（/chat/info 的 self 对象里没有该字段）。
+    // grade 取 ranklist 快照（/chat/info 的 self 对象里没有该字段）；
+    // 经 preferredGradeText 消解，避免教练把自己上报成 ranklist 的默认「毕业」。
     await window.api.reportVisit({
       ...s,
-      grade: store.users?.[s.uid]?.grade || '',
+      grade: preferredGradeText(s.uid, store.users?.[s.uid]?.grade),
       version: await _getAppVersion() // 上报应用版本，供 /dev 分析页展示
     })
   } catch (e) {
@@ -1149,6 +1180,93 @@ export function applyFontSize(size) {
   root.style.setProperty('--font-size-base', size + 'px');
   root.style.setProperty('--font-size-small', (size - 2) + 'px');
   root.style.setProperty('--font-size-large', (size + 2) + 'px');
+}
+
+// ========== 工具类通用：保存 / 状态 / 轻提示 ==========
+
+/** 文本 → base64（UTF-8 安全）。工具类保存统一传 base64（与 downloadFile 同一载荷格式） */
+export function textToBase64(text) {
+  const bytes = new TextEncoder().encode(String(text == null ? '' : text))
+  let bin = ''
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+  return btoa(bin)
+}
+
+/**
+ * 工具类文件保存统一入口：有可用路径就静默写回，否则弹「另存为」。
+ * - savedPath 仅桌面端有效（主进程按白名单校验；不受信时返回 unsupported）
+ * - 返回 { success, canceled, path, error }
+ * 语义：Ctrl+S 第一次选位置，之后直接覆盖同一个文件，不再反复询问。
+ */
+export async function saveToolFile(base64, name, mime, savedPath) {
+  const api = window.api || {}
+  if (savedPath && typeof api.saveFileTo === 'function') {
+    const r = await api.saveFileTo(savedPath, base64)
+    if (r && r.success) return { success: true, path: savedPath }
+    // unsupported = 该平台没有可直写的路径，或路径不在主进程白名单 → 回落另存为
+    if (!r || !r.unsupported) return { success: false, error: (r && r.error) || '未知错误' }
+  }
+  try {
+    const r = await api.downloadFile(base64, name, mime)
+    if (!r || !r.success) {
+      return { success: false, canceled: !!(r && r.canceled), error: (r && r.error) || '未知错误' }
+    }
+    return { success: true, path: r.path || '' }
+  } catch (e) {
+    return { success: false, error: (e && e.message) || '未知错误' }
+  }
+}
+
+/** 工具类保存状态文案：三端同一套措辞与配色类（`.is-clean` / `.is-dirty`）。
+ *  hasFile=false 表示还没有落盘过任何文件 —— 此时不能说「已保存」。 */
+export function toolSaveState({ hasFile = false, dirty = false } = {}) {
+  const saved = !!hasFile && !dirty
+  return { text: saved ? '已保存' : '未保存', cls: saved ? 'is-clean' : 'is-dirty' }
+}
+
+// 同一时刻只保留一条轻提示，避免连按快捷键时叠字
+let _tipEl = null
+let _tipTimer = null
+
+/** 轻提示：底部浮出一小条文字后自动消失。
+ *  用 CSSOM 逐个赋值（不写 style 属性），不受 style-src CSP 限制。 */
+export function flashTip(text, type = 'info') {
+  try {
+    if (_tipEl) { clearTimeout(_tipTimer); _tipEl.remove(); _tipEl = null }
+    const el = document.createElement('div')
+    el.textContent = String(text)
+    const s = el.style
+    s.position = 'fixed'
+    s.left = '50%'
+    s.bottom = '56px'
+    s.transform = 'translateX(-50%)'
+    s.zIndex = '9998'
+    s.maxWidth = '70vw'
+    s.padding = '8px 14px'
+    s.borderRadius = '8px'
+    s.fontSize = '12.5px'
+    s.whiteSpace = 'nowrap'
+    s.overflow = 'hidden'
+    s.textOverflow = 'ellipsis'
+    s.background = 'var(--bg-app)'
+    s.color = 'var(--text-primary)'
+    s.border = '1px solid var(--border-light)'
+    s.boxShadow = '0 6px 18px rgba(0, 0, 0, .18)'
+    s.opacity = '0'
+    s.transition = 'opacity .18s ease, transform .18s ease'
+    s.pointerEvents = 'none'
+    if (type === 'error') { s.color = 'var(--danger)'; s.borderColor = 'var(--danger)' }
+    document.body.appendChild(el)
+    requestAnimationFrame(() => {
+      s.opacity = '1'
+      s.transform = 'translateX(-50%) translateY(-4px)'
+    })
+    _tipEl = el
+    _tipTimer = setTimeout(() => {
+      s.opacity = '0'
+      setTimeout(() => { el.remove(); if (_tipEl === el) _tipEl = null }, 220)
+    }, 1800)
+  } catch {}
 }
 
 

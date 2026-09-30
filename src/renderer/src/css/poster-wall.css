@@ -1,0 +1,62 @@
+/* ===== 海报墙（发现页「推荐」视图内的区块）=====
+   数据来自服务端已审核通过的海报；缩略图按 3:4 裁切保证墙面整齐，点击进图片预览器看完整图。 */
+
+.poster-wall-upload {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+.poster-wall-upload i { font-size: 0.85em; }
+
+.poster-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 12px;
+}
+.poster-card {
+    position: relative;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--bg-settings-info);
+    border: 1px solid var(--border-3d-dark);
+    box-shadow: var(--shadow-card), inset 0 1px 0 var(--border-3d-light);
+    cursor: zoom-in;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.poster-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-card-hover), inset 0 1px 0 var(--border-3d-light);
+}
+.poster-thumb {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+/* 置顶：右上角角标 + 强调色描边，随主题自适应（浅色主题下 --accent 足够深，配 --text-on-accent 可读） */
+.poster-card.is-pinned {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-card), inset 0 1px 0 var(--border-3d-light), 0 0 0 1px var(--accent);
+}
+.poster-pin {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 1px 7px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.65;
+    color: var(--text-on-accent);
+    background: var(--accent);
+    border-radius: 999px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.24);
+    pointer-events: none;
+    user-select: none;
+}
+.poster-pin i { font-size: 0.88em; }

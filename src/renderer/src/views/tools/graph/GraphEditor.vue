@@ -189,9 +189,10 @@
           <div class="graph-tool-divider"></div>
           <div class="graph-tool-group">
             <button class="graph-tool-btn" title="从文件载入图（.json）" @click="openFile"><i class="fas fa-folder-open"></i></button>
-            <button class="graph-tool-btn" title="保存到文件（.json，含节点坐标与排版）" @click="save"><i class="fas fa-save"></i></button>
+            <button class="graph-tool-btn" title="保存 (Ctrl+S)：首次选位置，之后直接覆盖该文件" @click="save"><i class="fas fa-save"></i></button>
             <button class="graph-tool-btn" title="导出为 PNG 图片" @click="exportImg"><i class="fas fa-file-image"></i></button>
           </div>
+          <span class="tool-save-state" :class="saveState.cls" :title="savedPath || (savedName || '尚未保存到文件')">{{ saveState.text }}</span>
         </div>
 
         <div ref="wrapRef" class="graph-canvas-wrap">
@@ -215,9 +216,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import * as algos from './graphAlgos.js'
 import { useNarrow } from '../../../composables/useNarrow.js'
+import { saveToolFile, toolSaveState, flashTip } from '../../../utils.js'
 import './graph-editor.css'
 
 const emit = defineEmits(['back', 'dirty-change'])
@@ -325,20 +327,27 @@ let labelsTimer = null
 // ---------- 未保存标记 ----------
 // 只在「用户改动图」时置脏（加点/加边/删除/清空/随机/改标签/拖动），
 // 力导向布局每帧都在改坐标、不算改动，否则会一直弹未保存提示。
-let dirty = false
+// 用 ref 而非普通变量：工具栏的保存状态文案需要它参与响应式更新。
+const dirty = ref(false)
 // 挂载时会自动载入示例图，那是「初始化」不是「用户改动」，不能算未保存
 let suppressDirty = false
 function markDirty() {
   if (suppressDirty) return
-  if (dirty) return
-  dirty = true
+  if (dirty.value) return
+  dirty.value = true
   emit('dirty-change', true)
 }
 function markClean() {
-  if (!dirty) return
-  dirty = false
+  if (!dirty.value) return
+  dirty.value = false
   emit('dirty-change', false)
 }
+
+// 已保存过的文件：savedName 为空 = 还没落盘过（示例图/新画布都算「未保存」）；
+// savedPath 是磁盘绝对路径（仅桌面端有），让 Ctrl+S 能直接写回同一个文件。
+const savedName = ref('')
+const savedPath = ref('')
+const saveState = computed(() => toolSaveState({ hasFile: !!savedName.value, dirty: dirty.value }))
 
 // 高亮计算结果
 let compColors = new Map()
@@ -569,8 +578,8 @@ function exportImg() {
 
 // ---------- 保存 / 载入 ----------
 // 存的是完整可视快照（含节点坐标与视图变换），所以再打开能原样复原排版。
-// 走 downloadFile / selectFile，桌面端弹文件对话框、网页端下载与上传、安卓端保存到文件并分享，
-// 三端都能用；不用 saveDataFile 是为了让用户能自己选位置、把图当普通文件保存。
+// 保存走 utils.saveToolFile：首次弹「另存为」选位置，之后 Ctrl+S 静默覆写该文件；
+// 网页/安卓没有可直写的真实路径时自动回落为下载/分享（三端同一套代码）。
 const GRAPH_FILE_VERSION = 1
 const fileName = ref('graph.json')
 
@@ -602,17 +611,26 @@ async function save() {
   if (!nodes.length) { alert('画布为空，无可保存的图'); return }
   const json = JSON.stringify(graphSnapshot(), null, 2)
   const name = (fileName.value && fileName.value.trim()) || 'graph.json'
+  // 文件名未变 → 直接写回上次的文件；改过名则走另存为
+  const reusePath = savedName.value === name ? savedPath.value : ''
   try {
-    const r = await window.api.downloadFile(textToB64(json), name, 'application/json')
-    if (r && r.success) { fileName.value = name; markClean(); alert('已保存') }
-    else if (!r || !r.canceled) alert('保存失败：' + ((r && r.error) || '未知错误'))
+    const r = await saveToolFile(textToB64(json), name, 'application/json', reusePath)
+    if (!r.success) {
+      if (!r.canceled) alert('保存失败：' + (r.error || '未知错误'))
+      return
+    }
+    fileName.value = name
+    savedName.value = name
+    savedPath.value = r.path || reusePath || ''
+    markClean()
+    flashTip('已保存：' + (r.path || name))
   } catch (e) {
     alert('保存失败：' + ((e && e.message) || '未知错误'))
   }
 }
 
 async function openFile() {
-  if (dirty && !confirm('当前图未保存，载入文件将丢弃现有内容，确定继续？')) return
+  if (dirty.value && !confirm('当前图未保存，载入文件将丢弃现有内容，确定继续？')) return
   let r = null
   try { r = await window.api.selectFile() } catch { alert('打开失败：无法选择文件'); return }
   if (!r || !r.success || !r.data) return
@@ -682,8 +700,11 @@ async function openFile() {
   invalidate()
   requestDraw()
   fileName.value = r.name || 'graph.json'
+  // 记住来源文件：与磁盘一致 → 已保存；Ctrl+S 直接写回该文件（路径经主进程白名单校验）
+  savedName.value = fileName.value
+  savedPath.value = r.path || ''
   markClean()
-  alert('已载入 ' + (r.name || '文件'))
+  flashTip('已载入 ' + (r.name || '文件'))
 }
 
 // 供外层 ChatView 的「未保存」拦截调用（与 ImageTool / MarkdownTool / MathTool 同一套约定）
@@ -1776,6 +1797,13 @@ function onKeyDown(e) {
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) {
     return
   }
+  // Ctrl+S 保存：未改动时给一条轻提示（以前没有快捷键，用户只能点按钮且没有任何反馈）
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 's') {
+    e.preventDefault()
+    if (!dirty.value) { flashTip('没有需要保存的改动'); return }
+    Promise.resolve(save()).catch(() => {})
+    return
+  }
   if (e.key === 'Delete' || e.key === 'Backspace') {
     if (selected) {
       e.preventDefault()
@@ -1841,7 +1869,8 @@ onMounted(async () => {
   loadExample()
   suppressDirty = false
   // 显式同步一次：toolsDirty 是三个工具共享的，刚挂载的图工具一定是干净的
-  dirty = false
+  // （示例图未落盘 → 保存状态仍显示「未保存」，Ctrl+S 会先让用户选位置）
+  dirty.value = false
   emit('dirty-change', false)
 })
 

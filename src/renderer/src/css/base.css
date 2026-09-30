@@ -267,3 +267,21 @@ mark.search-highlight {
     color: var(--accent);
     margin-right: 6px;
 }
+
+/* 工具类（Markdown / 图片编辑 / 图编辑器）统一的保存状态文字。
+   文案由 utils.toolSaveState() 统一给出，这里只负责样式，避免三个工具各写一套。
+   --success / --warning 定义在 css/themes/default.css 的 :root 里，
+   各主题只覆盖自己列出的变量，因此这两个色值在全部主题下都可用。 */
+.tool-save-state {
+    flex-shrink: 0;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.tool-save-state.is-clean {
+    color: var(--success);
+}
+
+.tool-save-state.is-dirty {
+    color: var(--warning);
+}

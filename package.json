@@ -1,6 +1,6 @@
 {
   "name": "7fa4-chat",
-  "version": "3.5.1",
+  "version": "3.5.2",
   "description": "7FA4 Chat",
   "main": "./out/main/index.js",
   "desktopName": "7fa4-chat.desktop",
@@ -41,6 +41,7 @@
     "vue": "^3.5.13"
   },
   "//dependencies": "只保留主进程运行时真正 require 的包。渲染层依赖（vue/prismjs/html2canvas/md5）由 vite bundle 进 out/renderer；katex 运行期只需 katex.min.css + woff2，由 scripts/sync-katex-assets.mjs 同步到 resources/katex 并走 extraResources；@capacitor/* 只在渲染层 platform/web-api.js 被 import（vite 已 bundle），Android 的插件发现走 @capacitor/cli 的 getDependencies()，它同时读 dependencies 与 devDependencies（dist/plugin.js:71-72），故放 devDependencies 不影响 cap sync。electron-builder 只按 dependencies 收集 node_modules，放进去会被原样打进 app.asar（实测每端多出约 23MB）。注意：因此 node_modules 必须全量安装（npm install，不要带 --omit=dev）。files 里不要再列 package.json：electron-builder 的 fileTransformer 会兜底注入一份含 main 的 package.json，显式列出反而会把开发用的完整 package.json（含 build 配置与注释）原样打进 asar。",
+  "//appImage": "AppImage 的 squashfs 压缩算法必须与根级 compression 解耦。electron-builder 26 的默认 FUSE2 toolset 下，根级 compression=\"maximum\" 会让 AppImage 改用 xz，并附 -Xdict-size 100% -b 1048576（1MB 块 + 满字典）；AppImage 挂载后每读一个文件都要解压所在块，首屏要读数百个文件，实测启动从 1s 恶化到 42s（NoiLinux / 内核 5.4）。故此处显式 gzip：体积回到约 171MB（xz 为 118MB），但启动恢复正常。根级 maximum 仍作用于 nsis / deb 等安装包，不受影响。推导逻辑见 app-builder-lib/out/targets/appimage/AppImageTarget.js。",
   "dependencies": {
     "bytenode": "^1.6.0",
     "electron-updater": "^6.8.9",
@@ -106,6 +107,9 @@
       "category": "Utility",
       "maintainer": "for_fo_f <15982878810@163.com>",
       "artifactName": "7FA4-Chat-${version}-${arch}.${ext}"
+    },
+    "appImage": {
+      "compression": "gzip"
     },
     "mac": {
       "category": "public.app-category.utilities",

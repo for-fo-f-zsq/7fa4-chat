@@ -1,0 +1,127 @@
+/* ===== 上传海报弹窗 ===== */
+
+.pu-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+}
+.pu-box {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 420px;
+    max-width: calc(100vw - 40px);
+    max-height: calc(100vh - 60px);
+    padding: 18px 20px 20px;
+    border-radius: var(--radius);
+    background: var(--bg-app);
+    border: 1px solid var(--border-3d-dark);
+    box-shadow: var(--shadow-card-hover);
+    overflow-y: auto;
+}
+.pu-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.pu-head h3 {
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+.pu-close {
+    border: none;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    padding: 4px 9px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+}
+.pu-close:hover {
+    color: var(--text-primary);
+    background: var(--bg-conversation-hover);
+}
+.pu-desc {
+    font-size: var(--font-size-small);
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+.pu-desc b { color: var(--text-primary); }
+
+/* 预览区：固定给足高度，避免选图前后弹窗尺寸跳动 */
+.pu-stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+    max-height: 46vh;
+    border-radius: var(--radius);
+    background: var(--bg-settings-info);
+    border: 1px dashed var(--border-3d-dark);
+    overflow: hidden;
+}
+.pu-preview {
+    display: block;
+    max-width: 100%;
+    max-height: 46vh;
+    object-fit: contain;
+}
+.pu-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: var(--font-size-small);
+}
+.pu-placeholder i { font-size: 26px; opacity: 0.6; }
+
+.pu-meta {
+    font-size: var(--font-size-small);
+    color: var(--text-secondary);
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.pu-status {
+    font-size: var(--font-size-small);
+    line-height: 1.6;
+    padding: 7px 10px;
+    border-radius: var(--radius);
+    word-break: break-word;
+}
+.pu-status.ok { color: var(--accent); background: var(--accent-light); }
+.pu-status.err { color: var(--danger); background: rgba(230, 67, 64, 0.1); }
+
+.pu-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+.pu-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    font-size: var(--font-size-small);
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: filter 0.15s;
+}
+.pu-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+.pu-actions button:not(:disabled):hover { filter: brightness(1.08); }
+.pu-pick {
+    background: var(--bg-conversation-hover);
+    color: var(--text-primary);
+    border: 1px solid var(--border-3d-dark) !important;
+}
+.pu-submit {
+    background: var(--accent);
+    color: #fff;
+}

@@ -1,3 +1,15 @@
+<h2>3.5.2</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>工具新增「截图」：框选屏幕任意区域，截图后自动在图片编辑器中打开</li>
+  <li><span class="change-tag new">新功能</span>新增海报功能：启动时随机展示一张海报，发现页新增海报墙，登录用户可投稿（审核通过后公开）</li>
+  <li><span class="change-tag improve">优化</span>发现页「刷新」同时刷新推荐与海报墙</li>
+  <li><span class="change-tag improve">优化</span>教练身份在年级显示中优先，不再被默认的「毕业」覆盖</li>
+  <li><span class="change-tag improve">优化</span>工具保存统一：首次保存选择位置，之后按 Ctrl+S 直接覆盖原文件，Ctrl+Shift+S 另存为</li>
+  <li><span class="change-tag fix">修复</span>修复正停留在群聊时收到 @ 仍显示「有人@你」的问题</li>
+  <li><span class="change-tag fix">修复</span>修复收藏设置分类后仍显示为未分类的问题</li>
+  <li><span class="change-tag fix">修复</span>修复未选择保存位置时按 Ctrl+S 误显示「已保存」的问题</li>
+  <li><span class="change-tag fix">修复</span>修复 Linux 系统下应用启动缓慢的问题</li>
+</ul>
 <h2>3.5.1</h2>
 <ul>
   <li><span class="change-tag new">新功能</span>启动时展示社团宣传</li>

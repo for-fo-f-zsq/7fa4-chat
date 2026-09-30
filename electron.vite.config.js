@@ -35,7 +35,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/preload/index.js'),
-          notification: resolve('src/preload/notification.js')
+          notification: resolve('src/preload/notification.js'),
+          screenshot: resolve('src/preload/screenshot.js')
         }
       }
     }
@@ -54,7 +55,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),
-          notification: resolve('src/renderer/notification.html')
+          notification: resolve('src/renderer/notification.html'),
+          screenshot: resolve('src/renderer/screenshot.html')
         }
       }
     },

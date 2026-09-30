@@ -1,8 +1,7 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog, session, clipboard, nativeTheme, safeStorage, protocol, net } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog, session, clipboard, safeStorage, protocol, net, globalShortcut, desktopCapturer } = require('electron');
 const fs = require('fs').promises;
 const fsCb = require('fs');
 const path = require('path');
-const os = require('os');
 const crypto = require('crypto');
 const express = require('express');
 const https = require('https');
@@ -181,9 +180,9 @@ function createWindow() {
             event.preventDefault()
             mainWindow.webContents.setZoomLevel(0)
         } else if (key === 'w') {
-            // Ctrl/Cmd+W：不关闭整个应用，转给渲染层关闭当前 IDE 标签
+            // Ctrl/Cmd+W：关闭窗口（走下面的 close 拦截：托盘/确认后放行）
             event.preventDefault()
-            mainWindow.webContents.send('app-ctrl-w')
+            mainWindow.close()
         }
     });
 
@@ -341,6 +340,8 @@ if (!gotTheLock) {
             createWindow();
             createTray();
             initAutoUpdater();
+            // 全局截图快捷键（Win + Shift + S）
+            registerScreenshotHotkey();
         } catch (err) {
             console.error('Startup error:', err);
             dialog.showErrorBox('启动错误', err.message || String(err));
@@ -348,25 +349,17 @@ if (!gotTheLock) {
     });
 }
 
+app.on('will-quit', () => {
+    // 全局快捷键必须在退出前注销，否则可能残留占用（Linux 下尤其明显）
+    globalShortcut.unregisterAll();
+});
+
 app.on('window-all-closed', () => {
     // 用户主动退出（托盘/菜单"退出"）：即使 minimizeToTray 也强制退出
     // 原因：close 拦截（flush）会中断 app.quit() 的首次流程，窗口随后被强制关闭，
     // 若这里不兜底，minimizeToTray=true 时应用会留在托盘/任务栏不退出
     if (app.isQuitting) { app.quit(); return; }
     if (!minimizeToTray && process.platform !== 'darwin') app.quit();
-});
-
-// 校验 userData 相对路径，拒绝路径穿越
-function safeUserDataPath(filename) {
-    if (typeof filename !== 'string' || !filename || filename.includes('\0')) throw new Error('非法路径');
-    const userData = path.resolve(app.getPath('userData'));
-    const resolved = path.resolve(userData, filename);
-    if (resolved !== userData && !resolved.startsWith(userData + path.sep)) throw new Error('路径越界');
-    return resolved;
-}
-
-ipcMain.handle('get-user-data-path', (event, filename) => {
-    try { return safeUserDataPath(filename); } catch { return null; }
 });
 
 ipcMain.handle('get-version', () => app.getVersion());
@@ -507,6 +500,146 @@ ipcMain.handle('show-mainwindow', (e, chatType, targetId) => {
     }
 });
 
+// ========== 截图（Win + Shift + S：矩形选区 → 图片编辑器）==========
+// 流程：全局快捷键 → desktopCapturer 抓取光标所在屏 → 全屏遮罩窗口框选 → 裁剪 → 送回主窗口渲染层打开图片编辑器
+let shotWin = null;
+const SCREENSHOT_HOTKEY = 'Super+Shift+S';
+// 候选快捷键（按优先级）：首选 Win+Shift+S；Windows shell 已占用该键时依次降级。
+// 实测（RegisterHotKey）：Win+Shift+S / Win+Shift+A / Alt+Shift+S / Ctrl+Alt+A 均被占用；
+// 故意不放 Ctrl+Shift+S —— 全局注册会抢掉所有软件的「另存为」。
+const SCREENSHOT_HOTKEY_CANDIDATES = ['Super+Shift+S', 'Super+Alt+S', 'Control+Alt+S', 'Alt+Shift+A'];
+// 当前实际生效的快捷键状态，渲染层通过 get-screenshot-hotkey 查询后展示在工具卡片上
+let shotHotkey = { accelerator: null, registered: false, preferred: SCREENSHOT_HOTKEY, fallback: false, candidates: SCREENSHOT_HOTKEY_CANDIDATES, skipped: false };
+
+// 截图默认文件名：截图-YYYYMMDD-HHMMSS.png
+function defaultShotName() {
+    const d = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    return `截图-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.png`;
+}
+
+function shotPagePath() {
+    return app.isPackaged
+        ? path.join(__dirname, '../renderer/screenshot.html')
+        : path.join(app.getAppPath(), 'src/renderer/screenshot.html');
+}
+
+function closeShotWindow() {
+    if (shotWin && !shotWin.isDestroyed()) shotWin.close();
+}
+
+async function startScreenshot() {
+    // 遮罩已存在（重复触发）→ 只把焦点拉回去，不再抓第二张
+    if (shotWin && !shotWin.isDestroyed()) { shotWin.focus(); return { success: true }; }
+    try {
+        const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+        const scale = display.scaleFactor || 1;
+        // 请求物理像素尺寸：高 DPI 屏若按逻辑像素请求会拿到低清图，放大后发虚
+        const sources = await desktopCapturer.getSources({
+            types: ['screen'],
+            thumbnailSize: {
+                width: Math.round(display.size.width * scale),
+                height: Math.round(display.size.height * scale)
+            }
+        });
+        const source = sources.find((s) => String(s.display_id) === String(display.id)) || sources[0];
+        if (!source || source.thumbnail.isEmpty()) return { success: false, error: '无法获取屏幕画面' };
+        createShotWindow(display, source.thumbnail.toDataURL(), source.thumbnail.getSize());
+        return { success: true };
+    } catch (e) {
+        console.error('[Screenshot] 截图失败:', e && e.message);
+        return { success: false, error: (e && e.message) || '截图失败' };
+    }
+}
+
+function createShotWindow(display, dataUrl, imgSize) {
+    const { x, y, width, height } = display.bounds;
+    shotWin = new BrowserWindow({
+        x, y, width, height,
+        frame: false,
+        backgroundColor: '#000000',
+        resizable: false,
+        movable: false,
+        minimizable: false,
+        maximizable: false,
+        fullscreenable: false,
+        skipTaskbar: true,
+        alwaysOnTop: true,
+        hasShadow: false,
+        enableLargerThanScreen: true,
+        show: false, // 先隐藏加载，等底图就绪再显示，避免闪一下黑屏
+        webPreferences: {
+            preload: path.join(__dirname, '../preload/screenshot.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true
+        }
+    });
+    // 盖住全屏（含任务栏），并压过其它置顶窗口
+    shotWin.setAlwaysOnTop(true, 'screen-saver');
+    shotWin.on('closed', () => { shotWin = null; });
+    shotWin.webContents.on('did-finish-load', () => {
+        if (!shotWin || shotWin.isDestroyed()) return;
+        shotWin.webContents.send('shot-data', { dataUrl, width: imgSize.width, height: imgSize.height });
+        shotWin.setBounds({ x, y, width, height });
+        shotWin.show();
+        shotWin.focus();
+    });
+    shotWin.loadFile(shotPagePath());
+}
+
+// 框选完成：关闭遮罩 → 显示主窗口 → 把裁剪后的 PNG 交给渲染层打开图片编辑器
+ipcMain.handle('screenshot-finish', (event, payload) => {
+    const data = payload && payload.data;
+    closeShotWindow();
+    if (!data) return { success: false };
+    // 等遮罩窗口释放焦点后再拉起主窗口，否则焦点可能被系统收回
+    setTimeout(() => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        if (!mainWindow.isVisible()) mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('screenshot-captured', {
+            data,
+            mime: payload.mime || 'image/png',
+            name: payload.name || defaultShotName()
+        });
+    }, 60);
+    return { success: true };
+});
+
+ipcMain.handle('screenshot-cancel', () => { closeShotWindow(); return { success: true }; });
+
+// 手动触发（工具列表入口；全局快捷键被系统占用时仍可用）
+ipcMain.handle('capture-screen', () => startScreenshot());
+
+function registerScreenshotHotkey() {
+    if (process.platform === 'darwin') {
+        // macOS 的 Super 即 Cmd，Cmd+Shift+S 与系统通用「存储为」冲突，不注册
+        shotHotkey = { accelerator: null, registered: false, preferred: null, fallback: false, candidates: [], skipped: true };
+        return;
+    }
+    for (let i = 0; i < SCREENSHOT_HOTKEY_CANDIDATES.length; i++) {
+        const accelerator = SCREENSHOT_HOTKEY_CANDIDATES[i];
+        try {
+            // register 返回 false 表示已被其它程序/系统占用（OS 不允许抢占），继续试下一个
+            if (globalShortcut.register(accelerator, () => { startScreenshot(); })) {
+                shotHotkey = { accelerator, registered: true, preferred: SCREENSHOT_HOTKEY, fallback: i > 0, candidates: SCREENSHOT_HOTKEY_CANDIDATES };
+                // 日志用英文：Windows 控制台为 GBK 代码页，中文会变乱码
+                if (i > 0) console.warn('[Screenshot] ' + SCREENSHOT_HOTKEY + ' is taken, fallback to ' + accelerator);
+                return;
+            }
+        } catch (e) {
+            console.warn('[Screenshot] register failed for ' + accelerator + ': ' + (e && e.message));
+        }
+    }
+    shotHotkey = { accelerator: null, registered: false, preferred: SCREENSHOT_HOTKEY, fallback: false, candidates: SCREENSHOT_HOTKEY_CANDIDATES };
+    console.warn('[Screenshot] all candidate hotkeys are taken; use the Tools list card to capture');
+}
+
+// 渲染层查询实际生效的截图快捷键（工具卡片上展示，注册失败时给出提示）
+ipcMain.handle('get-screenshot-hotkey', () => shotHotkey);
+
 ipcMain.handle('window-minimize', () => { if (mainWindow) mainWindow.minimize(); });
 ipcMain.handle('window-maximize', () => { if (mainWindow) mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize(); });
 ipcMain.handle('window-close', () => { if (mainWindow) mainWindow.close(); });
@@ -523,6 +656,11 @@ ipcMain.handle('clipboard-write-text', async (event, text) => {
 });
 
   // --- 文件操作 (base64) ---
+// 工具类「直接写回原文件」（Ctrl+S 覆盖已保存过的文件）的路径白名单：
+// 只有本进程曾通过保存/打开对话框返回给渲染层的路径才可直写，
+// 否则渲染层一旦被注入就能往任意路径落文件。
+const writableFilePaths = new Set();
+
 ipcMain.handle('select-file', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], title: '选择要发送的文件' });
     if (canceled || !filePaths.length) return { success: false, canceled: true };
@@ -540,9 +678,13 @@ ipcMain.handle('select-file', async () => {
             '.xls': 'application/vnd.ms-excel', '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             '.ppt': 'application/vnd.ms-powerpoint', '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         };
+        writableFilePaths.add(filePaths[0]);
         return {
             success: true,
             name: path.basename(filePaths[0]),
+            // 原始绝对路径：工具类（Markdown 等）据此实现「Ctrl+S 写回原文件」；
+            // 同时记入白名单 —— 用户主动选过的文件才允许被工具覆写。
+            path: filePaths[0],
             size: buf.length,
             data: buf.toString('base64'),
             mime: mimeMap[ext] || 'application/octet-stream'
@@ -561,9 +703,11 @@ ipcMain.handle('select-image', async () => {
         const buf = await fs.readFile(filePaths[0]);
         const ext = path.extname(filePaths[0]).toLowerCase();
         const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.bmp': 'image/bmp', '.webp': 'image/webp', '.ico': 'image/x-icon' };
+        writableFilePaths.add(filePaths[0]);
         return {
             success: true,
             name: path.basename(filePaths[0]),
+            path: filePaths[0], // 同上：供图片编辑器「保存」写回原文件
             size: buf.length,
             data: buf.toString('base64'),
             mime: mimeMap[ext] || 'image/png'
@@ -577,7 +721,20 @@ ipcMain.handle('download-file', async (event, base64Data, suggestedName, mime) =
         if (canceled || !savePath) return { success: false, canceled: true };
         const buf = Buffer.from(base64Data, 'base64');
         await fs.writeFile(savePath, buf);
+        writableFilePaths.add(savePath); // 记入白名单，后续 Ctrl+S 可直接覆写
         return { success: true, path: savePath };
+    } catch (e) { return { success: false, error: e.message }; }
+});
+
+// 覆盖写入已保存过的文件（不弹对话框）。unsupported 表示路径不受信，
+// 渲染层据此回落到「另存为」对话框，而不是直接报失败。
+ipcMain.handle('save-file-to', async (event, filePath, base64Data) => {
+    try {
+        if (typeof filePath !== 'string' || !filePath) return { success: false, unsupported: true };
+        if (!writableFilePaths.has(filePath)) return { success: false, unsupported: true };
+        const buf = Buffer.from(String(base64Data || ''), 'base64');
+        await fs.writeFile(filePath, buf);
+        return { success: true, path: filePath };
     } catch (e) { return { success: false, error: e.message }; }
 });
 
@@ -671,26 +828,6 @@ body { width: ${WIDTH}px; padding: ${PAD}px; background: #ffffff; color: #1a1a2e
     }
 });
 
-ipcMain.handle('start-drag-file', async (event, base64Data, fileName) => {
-    try {
-        const downloadsPath = app.getPath('downloads') || os.homedir();
-        if (!fsCb.existsSync(downloadsPath)) fsCb.mkdirSync(downloadsPath, { recursive: true });
-        let finalPath = path.join(downloadsPath, fileName);
-        let counter = 0;
-        while (fsCb.existsSync(finalPath)) {
-            counter++;
-            const ext = path.extname(fileName);
-            const baseName = path.basename(fileName, ext);
-            finalPath = path.join(downloadsPath, `${baseName}_${counter}${ext}`);
-        }
-        const buf = Buffer.from(base64Data, 'base64');
-        await fs.writeFile(finalPath, buf);
-        const { shell } = require('electron');
-        await shell.showItemInFolder(finalPath);
-        return { success: true, path: finalPath };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
 ipcMain.handle('clipboard-write-image', async (event, base64Data) => {
     try {
         const buf = Buffer.from(base64Data, 'base64');
@@ -710,32 +847,6 @@ ipcMain.handle('open-external', (event, url) => {
     const { shell } = require('electron');
     shell.openExternal(url);
     return { success: true };
-});
-
-ipcMain.handle('save-data-file', async (event, filename, content) => {
-    try {
-        const filePath = safeUserDataPath(filename);
-        await fs.mkdir(path.dirname(filePath), { recursive: true });
-        await fs.writeFile(filePath, content, 'utf8');
-        return { success: true };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-ipcMain.handle('load-data-file', async (event, filename) => {
-    try {
-        const filePath = safeUserDataPath(filename);
-        const content = await fs.readFile(filePath, 'utf8');
-        return { success: true, data: content };
-    } catch (e) { return { success: false, error: e.message }; }
-});
-
-// 删除工作区文件（Markdown 工具重命名/覆盖时清理旧文件）
-ipcMain.handle('delete-data-file', async (event, filename) => {
-    try {
-        const filePath = safeUserDataPath(filename);
-        await fs.unlink(filePath);
-        return { success: true };
-    } catch (e) { return { success: false, error: e.message }; }
 });
 
 // ========== SQLite 用户数据存储（data.db，AES-256-GCM 加密） ==========
@@ -777,12 +888,6 @@ ipcMain.handle('store-load-convos', async (event, uid) => {
     return userStore.loadConvos(Number(uid));
 });
 
-ipcMain.handle('store-save-convos', async (event, uid, convos) => {
-    if (!storeReady()) return { success: false, error: '存储未初始化' };
-    if (!Array.isArray(convos)) return { success: false, error: 'convos 需为数组' };
-    return userStore.saveConvos(Number(uid), convos);
-});
-
 // 全量快照（唯一保存通道）：会话元数据 + 偏好 + 待写消息，单事务原子
 ipcMain.handle('store-save-all', async (event, uid, data) => {
     if (!storeReady()) return { success: false, error: '存储未初始化' };
@@ -807,26 +912,9 @@ ipcMain.handle('store-load-last-messages', async (event, uid) => {
     return userStore.loadLastMessages(Number(uid));
 });
 
-ipcMain.handle('store-save-messages', async (event, uid, kind, cid, msgs) => {
-    if (!storeReady()) return { success: false, error: '存储未初始化' };
-    if (!Array.isArray(msgs)) return { success: false, error: 'msgs 需为数组' };
-    return userStore.saveMessages(Number(uid), kind, Number(cid), msgs);
-});
-
-ipcMain.handle('store-clean-messages', async (event, uid, keepPerConvo) => {
-    if (!storeReady()) return { success: false, error: '存储未初始化' };
-    return userStore.cleanMessages(Number(uid), keepPerConvo || 2000);
-});
-
 ipcMain.handle('store-load-prefs', async (event, uid) => {
     if (!storeReady()) return { success: false, error: '存储未初始化' };
     return userStore.loadPrefs(Number(uid));
-});
-
-ipcMain.handle('store-save-prefs', async (event, uid, entries) => {
-    if (!storeReady()) return { success: false, error: '存储未初始化' };
-    if (!entries || typeof entries !== 'object') return { success: false, error: 'entries 需为对象' };
-    return userStore.savePrefs(Number(uid), entries);
 });
 
 // 全量导出（备份）：所有会话元数据 + 全部消息（解密）+ 偏好
@@ -1191,21 +1279,6 @@ ipcMain.handle('clear-cache', async () => {
     } catch (e) { return { success: false, error: e.message }; }
 });
 
-// 获取原生主题（深色/浅色）
-ipcMain.handle('get-native-theme', () => ({
-    shouldUseDarkColors: nativeTheme.shouldUseDarkColors,
-    themeSource: nativeTheme.themeSource
-}));
-
-// 监听原生主题变化并通知渲染进程
-nativeTheme.on('updated', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('native-theme-changed', {
-            shouldUseDarkColors: nativeTheme.shouldUseDarkColors
-        });
-    }
-});
-
 // ========== 用户姓名数据库（users.7c，AES-256-GCM 加密） ==========
 // 由 scripts/encrypt-users.mjs 生成；密钥与此处保持一致。
 // 主进程直接读取解密，不依赖 HTTP 静态服务（dev / 打包行为一致，避免 404）。
@@ -1352,3 +1425,94 @@ async function syncUserPhoto(uid) {
         console.error('[photo] 同步失败:', e.message);
     }
 }
+
+// ========== 海报（客户端投稿 → 服务端 /dev 审核 → 公开） ==========
+// 开屏随机展示一张、发现页「海报墙」列举、任何登录用户可上传；
+// 上传内容落盘为待审，必须在服务端 /dev 页审核通过后才对外公开。
+// 载荷与 /info、照片同构：AES-256-GCM + SHA256(passphrase)，密钥独立、随客户端分发（混淆级防护）。
+// 公开接口只返回 id / 图片地址 / 尺寸，不含投稿人 uid 与 IP。
+const POSTER_ENDPOINT_BASE = 'https://chat.forfof.cloud';
+const POSTER_PASSPHRASE = '7fa4-chat::poster::v1';
+
+function encryptPosterPayload(info) {
+    const key = crypto.createHash('sha256').update(POSTER_PASSPHRASE).digest();
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+    const data = Buffer.concat([cipher.update(JSON.stringify(info), 'utf8'), cipher.final()]);
+    return JSON.stringify({
+        v: 1,
+        iv: iv.toString('base64'),
+        tag: cipher.getAuthTag().toString('base64'),
+        data: data.toString('base64')
+    });
+}
+
+// 服务端下发相对路径（/api/posters/<id>.<ext>），渲染进程需要可直接 <img src> 的绝对地址
+function absolutizePoster(item) {
+    if (!item || typeof item.url !== 'string' || !item.url) return item;
+    if (/^https?:\/\//i.test(item.url)) return item;
+    return { ...item, url: POSTER_ENDPOINT_BASE + item.url };
+}
+
+// 投稿失败的服务端错误码 → 用户可读文案
+const POSTER_ERROR_TEXT = {
+    'bad image': '图片过大或已损坏',
+    'unsupported mime': '不支持的图片格式',
+    'too large': '图片过大',
+    'rate limited': '操作过于频繁，请稍后再试',
+    'bad payload': '提交数据有误',
+    'stale': '提交超时，请重试',
+    'invalid uid': '请先登录',
+    'save failed': '服务器保存失败，请稍后再试'
+};
+
+// 海报列表（发现页海报墙；服务端只返回已通过审核的）
+ipcMain.handle('fetch-posters', async () => {
+    const r = await httpsApiJson('/api/posters', 'GET', undefined, 10000);
+    if (r.status >= 200 && r.status < 300 && r.data && Array.isArray(r.data.items)) {
+        return { success: true, items: r.data.items.map(absolutizePoster) };
+    }
+    return { success: false, items: [], error: (r.data && r.data.error) || r.error || ('HTTP ' + r.status) };
+});
+
+// 开屏随机一张：硬超时 3s —— 取不到就干脆不展开展示，绝不能卡住启动
+ipcMain.handle('fetch-random-poster', async () => {
+    const r = await httpsApiJson('/api/posters?random=1', 'GET', undefined, 3000);
+    if (r.status >= 200 && r.status < 300 && r.data && r.data.success && r.data.item) {
+        return { success: true, item: absolutizePoster(r.data.item) };
+    }
+    return { success: false, item: null, error: (r.data && r.data.error) || r.error || ('HTTP ' + r.status) };
+});
+
+// 投稿：图片已在渲染进程压缩为 base64；主进程加密后 POST（密钥不进渲染进程）
+ipcMain.handle('submit-poster', async (event, payload = {}) => {
+    try {
+        const uid = Number(payload.uid);
+        if (!uid || !Number.isInteger(uid) || uid <= 0) return { success: false, error: '请先登录' };
+        const data = String(payload.data || '');
+        if (!data) return { success: false, error: '缺少图片数据' };
+        const body = encryptPosterPayload({
+            uid,
+            mime: String(payload.mime || 'image/jpeg'),
+            data,
+            w: Number(payload.w) || 0,
+            h: Number(payload.h) || 0,
+            date: Date.now()
+        });
+        // 载荷是「图片 base64 → 整体加密后再 base64」两层，体积放大 ≈1.78 倍；
+        // 服务端 nginx 上限 4m、后端图片上限 2MB，故这里把超时放宽到 30s 以容忍慢网络。
+        const res = await net.fetch(`${POSTER_ENDPOINT_BASE}/api/posters`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body,
+            signal: AbortSignal.timeout(30000)
+        });
+        const jd = await res.json().catch(() => null);
+        if (res.ok && jd && jd.ok) return { success: true, id: jd.id };
+        const raw = (jd && jd.error) || '';
+        return { success: false, error: POSTER_ERROR_TEXT[raw] || raw || ('HTTP ' + res.status) };
+    } catch (e) {
+        const msg = /timeout|abort/i.test(e.message || '') ? '提交超时，请检查网络后重试' : (e.message || '网络错误');
+        return { success: false, error: msg };
+    }
+});

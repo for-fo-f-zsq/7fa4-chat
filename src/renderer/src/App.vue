@@ -3,7 +3,7 @@
     <LoginView v-if="!store.logined && !store.guestMode" @login="onLogin" @guest="onGuest" />
     <ChatView v-else :key="loginSeq" />
   </div>
-  <StartupAd v-if="showStartupAd" :duration="STARTUP_AD_MS" @close="showStartupAd = false" />
+  <StartupPoster v-if="showStartupPoster" :duration="STARTUP_POSTER_MS" @close="showStartupPoster = false" />
   <Onboarding v-if="showOnboarding" @close="closeOnboarding" />
   <Announcement v-if="showAnnouncement" @close="closeAnnouncement" />
   <div v-if="store.initializing && store.logined" class="init-loading">
@@ -20,15 +20,16 @@ import LoginView from './views/LoginView.vue';
 import ChatView from './views/ChatView.vue';
 import Announcement from './components/Announcement.vue';
 import Onboarding from './components/Onboarding.vue';
-import StartupAd from './components/StartupAd.vue';
+import StartupPoster from './components/StartupPoster.vue';
 import { loadUsersDb, compareVersion } from './utils.js';
 
-// --- 启动广告（招新宣传）---
-// 每次启动强制显示，不可跳过；计时从海报加载完成才开始。
-// 物料有时效性（招新季结束就要撤）：下线只需把 STARTUP_AD_ENABLED 改成 false。
-const STARTUP_AD_ENABLED = true;
-const STARTUP_AD_MS = 3000;
-const showStartupAd = ref(STARTUP_AD_ENABLED);
+// --- 开屏海报（服务端随机一张已审核通过的海报）---
+// 每次启动尝试展示一次；计时从海报加载完成才开始，未满时长不允许关闭。
+// 取不到海报（离线/超时/尚无已审海报）时直接放行，不展开展示 —— 绝不让启动被网络卡住。
+// 需要关闭该功能时把 STARTUP_POSTER_ENABLED 改成 false。
+const STARTUP_POSTER_ENABLED = true;
+const STARTUP_POSTER_MS = 3000;
+const showStartupPoster = ref(STARTUP_POSTER_ENABLED);
 
 const canvasEl = ref(null)
 let animId = 0

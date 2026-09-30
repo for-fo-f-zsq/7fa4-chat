@@ -1,7 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
-  getUserDataPath: (filename) => ipcRenderer.invoke('get-user-data-path', filename),
   getVersion: () => ipcRenderer.invoke('get-version'),
   getPlatform: () => ipcRenderer.invoke('get-platform'),
   loadSetting: () => ipcRenderer.invoke('load-setting'),
@@ -22,34 +21,25 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('window-maximized', handler);
     return () => ipcRenderer.removeListener('window-maximized', handler);
   },
-  onAppCtrlW: (callback) => {
-    const handler = () => callback();
-    ipcRenderer.on('app-ctrl-w', handler);
-    return () => ipcRenderer.removeListener('app-ctrl-w', handler);
-  },
   getWindowState: () => ipcRenderer.invoke('get-window-state'),
   clipboardWriteText: (text) => ipcRenderer.invoke('clipboard-write-text', text),
   // --- 文件操作 (base64) ---
   selectFile: () => ipcRenderer.invoke('select-file'),
   selectImage: () => ipcRenderer.invoke('select-image'),
   downloadFile: (base64Data, suggestedName, mime) => ipcRenderer.invoke('download-file', base64Data, suggestedName, mime),
-  startDragFile: (base64Data, fileName) => ipcRenderer.invoke('start-drag-file', base64Data, fileName),
+  // 覆盖写入已保存过的文件（工具类 Ctrl+S 用）。路径不在主进程白名单时返回 unsupported，
+  // 调用方应回落到 downloadFile 的另存为对话框。
+  saveFileTo: (filePath, base64Data) => ipcRenderer.invoke('save-file-to', filePath, base64Data),
   clipboardWriteImage: (base64Data) => ipcRenderer.invoke('clipboard-write-image', base64Data),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
-  saveDataFile: (filename, content) => ipcRenderer.invoke('save-data-file', filename, content),
-  loadDataFile: (filename) => ipcRenderer.invoke('load-data-file', filename),
-  deleteDataFile: (filename) => ipcRenderer.invoke('delete-data-file', filename),
   // --- SQLite 用户数据存储（加密） ---
   storeInit: (uid) => ipcRenderer.invoke('store-init', uid),
   storeLoadConvos: (uid) => ipcRenderer.invoke('store-load-convos', uid),
-  storeSaveConvos: (uid, convos) => ipcRenderer.invoke('store-save-convos', uid, convos),
   storeLoadLastMessages: (uid) => ipcRenderer.invoke('store-load-last-messages', uid),
   storeLoadMessages: (uid, kind, cid, limit, before) => ipcRenderer.invoke('store-load-messages', uid, kind, cid, limit, before),
   storeSearchMessages: (uid, opts) => ipcRenderer.invoke('store-search-messages', uid, opts),
   storeSaveAll: (uid, data) => ipcRenderer.invoke('store-save-all', uid, data),
-  storeCleanMessages: (uid, keepPerConvo) => ipcRenderer.invoke('store-clean-messages', uid, keepPerConvo),
   storeLoadPrefs: (uid) => ipcRenderer.invoke('store-load-prefs', uid),
-  storeSavePrefs: (uid, entries) => ipcRenderer.invoke('store-save-prefs', uid, entries),
   storeExportAll: (uid) => ipcRenderer.invoke('store-export-all', uid),
   storeImportAll: (uid, data) => ipcRenderer.invoke('store-import-all', uid, data),
   // --- 窗口关闭前落盘：主进程通知 → 渲染 flushData → 确认关闭 ---
@@ -69,19 +59,26 @@ contextBridge.exposeInMainWorld('api', {
   sendFeedback: (data) => ipcRenderer.invoke('send-feedback', data),
   fetchSponsors: () => ipcRenderer.invoke('fetch-sponsors'),
   fetchDiscoverPeople: (uid, limit) => ipcRenderer.invoke('discover-people', uid, limit),
+  // 海报：开屏随机一张 / 发现页海报墙列表 / 投稿（需服务端审核通过才公开）
+  fetchPosters: () => ipcRenderer.invoke('fetch-posters'),
+  fetchRandomPoster: () => ipcRenderer.invoke('fetch-random-poster'),
+  submitPoster: (payload) => ipcRenderer.invoke('submit-poster', payload),
   exportData: (data) => ipcRenderer.invoke('export-data', data),
   importData: () => ipcRenderer.invoke('import-data'),
   getCacheSize: () => ipcRenderer.invoke('get-cache-size'),
   clearCache: () => ipcRenderer.invoke('clear-cache'),
-  getNativeTheme: () => ipcRenderer.invoke('get-native-theme'),
-  onNativeThemeChange: (callback) => {
-    const handler = (event, data) => callback(data);
-    ipcRenderer.on('native-theme-changed', handler);
-    return () => ipcRenderer.removeListener('native-theme-changed', handler);
-  },
   // --- 工具 ---
-  getDocumentsPath: () => ipcRenderer.invoke('get-documents-path'),
   loadUsersDb: () => ipcRenderer.invoke('load-users-db'),
+  // --- 截图（Win + Shift + S 矩形框选 → 图片编辑器）---
+  // 手动触发截图框选；全局快捷键被系统占用时的兜底入口
+  captureScreen: () => ipcRenderer.invoke('capture-screen'),
+  // 查询实际生效的截图快捷键（候选键自动降级，UI 需如实展示，否则用户按了没反应也不知道）
+  getScreenshotHotkey: () => ipcRenderer.invoke('get-screenshot-hotkey'),
+  onScreenshotCaptured: (callback) => {
+    const handler = (event, data) => callback(data);
+    ipcRenderer.on('screenshot-captured', handler);
+    return () => ipcRenderer.removeListener('screenshot-captured', handler);
+  },
   reportVisit: (info) => ipcRenderer.invoke('report-visit', info),
   clearSessionCookies: () => ipcRenderer.invoke('clear-session-cookies'),
   exportMarkdownPng: (suggestedName, html) => ipcRenderer.invoke('export-markdown-png', suggestedName, html),

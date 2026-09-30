@@ -17,8 +17,10 @@
       <button title="旋转 90°" @click="rot = (rot + 90) % 360"><i class="fas fa-redo-alt"></i></button>
       <span class="image-toolbar-sep"></span>
       <button title="重置视图" @click="resetView"><i class="fas fa-expand-arrows-alt"></i></button>
-      <span class="image-toolbar-sep"></span>
-      <button title="用图片编辑器打开" @click="$emit('edit')"><i class="fas fa-edit"></i></button>
+      <template v-if="showEdit">
+        <span class="image-toolbar-sep"></span>
+        <button title="用图片编辑器打开" @click="$emit('edit')"><i class="fas fa-edit"></i></button>
+      </template>
       <span class="image-toolbar-sep"></span>
       <button class="preview-close" title="关闭" @click="$emit('close')"><i class="fas fa-times"></i></button>
     </div>
@@ -54,7 +56,9 @@ const props = defineProps({
   src: String,
   text: String,
   rawContent: { type: String, default: '' },
-  showActions: { type: Boolean, default: false }
+  showActions: { type: Boolean, default: false },
+  // 「用图片编辑器打开」按钮：聊天里的图片可跳图片工具，海报墙等只读场景传 false 隐藏
+  showEdit: { type: Boolean, default: true }
 })
 
 defineEmits(['close', 'copy', 'forward', 'download', 'edit'])

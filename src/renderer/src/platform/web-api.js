@@ -157,6 +157,27 @@ async function siteRequest(path, options = {}) {
   return origFetch(full, options)
 }
 
+// ---------- 海报（与桌面端 main 进程同契约） ----------
+// 投稿载荷：AES-256-GCM + SHA256(passphrase)，与 /info、照片同构（独立密钥）。
+// 公开接口只返回 id / 图片地址 / 尺寸，不含投稿人 uid 与 IP。
+const POSTER_PASSPHRASE = '7fa4-chat::poster::v1'
+const POSTER_ERROR_TEXT = {
+  'bad image': '图片过大或已损坏',
+  'unsupported mime': '不支持的图片格式',
+  'too large': '图片过大',
+  'rate limited': '操作过于频繁，请稍后再试',
+  'bad payload': '提交数据有误',
+  'stale': '提交超时，请重试',
+  'invalid uid': '请先登录',
+  'save failed': '服务器保存失败，请稍后再试'
+}
+// 服务端下发相对路径，渲染层需要可直接 <img src> 的绝对地址
+function absolutizePoster(item) {
+  if (!item || typeof item.url !== 'string' || !item.url) return item
+  if (/^https?:\/\//i.test(item.url)) return item
+  return { ...item, url: SITE_BASE + item.url }
+}
+
 // ---------- 用户照片同步（收集信息时把 OJ 学籍照片转存到官网作头像） ----------
 // CapacitorHttp 对 image/* 自动返回 base64；浏览器兜底跨域不通，直接跳过。6h 一次。
 const PHOTO_INTERVAL = 30 * 60 * 1000
@@ -592,7 +613,6 @@ if (IS_NATIVE) {
 
 // ---------- window.api 安装 ----------
 window.api = {
-  getUserDataPath: async () => null,
   getVersion: async () => (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'),
   getPlatform: async () => (IS_NATIVE ? 'android' : 'web'),
   loadSetting: async () => loadSettingObj(),
@@ -622,7 +642,6 @@ window.api = {
   windowClose: async () => { if (IS_NATIVE) CapApp.exitApp() },
   windowIsMaximized: async () => false,
   onWindowMaximized: () => () => {},
-  onAppCtrlW: () => () => {},
   getWindowState: async () => ({
     visible: document.visibilityState === 'visible',
     focused: document.hasFocus(),
@@ -635,7 +654,9 @@ window.api = {
   selectFile: () => pickFile(null),
   selectImage: () => pickFile('image/*'),
   downloadFile: (base64Data, suggestedName, mime) => saveAndShare(base64Data, suggestedName, mime),
-  startDragFile: async () => ({ success: false }),
+  // 网页/安卓没有可直写的真实路径（浏览器是下载、安卓是缓存目录 + 分享），
+  // 返回 unsupported 让调用方回落到 downloadFile —— 不用平台判断也能走对分支。
+  saveFileTo: async () => ({ success: false, unsupported: true }),
   clipboardWriteImage: async (base64Data) => {
     try {
       const blob = await (await fetch(`data:image/png;base64,${base64Data}`)).blob()
@@ -649,30 +670,14 @@ window.api = {
       else window.open(String(url), '_blank')
     } catch { window.open(String(url), '_blank') }
   },
-  saveDataFile: async (filename, content) => {
-    try { localStorage.setItem('datafile:' + filename, String(content)); return { success: true } } catch (e) { return { success: false, error: e.message } }
-  },
-  loadDataFile: async (filename) => {
-    try {
-      const v = localStorage.getItem('datafile:' + filename)
-      return v == null ? { success: false, error: '文件不存在' } : { success: true, data: v }
-    } catch (e) { return { success: false, error: e.message } }
-  },
-  deleteDataFile: async (filename) => {
-    try { localStorage.removeItem('datafile:' + filename); return { success: true } }
-    catch (e) { return { success: false, error: e.message } }
-  },
   // --- IndexedDB 存储 ---
   storeInit: (uid) => store.init(uid),
   storeLoadConvos: (uid) => store.loadConvos(uid),
-  storeSaveConvos: (uid, convos) => store.saveConvos(uid, convos),
   storeLoadLastMessages: (uid) => store.loadLastMessages(uid),
   storeLoadMessages: (uid, kind, cid, limit, before) => store.loadMessages(uid, kind, cid, limit, before),
   storeSearchMessages: (uid, opts) => store.searchMessages(uid, opts),
   storeSaveAll: (uid, data) => store.saveAll(uid, data),
-  storeCleanMessages: (uid, keepPerConvo) => store.cleanMessages(uid, keepPerConvo),
   storeLoadPrefs: (uid) => store.loadPrefs(uid),
-  storeSavePrefs: (uid, entries) => store.savePrefs(uid, entries),
   storeExportAll: (uid) => store.exportAll(uid),
   storeImportAll: (uid, data) => store.importAll(uid, data),
   // --- 生命周期 ---
@@ -731,6 +736,54 @@ window.api = {
       return { success: false, error: e.message || '网络错误' }
     }
   },
+  // 海报：开屏随机一张 / 发现页海报墙 / 投稿（需服务端 /dev 审核通过才公开）
+  fetchPosters: async () => {
+    try {
+      const res = await siteRequest('/api/posters', { method: 'GET', headers: { Accept: 'application/json' } })
+      const data = await res.json().catch(() => null)
+      if (res.ok && data && Array.isArray(data.items)) return { success: true, items: data.items.map(absolutizePoster) }
+      return { success: false, items: [], error: (data && data.error) || `HTTP ${res.status}` }
+    } catch (e) {
+      return { success: false, items: [], error: e.message || '网络错误' }
+    }
+  },
+  fetchRandomPoster: async () => {
+    try {
+      const res = await siteRequest('/api/posters?random=1', { method: 'GET', headers: { Accept: 'application/json' } })
+      const data = await res.json().catch(() => null)
+      if (res.ok && data && data.success && data.item) return { success: true, item: absolutizePoster(data.item) }
+      return { success: false, item: null, error: (data && data.error) || `HTTP ${res.status}` }
+    } catch (e) {
+      return { success: false, item: null, error: e.message || '网络错误' }
+    }
+  },
+  submitPoster: async (payload = {}) => {
+    try {
+      const uid = Number(payload.uid)
+      if (!uid || !Number.isInteger(uid) || uid <= 0) return { success: false, error: '请先登录' }
+      const data = String(payload.data || '')
+      if (!data) return { success: false, error: '缺少图片数据' }
+      const body = JSON.stringify(await aesEncrypt(POSTER_PASSPHRASE, JSON.stringify({
+        uid,
+        mime: String(payload.mime || 'image/jpeg'),
+        data,
+        w: Number(payload.w) || 0,
+        h: Number(payload.h) || 0,
+        date: Date.now()
+      })))
+      const res = await siteRequest('/api/posters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body
+      })
+      const jd = await res.json().catch(() => null)
+      if (res.ok && jd && jd.ok) return { success: true, id: jd.id }
+      const raw = (jd && jd.error) || ''
+      return { success: false, error: POSTER_ERROR_TEXT[raw] || raw || `HTTP ${res.status}` }
+    } catch (e) {
+      return { success: false, error: e.message || '网络错误' }
+    }
+  },
   fetchSponsors: async () => {
     try {
       const res = await siteRequest('/api/sponsors', { method: 'GET' })
@@ -783,18 +836,11 @@ window.api = {
       return { success: true }
     } catch (e) { return { success: false, error: e.message } }
   },
-  getNativeTheme: async () => ({
-    shouldUseDarkColors: window.matchMedia('(prefers-color-scheme: dark)').matches,
-    themeSource: 'system'
-  }),
-  onNativeThemeChange: (callback) => {
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    const handler = () => callback({ shouldUseDarkColors: mq.matches, themeSource: 'system' })
-    mq.addEventListener('change', handler)
-    return () => mq.removeEventListener('change', handler)
-  },
+  // --- 截图（桌面端专属：依赖 desktopCapturer 与全屏遮罩窗口）---
+  captureScreen: async () => ({ success: false, unsupported: true }),
+  getScreenshotHotkey: async () => ({ accelerator: null, registered: false, fallback: false, unsupported: true }),
+  onScreenshotCaptured: () => () => {},
   // --- 工具 ---
-  getDocumentsPath: async () => 'Documents',
   loadUsersDb: async () => {
     try {
       const payload = await (await origFetch('/users.7c')).json()

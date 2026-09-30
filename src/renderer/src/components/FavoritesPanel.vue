@@ -95,9 +95,10 @@
             <input
               class="fav-edit-taginput"
               v-model="editTagInput"
-              :placeholder="editTags.length >= 20 ? '已达上限' : '输入后回车添加'"
+              :placeholder="editTags.length >= 20 ? '已达上限' : '回车或离开输入框即添加'"
               :disabled="editTags.length >= 20"
               @keydown.enter.prevent="addEditTag"
+              @blur="commitTagInput"
             />
           </div>
         </div>
@@ -320,11 +321,21 @@ function batchTag() {
   editTagInput.value = '';
 }
 
-function addEditTag() {
+/** 把输入框里尚未确认的文字并入标签。回车、失焦、点保存都会调用 ——
+ *  否则「打完标签直接点保存」会丢掉刚输入的内容（表现为：分类了但仍显示未分类）。 */
+function commitTagInput() {
   const t = editTagInput.value.trim();
-  if (!t || editTags.value.length >= 20) return;
+  if (!t) return;
+  if (editTags.value.length >= 20) return; // 已达上限：保留文字不清空，避免以为是加上了
   if (!editTags.value.includes(t)) editTags.value.push(t);
   editTagInput.value = '';
+}
+
+function addEditTag(e) {
+  // 中文输入法组词中（拼音尚未上屏）按下的回车是「选字」而非「确认标签」，
+  // 此时输入框里的还是拼音，直接采纳会产生 xuexi 这类乱标签
+  if (e && e.isComposing) return;
+  commitTagInput();
 }
 
 function removeEditTag(t) {
@@ -337,6 +348,7 @@ function closeEdit() {
 
 function saveEdit() {
   if (!editing.value) return;
+  commitTagInput(); // 兜底：输入框里未确认的标签一并保存
   const tags = editTags.value.map((t) => t.trim()).filter(Boolean).slice(0, 20);
   for (const id of editing.value.ids) {
     const found = (store.favorites || []).find((f) => f.id === id);

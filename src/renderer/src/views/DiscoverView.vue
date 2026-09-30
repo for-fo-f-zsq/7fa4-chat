@@ -3,7 +3,7 @@
     <div class="discover-header">
       <h2 class="page-title"><i class="fas fa-compass"></i> 发现</h2>
       <div class="discover-header-spacer"></div>
-      <span class="discover-refresh" :class="{ spinning: loading }" title="刷新推荐" @click="loadRemote">
+      <span class="discover-refresh" :class="{ spinning: loading }" title="刷新" @click="refreshAll">
         <i class="fas fa-sync-alt"></i>
       </span>
     </div>
@@ -37,7 +37,7 @@
           <div class="disc-row" v-for="u in userHitsAll" :key="'fu' + u.uid" @click="emit('open-user', u.uid)">
             <span class="disc-avatar-sm">{{ initialOf(u) }}</span>
             <div class="disc-row-main">
-              <div class="disc-row-name" :style="{ color: nameColorOf(u) }" :title="u.grade || ''">{{ nameOf(u) }}</div>
+              <div class="disc-row-name" :style="{ color: nameColorOf(u) }" :title="gradeTextOf(u)">{{ nameOf(u) }}</div>
               <div class="disc-row-sub">{{ subOf(u) }}</div>
             </div>
             <span v-if="u.watchee !== true" class="disc-row-action" @click.stop="emit('add-friend', u.uid)">加好友</span>
@@ -108,7 +108,7 @@
             <div class="disc-row" v-for="u in userHits" :key="'u' + u.uid" @click="emit('open-user', u.uid)">
               <span class="disc-avatar-sm">{{ initialOf(u) }}</span>
               <div class="disc-row-main">
-                <div class="disc-row-name" :style="{ color: nameColorOf(u) }" :title="u.grade || ''">{{ nameOf(u) }}</div>
+                <div class="disc-row-name" :style="{ color: nameColorOf(u) }" :title="gradeTextOf(u)">{{ nameOf(u) }}</div>
                 <div class="disc-row-sub">{{ subOf(u) }}</div>
               </div>
               <span v-if="u.watchee !== true" class="disc-row-action" @click.stop="emit('add-friend', u.uid)">加好友</span>
@@ -181,12 +181,15 @@
 
     <!-- ===== 推荐视图 ===== -->
     <template v-else>
+      <!-- 海报墙：服务端已审核通过的海报；区块常驻（空池时也露出上传入口） -->
+      <PosterWall :uid="store.self?.uid" :refresh-tick="posterTick" />
+
       <div class="disc-section" v-if="peopleList.length">
         <div class="disc-title">可能认识的人 <em>{{ peopleList.length }}</em></div>
         <div class="disc-grid">
           <div class="disc-card" v-for="p in peopleList" :key="p.uid" @click="emit('open-user', p.uid)">
             <span class="disc-avatar">{{ p._initial }}</span>
-            <div class="disc-card-name" :style="{ color: p._color }" :title="p.grade || ''">{{ nameOf(p) }}</div>
+            <div class="disc-card-name" :style="{ color: p._color }" :title="gradeTextOf(p)">{{ nameOf(p) }}</div>
             <div class="disc-card-sub">{{ subOf(p) }}</div>
             <div class="disc-card-tags">
               <span v-if="isWatcher(p.uid)" class="disc-tag watch">TA 已关注你</span>
@@ -230,7 +233,8 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { store } from '../store.js'
-import { gettime2, displayName, getInitialOfUser, getNameColorFor, highlightKeyword, parseMsgContent, searchAllMessages } from '../utils.js'
+import PosterWall from '../components/PosterWall.vue'
+import { gettime2, displayName, getInitialOfUser, getNameColorFor, preferredGradeText, highlightKeyword, parseMsgContent, searchAllMessages } from '../utils.js'
 
 const emit = defineEmits(['open-user', 'add-friend', 'open-convo', 'open-message', 'open-favorite'])
 
@@ -289,7 +293,13 @@ function nameColorOf(u) {
 function subOf(u) {
   if (!u) return ''
   const cls = u.grade_class ? `${u.grade_class} 班` : ''
-  return [u.grade, cls].filter(Boolean).join(' · ') || (u.username || '')
+  // 教练是身份：本地已标记为教练时，远端年级列的默认「毕业」不覆盖（规则见 utils.preferredGradeText）
+  return [gradeTextOf(u), cls].filter(Boolean).join(' · ') || (u.username || '')
+}
+
+/** 年级文本（含「教练优先于远端毕业」的消解），用于副标题与悬停提示 */
+function gradeTextOf(u) {
+  return u ? preferredGradeText(u.uid, u.grade) : ''
 }
 
 /** 最后活跃时间的人话描述（服务端返回 last_seen 时间戳） */
@@ -535,6 +545,14 @@ async function loadRemote() {
   } finally {
     loading.value = false
   }
+}
+
+// 页头「刷新」：推荐列表与海报墙一起重新拉取。
+// 海报墙是子组件、自己有加载时机（挂载 / 切换账号），父级用递增计数器通知它重拉。
+const posterTick = ref(0)
+function refreshAll() {
+  posterTick.value++
+  loadRemote()
 }
 
 onMounted(loadRemote)

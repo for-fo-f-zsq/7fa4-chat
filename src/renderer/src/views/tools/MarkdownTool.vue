@@ -25,7 +25,8 @@
         </span>
         <button class="md-ws-btn md-ws-btn-icon" title="打开文件" @click="openFile"><i class="fas fa-folder-open"></i></button>
         <button class="md-ws-btn md-ws-btn-icon" title="新建文件" @click="newFile"><i class="fas fa-file"></i></button>
-        <button class="md-ws-btn md-ws-btn-icon" title="保存到文件 (Ctrl+S)" :disabled="saving" @click="save"><i class="fas fa-save"></i></button>
+        <button class="md-ws-btn md-ws-btn-icon" title="保存 (Ctrl+S)：首次选位置，之后直接覆盖该文件" :disabled="saving" @click="save()"><i class="fas fa-save"></i></button>
+        <button class="md-ws-btn md-ws-btn-icon" title="另存为 (Ctrl+Shift+S)" :disabled="saving" @click="saveAs"><i class="fas fa-file-export"></i></button>
         <button class="md-ws-btn md-ws-btn-icon" title="导出为图片" :disabled="exporting" @click="exportPng"><i class="fas fa-image"></i></button>
       </div>
     </div>
@@ -110,7 +111,7 @@
         <!-- 状态栏 -->
         <div class="md-statusbar">
           <span class="md-stats">{{ statsText }}</span>
-          <span class="md-status-right" :class="dirty ? 'is-dirty' : 'is-clean'">{{ dirty ? '未保存' : '已保存' }}</span>
+          <span class="md-status-right tool-save-state" :class="saveState.cls" :title="savedPath || (savedName || '尚未保存到文件')">{{ saveState.text }}</span>
         </div>
       </div>
     </div>
@@ -296,6 +297,7 @@ import { LuoguParser } from '../../markdown/vendor/index.js'
 import { renderDocument } from '../../markdown/index.js'
 import { createScrollSync } from '../../markdown/scroll-sync.js'
 import { useNarrow } from '../../composables/useNarrow.js'
+import { saveToolFile, toolSaveState, flashTip, textToBase64 } from '../../utils.js'
 import './ide/ide-tool.css'
 import './markdown-tool.css'
 
@@ -323,9 +325,15 @@ const fileName = ref('')
 const saving = ref(false)
 const exporting = ref(false)
 const savedContent = ref('')
-const savedKey = ref('')
+// 已保存过的文件：savedName 为空 = 从未落盘（此时不能显示「已保存」）；
+// savedPath 是磁盘绝对路径（仅桌面端有），用于 Ctrl+S 静默覆写同一文件。
+const savedName = ref('')
+const savedPath = ref('')
 const dirty = computed(() => content.value !== savedContent.value)
 watch(dirty, (v) => emit('dirty-change', v))
+
+// 状态栏文案：从未保存过 → 未保存（此前误报「已保存」）；保存过且无改动 → 已保存
+const saveState = computed(() => toolSaveState({ hasFile: !!savedName.value, dirty: dirty.value }))
 
 // 返回：直接上报外层，未保存由 ChatView 统一弹确认（工具内不再自带弹窗，避免弹两次）
 function onBack() {
@@ -688,6 +696,8 @@ function shiftHeadingLevel(delta) {
 function onKeydown(e) {
   const isCtrl = e.ctrlKey || e.metaKey
   if (isCtrl) {
+    // 另存为必须在 Ctrl+S 之前判（Shift+S 的 e.key 是 'S'）
+    if (e.shiftKey && (e.key === 's' || e.key === 'S')) { e.preventDefault(); Promise.resolve(saveAs()).catch(() => {}); return }
     if (e.key === 's' || e.key === 'S') { e.preventDefault(); Promise.resolve(save()).catch(() => {}); return }
     if (e.key === 'b' || e.key === 'B') { e.preventDefault(); insertBold(); return }
     if ((e.key === 'i' || e.key === 'I') && !e.shiftKey) { e.preventDefault(); insertItalic(); return }
@@ -1046,71 +1056,58 @@ async function openFile() {
     const binary = atob(r.data)
     const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0))
     const text = new TextDecoder('utf-8').decode(bytes)
-    // 先写入工作区；只有写入成功才算「已保存」，否则保留为未保存状态并说明原因
-    const w = await window.api.saveDataFile(r.name, text)
+    // 记住来源文件：内容与磁盘一致 → 已保存；Ctrl+S 直接写回该文件（路径由主进程白名单校验）
     fileName.value = r.name
-    if (w && w.success) {
-      savedKey.value = r.name
-      savedContent.value = text
-    } else {
-      savedKey.value = ''
-      savedContent.value = ''
-      alert('文件已打开，但写入工作区失败，请重新保存：' + ((w && w.error) || '未知错误'))
-    }
+    savedName.value = r.name
+    savedPath.value = r.path || ''
+    savedContent.value = text
     loadDocument(text)
   } catch (e) {
     alert('读取文件失败：' + e.message)
   }
 }
 
-async function workspaceExists(name) {
-  try {
-    const r = await window.api.loadDataFile(name)
-    return !!(r && r.success)
-  } catch { return false }
-}
-async function removeWorkspaceFile(name) {
-  try { await window.api.deleteDataFile?.(name) } catch {}
-}
-
 async function newFile() {
-  if (content.value.trim() && !confirm('当前内容未保存，确定新建并丢弃？')) return
+  if (dirty.value && !confirm('当前内容未保存，确定新建并丢弃？')) return
   fileName.value = ''
-  savedKey.value = ''
+  savedName.value = ''
+  savedPath.value = ''
   savedContent.value = ''
   loadDocument('')
 }
 
-async function save() {
+/**
+ * 保存。forceDialog=true 走「另存为」。
+ * 首次保存弹原生对话框选位置；之后文件名未变则直接覆写该文件，不再询问。
+ * 不再隐式写入应用内部工作区 —— 以前那样用户既不知道存到哪，重开工具也找不回来。
+ */
+async function save(forceDialog = false) {
   if (saving.value) return
   const name = (fileName.value && fileName.value.trim()) || '未命名.md'
-  const prevKey = savedKey.value
-  const renamed = prevKey && prevKey !== name
-  if (prevKey !== name) {
-    const exists = await workspaceExists(name)
-    if (exists && !renamed) {
-      if (!confirm(`工作区已存在 ${name}，确定覆盖？`)) return
-    } else if (exists && renamed) {
-      if (!confirm(`工作区已存在 ${name}，确定覆盖（原 ${prevKey} 将被删除）？`)) return
-    }
-  }
+  const reusePath = !forceDialog && savedPath.value && savedName.value === name ? savedPath.value : ''
   saving.value = true
   try {
-    const r = await window.api.saveDataFile(name, content.value)
-    if (!r || !r.success) {
-      alert('保存失败：' + ((r && r.error) || '未知错误'))
+    const r = await saveToolFile(textToBase64(content.value), name, 'text/markdown', reusePath)
+    if (!r.success) {
+      if (!r.canceled) alert('保存失败：' + (r.error || '未知错误'))
       return
     }
-    if (renamed) await removeWorkspaceFile(prevKey)
     fileName.value = name
-    savedKey.value = name
+    savedName.value = name
+    savedPath.value = r.path || reusePath || ''
     savedContent.value = content.value
+    flashTip('已保存：' + (r.path || name))
   } catch (e) {
     console.error('save failed:', e)
     alert('保存失败：' + ((e && e.message) || '未知错误'))
   } finally {
     saving.value = false
   }
+}
+
+/** 另存为：始终弹对话框选新位置 */
+function saveAs() {
+  return save(true)
 }
 
 async function exportPng() {
@@ -1139,6 +1136,10 @@ function onDropFile(e) {
   reader.onload = () => {
     const text = String(reader.result || '')
     fileName.value = file.name
+    // 拖进来的文件内容与磁盘一致，但拿不到真实路径（浏览器安全限制）→
+    // 记为「已保存」但 Ctrl+S 会弹另存为让用户确认位置
+    savedName.value = file.name
+    savedPath.value = ''
     savedContent.value = text
     loadDocument(text)
   }

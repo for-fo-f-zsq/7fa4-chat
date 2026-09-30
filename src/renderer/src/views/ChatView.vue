@@ -372,6 +372,8 @@ import '../css/addfriend-modal.css';
 import '../css/search-panel.css';
 import '../css/favorites-panel.css';
 import '../css/discover-view.css';
+import '../css/poster-wall.css';
+import '../css/poster-upload-modal.css';
 import '../css/announcement.css';
 
 import 'katex/dist/katex.min.css';
@@ -713,6 +715,36 @@ function leaveToolToOrigin() {
   toolOrigin = { type: 'list' };
 }
 
+// 截图落库后的跳转：切到图片编辑器并载入（不做确认，确认由调用方处理）
+async function applyScreenshot(payload) {
+  toolOrigin = { type: 'list' };
+  pageType.value = 'tools';
+  pageId.value = null;
+  currentTool.value = 'image';
+  if (inputFooterRef.value) {
+    inputFooterRef.value.mentionVisible = false;
+    inputFooterRef.value.emojiVisible = false;
+  }
+  closeSearch();
+  await nextTick();
+  await nextTick();
+  imageToolRef.value?.imageOpen?.(payload.data, payload.mime || 'image/png', payload.name || '截图.png');
+}
+
+// 截图（全局快捷键 Win+Shift+S / 工具列表入口）→ 打开图片编辑器
+function onScreenshotCaptured(payload) {
+  if (!payload || !payload.data) return;
+  // 已在图片编辑器：交给 ImageTool 自己确认是否丢弃当前绘制
+  if (pageType.value === 'tools' && currentTool.value === 'image') { applyScreenshot(payload); return; }
+  // 其它工具里有未保存内容：走统一的「保存 / 不保存 / 取消」流程，避免静默丢内容
+  if (toolsDirty.value && pageType.value === 'tools' && currentTool.value !== 'list') {
+    pendingSwitch = { type: 'screenshot', payload };
+    saveConfirmVisible.value = true;
+    return;
+  }
+  applyScreenshot(payload);
+}
+
 // 未保存拦截弹窗：保存后离开
 async function onSaveConfirmSave() {
   saveConfirmVisible.value = false;
@@ -724,8 +756,10 @@ async function onSaveConfirmSave() {
   // 保存成功后 dirty=false → emit 更新 toolsDirty=false；失败/取消则留在页面
   if (!toolsDirty.value && pendingSwitch) {
     const t = pendingSwitch.type;
+    const shot = pendingSwitch.payload;
     pendingSwitch = null;
     if (t === 'tool-back') leaveToolToOrigin();
+    else if (t === 'screenshot') applyScreenshot(shot);
     else switchPage(t);
   } else {
     pendingSwitch = null;
@@ -737,11 +771,13 @@ function onSaveConfirmDiscard() {
   saveConfirmVisible.value = false;
   if (pendingSwitch) {
     const t = pendingSwitch.type;
+    const shot = pendingSwitch.payload;
     pendingSwitch = null;
     // 丢弃未保存内容：清除 dirty 标记，否则 switchPage 会再次命中未保存拦截，
     // 弹窗关闭后立刻重开，表现为"不保存"无法点击/点了没反应
     toolsDirty.value = false;
     if (t === 'tool-back') leaveToolToOrigin();
+    else if (t === 'screenshot') applyScreenshot(shot);
     else switchPage(t);
   }
 }
@@ -1509,6 +1545,7 @@ let pollTimer = null;
 let infoLoopRunning = false;
 let autoSaveTimer = null;
 let unsubscribeNotifClick = null;
+let unsubscribeShotCaptured = null;
 let unsubscribeUploadProgress = null;
 let unsubscribeFlush = null;
 let unsubscribeAndroidBack = null;
@@ -1577,7 +1614,10 @@ async function fetchMessages(type, end, take = 10, allowPage = false) {
       const t = type === 'group' ? store.groups[c.receiver_id] : type === 'send_user' ? store.users[c.receiver_id] : store.users[c.sender_id];
       if (!t) continue;
       const isCurrentPage = (pageType.value === (type === 'group' ? 'group' : 'user') || (isChatPage.value && pageId.value)) && pageId.value === (type === 'group' ? c.receiver_id : (type === 'send_user' ? c.receiver_id : c.sender_id));
-      if (isCurrentPage) t.unread = 0;
+      // 正在看这个会话：未读与 @ 提醒都该即时归零。
+      // 放在 fetchMessages 而不是只依赖 onSelectConversation，是为了覆盖「点通知直接跳进来」
+      // 这类不经过选择事件的进入路径 —— 否则头部会一直挂着 [有人@你]，得退出重进才消。
+      if (isCurrentPage) { t.unread = 0; if (type === 'group') t.mentioned = false; }
       if (t.message_ids.includes(c.id) || (store.deletedMsgIds && store.deletedMsgIds.includes(c.id))) {
         // 旧消息：不重复处理，仅跳过
         // 自愈：id 已在会话消息列表、但内容缺失（本地未及落库 / 历史持久化丢失），
@@ -1628,7 +1668,9 @@ async function fetchMessages(type, end, take = 10, allowPage = false) {
           }
         }
         if (c.sender_id !== store.self.uid && !isCurrentPage) t.unread = (t.unread || 0) + 1;
-        if (type === 'group' && c.sender_id !== store.self.uid) {
+        // @ 提醒同理：正停留在这个群聊里就不要再标记「有人@你」——消息就在眼前，
+        // 标了反而要退出重进才消失（此前这里漏了 !isCurrentPage）。
+        if (type === 'group' && c.sender_id !== store.self.uid && !isCurrentPage) {
           try { const msgObj = JSON.parse(msgContent); if (msgObj.mentions && (msgObj.mentions.includes(store.self.uid) || msgObj.mentions.includes('all'))) t.mentioned = true; } catch {}
         }
         hasNew = true; // 至少遇到一条新消息
@@ -1925,6 +1967,8 @@ onMounted(async () => {
   if (setting.value.theme === 'custom' && setting.value.customVars) { for (const [k, v] of Object.entries(setting.value.customVars)) root.style.setProperty(k, v); }
   autoSaveTimer = setInterval(async () => { await saveAll(); }, 10000);
   unsubscribeNotifClick = window.api.onNotifClick((data) => { if (data.chatType && data.targetId) { pageType.value = data.chatType; pageId.value = Number(data.targetId); } });
+  // 全局截图（Win+Shift+S）：主进程框选完成后把图片送进来，直接打开图片编辑器
+  unsubscribeShotCaptured = window.api.onScreenshotCaptured((data) => onScreenshotCaptured(data));
   // 网络状态监听
   window.addEventListener('online', onOnline);
   window.addEventListener('offline', onOffline);
@@ -1984,6 +2028,7 @@ onUnmounted(() => {
   window.removeEventListener('focus', onWindowFocus);
   window.removeEventListener('resize', updateLayoutMode);
   if (unsubscribeNotifClick) unsubscribeNotifClick();
+  if (unsubscribeShotCaptured) unsubscribeShotCaptured();
   if (unsubscribeUploadProgress) unsubscribeUploadProgress();
   if (unsubscribeFlush) unsubscribeFlush();
   if (unsubscribeAndroidBack) unsubscribeAndroidBack();
