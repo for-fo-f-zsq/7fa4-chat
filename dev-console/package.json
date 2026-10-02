@@ -1,0 +1,18 @@
+{
+  "name": "7fa4-dev-console",
+  "version": "1.0.0",
+  "private": true,
+  "description": "7fa4 管理后台（/dev）—— Vue 3 + Vite 自托管构建，产物为纯静态资源",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.5.40"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.4.3"
+  }
+}

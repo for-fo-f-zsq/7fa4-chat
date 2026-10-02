@@ -47,7 +47,18 @@
               <span class="time">{{ gettime2(item.data.send_time) }}</span>
             </div>
             <div class="bubble" :class="{ collapsed: collapsedMsgs[item.data.id] }"
-              @contextmenu.prevent="onMsgMenu($event, item.data)"><div class="bubble-content luogu-md" v-html="renderContent(item.data.content, item.data.sender)"></div></div>
+              @contextmenu.prevent="onMsgMenu($event, item.data)">
+              <!-- 投票：可交互卡片替代气泡 -->
+              <PollCard
+                v-if="pollOf(item.data)"
+                :poll="pollOf(item.data).def"
+                :result="pollOf(item.data).result"
+                :own="false"
+                :voting="votingPollId === String(item.data.id)"
+                @vote="onPollVote(item.data, $event)"
+              />
+              <div v-else class="bubble-content luogu-md" v-html="renderContent(item.data.content, item.data.sender)"></div>
+            </div>
             <div class="expand-btn" v-if="collapsedMsgs[item.data.id]" @click="openMsgPreview(item.data)">查看更多</div>
           </div>
         </template>
@@ -60,7 +71,17 @@
               <span class="time">{{ gettime2(item.data.send_time) }}</span>
             </div>
             <div class="bubble" :class="{ collapsed: collapsedMsgs[item.data.id] }"
-              @contextmenu.prevent="onMsgMenu($event, item.data)"><div class="bubble-content luogu-md" v-html="renderContent(item.data.content, item.data.sender)"></div></div>
+              @contextmenu.prevent="onMsgMenu($event, item.data)">
+              <PollCard
+                v-if="pollOf(item.data)"
+                :poll="pollOf(item.data).def"
+                :result="pollOf(item.data).result"
+                :own="true"
+                :voting="votingPollId === String(item.data.id)"
+                @vote="onPollVote(item.data, $event)"
+              />
+              <div v-else class="bubble-content luogu-md" v-html="renderContent(item.data.content, item.data.sender)"></div>
+            </div>
             <div class="expand-btn" v-if="collapsedMsgs[item.data.id]" @click="openMsgPreview(item.data)">查看更多</div>
           </div>
         </template>
@@ -91,8 +112,9 @@
 <script setup>
 import { ref, reactive, computed, onUpdated, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown, compressBase64Image, makeFavorite } from '../utils.js';
+import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown, compressBase64Image, makeFavorite, parsePoll, isVoteMsg, aggregatePoll } from '../utils.js';
 import MsgMenu from './MsgMenu.vue';
+import PollCard from './PollCard.vue';
 import { useCurrentMessages } from '../composables/useCurrentMessages.js';
 import '../css/message-list.css';
 
@@ -117,7 +139,8 @@ const emit = defineEmits([
   'batchForward',
   'batchDelete',
   'batchFavorite',
-  'openPreview'
+  'openPreview',
+  'vote'
 ]);
 
 const messageAreaEl = ref(null);
@@ -137,12 +160,16 @@ const visibleMessages = computed(() => {
   return all.slice(all.length - props.visibleCount);
 });
 
-// 日期分组：在跨日消息间插入分隔线
+// 日期分组：在跨日消息间插入分隔线。
+// ⚠️ 投票回复（type:'vote'）不单独成行 —— 它的信息已被对应投票卡聚合展示，
+//    再显示一条气泡就成了「一堆看不懂的 JSON/占位」。这里直接从可见列表剔除，
+//    但**不删除数据**（消息仍在 store 与 SQLite 里，换客户端/旧版本仍能读到）。
 const messagesWithSeparators = computed(() => {
   const all = visibleMessages.value;
   const result = [];
   let lastDate = null;
   for (const msg of all) {
+    if (isVoteMsg(msg.content)) continue;
     if (!isSameDay(msg.send_time, lastDate)) {
       result.push({ type: 'separator', timestamp: msg.send_time, label: formatDateSeparator(msg.send_time) });
       lastDate = msg.send_time;
@@ -180,8 +207,54 @@ function renderContent(msg, senderId) {
   return parseContent(msg, senderId);
 }
 
+// ========== 投票 ==========
+const votingPollId = ref(null);
+
+/**
+ * 会话内全部「投票发起」消息的解析 + 聚合结果，键为 msg.id。
+ *
+ * ⚠️ 必须是 computed 而不是普通函数：模板里 `pollOf(item.data)` 会对同一条消息
+ * 访问三次（v-if / :poll / :result），且每条消息都要遍历一遍全部消息做聚合 ——
+ * 群聊几百条消息时就是 O(n²) 次 JSON.parse + 数组扫描，每帧都可能重跑。
+ * 用 computed 后：只在 currentMessages / selfUid 变化时算一次，
+ * 且每个投票只聚合一次（而非每条消息 ×3 次）。
+ *
+ * 聚合范围 = 当前会话的全部已加载消息（发起消息 + 所有 vote 回复）。
+ * ⚠️ 用 msg.id 当投票标识 —— 它就是消息主键，天然唯一，无需自造 id。
+ */
+const pollMap = computed(() => {
+  const map = new Map();
+  const selfUid = props.selfUid;
+  for (const msg of currentMessages.value || []) {
+    if (!msg) continue;
+    const def = parsePoll(parseMsgContent(msg.content));
+    if (!def) continue;
+    map.set(String(msg.id), { def, result: aggregatePoll(def, msg.id, currentMessages.value, selfUid) });
+  }
+  return map;
+});
+
+/** 若这条消息是投票发起，返回 { def, result }；否则 null */
+function pollOf(msg) {
+  if (!msg) return null;
+  return pollMap.value.get(String(msg.id)) || null;
+}
+
 function msgSenderUser(msg) {
   return store.users?.[msg.sender] || { uid: msg.sender };
+}
+
+/**
+ * 用户点了投票卡片右下角「确认投票」→ 交给父级（ChatView）发送一条 vote 回复消息。
+ * pick 为选中项下标数组；空数组 = 取消投票（聚合时不会计入任何选项）。
+ */
+function onPollVote(pollMsg, pick) {
+  if (!pollMsg) return;
+  const id = String(pollMsg.id);
+  votingPollId.value = id;
+  emit('vote', { poll: id, pick: Array.isArray(pick) ? pick : [] });
+  // 乐观解锁：父级提交很快，1.2s 兜底复位（防父级异常时按钮永久锁死）
+  setTimeout(() => { if (votingPollId.value === id) votingPollId.value = null; }, 1200);
 }
 
 // 单击头像/名字 → 打开用户信息；双击 → 拍一拍（与微信一致）
@@ -478,11 +551,14 @@ function openMsgPreview(msg) {
 function openPreview(obj) {
   if (obj.type === 'image') {
     const src = obj.data && obj.mime ? `data:${obj.mime};base64,${obj.data}` : (obj.src || '');
+    // data/mime 一并透传：预览弹层底部栏的「下载」需要原始 base64 才能落盘（src 可能是 blob: URL，无法直接保存）
     emit('openPreview', {
       type: 'image',
       title: obj.name || '图片预览',
       src: src,
-      text: ''
+      text: '',
+      mediaData: obj.data || '',
+      mediaMime: obj.mime || ''
     });
     } else if (obj.type === 'file' && obj.data) {
     const isImage = /^image\//.test(obj.mime || '');
@@ -491,7 +567,9 @@ function openPreview(obj) {
         type: 'image',
         title: obj.name || '图片预览',
         src: `data:${obj.mime};base64,${obj.data}`,
-        text: ''
+        text: '',
+        mediaData: obj.data,
+        mediaMime: obj.mime || ''
       });
     } else if (/\.pdf$/i.test(obj.name || '')) {
       // PDF：内嵌 iframe 预览（Chromium 内置 PDF 查看器）
@@ -499,7 +577,9 @@ function openPreview(obj) {
         type: 'pdf',
         title: obj.name || 'PDF 预览',
         src: `data:application/pdf;base64,${obj.data}`,
-        text: ''
+        text: '',
+        mediaData: obj.data,
+        mediaMime: 'application/pdf'
       });
     } else if (/\.(txt|md|json|js|ts|css|html|xml|csv|log|py|java|c|cpp|h|sh|bat|yaml|yml|ini|cfg|conf|toml)$/i.test(obj.name || '')) {
       try {

@@ -102,9 +102,9 @@
     </div>
   </div>
   <!-- 意见反馈弹窗 -->
-  <div class="feedback-mask" v-if="feedbackVisible" @click.self="feedbackVisible = false">
+  <div class="feedback-mask" v-if="feedbackVisible">
     <div class="feedback-box">
-      <div class="feedback-head"><h3>意见反馈</h3><button class="feedback-close" @click="feedbackVisible = false"><i class="fas fa-times"></i></button></div>
+      <div class="feedback-head"><h3>意见反馈</h3><button class="feedback-close" title="关闭" @click="closeFeedback"><i class="fas fa-times"></i></button></div>
       <textarea class="feedback-input" v-model="feedbackText" rows="5" maxlength="2000" placeholder="写下你的建议、问题或 Bug 描述…"></textarea>
       <div class="feedback-pics" v-if="feedbackImage">
         <div class="feedback-pic-item">
@@ -118,7 +118,7 @@
       <div class="feedback-client" v-if="feedbackClientText"><i class="fas fa-info-circle"></i> {{ feedbackClientText }}</div>
       <div class="feedback-status" :class="{ ok: feedbackStatus === 'ok', err: feedbackStatus === 'err' }" v-if="feedbackStatus">{{ feedbackMsg }}</div>
       <div class="feedback-actions">
-        <button class="feedback-btn" @click="feedbackVisible = false">取消</button>
+        <button class="feedback-btn" @click="closeFeedback">取消</button>
         <button class="feedback-btn primary" :disabled="feedbackSending || !feedbackText.trim()" @click="submitFeedback">{{ feedbackSending ? '提交中…' : '提交' }}</button>
       </div>
     </div>
@@ -151,6 +151,14 @@ function openFeedback() {
   feedbackVisible.value = true
   // 打开即展示客户端信息（平台/版本/UID）
   collectClientInfo().catch(() => {})
+}
+
+// 关闭反馈弹窗：已输入内容时二次确认，避免辛苦写的内容被误点丢失。
+// 遮罩点击不再关闭（模板里已移除 @click.self），只有「取消」/「×」会走到这里。
+function closeFeedback() {
+  const hasContent = !!feedbackText.value.trim() || !!feedbackImageUrl.value
+  if (hasContent && !confirm('关闭将丢弃已填写的内容，确定关闭吗？')) return
+  feedbackVisible.value = false
 }
 
 // 客户端信息（随反馈提交，便于定位问题）：平台（Windows/Linux/macOS/Android/Web）+ 版本号 + UID

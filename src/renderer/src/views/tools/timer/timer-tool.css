@@ -351,6 +351,69 @@
     color: var(--text-secondary);
 }
 
+/* 自定义名字：始终置顶的第一项（未登录/名单外的人也能计时） */
+.tm-picker-custom {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    font: inherit;
+    font-size: var(--font-size-base);
+    text-align: left;
+    padding: 11px 12px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+    transition: background var(--duration-fast) ease;
+}
+
+.tm-picker-custom:hover { background: var(--accent-light); }
+
+.tm-picker-custom-cur {
+    margin-left: auto;
+    max-width: 45%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-secondary);
+}
+
+.tm-picker-custom-edit {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px 8px;
+}
+
+.tm-picker-custom-edit input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: var(--font-size-base);
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--accent);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.tm-picker-custom-ok {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--text-on-accent);
+    cursor: pointer;
+}
+
+/* 自定义名字（无 uid）时用强调色区分，避免与名单用户混淆 */
+.tm-who-name.custom { color: var(--accent); font-weight: 600; }
+
 .tm-picker-item {
     display: flex;
     align-items: center;

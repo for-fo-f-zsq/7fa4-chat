@@ -100,6 +100,8 @@ let isPreviewing = false
 
 onUnmounted(() => {
   clearTimeout(previewTimer)
+  try { themeProbeFrame?.remove() } catch {}
+  themeProbeFrame = null
 })
 
 const themes = THEMES
@@ -175,23 +177,64 @@ const varGroups = RAW_VAR_GROUPS.map((g) => ({ ...g, vars: g.vars.filter((v) => 
 
 const customVars = reactive({})
 
-// 临时挂主题类读取该主题真实变量（用于迷你预览与深浅判定），结果缓存
+// 临时把主题类挂到一个隔离的 <iframe> 里读取该主题真实变量（用于迷你预览与深浅判定），结果缓存。
+//
+// ⚠️ 不能用「body 下挂一个 .theme-x 的隐藏 div」的老写法：
+//   default 主题的变量定义在 :root 上（css/themes/default.css 是 `:root { ... }`），
+//   并没有 .theme-default 这条规则。当应用当前处于深色主题时（html 带 theme-obsidian），
+//   body 下的探针 div 命中不到任何规则，只能**继承** html 的变量 → 读到深色值，
+//   于是「默认主题(QQ)」卡片在深色模式下被画成深色（isDarkTheme 也误判为深色）。
+//   iframe 内部是独立的文档树，:root 即 iframe 的 <html>，把主题类加在它上面
+//   与真实应用方式完全一致；且不受外层主题污染，无需担心取色期间闪烁。
+let themeProbeFrame = null
+function ensureThemeProbe() {
+  if (themeProbeFrame && themeProbeFrame.contentDocument) return themeProbeFrame
+  const frame = document.createElement('iframe')
+  frame.setAttribute('aria-hidden', 'true')
+  frame.style.cssText = 'position:absolute;left:-9999px;top:0;width:0;height:0;border:0;visibility:hidden'
+  document.body.appendChild(frame)
+  const doc = frame.contentDocument
+  // 把主文档里已经生效的全部样式表复制进探针 iframe（主题变量、font-awesome 等一次性带齐）
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      const cssText = Array.from(sheet.cssRules || []).map((r) => r.cssText).join('\n')
+      const st = doc.createElement('style')
+      st.textContent = cssText
+      doc.head.appendChild(st)
+    } catch {
+      // 跨域样式表读不到 cssRules：改用 <link> 复制同一地址
+      if (sheet.href) {
+        const link = doc.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = sheet.href
+        doc.head.appendChild(link)
+      }
+    }
+  }
+  themeProbeFrame = frame
+  return frame
+}
+
 const themePreviewCache = reactive({})
 function themeVarsOf(value) {
   if (!themePreviewCache[value]) {
-    const el = document.createElement('div')
-    el.className = `theme-${value}`
-    el.style.position = 'absolute'
-    el.style.visibility = 'hidden'
-    document.body.appendChild(el)
-    const s = getComputedStyle(el)
-    themePreviewCache[value] = {
-      bg: s.getPropertyValue('--bg-app').trim() || '#ffffff',
-      side: s.getPropertyValue('--bg-sidebar').trim() || '#eeeeee',
-      accent: s.getPropertyValue('--accent').trim() || '#888888',
-      text: s.getPropertyValue('--text-primary').trim() || '#333333',
+    const fallback = { bg: '#ffffff', side: '#eeeeee', accent: '#888888', text: '#333333' }
+    try {
+      const frame = ensureThemeProbe()
+      const doc = frame.contentDocument
+      const rootEl = doc.documentElement
+      // 与真实应用完全一致：default 不加类，其余加 theme-<value>
+      rootEl.className = value === 'default' ? '' : `theme-${value}`
+      const s = frame.contentWindow.getComputedStyle(rootEl)
+      themePreviewCache[value] = {
+        bg: s.getPropertyValue('--bg-app').trim() || fallback.bg,
+        side: s.getPropertyValue('--bg-sidebar').trim() || fallback.side,
+        accent: s.getPropertyValue('--accent').trim() || fallback.accent,
+        text: s.getPropertyValue('--text-primary').trim() || fallback.text,
+      }
+    } catch {
+      themePreviewCache[value] = fallback
     }
-    el.remove()
   }
   return themePreviewCache[value]
 }

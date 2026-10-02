@@ -26,7 +26,15 @@ contextBridge.exposeInMainWorld('api', {
   // --- 文件操作 (base64) ---
   selectFile: () => ipcRenderer.invoke('select-file'),
   selectImage: () => ipcRenderer.invoke('select-image'),
+  // 拍照：调系统相机应用，返回用户新拍的那张图（base64）。
+  // 用户没拍就关掉相机 → { success:false, canceled:true }，调用方静默处理。
+  launchCamera: () => ipcRenderer.invoke('launch-camera'),
+  // 作废正在等待的拍照请求（用户在等待期间点「取消」时用）
+  cancelCamera: () => ipcRenderer.invoke('cancel-camera'),
   downloadFile: (base64Data, suggestedName, mime) => ipcRenderer.invoke('download-file', base64Data, suggestedName, mime),
+  // 直接按 URL 下载（主进程抓取，绕过渲染层 CORS —— Electron 渲染进程源与图片站不同源，
+  // 且图片由 nginx 静态规则伺服不带 access-control-allow-origin，renderer fetch 必被拦）。
+  downloadUrl: (url, suggestedName) => ipcRenderer.invoke('download-url', url, suggestedName),
   // 覆盖写入已保存过的文件（工具类 Ctrl+S 用）。路径不在主进程白名单时返回 unsupported，
   // 调用方应回落到 downloadFile 的另存为对话框。
   saveFileTo: (filePath, base64Data) => ipcRenderer.invoke('save-file-to', filePath, base64Data),

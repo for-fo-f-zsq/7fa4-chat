@@ -60,3 +60,28 @@
     user-select: none;
 }
 .poster-pin i { font-size: 0.88em; }
+
+/* 署名：左下角浮层，海报提供者。用中性半透明底 + 白字，任何海报图上都可读 */
+.poster-author {
+    position: absolute;
+    left: 6px;
+    bottom: 6px;
+    max-width: calc(100% - 12px);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.65;
+    color: #FFFFFF;
+    background: rgba(0, 0, 0, 0.52);
+    backdrop-filter: blur(3px);
+    border-radius: 999px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+    user-select: none;
+}
+.poster-author i { font-size: 0.88em; opacity: 0.9; }

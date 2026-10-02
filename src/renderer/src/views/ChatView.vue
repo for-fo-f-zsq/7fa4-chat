@@ -93,6 +93,7 @@
         @batchDelete="batchDelete"
         @batchFavorite="batchFavorite"
         @openPreview="onOpenPreview"
+        @vote="onPollVote"
       />
       <InputFooter
         ref="inputFooterRef"
@@ -319,7 +320,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, startVisitReport, stopVisitReport, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys, isUserHiddenBySetting, checkAppUpdate, normalizeFavorites, makeFavorite } from '../utils.js';
+import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, startVisitReport, stopVisitReport, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys, isUserHiddenBySetting, checkAppUpdate, normalizeFavorites, makeFavorite, makeVoteContent } from '../utils.js';
 
 import NavBar from '../components/NavBar.vue';
 import ConversationList from '../components/ConversationList.vue';
@@ -521,7 +522,7 @@ const forwardModalVisible = ref(false);
 const forwardMsgContent = ref('');
 const forwardModalRef = ref(null);
 const imageSendPending = ref(null); // 待发送的图片消息对象（图片编辑器"发送"→ 选接收方后发送）
-const previewData = reactive({ show: false, type: '', title: '', src: '', text: '', rawContent: '', showActions: false });
+const previewData = reactive({ show: false, type: '', title: '', src: '', text: '', rawContent: '', showActions: false, mediaData: '', mediaMime: '' });
 
 // --- computed ---
 const targetUser = computed(() => store.users?.[pageId.value] || null);
@@ -1051,6 +1052,32 @@ async function sendPat(targetUid) {
   inputFooterRef.value.sending = false;
 }
 
+/**
+ * 用户对某个投票选项投票 → 发一条 vote 回复消息。
+ * ⚠️ 投票只用于群聊（私聊投票无意义，且结果无处聚合展示）。
+ * ⚠️ 同一人重复投票：直接再发一条 vote 即可；客户端聚合按「uid + 选项」去重，
+ *    因此「改票」表现为旧选项不再被他计入（无需撤回旧消息）。
+ */
+async function onPollVote({ poll, pick }) {
+  if (pageType.value !== 'group') return;
+  if (inputFooterRef.value?.sending) return;
+  inputFooterRef.value.sending = true;
+  const msgObj = JSON.parse(makeVoteContent(poll, pick));
+  try {
+    const r = await sendChatMessage({ type: 'group', targetId: pageId.value, msgObj });
+    if (r.success) {
+      if (inputFooterRef.value) inputFooterRef.value.errorMessage = '';
+      const { tokenInfo } = applyChatToStore(r, 'group', pageId.value);
+      if (inputFooterRef.value) inputFooterRef.value.tokenInfo = tokenInfo;
+    } else {
+      if (inputFooterRef.value) inputFooterRef.value.errorMessage = r.err?.message || '投票失败';
+    }
+  } catch {
+    if (inputFooterRef.value) inputFooterRef.value.errorMessage = '投票失败';
+  }
+  inputFooterRef.value.sending = false;
+}
+
 // --- 消息删除/批量操作 ---
 function deleteMsg(msgId) {
   const msg = store.messages[msgId];
@@ -1241,6 +1268,22 @@ function onPreviewForward() {
 }
 
 function onPreviewDownload() {
+  // 图片预览：底部栏下载按钮走这里。优先用消息透传的原始 base64（src 多为 blob: URL，
+  // 直接 a[download] 只会得到临时对象地址，落盘会失败）；无原始数据时回落到 data: URL 解析。
+  if (previewData.type === 'image') {
+    let data = previewData.mediaData || '';
+    let mime = previewData.mediaMime || '';
+    if (!data && previewData.src && previewData.src.startsWith('data:')) {
+      const m = previewData.src.match(/^data:([^;,]+);base64,(.*)$/);
+      if (m) { mime = m[1]; data = m[2]; }
+    }
+    if (!data) { alert('该图片无法下载（缺少原始数据）'); return; }
+    const name = /\.(png|jpe?g|gif|webp|bmp|ico)$/i.test(previewData.title || '')
+      ? previewData.title
+      : `${previewData.title || '图片'}.${(mime.split('/')[1] || 'png').replace('jpeg', 'jpg')}`;
+    window.api.downloadFile(data, name, mime || 'image/png');
+    return;
+  }
   const content = previewData.rawContent;
   if (!content) return;
   onFavDownload({ content });
@@ -1253,6 +1296,8 @@ function onOpenPreview(data) {
   previewData.text = data.text;
   previewData.rawContent = '';
   previewData.showActions = false;
+  previewData.mediaData = data.mediaData || '';
+  previewData.mediaMime = data.mediaMime || '';
   previewData.show = true;
 }
 function openuserinfo(uid) { userinfo.uid = uid; userinfo.show = true; }

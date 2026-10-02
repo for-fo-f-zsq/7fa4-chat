@@ -45,7 +45,7 @@
               {{ panelUser(cell.p).initial }}
             </span>
             <i v-else class="fas fa-user tm-who-none"></i>
-            <span class="tm-who-name">{{ panelUser(cell.p)?.name || '选择用户' }}</span>
+            <span class="tm-who-name" :class="{ custom: !!(cell.p.customName && !cell.p.uid) }">{{ panelUser(cell.p)?.name || '选择用户' }}</span>
             <i class="fas fa-chevron-down tm-who-caret"></i>
           </button>
 
@@ -69,18 +69,38 @@
               />
             </div>
             <div class="tm-picker-list">
-              <div v-if="!pickerResult.length" class="tm-picker-empty">无匹配用户</div>
+              <!-- 自定义名字：未登录时 store.users 为空、名单也拉不到，没有任何候选；
+                   即使是登录态，也可能要给外校/本班临时同学计时。故始终置顶一个自定义入口。 -->
+              <button class="tm-picker-custom" @click="openCustomName(cell.i)">
+                <i class="fas fa-pen"></i>
+                <span>{{ cell.p.customName ? '修改自定义名字' : '自定义名字…' }}</span>
+                <span v-if="cell.p.customName" class="tm-picker-custom-cur">{{ cell.p.customName }}</span>
+              </button>
+              <div v-if="customEditing === cell.i" class="tm-picker-custom-edit" @click.stop>
+                <input
+                  ref="customInputRef"
+                  v-model="customDraft"
+                  type="text"
+                  maxlength="24"
+                  placeholder="输入名字后回车"
+                  spellcheck="false"
+                  @keydown.enter.prevent="commitCustomName(cell.i)"
+                  @keydown.esc.prevent="customEditing = null"
+                />
+                <button class="tm-picker-custom-ok" title="确定" @click="commitCustomName(cell.i)"><i class="fas fa-check"></i></button>
+              </div>
+              <div v-if="!pickerResult.length && !cell.p.customName" class="tm-picker-empty">无匹配用户</div>
               <button
                 v-for="u in pickerResult"
                 :key="u.uid"
                 class="tm-picker-item"
-                :class="{ sel: cell.p.uid === u.uid }"
+                :class="{ sel: cell.p.uid === u.uid && !cell.p.customName }"
                 @click="selectUser(cell.i, u)"
               >
                 <span class="tm-picker-avatar" :style="{ color: u.gradeColor || 'var(--accent)' }">{{ u.initial }}</span>
                 <span class="tm-picker-name" :style="{ color: u.gradeColor || 'var(--text-primary)' }">{{ u.realName }}</span>
                 <span class="tm-picker-meta">{{ u.meta }}</span>
-                <i v-if="cell.p.uid === u.uid" class="fas fa-check tm-picker-check"></i>
+                <i v-if="cell.p.uid === u.uid && !cell.p.customName" class="fas fa-check tm-picker-check"></i>
               </button>
             </div>
             <div class="tm-picker-foot">
@@ -202,6 +222,8 @@ function parseDuration(str) {
 function createPanel() {
   return {
     uid: null,
+    // 自定义名字：未登录或名单外的人用它计时（与 uid 互斥，存 localStorage）
+    customName: '',
     mode: 'duration',
     durationText: '00:05:00',
     targetText: toLocalInput(nextBreakTarget()),
@@ -248,6 +270,11 @@ function progressPct(p) {
 
 /* ---------- 用户选择 ---------- */
 function panelUser(p) {
+  // 自定义名字优先：未登录 / 名单里没有的人也能计时（且不依赖任何远端数据）
+  const custom = String(p.customName || '').trim()
+  if (custom) {
+    return { name: custom, initial: custom.charAt(0), color: 'var(--accent)' }
+  }
   if (!p.uid) return null
   const u = store.users[p.uid]
   const info = usersJson?.[p.uid]
@@ -297,6 +324,8 @@ function togglePicker(i, evt) {
   pickerMaxH.value = Math.min(PICKER_WANT, Math.round(window.innerHeight * 0.5))
   pickerOpen.value = i
   pickerQuery.value = ''
+  customEditing.value = null
+  customDraft.value = ''
   nextTick(() => {
     refEl(pickerInputRef.value)?.focus?.()
     fitPicker(trigger)
@@ -332,6 +361,27 @@ function closePicker() {
 
 function selectUser(i, u) {
   panels[i].uid = u ? u.uid : null
+  panels[i].customName = ''
+  customEditing.value = null
+  closePicker()
+}
+
+/* ---------- 自定义名字 ---------- */
+const customEditing = ref(null)
+const customDraft = ref('')
+const customInputRef = ref(null)
+
+function openCustomName(i) {
+  customEditing.value = i
+  customDraft.value = panels[i].customName || ''
+  nextTick(() => refEl(customInputRef.value)?.focus?.())
+}
+
+function commitCustomName(i) {
+  const v = customDraft.value.trim().slice(0, 24)
+  panels[i].customName = v
+  if (v) panels[i].uid = null // 与名单用户互斥，避免出现「有 uid 又顶着别的名字」
+  customEditing.value = null
   closePicker()
 }
 
@@ -494,6 +544,7 @@ function saveConfig() {
         soundOn: soundOn.value,
         panels: panels.map((p) => ({
           uid: p.uid,
+          customName: p.customName,
           mode: p.mode,
           durationText: p.durationText,
           targetText: p.targetText,
@@ -522,6 +573,7 @@ function restoreConfig() {
     const s = saved[i]
     if (s) {
       p.uid = s.uid ?? null
+      p.customName = typeof s.customName === 'string' ? s.customName : ''
       p.mode = s.mode === 'target' ? 'target' : 'duration'
       if (typeof s.durationText === 'string') p.durationText = s.durationText
       if (typeof s.targetText === 'string' && s.targetText) p.targetText = s.targetText
@@ -559,7 +611,7 @@ const configSnapshot = computed(() =>
   JSON.stringify({
     layout: layout.value,
     soundOn: soundOn.value,
-    panels: panels.map((p) => [p.uid, p.mode, p.durationText, p.targetText])
+    panels: panels.map((p) => [p.uid, p.customName, p.mode, p.durationText, p.targetText])
   })
 )
 watch(configSnapshot, saveConfig)

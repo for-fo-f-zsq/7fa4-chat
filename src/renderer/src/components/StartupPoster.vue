@@ -19,6 +19,11 @@
           <span class="startup-poster-spinner"></span>
         </div>
 
+        <!-- 署名：海报提供者（服务端只下发名字，不含 uid / IP） -->
+        <div v-if="posterUrl && posterAuthor" class="startup-poster-author">
+          <i class="fas fa-user-pen"></i>{{ posterAuthor }}
+        </div>
+
         <div class="startup-poster-progress" v-if="ready">
           <div class="startup-poster-bar" :style="{ animationDuration: duration + 'ms' }"></div>
         </div>
@@ -55,6 +60,7 @@ const IMG_LOAD_TIMEOUT = 8000
 
 const visible = ref(true)
 const posterUrl = ref('')
+const posterAuthor = ref('') // 海报提供者署名（服务端只下发名字）
 const ready = ref(false)    // 海报已就绪 → 进度条与倒计时开始
 const canClose = ref(false) // 停留时长已满 → 关闭按钮可点
 const left = ref(Math.ceil(props.duration / 1000))
@@ -112,6 +118,7 @@ onMounted(async () => {
   if (!r || !r.success || !r.item || !r.item.url) { finish(); return }
 
   posterUrl.value = r.item.url
+  posterAuthor.value = r.item.author || ''
   await nextTick()
   // 命中缓存时 load 事件可能在监听挂上之前就已触发，用 complete 兜底
   const el = imgEl.value
@@ -207,6 +214,30 @@ body:not(.web) .startup-poster-img {
   background: rgba(255, 255, 255, 0.22);
   overflow: hidden;
 }
+/* 署名：海报底部居中浮层，白字 + 半透明黑底，任何画面上都可读 */
+.startup-poster-author {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 28px);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+  border-radius: 999px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+}
+.startup-poster-author i { font-size: 0.88em; opacity: 0.9; }
 .startup-poster-bar {
   width: 100%;
   height: 100%;

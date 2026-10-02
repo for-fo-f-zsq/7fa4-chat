@@ -715,6 +715,165 @@ ipcMain.handle('select-image', async () => {
     } catch (e) { return { success: false, error: e.message }; }
 });
 
+// 拍照：调**系统相机应用**取图，不自建取景器（用户 2026-10-02 决策）。
+// Windows 11 / macOS 都自带相机且能出图；自己用 getUserMedia 画取景器要处理权限、
+// 前后摄、镜像、非安全上下文等一堆边角，且拍出来的图还要再走一遍压缩，属于重复造轮子。
+//
+// 判定「用户拍了哪张」的策略：调用前后各列一次系统图片目录（Pictures / 桌面 / 相机胶卷），
+// 取差集（新增文件）→ 按 mtime 取最新一张 → 读成 base64 返回。
+// 之所以轮询而非用 fs.watch：跨平台差异大（Windows 是 ReadDirectoryChangesW，
+// 网络盘 / 重定向目录会静默失效），而拍照本身是低频操作，1s 轮询完全够用且行为可预期。
+//
+// ⚠️ 「用户没拍照就退出相机」必须靠**窗口焦点**判定，不能只等差集超时（2026-10-02 修）：
+// 相机是独立进程/窗口，拉起时本窗口 blur、用户关掉相机后本窗口 focus 回来。
+// 只靠差集的话，差集永远是空 → 白等满 90s 才返回 canceled，
+// 表现为「退出相机后再点拍照按钮没反应」（按钮被 cameraBusy 锁住 90 秒）。
+// 判定顺序：先看有没有新图（用户拍完随手关相机 = 最常见路径，命中即走），
+// 否则一旦「曾经 blur 过、现在又 focus 回来且已经过一轮扫描」就判定用户放弃 → 立即返回。
+const cameraWaiters = new Set();
+
+ipcMain.handle('cancel-camera', async () => {
+    // 用户主动点了「取消」：作废所有正在等待的拍照请求
+    for (const w of [...cameraWaiters]) w.canceled = true;
+    return { success: true };
+});
+
+ipcMain.handle('launch-camera', async (event) => {
+    const os = require('os');
+    const { spawn } = require('child_process');
+    const home = os.homedir();
+
+    // 候选目录：各平台相机默认存放位置
+    const dirs = process.platform === 'win32'
+        ? [path.join(home, 'Pictures'), path.join(home, 'Pictures', 'Camera Roll'), path.join(home, 'Desktop')]
+        : process.platform === 'darwin'
+            ? [path.join(home, 'Pictures'), path.join(home, 'Pictures', 'Photo Booth Library'), path.join(home, 'Desktop')]
+            : [path.join(home, 'Pictures'), path.join(home, 'Desktop')];
+
+    const IMG_RE = /\.(jpe?g|png|heic|webp|bmp)$/i;
+    const listImages = async () => {
+        const set = new Map(); // absPath -> mtimeMs
+        for (const d of dirs) {
+            try {
+                const names = await fs.readdir(d);
+                for (const n of names) {
+                    if (!IMG_RE.test(n)) continue;
+                    const abs = path.join(d, n);
+                    try {
+                        const st = await fs.stat(abs);
+                        if (st.isFile()) set.set(abs, st.mtimeMs);
+                    } catch { /* 读不到就跳过 */ }
+                }
+            } catch { /* 目录不存在就跳过 */ }
+        }
+        return set;
+    };
+
+    // 先启动相机，避免「快照→启动」之间漏掉用户的连拍
+    const before = await listImages();
+    const beforeTime = Date.now();
+
+    try {
+        if (process.platform === 'win32') {
+            // Windows 11 相机有 AUMID；旧版回退 microsoft.windows.camera:
+            spawn('cmd', ['/c', 'start', '', 'microsoft.windows.camera:'], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+        } else if (process.platform === 'darwin') {
+            spawn('open', ['-a', 'Photo Booth'], { detached: true, stdio: 'ignore' }).unref();
+        } else {
+            // Linux：无统一相机应用，给出明确提示交由渲染层展示
+            return { success: false, error: '当前系统请用「文件」选择图片' };
+        }
+    } catch (e) {
+        return { success: false, error: '打开相机失败：' + (e.message || '') };
+    }
+
+    // 焦点探针：记录「本窗口是否因拉起相机而失焦过」。
+    // 相机自己关掉后 focus 回来 = 用户放弃（除非这期间已经有新图了）。
+    const win = mainWindow;
+    const waiter = { blurred: false, canceled: false };
+    cameraWaiters.add(waiter);
+    const onBlur = () => { waiter.blurred = true; };
+    const onFocus = () => { waiter.refocused = true; };
+    waiter.refocused = false;
+    if (win && !win.isDestroyed()) {
+        win.on('blur', onBlur);
+        win.on('focus', onFocus);
+    }
+
+    const done = (v) => {
+        cameraWaiters.delete(waiter);
+        if (win && !win.isDestroyed()) {
+            win.removeListener('blur', onBlur);
+            win.removeListener('focus', onFocus);
+        }
+        return v;
+    };
+
+    // 轮询等待新图片出现：最多 90s，每 1s 检查一次。
+    const DEADLINE = Date.now() + 90000;
+    while (Date.now() < DEADLINE) {
+        await new Promise((r) => setTimeout(r, 1000));
+        if (waiter.canceled) return done({ success: false, canceled: true });
+
+        const now = await listImages();
+        let newest = null;
+        for (const [abs, mtime] of now) {
+            if (before.has(abs)) continue;
+            // 只认「比启动时刻新」的文件，避免差集里混进别的进程刚落的图
+            if (mtime < beforeTime - 5000) continue;
+            if (!newest || mtime > newest[1]) newest = [abs, mtime];
+        }
+        if (newest) {
+            try {
+                const buf = await fs.readFile(newest[0]);
+                const ext = path.extname(newest[0]).toLowerCase();
+                const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.bmp': 'image/bmp', '.webp': 'image/webp', '.heic': 'image/heic' };
+                return done({
+                    success: true,
+                    name: path.basename(newest[0]),
+                    path: newest[0],
+                    size: buf.length,
+                    data: buf.toString('base64'),
+                    mime: mimeMap[ext] || 'image/jpeg'
+                });
+            } catch (e) {
+                return done({ success: false, error: '读取照片失败：' + (e.message || '') });
+            }
+        }
+
+        // 没有新图，但相机窗口「已经关掉了」→ 用户没拍照就退出，立即收尾。
+        // 必须等一轮扫描后才认：blur→focus 可能只是启动瞬间的抖动。
+        if (waiter.blurred && waiter.refocused) {
+            // 再多等一拍，确认文件不是正在写入（有些相机是关窗后才落盘）
+            await new Promise((r) => setTimeout(r, 1200));
+            const after = await listImages();
+            let late = null;
+            for (const [abs, mtime] of after) {
+                if (before.has(abs)) continue;
+                if (mtime < beforeTime - 5000) continue;
+                if (!late || mtime > late[1]) late = [abs, mtime];
+            }
+            if (late) {
+                try {
+                    const buf = await fs.readFile(late[0]);
+                    const ext = path.extname(late[0]).toLowerCase();
+                    const mimeMap = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.bmp': 'image/bmp', '.webp': 'image/webp', '.heic': 'image/heic' };
+                    return done({
+                        success: true,
+                        name: path.basename(late[0]),
+                        path: late[0],
+                        size: buf.length,
+                        data: buf.toString('base64'),
+                        mime: mimeMap[ext] || 'image/jpeg'
+                    });
+                } catch { /* 落到下面的 canceled */ }
+            }
+            return done({ success: false, canceled: true });
+        }
+    }
+    return done({ success: false, canceled: true });
+});
+
 ipcMain.handle('download-file', async (event, base64Data, suggestedName, mime) => {
     try {
         const { canceled, filePath: savePath } = await dialog.showSaveDialog(mainWindow, { defaultPath: suggestedName || 'download' });
@@ -724,6 +883,25 @@ ipcMain.handle('download-file', async (event, base64Data, suggestedName, mime) =
         writableFilePaths.add(savePath); // 记入白名单，后续 Ctrl+S 可直接覆写
         return { success: true, path: savePath };
     } catch (e) { return { success: false, error: e.message }; }
+});
+
+// 从 URL 下载（主进程侧抓取后再落盘）。
+// ⚠️ 必须放在主进程：渲染层 fetch 远程图片会被 CORS 拦（Electron 渲染进程源是
+// http://localhost:1145，而海报由 nginx 静态规则伺服、**不带 access-control-allow-origin**），
+// 表现为「Failed to fetch」；而 <img> 加载不受同源策略限制，所以图能显示却下不下来。
+// Node 侧没有同源策略，抓取稳定。
+ipcMain.handle('download-url', async (event, url, suggestedName) => {
+    try {
+        if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return { success: false, error: '地址无效' };
+        const { canceled, filePath: savePath } = await dialog.showSaveDialog(mainWindow, { defaultPath: suggestedName || 'download' });
+        if (canceled || !savePath) return { success: false, canceled: true };
+        const res = await net.fetch(url);
+        if (!res.ok) return { success: false, error: 'HTTP ' + res.status };
+        const buf = Buffer.from(await res.arrayBuffer());
+        await fs.writeFile(savePath, buf);
+        writableFilePaths.add(savePath); // 记入白名单，后续 Ctrl+S 可直接覆写
+        return { success: true, path: savePath, size: buf.length };
+    } catch (e) { return { success: false, error: (e && e.message) || '下载失败' }; }
 });
 
 // 覆盖写入已保存过的文件（不弹对话框）。unsupported 表示路径不受信，

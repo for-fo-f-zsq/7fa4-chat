@@ -141,6 +141,13 @@
                 sizeTag.style.top = Math.max(4, top) + 'px';
             }
 
+            // 本地生成文件名，规避跨进程中文编码问题
+            function shotName() {
+                const d = new Date();
+                const p = (n) => String(n).padStart(2, '0');
+                return '截图-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '.png';
+            }
+
             function finish(r) {
                 if (finished) return;
                 const c = calcCrop(r, bg.naturalWidth || 0, bg.naturalHeight || 0, viewW(), viewH());
@@ -151,8 +158,10 @@
                 out.height = c.sh;
                 out.getContext('2d').drawImage(bg, c.sx, c.sy, c.sw, c.sh, 0, 0, c.sw, c.sh);
                 const url = out.toDataURL('image/png');
-                // 只回传纯 base64，与图片编辑器 imageOpen(data, mime, name) 的入参约定一致
-                window.shot.finish({ data: url.slice(url.indexOf(',') + 1), mime: 'image/png' });
+                // 只回传纯 base64，与图片编辑器 imageOpen(data, mime, name) 的入参约定一致。
+                // name 由遮罩页给出：主进程 / preload 可能是 UTF-8，经 IPC 传输后中文名会变乱码
+                // （表现为「截图-20261001-074215.png」→ 满屏问号），此处自己拼名最稳。
+                window.shot.finish({ data: url.slice(url.indexOf(',') + 1), mime: 'image/png', name: shotName() });
             }
 
             window.addEventListener('pointerdown', (e) => {

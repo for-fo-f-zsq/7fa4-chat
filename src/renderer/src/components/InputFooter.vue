@@ -75,9 +75,21 @@
           <button :class="{ active: msgFmt === 'txt' }" @click="msgFmt = 'txt'">纯文本</button>
           <button :class="{ active: msgFmt === 'md' }" @click="msgFmt = 'md'">MD</button>
         </div>
-        <button id="emoji_btn" @click.stop="toggleEmoji" :disabled="sending || inputDisabled"><i class="fas fa-smile"></i></button>
-        <button id="file_btn" @click="sendFileMessage" :disabled="sending || inputDisabled"><i class="fas fa-paperclip"></i></button>
-        <button class="favorites-btn" title="从收藏中选择发送" @click="toggleFavorites"><i class="fas fa-star"></i></button>
+        <button id="emoji_btn" title="表情" @click.stop="toggleEmoji" :disabled="sending || inputDisabled"><i class="fas fa-smile"></i></button>
+        <button id="camera_btn" :class="{ active: cameraBusy }" :title="cameraBusy ? '取消拍照' : '拍照'" @click="takePhoto" :disabled="sending || inputDisabled">
+          <i :class="cameraBusy ? 'fas fa-times' : 'fas fa-camera'"></i>
+        </button>
+        <button id="voice_btn" :class="{ active: recording }" :title="recording ? '停止录音并转文字' : '语音转文字'" @click="toggleVoice" :disabled="sending || inputDisabled || voiceBusy">
+          <i :class="recording ? 'fas fa-stop-circle' : 'fas fa-microphone'"></i>
+        </button>
+        <div class="more-menu" :class="{ open: moreVisible }">
+          <button id="more_btn" title="更多" @click.stop="toggleMore" :disabled="sending || inputDisabled"><i class="fas fa-ellipsis-h"></i></button>
+          <div class="more-panel" v-if="moreVisible" @click.stop>
+            <button @click="moreAction(sendFileMessage)"><i class="fas fa-paperclip"></i>文件</button>
+            <button @click="moreAction(toggleFavorites)"><i class="fas fa-star"></i>收藏</button>
+            <button @click="moreAction(openPollCompose)"><i class="fas fa-poll"></i>投票</button>
+          </div>
+        </div>
       </div>
       <span class="error" v-if="errorMessage">{{ errorMessage }}</span>
       <span class="token-info" :class="{ 'token-info-warn': tokenInfo && tokenInfo.remain <= 2 }" v-if="tokenInfo">
@@ -96,31 +108,35 @@
         </span>
       </span>
     </div>
-    <!-- 收藏选择面板（与表情面板同形态：嵌入输入区上方、可拖拽调高） -->
-    <div class="favpick" v-if="favoritesVisible" ref="favpickEl" :style="favpickStyleObj">
-      <div class="favpick-drag" title="上下拖动调整高度" @mousedown.prevent="onFavDragStart"><i></i></div>
-      <div class="favpick-head">
-        <span class="favpick-title"><i class="fas fa-star"></i>从收藏中选择</span>
-        <span class="favpick-count" v-if="store.favorites.length">{{ store.favorites.length }}</span>
-      </div>
-      <div class="favpick-search">
-        <i class="fas fa-search"></i>
-        <input v-model="favQuery" placeholder="搜索收藏…" />
-      </div>
-      <div class="favpick-list">
-        <div v-if="!favFiltered.length" class="favpick-empty">
-          <i class="far fa-star"></i>
-          <p>{{ store.favorites.length ? '没有匹配的收藏' : '还没有收藏' }}</p>
-          <p class="favpick-empty-sub">在聊天中右键消息即可收藏</p>
+    <!-- 收藏选择弹窗（居中模态：遮罩 + 卡片，形态与投票弹窗一致；
+         高度仍可拖拽调高并持久化，列表内部滚动） -->
+    <div class="favpick-mask" v-if="favoritesVisible" @click.self="closeFavorites">
+      <div class="favpick" ref="favpickEl" :style="favpickStyleObj">
+        <div class="favpick-drag" title="上下拖动调整高度" @mousedown.prevent="onFavDragStart"><i></i></div>
+        <div class="favpick-head">
+          <span class="favpick-title"><i class="fas fa-star"></i>从收藏中选择</span>
+          <span class="favpick-count" v-if="store.favorites.length">{{ store.favorites.length }}</span>
+          <button type="button" class="favpick-close" title="关闭" @click="closeFavorites"><i class="fas fa-times"></i></button>
         </div>
-        <button v-for="fav in favFiltered" :key="fav.id" class="favpick-item" @click="sendFavorite(fav)">
-          <span class="favpick-icon" :class="FAV_KIND_META[favKind(fav)].cls"><i :class="FAV_KIND_META[favKind(fav)].icon"></i></span>
-          <span class="favpick-main">
-            <span class="favpick-kind">{{ FAV_KIND_META[favKind(fav)].name }}</span>
-            <span class="favpick-preview">{{ clipPreview(fav) }}</span>
-          </span>
-          <span class="favpick-time">{{ favTime(fav) }}</span>
-        </button>
+        <div class="favpick-search">
+          <i class="fas fa-search"></i>
+          <input v-model="favQuery" placeholder="搜索收藏…" />
+        </div>
+        <div class="favpick-list">
+          <div v-if="!favFiltered.length" class="favpick-empty">
+            <i class="far fa-star"></i>
+            <p>{{ store.favorites.length ? '没有匹配的收藏' : '还没有收藏' }}</p>
+            <p class="favpick-empty-sub">在聊天中右键消息即可收藏</p>
+          </div>
+          <button v-for="fav in favFiltered" :key="fav.id" type="button" class="favpick-item" @click="sendFavorite(fav)">
+            <span class="favpick-icon" :class="FAV_KIND_META[favKind(fav)].cls"><i :class="FAV_KIND_META[favKind(fav)].icon"></i></span>
+            <span class="favpick-main">
+              <span class="favpick-kind">{{ FAV_KIND_META[favKind(fav)].name }}</span>
+              <span class="favpick-preview">{{ clipPreview(fav) }}</span>
+            </span>
+            <span class="favpick-time">{{ favTime(fav) }}</span>
+          </button>
+        </div>
       </div>
     </div>
     <EmojiPicker
@@ -133,13 +149,54 @@
       @removeSticker="removeSticker"
       @previewSticker="previewSticker"
     />
+
+    <!-- 发起投票弹窗（走「普通文本消息 + 约定格式」，见 utils.makePollContent） -->
+    <div class="poll-modal-mask" v-if="pollVisible" @click.self="closePollCompose">
+      <div class="poll-modal">
+        <div class="poll-modal-head">
+          <span class="poll-modal-title"><i class="fas fa-poll"></i>发起投票</span>
+          <button class="poll-modal-close" @click="closePollCompose"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="poll-modal-body">
+          <label class="poll-field">
+            <span class="poll-field-label">问题</span>
+            <input class="poll-input" v-model="pollForm.content" :maxlength="POLL_MAX_Q_LEN" placeholder="想让大家选什么？" @keydown.enter.prevent="pollAddOption" />
+          </label>
+          <div class="poll-field">
+            <span class="poll-field-label">选项<span class="poll-field-hint">（2–{{ POLL_MAX_OPTS }} 项）</span></span>
+            <div class="poll-opt-list">
+              <div class="poll-opt-row" v-for="(o, i) in pollForm.opts" :key="i">
+                <span class="poll-opt-idx">{{ i + 1 }}</span>
+                <input class="poll-input" v-model="pollForm.opts[i]" :maxlength="POLL_MAX_OPT_LEN" :placeholder="'选项 ' + (i + 1)" @keydown.enter.prevent="pollAddOption" />
+                <button class="poll-opt-del" v-if="pollForm.opts.length > 2" title="删除该项" @click="pollRemoveOption(i)"><i class="fas fa-times"></i></button>
+              </div>
+            </div>
+            <button class="poll-opt-add" v-if="pollForm.opts.length < POLL_MAX_OPTS" @click="pollAddOption"><i class="fas fa-plus"></i>添加选项</button>
+          </div>
+          <div class="poll-field poll-field-row">
+            <label class="poll-check">
+              <input type="checkbox" v-model="pollForm.multi" /><span>多选</span>
+            </label>
+            <label class="poll-check poll-check-until">
+              <input type="checkbox" v-model="pollUntilOn" /><span>截止时间</span>
+              <input class="poll-input poll-input-dt" type="datetime-local" v-model="pollForm.untilText" :disabled="!pollUntilOn" />
+            </label>
+          </div>
+          <div class="poll-modal-err" v-if="pollError">{{ pollError }}</div>
+        </div>
+        <div class="poll-modal-foot">
+          <button class="poll-btn" @click="closePollCompose">取消</button>
+          <button class="poll-btn poll-btn-primary" @click="submitPoll" :disabled="sending">发起</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { store } from '../store.js';
-import { displayName, parseMsgContent, renderMarkdownPreview, applyChatToStore, sendChatMessage, getConvoKey, formatSize, compressImage, compressBase64Image, extractMentions, isSingleEmoji, esc } from '../utils.js';
+import { displayName, parseMsgContent, renderMarkdownPreview, applyChatToStore, sendChatMessage, getConvoKey, formatSize, compressImage, compressBase64Image, extractMentions, isSingleEmoji, esc, makePollContent, POLL_MAX_OPTS, POLL_MAX_OPT_LEN, POLL_MAX_Q_LEN } from '../utils.js';
 import EmojiPicker from './EmojiPicker.vue';
 import { QUANCODE, qqfaceUrl, qqfaceShortCode } from '../qqface-data.js';
 import { createScrollSync } from '../markdown/scroll-sync.js';
@@ -350,6 +407,8 @@ onUnmounted(() => {
 });
 const replyTo = ref(null);
 const emojiVisible = ref(false);
+/** 「更多」菜单（文件 / 收藏 / 投票） */
+const moreVisible = ref(false);
 const mentionVisible = ref(false);
 const mentionIndex = ref(0);
 const mentionQuery = ref('');
@@ -442,18 +501,27 @@ function onFavDragEnd() {
 onMounted(() => restoreFavpickHeight());
 onUnmounted(() => onFavDragEnd());
 
-// 点击收藏面板/按钮以外的区域时关闭
+// 点击收藏面板以外的区域时关闭
+// ⚠️ 白名单必须同时含 `.more-menu`：收藏入口已移进「更多」菜单（2026-10-02 工具栏改版），
+// 若只认旧类名 `.favorites-btn`（该元素已不存在），点「更多」里的「收藏」会
+// 先被 moreAction 打开面板、紧接着又被这里的 document 监听判定为「点了外面」关掉
+// → 表现为「收藏选择框点不出来」（面板闪一下就没）。
+// 双保险：`.more-panel` 上还挂了 @click.stop，事件根本到不了 document。
 function onFavoritesDocClick(e) {
   if (!favoritesVisible.value) return
   const el = e.target
-  if (el && !el.closest('.favpick') && !el.closest('.favorites-btn')) {
-    favoritesVisible.value = false
+  if (el && !el.closest('.favpick') && !el.closest('.favpick-mask') && !el.closest('.more-menu')) {
+    closeFavorites()
   }
 }
 document.addEventListener('click', onFavoritesDocClick)
 onUnmounted(() => document.removeEventListener('click', onFavoritesDocClick))
 
-// 收藏选择面板：类型判定 / 预览 / 搜索过滤 / 排序
+// 点击「更多」菜单以外的区域时关闭
+document.addEventListener('click', onMoreDocClick)
+onUnmounted(() => document.removeEventListener('click', onMoreDocClick))
+
+// 收藏选择弹窗：类型判定 / 预览 / 搜索过滤 / 排序
 const favQuery = ref('');
 const FAV_KIND_META = {
   text: { name: '文本', icon: 'fas fa-font', cls: 't-text' },
@@ -507,7 +575,7 @@ async function sendFavorite(fav) {
   else if (obj.type === 'file') msgObj = { type: 'file', name: obj.name, size: obj.size, data: obj.data, mime: obj.mime };
   else if (obj.type === 'sticker') msgObj = { type: 'sticker', data: obj.data, mime: obj.mime, name: obj.name };
   else { errorMessage.value = '该类型收藏不支持发送'; return; }
-  favoritesVisible.value = false;
+  closeFavorites();
   try {
     const r = await sendChatMessage({ type: props.pageType, targetId: props.pageId, msgObj });
     if (!r.success) {
@@ -822,9 +890,195 @@ function toggleFavorites() {
   favoritesVisible.value = !favoritesVisible.value;
   if (favoritesVisible.value) emojiVisible.value = false; // 与表情面板互斥
 }
+/** 关闭收藏弹窗（点遮罩 / 点关闭按钮 / 发送后统一走这里，顺带清掉搜索词） */
+function closeFavorites() {
+  favoritesVisible.value = false;
+  favQuery.value = '';
+}
+
+// --- 「更多」菜单（文件 / 收藏 / 投票） ---
+// 点面板外任意处关闭：与收藏面板同一套 document 监听风格。
+function toggleMore() {
+  moreVisible.value = !moreVisible.value;
+  if (moreVisible.value) { emojiVisible.value = false; favoritesVisible.value = false; }
+}
+/** 执行菜单项后立即收起菜单（先收起再跑，避免动作打开的面板被自己的关闭逻辑带走） */
+function moreAction(fn) {
+  moreVisible.value = false;
+  if (typeof fn === 'function') fn();
+}
+function onMoreDocClick(e) {
+  if (!moreVisible.value) return;
+  if (e.target.closest && e.target.closest('.more-menu')) return;
+  moreVisible.value = false;
+}
+
+// --- 发起投票 ---
+// 走「普通文本消息 + 约定格式」（utils.makePollContent），不新增消息类型：
+// 旧客户端不认识 JSON 时只会显示成一段文字，优雅降级。
+const pollVisible = ref(false);
+const pollError = ref('');
+const pollUntilOn = ref(false);
+/** untilText 只用于 datetime-local 双向绑定；提交时再折算成秒级时间戳 */
+const pollForm = ref(makeEmptyPollForm());
+function makeEmptyPollForm() {
+  // 默认两项选项，符合「至少 2 项」的校验
+  return { content: '', opts: ['', ''], multi: false, untilText: '' };
+}
+function openPollCompose() {
+  pollForm.value = makeEmptyPollForm();
+  pollError.value = '';
+  pollUntilOn.value = false;
+  pollVisible.value = true;
+}
+function closePollCompose() {
+  pollVisible.value = false;
+  pollError.value = '';
+}
+function pollAddOption() {
+  if (pollForm.value.opts.length >= POLL_MAX_OPTS) return;
+  pollForm.value.opts.push('');
+  nextTick(() => {
+    const rows = document.querySelectorAll('.poll-opt-row .poll-input');
+    rows[rows.length - 1]?.focus();
+  });
+}
+function pollRemoveOption(i) {
+  if (pollForm.value.opts.length <= 2) return;
+  pollForm.value.opts.splice(i, 1);
+}
+/** datetime-local 值（本地时区，'YYYY-MM-DDTHH:mm'）→ 秒级时间戳；无效返回 0 */
+function untilToEpoch(text) {
+  if (!text) return 0;
+  const t = new Date(text).getTime();
+  if (!Number.isFinite(t)) return 0;
+  return Math.floor(t / 1000);
+}
+async function submitPoll() {
+  const q = String(pollForm.value.content || '').trim();
+  const opts = pollForm.value.opts.map((o) => String(o || '').trim()).filter(Boolean);
+  if (!q) { pollError.value = '请填写问题'; return; }
+  if (opts.length < 2) { pollError.value = '至少需要 2 个选项'; return; }
+  const until = pollUntilOn.value ? untilToEpoch(pollForm.value.untilText) : 0;
+  if (pollUntilOn.value && !until) { pollError.value = '截止时间无效'; return; }
+  if (until && until <= Math.floor(Date.now() / 1000)) { pollError.value = '截止时间必须晚于当前时间'; return; }
+
+  pollError.value = '';
+  sending.value = true;
+  try {
+    const msgObj = JSON.parse(makePollContent({ content: q, opts, multi: pollForm.value.multi, until }));
+    const r = await sendChatMessage({ type: props.pageType, targetId: props.pageId, msgObj });
+    if (!r.success) {
+      pollError.value = r.err?.message || '发起失败';
+    } else {
+      const { tokenInfo: info } = applyChatToStore(r, props.pageType, props.pageId);
+      tokenInfo.value = info;
+      closePollCompose();
+    }
+  } catch {
+    pollError.value = '发起失败';
+  }
+  sending.value = false;
+}
 
 function focus() {
   inputEl.value?.focus();
+}
+
+// --- 拍照 ---
+// 直接调**系统相机**，不在应用内做取景器（用户 2026-10-02 决策）：
+// Windows 11 / macOS 都自带相机应用且能出图，自建 getUserMedia 取景器是重复造轮子，
+// 还要自己处理权限、前后摄、镜像、非安全上下文等一堆边角。
+//
+// 链路：主进程 launch-camera → 记录「调用前后各自的图片集合」→ 等用户拍完关掉相机
+// → 主进程比对新增文件 → 读取 → 进待发送列表（复用现有 {type:'file'} 链路）。
+// 全程不需要用户在应用内做任何操作，拍完即出现在输入框上方。
+const cameraBusy = ref(false);
+
+/** 等待期间点击按钮 = 取消这次拍照（否则用户被锁在等待里，只能等主进程超时） */
+async function cancelPhoto() {
+  try { await window.api.cancelCamera(); } catch { /* 主进程没有等待中的请求时忽略 */ }
+}
+
+async function takePhoto() {
+  if (cameraBusy.value) { await cancelPhoto(); return; }
+  cameraBusy.value = true;
+  errorMessage.value = '';
+  try {
+    const r = await window.api.launchCamera();
+    if (!r || !r.success) {
+      if (r && r.canceled) { /* 用户主动关掉相机、没拍照：静默 */ }
+      else errorMessage.value = (r && r.error) || '打开相机失败';
+      return;
+    }
+    // 与文件发送同一压缩管线，避免大图撑爆消息体
+    let data = r.data;
+    let size = r.size;
+    const compressed = await compressBase64Image(data, r.mime || 'image/jpeg');
+    if (compressed) { data = compressed.data; size = compressed.size; }
+    addPendingFile(r.name, size, data, 'image/jpeg');
+  } catch {
+    errorMessage.value = '拍照失败';
+  } finally {
+    // ⚠️ 必须放 finally：早前每个分支各写一遍 cameraBusy=false，
+    // 一旦新增分支忘了写，按钮就永久停在禁用态（用户表现为「再点没反应」）。
+    cameraBusy.value = false;
+  }
+}
+
+// --- 语音转文字 ---
+// 本地 Whisper：模型在**首次使用**时才下载（用户 2026-10-02 决策），下载/推理细节见任务 #36。
+// 此处先接入录音状态与入口，识别链路在 #36 落位；未就绪时给出明确提示，不静默失败。
+const recording = ref(false);
+const voiceBusy = ref(false);
+let mediaRecorder = null;
+let recChunks = [];
+
+function toggleVoice() {
+  if (voiceBusy.value) return;
+  if (recording.value) stopVoice();
+  else startVoice();
+}
+
+async function startVoice() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    errorMessage.value = '当前环境不支持录音';
+    return;
+  }
+  voiceBusy.value = true;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
+    mediaRecorder.onstop = () => finishVoice(stream);
+    mediaRecorder.start();
+    recording.value = true;
+  } catch (e) {
+    const name = e && e.name;
+    if (name === 'NotAllowedError') errorMessage.value = '麦克风权限被拒绝';
+    else if (name === 'NotFoundError') errorMessage.value = '未找到可用麦克风';
+    else errorMessage.value = '打开麦克风失败';
+  }
+  voiceBusy.value = false;
+}
+
+function stopVoice() {
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    try { mediaRecorder.stop(); } catch { /* 已停 */ }
+  }
+  recording.value = false;
+}
+
+async function finishVoice(stream) {
+  try { stream.getTracks().forEach((t) => t.stop()); } catch {}
+  mediaRecorder = null;
+  const blob = recChunks.length ? new Blob(recChunks, { type: recChunks[0].type || 'audio/webm' }) : null;
+  recChunks = [];
+  if (!blob || !blob.size) { errorMessage.value = '没有录到声音'; return; }
+  // 识别链路（本地 Whisper，模型首次使用时下载）在任务 #36 落位。
+  errorMessage.value = '语音转文字即将上线';
+  voiceBusy.value = false;
 }
 
 // --- 双栏宽度拖拽 ---
@@ -889,4 +1143,6 @@ function previewPendingFile(pf) {
 }
 
 defineExpose({ inputEl, focus, mentionVisible, emojiVisible, replyTo, sending, errorMessage, tokenInfo, startReply, pendingFiles });
+
+onUnmounted(() => { if (recording.value) stopVoice(); });
 </script>

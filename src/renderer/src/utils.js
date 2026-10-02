@@ -383,6 +383,136 @@ export function parseMsgContent(content) {
   try { return JSON.parse(unescapeHtml(content)) } catch { return null }
 }
 
+// ========== 投票（poll / vote） ==========
+/**
+ * 投票用「普通文本消息 + 约定格式 + 客户端聚合」实现，**不新增消息类型**：
+ *  - 发起：{type:'poll', content:'<问题>', opts:['选项A','选项B',...], multi:true|false, until:<秒级时间戳|0>}
+ *  - 投票：{type:'vote', poll:'<发起消息的 msg.id>', pick:[0,2]}
+ *
+ * ⚠️ 问题文字字段名为 **`content`**（用户 2026-10-02 指定）：与 text 消息的 `content` 语义一致，
+ *    旧客户端拿到 poll 消息时若按 text 处理，`content` 正好就是问题文字 → 降级最自然。
+ * ⚠️ 为什么不新增 type:'poll' 消息：旧版本客户端不认识新 type 会显示「无法解析」；
+ *    用 JSON 包裹的文本消息时，旧客户端只会渲染成一段普通文字 → 优雅降级、不崩。
+ * ⚠️ 为什么不用自造 id：发起消息本身就带 `msg.id`（`store.messages` 以 id 为键、
+ *    UI 已用于 :key / data-msg-id / 跳转定位），天然唯一，无需额外字段。
+ *
+ * 约束（客户端聚合的固有缺陷，已在产品上接受）：
+ *  1. 不可实时：靠消息轮询，结果有延迟
+ *  2. 不能防刷：按 uid 去重只能防误投；重发一条 vote 即可改票（真防刷需服务端）
+ *  3. 截止时间只在前端约束（`until` 过期即只读）
+ */
+
+/** 选项数量上限（防消息过长 + 界面撑爆） */
+export const POLL_MAX_OPTS = 10
+/** 选项文字长度上限 */
+export const POLL_MAX_OPT_LEN = 40
+/** 问题文字长度上限 */
+export const POLL_MAX_Q_LEN = 80
+
+/**
+ * 把消息内容解析成 poll 定义；非 poll 返回 null。
+ * 对 `opts` 做裁剪与校验：去空、限长、限数；不足 2 个选项或问题为空 → 判为非法。
+ */
+export function parsePoll(obj) {
+  if (!obj || obj.type !== 'poll') return null
+  const q = String(obj.content == null ? '' : obj.content).trim().slice(0, POLL_MAX_Q_LEN)
+  const rawOpts = Array.isArray(obj.opts) ? obj.opts : []
+  const opts = rawOpts
+    .map((o) => String(o == null ? '' : o).trim().slice(0, POLL_MAX_OPT_LEN))
+    .filter((o) => o.length > 0)
+    .slice(0, POLL_MAX_OPTS)
+  if (!q || opts.length < 2) return null
+  const until = Number(obj.until) > 0 ? Number(obj.until) : 0
+  return { q, opts, multi: !!obj.multi, until }
+}
+
+/** 把消息内容解析成 vote；非 vote 或非法 pick 返回 null */
+export function parseVote(obj) {
+  if (!obj || obj.type !== 'vote') return null
+  const poll = obj.poll
+  if (poll == null || (typeof poll !== 'number' && typeof poll !== 'string')) return null
+  const raw = Array.isArray(obj.pick) ? obj.pick : []
+  const pick = [...new Set(raw.map(Number).filter((n) => Number.isInteger(n) && n >= 0))]
+  if (!pick.length) return null
+  return { poll: String(poll), pick }
+}
+
+/** 构造 poll 消息内容（唯一入口，避免各处拼装不一致） */
+export function makePollContent({ content, opts, multi, until }) {
+  return JSON.stringify({
+    type: 'poll',
+    content: String(content || '').trim().slice(0, POLL_MAX_Q_LEN),
+    opts: (opts || [])
+      .map((o) => String(o == null ? '' : o).trim().slice(0, POLL_MAX_OPT_LEN))
+      .filter(Boolean)
+      .slice(0, POLL_MAX_OPTS),
+    multi: !!multi,
+    until: Number(until) > 0 ? Number(until) : 0,
+  })
+}
+
+/** 构造 vote 消息内容（唯一入口） */
+export function makeVoteContent(pollMsgId, pick) {
+  return JSON.stringify({
+    type: 'vote',
+    poll: String(pollMsgId),
+    pick: [...new Set((pick || []).map(Number).filter((n) => Number.isInteger(n) && n >= 0))],
+  })
+}
+
+/**
+ * 聚合一个投票的结果。
+ *
+ * @param {object} pollDef      parsePoll() 的返回值
+ * @param {string|number} pollId 发起消息的 msg.id
+ * @param {Array} messages      当前会话的消息数组（含发起消息与全部 vote 回复）
+ * @param {number} selfUid      当前用户 uid（用于高亮「我的选择」）
+ * @returns {{counts:number[], voters:number[][], total:number, myPick:number[], multi:boolean, expired:boolean}}
+ */
+export function aggregatePoll(pollDef, pollId, messages, selfUid) {
+  const opts = pollDef?.opts || []
+  const counts = new Array(opts.length).fill(0)
+  // voters[i] = 投了第 i 项的 uid 列表（去重后）
+  const voters = opts.map(() => [])
+  const seen = new Set() // `${uid}` → 是否已计（每人对每个选项只计一次）
+  let myPick = []
+  const pid = String(pollId)
+
+  for (const m of messages || []) {
+    const obj = parseMsgContent(m && m.content)
+    const v = parseVote(obj)
+    if (!v || v.poll !== pid) continue
+    const uid = m.sender
+    for (const i of v.pick) {
+      if (i >= opts.length) continue
+      const key = uid + ':' + i
+      if (seen.has(key)) continue
+      seen.add(key)
+      counts[i]++
+      if (voters[i].indexOf(uid) === -1) voters[i].push(uid)
+      if (selfUid && uid === selfUid) myPick.push(i)
+    }
+  }
+
+  const total = counts.reduce((a, b) => a + b, 0)
+  const expired = !!(pollDef?.until && Date.now() / 1000 > pollDef.until)
+  return { counts, voters, total, myPick, multi: !!pollDef?.multi, expired }
+}
+
+/** 判断一条消息是否是投票回复 */
+export function isVoteMsg(content) {
+  const obj = parseMsgContent(content)
+  return !!parseVote(obj)
+}
+
+/** 投票在「搜索结果 / 转发预览」等纯文本场景下的摘要 */
+export function pollPlainText(obj) {
+  const p = parsePoll(obj)
+  if (!p) return ''
+  return '【投票】' + p.q + '：' + p.opts.join(' / ')
+}
+
+
 // ===== 消息持久化脏区（唯一保存通道的增量标记） =====
 // 存储收敛为单一快照（storeSaveAll，定时器+退出时调用）。
 // 任何让会话消息产生变化的操作只需标记 dirty，由快照统一按会话原子落库，
@@ -536,6 +666,18 @@ async function _getAppVersion() {
 function _windowActive() {
   return document.visibilityState === 'visible' && document.hasFocus()
 }
+/**
+ * 上报字段白名单。
+ * ⚠️⚠️ 绝不能直接 `...store.self` 全量展开 —— `self` 是 `Object.assign(store.self, {...result.user})`
+ *     （ChatView.update）把 OJ 的 user 对象**整体**铺开来的，里面带 `id_card / phone / email / dorm`
+ *     等敏感字段。全量展开会把身份证号、手机号一并加密上传到服务器 ——
+ *     服务端白名单只是「不落盘」，**传出去本身就是泄露**。这里在源头就掐掉。
+ */
+const VISIT_FIELDS = [
+  'uid', 'username', 'student_no', 'nickname', 'realname',
+  'school', 'school_short', 'seat', 'grade', 'grade_class', 'graduate_year'
+]
+
 async function _reportVisit() {
   if (_reporting) return
   // 窗口未打开/未聚焦时不上报（minimize 到托盘时 visibility 变为 hidden，天然跳过）
@@ -545,18 +687,24 @@ async function _reportVisit() {
   _reporting = true
   try {
     if (!window.api?.reportVisit) return
-    // 完整上报 OJ 档案（store.self）；服务端白名单落盘，敏感字段不入库。
+    // 只取白名单字段；服务端再按自己的白名单落盘，敏感字段不入库。
     // grade 取 ranklist 快照（/chat/info 的 self 对象里没有该字段）；
     // 经 preferredGradeText 消解，避免教练把自己上报成 ranklist 的默认「毕业」。
-    await window.api.reportVisit({
-      ...s,
-      grade: preferredGradeText(s.uid, store.users?.[s.uid]?.grade),
-      version: await _getAppVersion() // 上报应用版本，供 /dev 分析页展示
-    })
+    const info = {}
+    for (const k of VISIT_FIELDS) {
+      if (s[k] !== undefined && s[k] !== null) info[k] = s[k]
+    }
+    info.grade = preferredGradeText(s.uid, store.users?.[s.uid]?.grade)
+    info.version = await _getAppVersion() // 上报应用版本，供 /dev 分析页展示
+    await window.api.reportVisit(info)
   } catch (e) {
     console.error('[visit] 上报失败:', e)
+  } finally {
+    // ⚠️ busy 复位只写在 finally：上面 `if (!window.api?.reportVisit) return` 是一条
+    //    return 路径，写在 try/catch 之后的话 _reporting 会永久卡在 true ——
+    //    表现为「第一次上报遇到 API 缺失后，之后一辈子不再上报」（2026-10-02 查出）。
+    _reporting = false
   }
-  _reporting = false
 }
 
 // 独立上报定时器：登录成功后启动（update 中调用），与 ranklist 轮询完全解耦——
@@ -702,6 +850,9 @@ export function getLastMessage(messageIds, messages) {
     if (parsed.type === 'sticker') return '🖼️ ' + (parsed.name || '表情')
     if (parsed.type === 'emoji') return (parsed.content || '') + ' '
     if (parsed.type === 'pat') return '👋 拍了拍'
+    // 投票：会话列表/摘要里显示可读文字（不暴露 JSON）
+    if (parsed.type === 'poll') return pollPlainText(parsed)
+    if (parsed.type === 'vote') return '🗳️ 参与投票'
   } catch { return msg.content || '' }
   return msg.content || ''
 }
@@ -916,6 +1067,15 @@ function _parseContentImpl(raw, senderId) {
       : esc(targetName)
     return '<div class="pat-msg">' + senderHtml + ' 拍了拍 ' + targetHtml + '</div>'
   }
+  // 投票：正常由 MessageList 的 PollCard 组件渲染（可交互）；
+  // 这里只做兜底（转发预览、收藏预览、搜索结果等走 v-html 的场景）→ 输出可读纯文本，
+  // 绝不把 JSON 原样吐给用户。
+  if (obj.type === 'poll') {
+    const p = parsePoll(obj)
+    if (p) return '<div class="poll-fallback">🗳️ ' + esc(p.q) + '<br>' + p.opts.map((o, i) => esc((i + 1) + '. ' + o)).join('<br>') + '</div>'
+    return renderMarkdown(raw)
+  }
+  if (obj.type === 'vote') return '<div class="poll-fallback">🗳️ 参与投票</div>'
   if (obj.type === 'text') {
     let html = ''
     if (obj.reply_to) {

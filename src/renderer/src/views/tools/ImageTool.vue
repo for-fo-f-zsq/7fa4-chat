@@ -578,7 +578,9 @@ async function openImage() {
   // 记住来源文件：与磁盘一致 → 已保存；「保存」可直接写回该文件（路径经主进程白名单校验）
   savedName.value = r.name || ''
   savedPath.value = r.path || ''
-  await loadImageData(r.data, r.mime, r.name)
+  const ok = await loadImageData(r.data, r.mime, r.name)
+  // 从磁盘打开的文件本身就是已落盘状态，但内容未经编辑 → 标记为已保存
+  if (ok) dirty.value = false
 }
 
 function newCanvas() {
@@ -639,10 +641,18 @@ function loadImageData(base64Data, imgMime, name, blankW = 0, blankH = 0) {
     selectedTextId.value = null
     pushUndo()
     render()
+    // 载入后必须显式把 dirty 归零：新建画布（blankW/blankH）走的是「新建」语义，
+    // 若沿用上一次的 dirty=true，会表现为「刚打开一张图就提示有未保存的绘制」；
+    // 反之若某条路径漏置位，用户点保存会被 dirty 守卫拦住（「没有需要保存的改动」）。
+    dirty.value = false
+    saving.value = false
     loading.value = false
     resolve(true)
   }
   img.onerror = () => {
+    // 解析失败也要解除 saving 锁，否则上一轮的 saving=true 会残留，
+    // 后续再点保存会被 `if (saving.value) return` 静默吞掉（表现为按钮点了没反应）
+    saving.value = false
     loadError.value = '图片解析失败'
     loading.value = false
     resolve(false)
@@ -749,9 +759,13 @@ function sendToChat() {
 // 供上层/预览"编辑"入口载入图片（有未保存绘制时确认丢弃）
 function imageOpen(base64Data, mime, name) {
   if (dirty.value && !confirm('当前有未保存的绘制，确定丢弃并载入新图片？')) return false
-  // 从会话预览进来的图没有磁盘路径 → 状态为「未保存」，保存时先让用户选位置
+  // 外部传入的图（会话预览、截图）没有磁盘路径：savedName 留空 → 状态显示「未保存」，
+  // savedPath 留空 → 保存时必然走「另存为」让用户选位置。
   savedName.value = ''
   savedPath.value = ''
+  // 关键：进入前先解除 saving 锁（失败返回会留下的残留锁会静默吞掉后续保存），
+  // dirty 由 loadImageData 在载入成功后自行归零。
+  saving.value = false
   loadImageData(base64Data, mime, name)
   return true
 }

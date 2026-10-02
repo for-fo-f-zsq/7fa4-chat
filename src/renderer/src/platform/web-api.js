@@ -524,11 +524,14 @@ const store = {
 }
 
 // ---------- 文件选择 / 保存（Android 文件选择器 + Filesystem+Share 保存） ----------
-function pickFile(accept) {
+function pickFile(accept, capture) {
   return new Promise((resolve) => {
     const input = document.createElement('input')
     input.type = 'file'
     if (accept) input.accept = accept
+    // capture="environment"：移动浏览器（含 Android WebView）据此直接唤起**后置相机**，
+    // 拍完即得到文件，语义与桌面端的「系统相机应用」对齐；桌面浏览器会忽略该属性、退化为选图。
+    if (capture) input.capture = 'environment'
     input.style.display = 'none'
     document.body.appendChild(input)
     let settled = false
@@ -653,7 +656,17 @@ window.api = {
   },
   selectFile: () => pickFile(null),
   selectImage: () => pickFile('image/*'),
+  // 拍照：网页端没有「系统相机应用」这个概念，无法像桌面端那样拉起来取图。
+  // 走 <input type="file" accept="image/*" capture="environment"> —— 移动浏览器会
+  // 直接唤起系统相机，语义与桌面端一致（拍完即得到文件）；桌面浏览器则退化成选图。
+  launchCamera: () => pickFile('image/*', true),
+  // 网页端的 launchCamera 是一次性的文件选择框，没有「等待新图」的概念，无需取消。
+  cancelCamera: async () => ({ success: true }),
   downloadFile: (base64Data, suggestedName, mime) => saveAndShare(base64Data, suggestedName, mime),
+  // 按 URL 下载：网页端不提供（这里 fetch 受同源策略约束，且海报站由 nginx 静态规则伺服
+  // 不带 CORS 头）。返回 unsupported 让调用方回落到「取 base64 → downloadFile」的通用路径。
+  // Electron 端的同名能力在主进程实现（Node 无同源限制），见 src/main/index.js。
+  downloadUrl: async () => ({ success: false, unsupported: true }),
   // 网页/安卓没有可直写的真实路径（浏览器是下载、安卓是缓存目录 + 分享），
   // 返回 unsupported 让调用方回落到 downloadFile —— 不用平台判断也能走对分支。
   saveFileTo: async () => ({ success: false, unsupported: true }),

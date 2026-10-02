@@ -62,21 +62,31 @@
     gap: 2px;
     flex-shrink: 0;
 }
-/* ===== 收藏选择面板（与表情面板同形态：嵌入输入区上方、可拖拽调高）===== */
-.favpick {
-    border: 1px solid var(--border-3d-dark);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-emoji-picker), inset 0 1px 0 var(--border-3d-light);
-    margin-top: 6px;
-    flex: 1;
-    min-height: 172px;
-    max-height: 320px;
-    overflow: hidden;
+/* ===== 收藏选择弹窗（居中模态：遮罩 + 卡片，形态与投票弹窗一致）=====
+   ⚠️ .input-footer 有 max-height:400px，但 position:fixed 不受父级 overflow/max-height 裁剪，
+      遮罩仍能铺满视口；这里给 max-height:100% 是为了极小窗口下卡片自身不超出视口。 */
+.favpick-mask {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    max-height: 100vh;
+    background: var(--bg-modal-overlay);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     animation: ctxFade 0.15s ease;
-    backdrop-filter: blur(12px);
+}
+.favpick {
     display: flex;
     flex-direction: column;
-    background: var(--bg-primary);
+    width: min(440px, 92vw);
+    min-height: 172px;
+    max-height: min(88vh, 640px);
+    overflow: hidden;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    background: var(--bg-group-detail);
+    box-shadow: var(--shadow-modal), inset 0 1px 0 var(--border-3d-light);
 }
 .favpick-drag {
     flex-shrink: 0;
@@ -111,6 +121,19 @@
     color: var(--accent);
     margin-right: 6px;
 }
+.favpick-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: var(--radius);
+}
+.favpick-close:hover {
+    color: var(--accent);
+    background: var(--bg-conversation-hover);
+}
 .favpick-count {
     padding: 1px 8px;
     border-radius: 999px;
@@ -139,7 +162,7 @@
     padding: 6px 10px 6px 28px;
     border-radius: var(--radius);
     border: 1px solid var(--border-light);
-    background: var(--bg-secondary);
+    background: var(--bg-input);
     color: var(--text-primary);
     font-size: var(--font-size-small);
     outline: none;
@@ -820,3 +843,184 @@
 .input-footer.drag-over .input-split {
   border-color: var(--accent);
 }
+
+/* ===== 「更多」菜单（文件 / 收藏 / 投票） ===== */
+.more-menu {
+  position: relative;
+  display: flex;
+}
+.more-menu.open > #more_btn {
+  color: var(--accent);
+  background: var(--bg-conversation-hover);
+}
+.more-panel {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  min-width: 120px;
+  padding: 4px;
+  background: var(--bg-group-detail);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-modal), inset 0 1px 0 var(--border-3d-light);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.more-panel button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.more-panel button:hover { color: var(--accent); background: var(--bg-conversation-hover); }
+.more-panel button i { width: 14px; text-align: center; }
+#voice_btn.active { color: var(--danger); }
+/* 拍照等待中：按钮变成「取消」，用强调色而非 danger（取消不是错误操作） */
+#camera_btn.active { color: var(--accent); background: var(--accent-light); }
+
+/* ===== 发起投票弹窗 ===== */
+.poll-modal-mask {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-modal-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+}
+.poll-modal {
+  width: min(440px, 92vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-group-detail);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-modal), inset 0 1px 0 var(--border-3d-light);
+}
+.poll-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-light);
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+}
+.poll-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+}
+.poll-modal-close:hover { color: var(--accent); background: var(--bg-conversation-hover); }
+.poll-modal-title { color: var(--text-primary); }
+.poll-modal-body {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+.poll-field { display: flex; flex-direction: column; gap: 6px; }
+.poll-field-label { font-size: var(--font-size-small); color: var(--text-secondary); }
+.poll-field-hint { color: var(--text-placeholder); font-size: 11px; }
+.poll-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-input);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+  font-family: inherit;
+  padding: 8px 10px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.poll-input:focus { border-color: var(--accent); }
+.poll-input:disabled { opacity: 0.5; }
+.poll-opt-list { display: flex; flex-direction: column; gap: 6px; }
+.poll-opt-row { display: flex; align-items: center; gap: 8px; }
+.poll-opt-idx {
+  flex: none;
+  width: 18px;
+  text-align: center;
+  color: var(--text-placeholder);
+  font-size: var(--font-size-small);
+}
+.poll-opt-del {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius);
+}
+.poll-opt-del:hover { color: var(--danger); background: var(--bg-conversation-hover); }
+.poll-opt-add {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: var(--font-size-small);
+  cursor: pointer;
+  padding: 4px 2px;
+}
+.poll-field-row { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 16px; }
+.poll-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  cursor: pointer;
+}
+.poll-check input[type="checkbox"] { accent-color: var(--accent); }
+.poll-check-until { gap: 8px; }
+.poll-input-dt { width: auto; padding: 5px 8px; font-size: var(--font-size-small); }
+.poll-modal-err { color: var(--danger); font-size: var(--font-size-small); }
+.poll-modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-light);
+}
+.poll-btn {
+  border: 1px solid var(--border-light);
+  background: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  padding: 7px 18px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.poll-btn:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+.poll-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent);
+}
+.poll-btn-primary:hover { color: var(--text-on-accent); filter: brightness(1.08); }
+.poll-btn:disabled { opacity: 0.55; cursor: not-allowed; }

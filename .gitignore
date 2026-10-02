@@ -31,3 +31,7 @@ website-dev/
 
 # Linux AppImage 本地打包产物（Docker 构建输出，体积大）
 /artifacts/
+
+# /dev 管理后台前端：依赖与构建产物均由 npm ci + vite build 重新生成
+/dev-console/node_modules/
+/dev-console/dist/

@@ -28,6 +28,10 @@
         <img class="poster-thumb" :src="p.url" :alt="'海报 ' + p.id" loading="lazy" draggable="false" />
         <!-- 置顶角标：服务端已把置顶项排在最前，角标用于说明「为何它排最前」 -->
         <span v-if="p.pinned" class="poster-pin"><i class="fas fa-thumbtack"></i>置顶</span>
+        <!-- 署名：海报提供者（服务端只下发名字，不含 uid / IP） -->
+        <span v-if="p.author" class="poster-author" :title="'海报提供者：' + p.author">
+          <i class="fas fa-user-pen"></i>{{ p.author }}
+        </span>
       </div>
     </div>
 
@@ -38,8 +42,11 @@
       v-if="previewUrl"
       type="image"
       :src="previewUrl"
+      :title="previewTitle"
+      :remote-src="previewUrl"
+      :download-name="previewDownloadName"
       :show-edit="false"
-      @close="previewUrl = ''"
+      @close="closePreview"
     />
   </div>
 </template>
@@ -62,6 +69,8 @@ const items = ref([])
 const loading = ref(false)
 const error = ref('')
 const previewUrl = ref('')
+const previewTitle = ref('')
+const previewDownloadName = ref('海报')
 const uploadVisible = ref(false)
 
 const truncated = computed(() => items.value.length >= MAX_SHOW)
@@ -92,7 +101,19 @@ async function load() {
 }
 
 function preview(p) {
-  if (p && p.url) previewUrl.value = p.url
+  if (p && p.url) {
+    previewUrl.value = p.url
+    // 标题带署名，预览大图时也能看到提供者
+    previewTitle.value = p.author ? '海报 · ' + p.author : '海报'
+    // 下载文件名：用 id 保证唯一，署名信息不入文件名（避免全角括号让部分系统存盘时踩坑）
+    previewDownloadName.value = '海报-' + p.id
+  }
+}
+
+function closePreview() {
+  previewUrl.value = ''
+  previewTitle.value = ''
+  previewDownloadName.value = '海报'
 }
 
 onMounted(load)

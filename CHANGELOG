@@ -1,3 +1,22 @@
+<h2>3.6.0</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>聊天支持发起投票：可设置单选或多选、设置截止时间，到期后自动停止</li>
+  <li><span class="change-tag new">新功能</span>发送栏新增「拍照」，调用系统相机拍摄后即可发送</li>
+  <li><span class="change-tag new">新功能</span>发送栏新增「语音」，说话即可转为文字</li>
+  <li><span class="change-tag new">新功能</span>图片预览支持下载到本机</li>
+  <li><span class="change-tag new">新功能</span>计时器支持自定义名字</li>
+  <li><span class="change-tag improve">优化</span>发送栏工具栏改版，文件、收藏、投票等入口收纳进「更多」菜单</li>
+  <li><span class="change-tag improve">优化</span>收藏改为居中弹窗选择，点击即发送</li>
+  <li><span class="change-tag improve">优化</span>海报显示投稿人署名，展示顺序可调整</li>
+  <li><span class="change-tag improve">优化</span>意见反馈填写内容后关闭时需二次确认，不再误丢内容</li>
+  <li><span class="change-tag fix">修复</span>修复截图后在图片编辑器中无法保存的问题</li>
+  <li><span class="change-tag fix">修复</span>修复海报无法下载的问题</li>
+  <li><span class="change-tag fix">修复</span>修复深色模式下默认主题的预览显示为深色的问题</li>
+  <li><span class="change-tag fix">修复</span>修复已投票或已截止的投票仍可再次选择的问题</li>
+  <li><span class="change-tag fix">修复</span>修复投票选项选中后偶尔被清空的问题</li>
+  <li><span class="change-tag fix">修复</span>修复使用情况统计上传了多余个人信息的问题</li>
+  <li><span class="change-tag fix">修复</span>修复个别情况下使用情况统计停止上传的问题</li>
+</ul>
 <h2>3.5.2</h2>
 <ul>
   <li><span class="change-tag new">新功能</span>工具新增「截图」：框选屏幕任意区域，截图后自动在图片编辑器中打开</li>
