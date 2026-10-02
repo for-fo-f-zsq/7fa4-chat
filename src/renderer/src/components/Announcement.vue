@@ -7,19 +7,19 @@
           <img src="/icon.png" alt="7FA4 Chat" class="announcement-logo-img" />
         </div>
         <p class="announcement-sub">全新版本发布</p>
-        <h1>V3.5.2</h1>
+        <h1>V3.6.0</h1>
         <div class="announcement-decor"></div>
       </div>
       <!-- 页 2：本次更新 -->
       <div v-else-if="page === 1" class="announcement-page">
         <h2><i class="fas fa-star"></i> 本次更新</h2>
         <ul class="announcement-list">
-          <li>工具新增「截图」：框选屏幕任意区域，截图后自动在图片编辑器中打开</li>
-          <li>新增海报功能：启动随机展示、发现页海报墙，登录用户可投稿</li>
-          <li>工具保存统一：首次保存选位置，之后按 Ctrl+S 直接覆盖原文件</li>
-          <li>教练身份在年级显示中优先，不再被默认的「毕业」覆盖</li>
-          <li>修复群聊中收到 @ 仍显示「有人@你」、收藏分类丢失等问题</li>
-          <li>修复 Linux 系统下应用启动缓慢的问题</li>
+          <li>聊天支持发起投票：可设置单选或多选、设置截止时间，到期自动停止</li>
+          <li>发送栏新增「拍照」与「语音」，拍照调用系统相机，语音直接转为文字</li>
+          <li>图片预览支持下载到本机，计时器支持自定义名字</li>
+          <li>发送栏工具栏改版，文件、收藏、投票等入口收纳进「更多」菜单</li>
+          <li>收藏改为居中弹窗，点击即发送；海报显示投稿人署名，展示顺序可调整</li>
+          <li>修复截图无法保存、海报无法下载、投票可改票与选项被清空等问题</li>
         </ul>
       </div>
       <!-- 页 3：更新日志 -->
