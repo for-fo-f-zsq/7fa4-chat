@@ -52,14 +52,20 @@
           </div>
         </div>
         <div class="options-col">
-          <!-- 以下两项只由 Electron 主进程消费（见 src/main/index.js），
-               网页端与安卓端没有任何实现，显示出来会让人误以为"自动更新"已开启 -->
+          <!-- 「保持后台运行」只由 Electron 主进程消费（见 src/main/index.js），
+               网页端与安卓端没有任何实现，显示出来会让人误以为已开启。
+               「自动更新」与网页端「自动检查更新」共用 autoUpdate 这一个键，只是各端含义不同：
+               桌面端=自动下载并安装；网页端=自动检查，发现新版提示刷新升级（纯浏览器只能刷新）。 -->
           <div class="option-row" v-if="isElectron">
             <span class="option-label">保持后台运行<i class="fas fa-circle-info option-info" title="关闭主窗口后隐藏到系统托盘并继续接收消息；需要彻底退出时用托盘菜单的「退出」（仅桌面端）"></i></span>
             <label class="toggle-label"><input type="checkbox" :checked="setting.minimizeToTray !== false" @change="onSettingChange('minimizeToTray', $event.target.checked)" /><span class="toggle-slider"></span></label>
           </div>
           <div class="option-row" v-if="isElectron">
             <span class="option-label">自动更新<i class="fas fa-circle-info option-info" title="启动后自动检查并下载新版本（仅桌面端）"></i></span>
+            <label class="toggle-label"><input type="checkbox" :checked="setting.autoUpdate !== false" @change="onSettingChange('autoUpdate', $event.target.checked)" /><span class="toggle-slider"></span></label>
+          </div>
+          <div class="option-row" v-if="isWebBrowser">
+            <span class="option-label">自动检查更新<i class="fas fa-circle-info option-info" title="启动后自动检查新版本；发现更新时在页面顶部提示「刷新升级」（仅网页端）"></i></span>
             <label class="toggle-label"><input type="checkbox" :checked="setting.autoUpdate !== false" @change="onSettingChange('autoUpdate', $event.target.checked)" /><span class="toggle-slider"></span></label>
           </div>
           <div class="option-row">
@@ -102,7 +108,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { store } from '../store.js'
 import { vClickOutside } from '../composables/vClickOutside.js'
 import { THEMES } from '../composables/constants.js'
-import { applyFontSize, formatSize } from '../utils.js'
+import { applyFontSize, formatSize, isWebBrowser } from '../utils.js'
 
 const props = defineProps({
   self: Object,

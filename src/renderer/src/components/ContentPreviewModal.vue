@@ -51,7 +51,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, getCurrentInstance } from 'vue'
+import { computed, ref, watch, useAttrs } from 'vue'
 import { parseMsgContent } from '../utils.js'
 
 const props = defineProps({
@@ -71,6 +71,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'copy', 'forward', 'download', 'edit'])
+// 用 useAttrs() 判断父级是否监听 @download：getCurrentInstance() 在事件回调里返回 null（取不到 onDownload）
+const attrs = useAttrs()
 
 const canDownload = computed(() => {
   // 远程图片（海报墙等只读场景）：没有 rawContent，但有可下载的地址
@@ -105,7 +107,7 @@ async function fetchAsBase64(url) {
 
 /**
  * 下载远程图片。优先走主进程（Electron）：
- *   渲染进程源是 http://localhost:1145，与图片站 https://chat.forfof.cloud 不同源，
+ *   渲染进程源是本地服务端口，与图片站 https://chat.forfof.cloud 不同源，
  *   而海报由 nginx 静态规则伺服、响应**不带 access-control-allow-origin**，
  *   所以 renderer 里 fetch 必被 CORS 拦（表现为「下载失败: Failed to fetch」）；
  *   `<img>` 不受同源策略限制，因此图能正常显示却下不下来。主进程是 Node，无同源限制。
@@ -126,6 +128,21 @@ async function fallbackDownload() {
   const canMain = typeof window.api?.downloadUrl === 'function'
   const canInline = typeof window.api?.downloadFile === 'function'
   if (!canMain && !canInline) return
+  // blob: URL（会话内图片等）：主进程无法抓取（不是 http(s)，会被判「地址无效」），
+  // 但渲染进程与 blob 同源，fetch 可直接读到字节 → 转 base64 后再落盘。
+  if (url.startsWith('blob:')) {
+    if (!canInline) return
+    downloading.value = true
+    try {
+      const { base64, mime } = await fetchAsBase64(url)
+      window.api.downloadFile(base64, (props.downloadName || props.title || 'image') + '.' + extFromMime(mime), mime)
+    } catch (e) {
+      alert('下载失败：' + (e.message || '网络错误'))
+    } finally {
+      downloading.value = false
+    }
+    return
+  }
   downloading.value = true
   try {
     // 主进程通道：Node 抓取，无同源限制。平台不支持时返回 unsupported，
@@ -151,7 +168,7 @@ async function fallbackDownload() {
 // 父级若自行监听 @download（聊天里需带原始 base64 等特殊处理），由父级全权接管；
 // 没人监听时（海报墙/开屏海报这类只读预览）走内置的远程取图兜底。
 function onDownloadClick() {
-  if (getCurrentInstance()?.vnode.props?.onDownload) emit('download')
+  if (typeof attrs.onDownload === 'function') emit('download')
   else fallbackDownload()
 }
 

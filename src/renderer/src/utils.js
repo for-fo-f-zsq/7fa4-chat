@@ -384,23 +384,7 @@ export function parseMsgContent(content) {
 }
 
 // ========== 投票（poll / vote） ==========
-/**
- * 投票用「普通文本消息 + 约定格式 + 客户端聚合」实现，**不新增消息类型**：
- *  - 发起：{type:'poll', content:'<问题>', opts:['选项A','选项B',...], multi:true|false, until:<秒级时间戳|0>}
- *  - 投票：{type:'vote', poll:'<发起消息的 msg.id>', pick:[0,2]}
- *
- * ⚠️ 问题文字字段名为 **`content`**（用户 2026-10-02 指定）：与 text 消息的 `content` 语义一致，
- *    旧客户端拿到 poll 消息时若按 text 处理，`content` 正好就是问题文字 → 降级最自然。
- * ⚠️ 为什么不新增 type:'poll' 消息：旧版本客户端不认识新 type 会显示「无法解析」；
- *    用 JSON 包裹的文本消息时，旧客户端只会渲染成一段普通文字 → 优雅降级、不崩。
- * ⚠️ 为什么不用自造 id：发起消息本身就带 `msg.id`（`store.messages` 以 id 为键、
- *    UI 已用于 :key / data-msg-id / 跳转定位），天然唯一，无需额外字段。
- *
- * 约束（客户端聚合的固有缺陷，已在产品上接受）：
- *  1. 不可实时：靠消息轮询，结果有延迟
- *  2. 不能防刷：按 uid 去重只能防误投；重发一条 vote 即可改票（真防刷需服务端）
- *  3. 截止时间只在前端约束（`until` 过期即只读）
- */
+/** 投票=普通文本+约定格式+客户端聚合（不新增消息类型）；线上仍发 {type:'poll'}/{type:'vote'}，问题文字字段为 content，票在本地并进发起消息的 votes */
 
 /** 选项数量上限（防消息过长 + 界面撑爆） */
 export const POLL_MAX_OPTS = 10
@@ -408,11 +392,76 @@ export const POLL_MAX_OPTS = 10
 export const POLL_MAX_OPT_LEN = 40
 /** 问题文字长度上限 */
 export const POLL_MAX_Q_LEN = 80
+/** 无效投票原因码 → 中文文案（原因码是稳定契约，文案仅用于 UI 展示） */
+export const POLL_INVALID_TEXT = {
+  repeat: '重复投票',
+  'single-multi': '单选题多选',
+  overflow: '超出限选数',
+  expired: '截止后投票',
+  'no-custom': '非法自拟选项',
+}
 
-/**
- * 把消息内容解析成 poll 定义；非 poll 返回 null。
- * 对 `opts` 做裁剪与校验：去空、限长、限数；不足 2 个选项或问题为空 → 判为非法。
- */
+/** 归一化「自拟选项」表：{ '<uid>': '文本' }（空文本 / 非字符串丢弃） */
+export function normalizeCustom(raw) {
+  const out = {}
+  if (!raw || typeof raw !== 'object') return out
+  for (const uid of Object.keys(raw)) {
+    const key = String(uid == null ? '' : uid).trim()
+    if (!key) continue
+    const text = String(raw[uid] == null ? '' : raw[uid]).trim().slice(0, POLL_MAX_OPT_LEN)
+    if (!text) continue
+    out[key] = text
+  }
+  return out
+}
+
+/** 归一化投票元数据 {'<uid>':{n,t,ids}}；ids 用于区分「轮询重放同一条 vote」与「真的又投一次」 */
+export function normalizeVoteMeta(raw) {
+  const out = {}
+  if (!raw || typeof raw !== 'object') return out
+  for (const uid of Object.keys(raw)) {
+    const key = String(uid == null ? '' : uid).trim()
+    if (!key) continue
+    const m = raw[uid] || {}
+    const ids = Array.isArray(m.ids) ? [...new Set(m.ids.map(String))] : []
+    out[key] = {
+      n: Math.max(1, Math.floor(Number(m.n) || 1)),
+      t: Number(m.t) > 0 ? Number(m.t) : 0,
+      ids,
+    }
+  }
+  return out
+}
+
+/** 归一化无效票标记：{ '<uid>': <原因码> }，只保留已知原因码 */
+export function normalizeInvalid(raw) {
+  const out = {}
+  if (!raw || typeof raw !== 'object') return out
+  for (const uid of Object.keys(raw)) {
+    const key = String(uid == null ? '' : uid).trim()
+    if (!key) continue
+    const reason = String(raw[uid] == null ? '' : raw[uid])
+    if (POLL_INVALID_TEXT[reason]) out[key] = reason
+  }
+  return out
+}
+
+/** 判定一次投票是否违规（纯函数）：repeat/single-multi/overflow/expired/no-custom；def 为 null（poll 未到）时只能判 repeat */
+export function judgeVote(def, pick, custom, sentAtSec, repeat) {
+  const pickArr = Array.isArray(pick) ? pick : []
+  const hasCustom = !!String(custom == null ? '' : custom).trim()
+  const total = pickArr.length + (hasCustom ? 1 : 0)
+  if (repeat) return 'repeat'
+  if (!def) return null
+  if (!hasCustom && total === 0) return null
+  if (!def.multi && total > 1) return 'single-multi'
+  if (def.multi && def.maxSelect > 0 && total > def.maxSelect) return 'overflow'
+  if (hasCustom && !def.allowCustom) return 'no-custom'
+  if (def.until && Number(sentAtSec) > 0 && Number(sentAtSec) > def.until) return 'expired'
+  return null
+}
+
+/** 解析 poll 定义（非 poll 返回 null）：裁剪校验 opts；问题为空即非法；普通投票 <2 项非法，**开放题允许 0 项**；votes 非法项丢弃；扩展字段 maxSelect/allowCustom/custom/voteMeta/invalid */
 export function parsePoll(obj) {
   if (!obj || obj.type !== 'poll') return null
   const q = String(obj.content == null ? '' : obj.content).trim().slice(0, POLL_MAX_Q_LEN)
@@ -421,97 +470,290 @@ export function parsePoll(obj) {
     .map((o) => String(o == null ? '' : o).trim().slice(0, POLL_MAX_OPT_LEN))
     .filter((o) => o.length > 0)
     .slice(0, POLL_MAX_OPTS)
-  if (!q || opts.length < 2) return null
+  const allowCustom = !!obj.allowCustom
+  // ⚠️ 开放题可以不设任何内置选项（只收投票者自拟的答案）；普通投票仍要求 ≥2 项
+  if (!q || (opts.length < 2 && !allowCustom)) return null
   const until = Number(obj.until) > 0 ? Number(obj.until) : 0
-  return { q, opts, multi: !!obj.multi, until }
+  const multi = !!obj.multi
+  // maxSelect 只在多选下有意义；夹到 [0, opts.length]，0 表示不限
+  let maxSelect = multi ? Math.floor(Number(obj.maxSelect) || 0) : 0
+  if (!Number.isFinite(maxSelect) || maxSelect < 0) maxSelect = 0
+  if (maxSelect > opts.length) maxSelect = opts.length
+  return {
+    q,
+    opts,
+    multi,
+    until,
+    maxSelect,
+    allowCustom,
+    votes: normalizeVotes(obj.votes, opts.length),
+    custom: normalizeCustom(obj.custom),
+    voteMeta: normalizeVoteMeta(obj.voteMeta),
+    invalid: normalizeInvalid(obj.invalid),
+  }
 }
 
-/** 把消息内容解析成 vote；非 vote 或非法 pick 返回 null */
+/** 归一化 votes {'<uid>':[下标]}：uid 转字符串去空，下标去重且限整数 [0,optCount)，空选择丢弃 */
+export function normalizeVotes(raw, optCount) {
+  const out = {}
+  if (!raw || typeof raw !== 'object') return out
+  const n = Number(optCount) || 0
+  for (const uid of Object.keys(raw)) {
+    const key = String(uid == null ? '' : uid).trim()
+    if (!key) continue
+    const arr = Array.isArray(raw[uid]) ? raw[uid] : []
+    const pick = [...new Set(arr.map(Number).filter((i) => Number.isInteger(i) && i >= 0 && i < n))]
+    if (!pick.length) continue
+    out[key] = pick.sort((a, b) => a - b)
+  }
+  return out
+}
+
+/** 把消息内容解析成 vote；非 vote 返回 null。
+ *  pick 与 custom 至少有一个非空才合法（开放题的「仅自拟」票 pick 为空）。 */
 export function parseVote(obj) {
   if (!obj || obj.type !== 'vote') return null
   const poll = obj.poll
   if (poll == null || (typeof poll !== 'number' && typeof poll !== 'string')) return null
   const raw = Array.isArray(obj.pick) ? obj.pick : []
   const pick = [...new Set(raw.map(Number).filter((n) => Number.isInteger(n) && n >= 0))]
-  if (!pick.length) return null
-  return { poll: String(poll), pick }
+  const custom = String(obj.custom == null ? '' : obj.custom).trim().slice(0, POLL_MAX_OPT_LEN)
+  if (!pick.length && !custom) return null
+  // 保持用户约定格式最小化：无自拟选项时不写 custom 字段（下游一律以 `|| ''` 取值）。
+  const out = { poll: String(poll), pick }
+  if (custom) out.custom = custom
+  return out
 }
 
-/** 构造 poll 消息内容（唯一入口，避免各处拼装不一致） */
-export function makePollContent({ content, opts, multi, until }) {
-  return JSON.stringify({
+/** 构造 poll 消息内容（唯一入口）；扩展字段仅在非默认值时写入，保持消息体最小化 */
+export function makePollContent({ content, opts, multi, until, votes, maxSelect, allowCustom, custom, voteMeta, invalid }) {
+  const cleanOpts = (opts || [])
+    .map((o) => String(o == null ? '' : o).trim().slice(0, POLL_MAX_OPT_LEN))
+    .filter(Boolean)
+    .slice(0, POLL_MAX_OPTS)
+  const out = {
     type: 'poll',
     content: String(content || '').trim().slice(0, POLL_MAX_Q_LEN),
-    opts: (opts || [])
-      .map((o) => String(o == null ? '' : o).trim().slice(0, POLL_MAX_OPT_LEN))
-      .filter(Boolean)
-      .slice(0, POLL_MAX_OPTS),
+    opts: cleanOpts,
     multi: !!multi,
     until: Number(until) > 0 ? Number(until) : 0,
+  }
+  // votes 仅在非空时写入，避免给普通投票消息塞一个空对象
+  const v = normalizeVotes(votes, cleanOpts.length)
+  if (Object.keys(v).length) out.votes = v
+  // 多选限选数：仅多选且 >0 时写入
+  if (out.multi) {
+    let ms = Math.floor(Number(maxSelect) || 0)
+    if (ms > 0) { if (ms > cleanOpts.length) ms = cleanOpts.length; out.maxSelect = ms }
+  }
+  if (allowCustom) out.allowCustom = true
+  const cu = normalizeCustom(custom)
+  if (Object.keys(cu).length) out.custom = cu
+  const vm = normalizeVoteMeta(voteMeta)
+  if (Object.keys(vm).length) out.voteMeta = vm
+  const iv = normalizeInvalid(invalid)
+  if (Object.keys(iv).length) out.invalid = iv
+  return JSON.stringify(out)
+}
+
+/** 把一条 vote 的票并进 poll 的 votes（纯函数）：同一 uid 再投=整份替换（改票/多选取消某项）；无法解析或非投给它返回 null */
+export function mergeVoteIntoPoll(pollContent, pollId, voteObj, sender) {
+  const obj = parseMsgContent(pollContent)
+  const def = parsePoll(obj)
+  if (!def || !voteObj) return null
+  if (String(voteObj.poll) !== String(pollId)) return null
+  const uid = String(sender == null ? '' : sender).trim()
+  if (!uid) return null
+  const pick = normalizeVotes({ [uid]: voteObj.pick }, def.opts.length)[uid]
+  const custom = String(voteObj.custom == null ? '' : voteObj.custom).trim().slice(0, POLL_MAX_OPT_LEN)
+  if (!pick && !custom) return null
+  const votes = { ...(obj.votes || {}) }
+  const customMap = { ...(obj.custom || {}) }
+  // 整份替换：同一 uid 的新票覆盖旧的内置选择与自拟文本（改票语义 / 多选取消某项）
+  if (pick) votes[uid] = pick
+  else delete votes[uid]
+  if (custom) customMap[uid] = custom
+  else delete customMap[uid]
+  // ⚠️ 必须带上扩展字段（maxSelect/allowCustom/voteMeta/invalid），否则改票会把它们抹掉
+  return makePollContent({
+    content: def.q, opts: def.opts, multi: def.multi, until: def.until,
+    maxSelect: def.maxSelect, allowCustom: def.allowCustom,
+    votes, custom: customMap, voteMeta: obj.voteMeta, invalid: obj.invalid,
   })
 }
 
-/** 构造 vote 消息内容（唯一入口） */
-export function makeVoteContent(pollMsgId, pick) {
-  return JSON.stringify({
+/** 判断一条消息是否是投票发起（需要合法 poll 定义） */
+export function isPollMsg(content) {
+  return !!parsePoll(parseMsgContent(content))
+}
+
+/** 构造 vote 消息内容（唯一入口）。custom 为开放题的自拟文本，仅非空时写入。 */
+export function makeVoteContent(pollMsgId, pick, custom) {
+  const out = {
     type: 'vote',
     poll: String(pollMsgId),
     pick: [...new Set((pick || []).map(Number).filter((n) => Number.isInteger(n) && n >= 0))],
-  })
+  }
+  const c = String(custom == null ? '' : custom).trim().slice(0, POLL_MAX_OPT_LEN)
+  if (c) out.custom = c
+  return JSON.stringify(out)
 }
 
-/**
- * 聚合一个投票的结果。
- *
- * @param {object} pollDef      parsePoll() 的返回值
- * @param {string|number} pollId 发起消息的 msg.id
- * @param {Array} messages      当前会话的消息数组（含发起消息与全部 vote 回复）
- * @param {number} selfUid      当前用户 uid（用于高亮「我的选择」）
- * @returns {{counts:number[], voters:number[][], total:number, myPick:number[], multi:boolean, expired:boolean}}
- */
-export function aggregatePoll(pollDef, pollId, messages, selfUid) {
+/** 「票先到、poll 后到乃至永不到」的直挂票：以 pollId 为键单独存票表，聚合时与 poll 自带 votes 合并（曾因「暂存等 poll 到达」恒 0 票）；仅内存 */
+const orphanVotes = new Map()
+
+/** 直挂票的附加信息 {meta,custom,invalid}；另立表是为了不改 getOrphanVotes() 的既有契约 */
+const orphanExtra = new Map()
+
+function orphanBucket(pollId) {
+  const key = String(pollId)
+  let b = orphanExtra.get(key)
+  if (!b) { b = { meta: {}, custom: {}, invalid: {} }; orphanExtra.set(key, b) }
+  return b
+}
+
+/** 合并一票进直挂票表（不改原对象），记录投票次数/时间/消息 id 以甄别重复投票 */
+function mergeOrphanVote(pollId, voteObj, sender, msgId, sendTime) {
+  const key = String(pollId)
+  const uid = String(sender == null ? '' : sender).trim()
+  if (!uid) return null
+  // 用 normalizeVotes 做下标校验：选项数未知时给一个足够大的上限（聚合时按真 opts.length 再过滤）
+  const pick = normalizeVotes({ [uid]: voteObj && voteObj.pick }, Number.MAX_SAFE_INTEGER)[uid]
+  const custom = String((voteObj && voteObj.custom) == null ? '' : (voteObj && voteObj.custom)).trim().slice(0, POLL_MAX_OPT_LEN)
+  if (!pick && !custom) return null
+  const bucket = orphanBucket(key)
+  const meta = bucket.meta[uid] || { n: 0, t: 0, ids: [] }
+  const idStr = msgId == null ? '' : String(msgId)
+  // 轮询重放同一条 vote 消息 → 幂等忽略（不累加次数、不误判重复投票）
+  if (idStr && meta.ids.indexOf(idStr) !== -1) return orphanVotes.get(key) || {}
+  const repeat = meta.n > 0
+  const reason = judgeVote(null, pick || [], custom, sendTime, repeat)
+  bucket.meta[uid] = {
+    n: meta.n + 1,
+    t: Number(sendTime) > 0 ? Number(sendTime) : meta.t,
+    ids: idStr ? [...meta.ids, idStr] : meta.ids,
+  }
+  if (reason) bucket.invalid[uid] = reason
+  if (custom) bucket.custom[uid] = custom
+  else delete bucket.custom[uid]
+  const prev = orphanVotes.get(key) || {}
+  const next = { ...prev }
+  if (pick) next[uid] = pick
+  else if (custom) next[uid] = [] // 纯自拟票占位，聚合时其自拟文本另从 orphanExtra 读
+  orphanVotes.set(key, next)
+  return next
+}
+
+/** 取某 poll 的直挂票表（无则空对象） */
+export function getOrphanVotes(pollId) {
+  return orphanVotes.get(String(pollId)) || {}
+}
+
+/** 清空直挂票（登出/切换账号时调用，避免串数据） */
+export function clearPendingVotes() {
+  orphanVotes.clear()
+  orphanExtra.clear()
+}
+
+/** 聚合投票结果：数据源=poll 自带 votes + 直挂票 → counts/voters/total/myPick/multi/expired/maxSelect/allowCustom/extraOptions/invalidVoters/myCustom */
+export function aggregatePoll(pollDef, pollId, selfUid) {
   const opts = pollDef?.opts || []
   const counts = new Array(opts.length).fill(0)
-  // voters[i] = 投了第 i 项的 uid 列表（去重后）
+  // voters[i] = 投了第 i 项的 uid 列表（去重，保持插入顺序）
   const voters = opts.map(() => [])
-  const seen = new Set() // `${uid}` → 是否已计（每人对每个选项只计一次）
-  let myPick = []
+  const seen = new Set() // `${uid}:${optIndex}` → 是否已计
+  const myPick = []
   const pid = String(pollId)
+  const me = selfUid == null ? null : String(selfUid)
 
-  for (const m of messages || []) {
-    const obj = parseMsgContent(m && m.content)
-    const v = parseVote(obj)
-    if (!v || v.poll !== pid) continue
-    const uid = m.sender
-    for (const i of v.pick) {
-      if (i >= opts.length) continue
-      const key = uid + ':' + i
-      if (seen.has(key)) continue
-      seen.add(key)
-      counts[i]++
-      if (voters[i].indexOf(uid) === -1) voters[i].push(uid)
-      if (selfUid && uid === selfUid) myPick.push(i)
+  // 无效票：**整份作废** —— 该 uid 的内置选择与自拟文本都既不计入 counts/voters/myPick，
+  // 也不出现在结果里，只在 invalidVoters 中列出（原因码由 judgeVote 判定）。
+  const orphanBucketForAgg = orphanExtra.get(pid)
+  const invalidMap = { ...((pollDef && pollDef.invalid) || {}) }
+  if (orphanBucketForAgg) {
+    for (const u of Object.keys(orphanBucketForAgg.invalid)) invalidMap[u] = orphanBucketForAgg.invalid[u]
+  }
+  const isInvalid = (uid) => Object.prototype.hasOwnProperty.call(invalidMap, uid)
+
+  /** 记一票（uid 投第 i 项） */
+  const mark = (uid, i) => {
+    if (isInvalid(uid)) return
+    const key = uid + ':' + i
+    if (seen.has(key)) return
+    seen.add(key)
+    counts[i]++
+    if (voters[i].indexOf(uid) === -1) voters[i].push(uid)
+    if (me && uid === me) myPick.push(i)
+  }
+
+  // ① 主来源：poll 消息自带的 votes 字段
+  const votes = (pollDef && pollDef.votes) || {}
+  for (const uid of Object.keys(votes)) {
+    for (const i of votes[uid] || []) {
+      if (i >= 0 && i < opts.length) mark(String(uid), i)
     }
   }
 
-  const total = counts.reduce((a, b) => a + b, 0)
-  const expired = !!(pollDef?.until && Date.now() / 1000 > pollDef.until)
-  return { counts, voters, total, myPick, multi: !!pollDef?.multi, expired }
-}
+  // ①b ⭐ 直挂票：poll 消息还没拉到（web 从后往前按需加载）时，票直接挂在 pollId 上。
+  //     与 poll 自带 votes 按「uid+下标」去重，重复不会重复计数。
+  const orphan = orphanVotes.get(pid) || {}
+  for (const uid of Object.keys(orphan)) {
+    for (const i of orphan[uid] || []) {
+      if (i >= 0 && i < opts.length) mark(String(uid), i)
+    }
+  }
 
-/** 判断一条消息是否是投票回复 */
-export function isVoteMsg(content) {
-  const obj = parseMsgContent(content)
-  return !!parseVote(obj)
+  // ② 开放题（自拟选项）：把各自拟文本按「文本」分组，作为内置选项之外的动态结果行。
+  //    纯自拟票的 pick 为空数组，仍能通过这里的 custom 表出结果。
+  const customMap = { ...((pollDef && pollDef.custom) || {}) }
+  if (orphanBucketForAgg) {
+    for (const u of Object.keys(orphanBucketForAgg.custom)) customMap[u] = orphanBucketForAgg.custom[u]
+  }
+  const extraOptions = []
+  const extraIndex = new Map()
+  for (const uid of Object.keys(customMap)) {
+    const key = String(uid)
+    const text = String(customMap[uid] || '').trim()
+    if (!text || isInvalid(key)) continue
+    const seenKey = 'c:' + key + ':' + text
+    if (seen.has(seenKey)) continue
+    seen.add(seenKey)
+    let idx = extraIndex.get(text)
+    if (idx == null) {
+      idx = extraOptions.length
+      extraIndex.set(text, idx)
+      extraOptions.push({ label: text, count: 0, voters: [] })
+    }
+    extraOptions[idx].count++
+    if (extraOptions[idx].voters.indexOf(key) === -1) extraOptions[idx].voters.push(key)
+  }
+
+  const myCustom = (me != null && customMap[me] && !isInvalid(me)) ? String(customMap[me]).trim() : null
+
+  const total = counts.reduce((a, b) => a + b, 0) + extraOptions.reduce((a, o) => a + o.count, 0)
+  const expired = !!(pollDef?.until && Date.now() / 1000 > pollDef.until)
+  const invalidVoters = Object.keys(invalidMap).map((uid) => ({ uid, reason: invalidMap[uid] }))
+  return {
+    counts,
+    voters,
+    total,
+    myPick: myPick.sort((a, b) => a - b),
+    multi: !!pollDef?.multi,
+    expired,
+    maxSelect: (pollDef && pollDef.maxSelect) || 0,
+    allowCustom: !!(pollDef && pollDef.allowCustom),
+    extraOptions,
+    invalidVoters,
+    myCustom,
+  }
 }
 
 /** 投票在「搜索结果 / 转发预览」等纯文本场景下的摘要 */
 export function pollPlainText(obj) {
   const p = parsePoll(obj)
   if (!p) return ''
-  return '【投票】' + p.q + '：' + p.opts.join(' / ')
+  return '【投票】' + p.q + '：' + (p.opts.length ? p.opts.join(' / ') : '（开放题，自拟答案）')
 }
-
 
 // ===== 消息持久化脏区（唯一保存通道的增量标记） =====
 // 存储收敛为单一快照（storeSaveAll，定时器+退出时调用）。
@@ -532,13 +774,105 @@ export function takeDirtyMsgKeys() {
   return keys
 }
 
+/** 消息入库闸门（唯一入口）：普通消息照旧写 store.messages；vote 回复不新建消息（不占列表/未读/20 条）只并进 poll 的 votes，poll 未到则直挂 pollId */
+export function ingestMessage(target, c) {
+  if (!target || !c || c.id == null) return { kind: 'skip', id: c && c.id }
+  const obj = parseMsgContent(c.content)
+  const vote = parseVote(obj)
+  if (vote) {
+    // 投票回复：找目标 poll 消息并合并 votes；找不到就直接挂到 pollId 上
+    const pollMid = vote.poll
+    const pollMsg = store.messages[pollMid]
+    const uid = String(c.sender_id == null ? '' : c.sender_id).trim()
+    const sentAt = Number(c.send_time) || 0
+    const msgId = String(c.id)
+    if (pollMsg) {
+      const def = parsePoll(parseMsgContent(pollMsg.content))
+      const prevMeta = (def && def.voteMeta && def.voteMeta[uid]) || null
+      // ⚠️ 轮询会把同一条 vote 消息重复投递：按消息 id 去重，幂等忽略 ——
+      //    绝不能因此误判为「重复投票」把正常用户作废。
+      if (prevMeta && prevMeta.ids.indexOf(msgId) !== -1) return { kind: 'vote', id: c.id, pollId: pollMid }
+      const hadVote = !!(def && ((def.votes && Object.prototype.hasOwnProperty.call(def.votes, uid)) ||
+        (def.custom && Object.prototype.hasOwnProperty.call(def.custom, uid))))
+      const repeat = prevMeta ? prevMeta.n > 0 : hadVote
+      const reason = judgeVote(def, vote.pick, vote.custom, sentAt, repeat)
+      const merged = mergeVoteIntoPoll(pollMsg.content, pollMid, vote, c.sender_id)
+      if (merged) {
+        // mergeVoteIntoPoll 保持纯「票合并」语义；在其结果之上补记投票次数/时间/消息 id
+        // （甄别重复投票）与无效票原因码（票作废）。
+        const mobj = parseMsgContent(merged)
+        const vmeta = { ...(mobj.voteMeta || {}) }
+        const m0 = vmeta[uid] || { n: 0, t: 0, ids: [] }
+        vmeta[uid] = { n: m0.n + 1, t: sentAt > 0 ? sentAt : m0.t, ids: [...m0.ids, msgId] }
+        mobj.voteMeta = vmeta
+        if (reason) mobj.invalid = { ...(mobj.invalid || {}), [uid]: reason }
+        store.messages[pollMid] = { ...pollMsg, content: JSON.stringify(mobj) }
+        delete store.messages[c.id] // 防御：若历史版本曾落库过这条 vote，顺手清掉
+      }
+    } else {
+      // poll 消息不在 store（还没拉到 / 根本不会拉到）→ 直挂到 pollId，聚合时计入
+      mergeOrphanVote(pollMid, vote, c.sender_id, c.id, sentAt)
+    }
+    return { kind: 'vote', id: c.id, pollId: pollMid }
+  }
+  store.messages[c.id] = { id: c.id, sender: c.sender_id, send_time: c.send_time, content: c.content }
+  if (Array.isArray(target.message_ids) && target.message_ids.indexOf(c.id) === -1) {
+    target.message_ids.push(c.id)
+  }
+  // 若这条是 poll 发起消息，把先前直挂的票并进它自带的 votes 字段（有则合并）
+  if (parsePoll(obj)) {
+    mergeOrphansIntoPoll(String(c.id))
+  }
+  return { kind: 'msg', id: c.id }
+}
+
+/** poll 发起消息到达时把先前直挂的票并进它的内容，并趁定义已知复判一次（直挂期只能判重复投票），随后清空该 poll 的直挂表 */
+function mergeOrphansIntoPoll(key) {
+  const orphan = orphanVotes.get(key)
+  const bucket = orphanExtra.get(key)
+  const hasOrphan = !!(orphan && Object.keys(orphan).length)
+  const hasExtra = !!(bucket && (Object.keys(bucket.custom).length || Object.keys(bucket.invalid).length || Object.keys(bucket.meta).length))
+  if (!hasOrphan && !hasExtra) return
+  if (!store.messages[key]) return
+  let content = store.messages[key].content
+  const uids = new Set([
+    ...Object.keys(orphan || {}),
+    ...Object.keys((bucket && bucket.custom) || {}),
+    ...Object.keys((bucket && bucket.meta) || {}),
+  ])
+  for (const uid of uids) {
+    const pick = (orphan && orphan[uid]) || []
+    const custom = (bucket && bucket.custom && bucket.custom[uid]) || ''
+    const merged = mergeVoteIntoPoll(content, key, { poll: key, pick, custom }, uid)
+    if (merged) content = merged
+  }
+  const finalObj = parseMsgContent(content)
+  const defNow = parsePoll(finalObj)
+  const vmeta = { ...(finalObj.voteMeta || {}) }
+  const invalid = { ...(finalObj.invalid || {}) }
+  for (const uid of uids) {
+    const m = (bucket && bucket.meta && bucket.meta[uid]) || null
+    if (m) vmeta[uid] = m
+    // 直挂期间已判出的原因（如重复投票）优先保留
+    const prev = (bucket && bucket.invalid && bucket.invalid[uid]) || null
+    if (prev) invalid[uid] = prev
+    // 用现已到达的定义复判：单选多选 / 超出限选数 / 截止后投票
+    const r2 = judgeVote(defNow, (orphan && orphan[uid]) || [], (bucket && bucket.custom && bucket.custom[uid]) || '', m && m.t, false)
+    if (r2 && r2 !== 'repeat' && !invalid[uid]) invalid[uid] = r2
+  }
+  if (Object.keys(vmeta).length) finalObj.voteMeta = vmeta
+  if (Object.keys(invalid).length) finalObj.invalid = invalid
+  store.messages[key] = { ...store.messages[key], content: JSON.stringify(finalObj) }
+  orphanVotes.delete(key)
+  orphanExtra.delete(key)
+}
+
 // 将聊天接口返回的 chat 写入 store，返回解码后的内容与 token 信息
 export function applyChatToStore(r, pageType, pageId) {
   const c = r.chat
   const target = pageType === 'user' ? store.users[pageId] : pageType === 'group' ? store.groups[pageId] : (store.users[pageId] || store.groups[pageId])
   if (target) {
-    store.messages[c.id] = { id: c.id, sender: c.sender_id, send_time: c.send_time, content: c.content }
-    target.message_ids.push(c.id)
+    ingestMessage(target, c)
     // 仅标记脏区，由统一快照（定时/退出）落库；不做即时入库
     markMsgDirty(pageType === 'group' ? 'group' : 'user', Number(pageId))
   }
@@ -666,18 +1000,6 @@ async function _getAppVersion() {
 function _windowActive() {
   return document.visibilityState === 'visible' && document.hasFocus()
 }
-/**
- * 上报字段白名单。
- * ⚠️⚠️ 绝不能直接 `...store.self` 全量展开 —— `self` 是 `Object.assign(store.self, {...result.user})`
- *     （ChatView.update）把 OJ 的 user 对象**整体**铺开来的，里面带 `id_card / phone / email / dorm`
- *     等敏感字段。全量展开会把身份证号、手机号一并加密上传到服务器 ——
- *     服务端白名单只是「不落盘」，**传出去本身就是泄露**。这里在源头就掐掉。
- */
-const VISIT_FIELDS = [
-  'uid', 'username', 'student_no', 'nickname', 'realname',
-  'school', 'school_short', 'seat', 'grade', 'grade_class', 'graduate_year'
-]
-
 async function _reportVisit() {
   if (_reporting) return
   // 窗口未打开/未聚焦时不上报（minimize 到托盘时 visibility 变为 hidden，天然跳过）
@@ -687,16 +1009,9 @@ async function _reportVisit() {
   _reporting = true
   try {
     if (!window.api?.reportVisit) return
-    // 只取白名单字段；服务端再按自己的白名单落盘，敏感字段不入库。
-    // grade 取 ranklist 快照（/chat/info 的 self 对象里没有该字段）；
-    // 经 preferredGradeText 消解，避免教练把自己上报成 ranklist 的默认「毕业」。
-    const info = {}
-    for (const k of VISIT_FIELDS) {
-      if (s[k] !== undefined && s[k] !== null) info[k] = s[k]
-    }
-    info.grade = preferredGradeText(s.uid, store.users?.[s.uid]?.grade)
-    info.version = await _getAppVersion() // 上报应用版本，供 /dev 分析页展示
-    await window.api.reportVisit(info)
+    // 只上报 uid + 版本号：姓名/学号/座位/学校/年级等个人字段客户端一律不收集，
+    // 服务端凭随请求交出的 OJ 会话 cookie 自己去 OJ 取。
+    await window.api.reportVisit({ uid: s.uid, version: await _getAppVersion() })
   } catch (e) {
     console.error('[visit] 上报失败:', e)
   } finally {
@@ -852,7 +1167,6 @@ export function getLastMessage(messageIds, messages) {
     if (parsed.type === 'pat') return '👋 拍了拍'
     // 投票：会话列表/摘要里显示可读文字（不暴露 JSON）
     if (parsed.type === 'poll') return pollPlainText(parsed)
-    if (parsed.type === 'vote') return '🗳️ 参与投票'
   } catch { return msg.content || '' }
   return msg.content || ''
 }
@@ -1072,10 +1386,14 @@ function _parseContentImpl(raw, senderId) {
   // 绝不把 JSON 原样吐给用户。
   if (obj.type === 'poll') {
     const p = parsePoll(obj)
-    if (p) return '<div class="poll-fallback">🗳️ ' + esc(p.q) + '<br>' + p.opts.map((o, i) => esc((i + 1) + '. ' + o)).join('<br>') + '</div>'
+    if (p) {
+      const lines = p.opts.length
+        ? p.opts.map((o, i) => esc((i + 1) + '. ' + o)).join('<br>')
+        : esc('（开放题：由投票者自拟答案）')
+      return '<div class="poll-fallback">🗳️ ' + esc(p.q) + (lines ? '<br>' + lines : '') + '</div>'
+    }
     return renderMarkdown(raw)
   }
-  if (obj.type === 'vote') return '<div class="poll-fallback">🗳️ 参与投票</div>'
   if (obj.type === 'text') {
     let html = ''
     if (obj.reply_to) {
@@ -1168,7 +1486,8 @@ export function compareVersion(a, b) {
 }
 
 /**
- * 静默检查更新，把结果写进 store.update，供 NavBar 红点与 UpdatePanel 复用。
+ * 静默检查更新，把结果写进 store.update，供 NavBar 红点、UpdatePanel 与网页端的
+ * 「刷新升级」提示（UpdatePrompt）复用。
  * 只在「非 Electron」（网页端 / 安卓端）执行 —— 桌面端由 electron-updater 自己查，
  * 且 preload 不提供 fetchVersionInfo。安卓端尤其需要：APK 没有自动更新通道，
  * 不做启动检查用户就永远不会知道有新版本。
@@ -1176,6 +1495,9 @@ export function compareVersion(a, b) {
 export async function checkAppUpdate() {
   if (!window.__7FA4_WEB__) return store.update;
   if (typeof window.api?.fetchVersionInfo !== 'function') return store.update;
+  // 网页端「设置 → 自动检查更新」关闭时不查（纯浏览器没有自动更新通道，只能提示刷新，
+  // 关掉就该彻底安静）。安卓端不读这个开关：它靠 APK 安装包升级，必须能收到提醒。
+  if (isWebBrowser() && store.setting?.autoUpdate === false) return store.update;
   store.update.checking = true;
   try {
     const r = await window.api.fetchVersionInfo();
@@ -1199,6 +1521,19 @@ export async function checkAppUpdate() {
     store.update.checked = true;
   }
   return store.update;
+}
+
+/**
+ * 网页端「刷新升级」：整页重载即可切到新构建。
+ * 网页端静态资源带内容哈希、index.html 不缓存（见官网 static-server 策略），
+ * 所以普通 reload 就能拿到新版，不需要清缓存或退避强刷。
+ */
+export function reloadForUpdate() {
+  try {
+    window.location.reload();
+  } catch (e) {
+    console.error('[update] 重载失败:', e);
+  }
 }
 
 // ========== 日期分组 ==========

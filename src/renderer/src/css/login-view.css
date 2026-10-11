@@ -31,7 +31,8 @@ body {
     display: flex;
     flex-direction: column;
     width: 100%;
-    height: 100vh;
+    /* 不能用 100vh：#app 已按安全区留白，100vh 会多出一截被 overflow:hidden 裁掉 */
+    height: 100%;
 }
 
 body::before {

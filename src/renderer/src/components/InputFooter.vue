@@ -163,13 +163,16 @@
             <input class="poll-input" v-model="pollForm.content" :maxlength="POLL_MAX_Q_LEN" placeholder="想让大家选什么？" @keydown.enter.prevent="pollAddOption" />
           </label>
           <div class="poll-field">
-            <span class="poll-field-label">选项<span class="poll-field-hint">（2–{{ POLL_MAX_OPTS }} 项）</span></span>
+            <span class="poll-field-label">选项<span class="poll-field-hint">{{ pollForm.allowCustom ? '（可不设，投票者自拟）' : '（2–' + POLL_MAX_OPTS + ' 项）' }}</span></span>
             <div class="poll-opt-list">
               <div class="poll-opt-row" v-for="(o, i) in pollForm.opts" :key="i">
                 <span class="poll-opt-idx">{{ i + 1 }}</span>
                 <input class="poll-input" v-model="pollForm.opts[i]" :maxlength="POLL_MAX_OPT_LEN" :placeholder="'选项 ' + (i + 1)" @keydown.enter.prevent="pollAddOption" />
-                <button class="poll-opt-del" v-if="pollForm.opts.length > 2" title="删除该项" @click="pollRemoveOption(i)"><i class="fas fa-times"></i></button>
+                <button class="poll-opt-del" v-if="pollForm.opts.length > 2 || pollForm.allowCustom" title="删除该项" @click="pollRemoveOption(i)"><i class="fas fa-times"></i></button>
               </div>
+            </div>
+            <div class="poll-opt-empty" v-if="!pollForm.opts.length">
+              <i class="fas fa-pen"></i> 未设选项：投票者只能自己填写答案
             </div>
             <button class="poll-opt-add" v-if="pollForm.opts.length < POLL_MAX_OPTS" @click="pollAddOption"><i class="fas fa-plus"></i>添加选项</button>
           </div>
@@ -180,6 +183,18 @@
             <label class="poll-check poll-check-until">
               <input type="checkbox" v-model="pollUntilOn" /><span>截止时间</span>
               <input class="poll-input poll-input-dt" type="datetime-local" v-model="pollForm.untilText" :disabled="!pollUntilOn" />
+            </label>
+          </div>
+          <div class="poll-field poll-field-row">
+            <!-- 限选数：仅多选有意义；留空 / 0 = 不限 -->
+            <label class="poll-check poll-check-max" v-if="pollForm.multi">
+              <span>最多选</span>
+              <input class="poll-input poll-input-num" type="number" min="0" :max="POLL_MAX_OPTS" v-model.number="pollForm.maxSelect" placeholder="不限" />
+              <span>项</span>
+            </label>
+            <!-- 开放题：投票者除内置选项外还可自拟一项 -->
+            <label class="poll-check" title="开启后，投票者除内置选项外还能自己填写一个选项">
+              <input type="checkbox" v-model="pollForm.allowCustom" /><span>开放题（可自拟选项）</span>
             </label>
           </div>
           <div class="poll-modal-err" v-if="pollError">{{ pollError }}</div>
@@ -923,7 +938,8 @@ const pollUntilOn = ref(false);
 const pollForm = ref(makeEmptyPollForm());
 function makeEmptyPollForm() {
   // 默认两项选项，符合「至少 2 项」的校验
-  return { content: '', opts: ['', ''], multi: false, untilText: '' };
+  // maxSelect：多选上限（0 = 不限）；allowCustom：开放题（允许投票者自拟选项）
+  return { content: '', opts: ['', ''], multi: false, maxSelect: 0, allowCustom: false, untilText: '' };
 }
 function openPollCompose() {
   pollForm.value = makeEmptyPollForm();
@@ -944,7 +960,10 @@ function pollAddOption() {
   });
 }
 function pollRemoveOption(i) {
-  if (pollForm.value.opts.length <= 2) return;
+  // 开放题允许删到 0 项（整题只收投票者自拟的答案）；普通投票至少留 2 行 ——
+  // 与 submitPoll 的「≥2」校验保持一致，否则会出现「能删到 1 项、但提交必报错」的死状态
+  const min = pollForm.value.allowCustom ? 0 : 2;
+  if (pollForm.value.opts.length <= min) return;
   pollForm.value.opts.splice(i, 1);
 }
 /** datetime-local 值（本地时区，'YYYY-MM-DDTHH:mm'）→ 秒级时间戳；无效返回 0 */
@@ -958,15 +977,25 @@ async function submitPoll() {
   const q = String(pollForm.value.content || '').trim();
   const opts = pollForm.value.opts.map((o) => String(o || '').trim()).filter(Boolean);
   if (!q) { pollError.value = '请填写问题'; return; }
-  if (opts.length < 2) { pollError.value = '至少需要 2 个选项'; return; }
+  if (opts.length < 2 && !pollForm.value.allowCustom) { pollError.value = '至少需要 2 个选项（开放题可以不设选项）'; return; }
   const until = pollUntilOn.value ? untilToEpoch(pollForm.value.untilText) : 0;
   if (pollUntilOn.value && !until) { pollError.value = '截止时间无效'; return; }
   if (until && until <= Math.floor(Date.now() / 1000)) { pollError.value = '截止时间必须晚于当前时间'; return; }
+  // 限选数只在多选下生效；夹到选项数以内，0 / 非法 = 不限
+  let maxSelect = 0;
+  if (pollForm.value.multi) {
+    maxSelect = Math.floor(Number(pollForm.value.maxSelect) || 0);
+    if (!Number.isFinite(maxSelect) || maxSelect < 0) maxSelect = 0;
+    if (maxSelect > opts.length) maxSelect = opts.length;
+  }
 
   pollError.value = '';
   sending.value = true;
   try {
-    const msgObj = JSON.parse(makePollContent({ content: q, opts, multi: pollForm.value.multi, until }));
+    const msgObj = JSON.parse(makePollContent({
+      content: q, opts, multi: pollForm.value.multi, until,
+      maxSelect, allowCustom: !!pollForm.value.allowCustom,
+    }));
     const r = await sendChatMessage({ type: props.pageType, targetId: props.pageId, msgObj });
     if (!r.success) {
       pollError.value = r.err?.message || '发起失败';

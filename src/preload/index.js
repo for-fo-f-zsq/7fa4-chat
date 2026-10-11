@@ -66,6 +66,8 @@ contextBridge.exposeInMainWorld('api', {
   setBadgeCount: (count) => ipcRenderer.invoke('set-badge-count', count),
   sendFeedback: (data) => ipcRenderer.invoke('send-feedback', data),
   fetchSponsors: () => ipcRenderer.invoke('fetch-sponsors'),
+  // 原题机检索（主进程代取 chat.forfof.cloud，规避渲染层跨源）
+  yuantijiSearch: (payload) => ipcRenderer.invoke('yuantiji-search', payload),
   fetchDiscoverPeople: (uid, limit) => ipcRenderer.invoke('discover-people', uid, limit),
   // 海报：开屏随机一张 / 发现页海报墙列表 / 投稿（需服务端审核通过才公开）
   fetchPosters: () => ipcRenderer.invoke('fetch-posters'),
@@ -90,4 +92,28 @@ contextBridge.exposeInMainWorld('api', {
   reportVisit: (info) => ipcRenderer.invoke('report-visit', info),
   clearSessionCookies: () => ipcRenderer.invoke('clear-session-cookies'),
   exportMarkdownPng: (suggestedName, html) => ipcRenderer.invoke('export-markdown-png', suggestedName, html),
+  // --- 计时器悬浮窗（独立置顶小窗；状态由本窗口推送，见 main/index.js）---
+  openTimerFloat: (cfg) => ipcRenderer.invoke('timer-float-open', cfg),
+  closeTimerFloat: () => ipcRenderer.invoke('timer-float-close'),
+  isTimerFloatOpen: () => ipcRenderer.invoke('timer-float-is-open'),
+  updateTimerFloat: (state) => ipcRenderer.send('timer-float-update', state),
+  updateTimerFloatConfig: (cfg) => ipcRenderer.send('timer-float-config', cfg),
+  // 悬浮窗上的按钮（全部开始/暂停、全部重置、切换置顶）→ 由本窗口执行
+  onTimerFloatCommand: (callback) => {
+    const handler = (event, data) => callback(data);
+    ipcRenderer.on('timer-float-command', handler);
+    return () => ipcRenderer.removeListener('timer-float-command', handler);
+  },
+  // 悬浮窗被关掉（用户点 ✕ / 系统关闭）→ 同步按钮态
+  onTimerFloatClosed: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('timer-float-closed', handler);
+    return () => ipcRenderer.removeListener('timer-float-closed', handler);
+  },
+  // 用户拖拽悬浮窗后的新坐标（用于持久化「上次位置」）
+  onTimerFloatMoved: (callback) => {
+    const handler = (event, data) => callback(data);
+    ipcRenderer.on('timer-float-moved', handler);
+    return () => ipcRenderer.removeListener('timer-float-moved', handler);
+  },
 });

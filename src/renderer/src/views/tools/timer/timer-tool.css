@@ -110,6 +110,107 @@
     background: var(--accent-light);
 }
 
+/* ---------- 计时器悬浮窗入口（按钮 + 设置气泡） ---------- */
+.tm-float-wrap { position: relative; display: flex; align-items: center; }
+
+.tm-float-group {
+    display: flex;
+    align-items: stretch;
+}
+
+/* 主按钮 + 小箭头拼成一个控件，中间只留一条分隔线 */
+.tm-float-group .tm-icon-btn {
+    border-radius: 0;
+    width: 30px;
+    height: 32px;
+}
+.tm-float-main { border-radius: 8px 0 0 8px; }
+.tm-float-caret {
+    border-radius: 0 8px 8px 0;
+    border-left: none;
+    width: 20px !important;
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+.tm-float-caret.on { color: var(--accent); }
+
+.tm-float-pop {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 40;
+    width: 232px;
+    padding: 12px;
+    border-radius: var(--radius);
+    background: var(--bg-group-detail);
+    border: 1px solid var(--border-light);
+    box-shadow: var(--shadow-dropdown);
+    color: var(--text-primary);
+    text-align: left;
+}
+
+.tm-float-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    margin-bottom: 9px;
+    color: var(--text-primary);
+}
+
+.tm-float-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 9px;
+}
+
+.tm-float-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.tm-float-pos {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.tm-float-pos button {
+    width: 30px;
+    height: 26px;
+    font-size: 13px;
+    line-height: 1;
+    border-radius: 6px;
+    border: 1px solid var(--border-light);
+    background: var(--bg-input);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--duration-fast) ease;
+}
+.tm-float-pos button:hover { color: var(--text-primary); border-color: var(--accent); }
+.tm-float-pos button.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--text-on-accent);
+}
+
+.tm-float-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.tm-float-check input[type="checkbox"] { accent-color: var(--accent); }
+
+.tm-float-tip {
+    margin: 8px 0 0;
+    font-size: 11px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+}
+
 /* ---------- 全局操作条 ---------- */
 .tm-actions {
     display: flex;
@@ -229,23 +330,27 @@
 /* 展开用户下拉时置顶，避免被相邻格遮住 */
 .tm-panel.picking { z-index: 30; }
 
-/* ---------- 用户选择（可搜索） ---------- */
+/* ---------- 用户选择（可搜索） + 任务输入 ---------- */
 .tm-panel-head {
     position: relative;
     flex-shrink: 0;
     min-width: 0;
+    /* 左：选名字 / 右：填任务 —— 一起构成这一格的身份「姓名-任务」，宽度比 1:2 */
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
 }
 
 .tm-who {
     display: flex;
     align-items: center;
-    gap: 10px;
-    width: 100%;
+    gap: 8px;
+    flex: 1 1 0;
     min-width: 0;
     font: inherit;
     font-size: var(--font-size-base);
     font-weight: 600;
-    padding: 11px 14px;
+    padding: 11px 10px;
     border-radius: 10px;
     border: 1px solid var(--border-light);
     background: var(--bg-app);
@@ -289,6 +394,30 @@
     flex-shrink: 0;
     font-size: 12px;
     color: var(--text-secondary);
+}
+
+/* 任务输入框：与左侧「选名字」共同构成「姓名-任务」，宽度比 名字:任务 = 1:2 */
+.tm-task {
+    flex: 2 1 0;
+    min-width: 0;
+    font: inherit;
+    font-size: var(--font-size-small);
+    padding: 0 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border-light);
+    background: var(--bg-app);
+    color: var(--text-primary);
+    outline: none;
+    transition: all var(--duration-fast) ease;
+}
+
+.tm-task::placeholder { color: var(--text-placeholder); }
+
+.tm-task:hover { border-color: var(--c, var(--accent)); }
+
+.tm-task:focus {
+    border-color: var(--c, var(--accent));
+    box-shadow: var(--shadow-input-focus-ring);
 }
 
 .tm-picker {

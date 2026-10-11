@@ -1,3 +1,17 @@
+<h2>3.6.1</h2>
+<ul>
+  <li><span class="change-tag new">新功能</span>工具新增「原题机」：粘贴题面即可找到原题与相似题目，结果直达 vjudge</li>
+  <li><span class="change-tag new">新功能</span>计算器新增分数模式、mex 与位运算等函数，模数运算支持常用预设</li>
+  <li><span class="change-tag new">新功能</span>计时器支持悬浮窗，可置顶显示并记忆位置，切走也不会中断</li>
+  <li><span class="change-tag new">新功能</span>投票新增「开放题」，可由投票者自行填写答案</li>
+  <li><span class="change-tag new">新功能</span>网页端发现新版本时在顶部提示，可一键升级</li>
+  <li><span class="change-tag improve">优化</span>投票支持限制最多可选项数，选项可悬浮查看得票数并标出无效投票</li>
+  <li><span class="change-tag improve">优化</span>投票卡片不再被自动折叠，可直接看到「确认投票」</li>
+  <li><span class="change-tag improve">优化</span>上翻历史消息时位置保持不动</li>
+  <li><span class="change-tag fix">修复</span>修复更新后仍显示旧版本的问题</li>
+  <li><span class="change-tag fix">修复</span>修复图片无法保存到本机的问题</li>
+  <li><span class="change-tag fix">修复</span>修复安卓端被系统栏遮挡的问题</li>
+</ul>
 <h2>3.6.0</h2>
 <ul>
   <li><span class="change-tag new">新功能</span>聊天支持发起投票：可设置单选或多选、设置截止时间，到期后自动停止</li>
@@ -9,7 +23,6 @@
   <li><span class="change-tag improve">优化</span>收藏改为居中弹窗选择，点击即发送</li>
   <li><span class="change-tag improve">优化</span>海报显示投稿人署名，展示顺序可调整</li>
   <li><span class="change-tag improve">优化</span>意见反馈填写内容后关闭时需二次确认，不再误丢内容</li>
-  <li><span class="change-tag fix">修复</span>修复截图后在图片编辑器中无法保存的问题</li>
   <li><span class="change-tag fix">修复</span>修复海报无法下载的问题</li>
   <li><span class="change-tag fix">修复</span>修复深色模式下默认主题的预览显示为深色的问题</li>
   <li><span class="change-tag fix">修复</span>修复已投票或已截止的投票仍可再次选择的问题</li>

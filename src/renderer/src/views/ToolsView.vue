@@ -39,6 +39,11 @@
         <div class="tool-card-name">GeoGebra</div>
         <div class="tool-card-desc">{{ isWeb ? '网页端不支持 GeoGebra，请下载本地版使用' : 'GeoGebra 官方绘图计算器（本地离线版）：函数图像、几何画板、滑动条动画、测量、变换、轨迹、CAS 等全部二维功能' }}</div>
       </div>
+      <div class="tool-card" @click="$emit('openTool', 'yuantiji')">
+        <i class="fas fa-magnifying-glass"></i>
+        <div class="tool-card-name">原题机</div>
+        <div class="tool-card-desc">粘贴题面，检索原题与高度相似的题目；结果地址自动指向 vjudge，可直接去提交</div>
+      </div>
     </div>
   </div>
 </template>

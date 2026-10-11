@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Android 15（API 35）起系统**强制全面屏**（edge-to-edge）：内容默认绘制到状态栏与
+         导航栏之下，个别机型上表现为「顶部/底部被系统栏遮挡」（用户 2026-10-10 报障）。
+
+         两道防线：
+         1) WebView 内已用 env(safe-area-inset-*) 自行留白
+            （src/renderer/index.html 的 viewport-fit=cover + src/renderer/src/css/base.css 的 #app）；
+         2) 这里再对 API 35 关掉系统的强制 edge-to-edge，让 Android 15 的行为与
+            Android 14 及以下一致 —— 作为个别机型 WebView 不认 env() 时的兜底。
+            两条路互斥生效（opt-out 生效时 env() 为 0，不会重复留白）。
+         ⚠️ 该属性在 Android 16 起被弃用；若将来 targetSdk 升到 36，需要核对新方案。 -->
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:background">@null</item>
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
+    </style>
+</resources>

@@ -181,6 +181,12 @@
       @back="onToolBack"
       @dirty-change="toolsDirty = $event"
     />
+    <YuantijiTool
+      v-else-if="pageType==='tools' && currentTool==='yuantiji'"
+      class="ide-host fade-content"
+      :class="{ 'fade-out': contentFading }"
+      @back="onToolBack"
+    />
     <SettingsPanel
       v-if="pageType==='settings'"
       class="fade-content"
@@ -320,7 +326,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, startVisitReport, stopVisitReport, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys, isUserHiddenBySetting, checkAppUpdate, normalizeFavorites, makeFavorite, makeVoteContent } from '../utils.js';
+import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, ingestMessage, clearPendingVotes, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, startVisitReport, stopVisitReport, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys, isUserHiddenBySetting, normalizeFavorites, makeFavorite, makeVoteContent } from '../utils.js';
 
 import NavBar from '../components/NavBar.vue';
 import ConversationList from '../components/ConversationList.vue';
@@ -351,6 +357,7 @@ import GraphTool from './tools/graph/GraphTool.vue';
 import CalculatorTool from './tools/calculator/CalculatorTool.vue';
 import TimerTool from './tools/timer/TimerTool.vue';
 import MathTool from './tools/math/MathTool.vue';
+import YuantijiTool from './tools/yuantiji/YuantijiTool.vue';
 import SaveConfirmModal from '../components/SaveConfirmModal.vue';
 import { useWindowControls } from '../composables/useWindowControls.js';
 import { useMuteConfirm } from '../composables/useMuteConfirm.js';
@@ -1058,11 +1065,12 @@ async function sendPat(targetUid) {
  * ⚠️ 同一人重复投票：直接再发一条 vote 即可；客户端聚合按「uid + 选项」去重，
  *    因此「改票」表现为旧选项不再被他计入（无需撤回旧消息）。
  */
-async function onPollVote({ poll, pick }) {
+async function onPollVote({ poll, pick, custom }) {
   if (pageType.value !== 'group') return;
   if (inputFooterRef.value?.sending) return;
   inputFooterRef.value.sending = true;
-  const msgObj = JSON.parse(makeVoteContent(poll, pick));
+  // 开放题（自拟选项）会带 custom；普通投票为空串 → makeVoteContent 不写该字段
+  const msgObj = JSON.parse(makeVoteContent(poll, pick, custom));
   try {
     const r = await sendChatMessage({ type: 'group', targetId: pageId.value, msgObj });
     if (r.success) {
@@ -1267,15 +1275,35 @@ function onPreviewForward() {
   startForward(content);
 }
 
-function onPreviewDownload() {
+async function onPreviewDownload() {
   // 图片预览：底部栏下载按钮走这里。优先用消息透传的原始 base64（src 多为 blob: URL，
-  // 直接 a[download] 只会得到临时对象地址，落盘会失败）；无原始数据时回落到 data: URL 解析。
+  // 直接 a[download] 只会得到临时对象地址，落盘会失败）；无原始数据时回落到 data: URL 解析，
+  // 再不行就由渲染进程 fetch 回字节（blob: 与本地页面同源，可直接取到）。
   if (previewData.type === 'image') {
     let data = previewData.mediaData || '';
     let mime = previewData.mediaMime || '';
-    if (!data && previewData.src && previewData.src.startsWith('data:')) {
-      const m = previewData.src.match(/^data:([^;,]+);base64,(.*)$/);
+    const src = previewData.src || '';
+    if (!data && src.startsWith('data:')) {
+      const m = src.match(/^data:([^;,]+);base64,(.*)$/);
       if (m) { mime = m[1]; data = m[2]; }
+    }
+    if (!data && src) {
+      // blob:（会话图片）/ http(s)：渲染进程取回再转 base64。http 远程图可能被 CORS 拦，
+      // 但会话里的图片基本都是 blob: 或 data:，覆盖到即可。
+      try {
+        const res = await fetch(src, { credentials: 'omit' });
+        if (res.ok) {
+          const blob = await res.blob();
+          const bytes = new Uint8Array(await blob.arrayBuffer());
+          let bin = '';
+          const CHUNK = 0x8000;
+          for (let i = 0; i < bytes.length; i += CHUNK) {
+            bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+          }
+          data = btoa(bin);
+          mime = mime || blob.type || 'image/png';
+        }
+      } catch { /* 取不到就走下面的提示 */ }
     }
     if (!data) { alert('该图片无法下载（缺少原始数据）'); return; }
     const name = /\.(png|jpe?g|gif|webp|bmp|ico)$/i.test(previewData.title || '')
@@ -1667,17 +1695,21 @@ async function fetchMessages(type, end, take = 10, allowPage = false) {
         // 旧消息：不重复处理，仅跳过
         // 自愈：id 已在会话消息列表、但内容缺失（本地未及落库 / 历史持久化丢失），
         // 从服务器返回补回内容，否则该消息重启后永远无法显示；由快照统一落库
+        // ⚠️ 走入库闸门：message_ids 里若残留旧 vote 消息（脏数据/重新拉回），也必须合并进 poll 而非复活成独立消息
         if (!store.messages[c.id] && !(store.deletedMsgIds && store.deletedMsgIds.includes(c.id))) {
-          store.messages[c.id] = { id: c.id, sender: c.sender_id, send_time: c.send_time, content: c.content };
+          // 普通消息：补回内容；投票消息：票并进 poll 消息 —— 两者都需落库
+          ingestMessage(t, c);
           markMsgDirty(type === 'group' ? 'group' : 'user', type === 'group' ? c.receiver_id : (type === 'send_user' ? c.receiver_id : c.sender_id));
         }
       } else {
         const msgContent = c.content;
-        store.messages[c.id] = { id: c.id, sender: c.sender_id, send_time: c.send_time, content: msgContent };
-        t.message_ids.push(c.id);
+        // ⭐ 入库闸门：投票回复合并进 poll 消息、不单独落库（不计未读/不占 20 条）
+        const ing = ingestMessage(t, c);
         const persistKind = type === 'group' ? 'group' : 'user';
         const persistCid = type === 'group' ? c.receiver_id : (type === 'send_user' ? c.receiver_id : c.sender_id);
         markMsgDirty(persistKind, persistCid);
+        // 投票回复：既不通知、也不计未读、也不置 @ 提醒——它只是「票」，不是一条消息
+        if (ing.kind === 'vote') continue;
         const state = await window.api.getWindowState();
         if (!state.focused || !state.visible) {
           const chatType = type === 'group' ? 'group' : 'user';
@@ -1789,20 +1821,38 @@ async function saveAll() {
   }
 }
 
-/** 懒加载：进入会话时从 SQLite 补拉缺失的历史消息到内存 */
+/** 已把本地缓存的消息 id 补回 message_ids 索引的会话（本次运行每会话一次） */
+const idsHydrated = new Set()
+
+/** 懒加载：进入会话时从 SQLite 补拉历史消息到内存，并把这些消息的 id 补回 message_ids 索引 */
 async function ensureConvoMessages(kind, cid) {
   const uid = store.self.uid
   if (!uid || cid == null) return
   const target = kind === 'group' ? store.groups[cid] : store.users[cid]
-  if (!target || !Array.isArray(target.message_ids) || !target.message_ids.length) return
-  const missing = target.message_ids.filter(mid => !store.messages[mid])
-  if (!missing.length) return
+  if (!target || !Array.isArray(target.message_ids)) return
+  const key = kind + ':' + cid
+  const firstTime = !idsHydrated.has(key)
+  // 非首次且内容都齐了 → 不必再查库
+  if (!firstTime && !target.message_ids.some(mid => !store.messages[mid])) return
   try {
     const r = await window.api.storeLoadMessages(uid, kind, Number(cid), 1000)
-    if (r.success && Array.isArray(r.data)) {
+    if (!r.success || !Array.isArray(r.data)) return
+    for (const m of r.data) {
+      if (m && m.id != null && !store.messages[m.id]) store.messages[m.id] = m
+    }
+    // ⚠️ 列表是按 message_ids 渲染的（useCurrentMessages），索引比本地缓存短时老消息永远看不到；
+    //    上滑只会增大 visibleCount，不会回查本地库。因此进入会话必须把库里的 id 补回索引。
+    //    （用户 2026-10-11 报障：本地存了 2500 条，打开群聊只看得到约 100 条）
+    if (firstTime) {
+      const deleted = new Set(store.deletedMsgIds || [])
+      let added = 0
       for (const m of r.data) {
-        if (m && m.id != null && !store.messages[m.id]) store.messages[m.id] = m
+        const mid = m && m.id
+        if (mid == null || deleted.has(mid)) continue // 用户手动删过的不复活
+        if (target.message_ids.indexOf(mid) === -1) { target.message_ids.push(mid); added++ }
       }
+      idsHydrated.add(key)
+      if (added) markMsgDirty(kind === 'group' ? 'group' : 'user', Number(cid))
     }
   } catch {}
 }
@@ -1827,7 +1877,8 @@ async function loadData() {
     // 每个会话最新一条消息（会话列表预览/排序）
     if (lr && lr.success && Array.isArray(lr.data)) {
       for (const { msg } of lr.data) {
-        if (msg && msg.id != null && !store.messages[msg.id]) store.messages[msg.id] = msg
+        if (!msg || msg.id == null || store.messages[msg.id]) continue
+        store.messages[msg.id] = msg
       }
     }
     if (cr && cr.success) {
@@ -1896,6 +1947,7 @@ async function logout(toLogin = false, clearCred = false) {
     if (clearCred) localStorage.removeItem('7fa4_logined');
   } catch {}
   Object.assign(store, { self: { uid: null, username: null, nickname: null, realname: null }, users: {}, groups: {}, messages: {}, stickers: [], drafts: {}, favorites: [], mutedConvos: {}, hiddenConvos: {} });
+  clearPendingVotes(); // 清空待落地投票缓冲，避免串到下一个账号
   store.logined = false;
   store.netError = false;
   store.online = navigator.onLine;
@@ -2004,9 +2056,8 @@ onMounted(async () => {
   if (setting.value.fontSize) applyFontSize(setting.value.fontSize);
   store.online = navigator.onLine;
   try { version.value = await window.api.getVersion(); } catch {}
-  // 非 Electron（网页端/安卓端）静默检查更新：安卓端 APK 没有自动更新通道，
-  // 不做启动检查用户就永远不知道有新版本。放游客 return 之前，游客也要能收到提醒。
-  checkAppUpdate();
+  // 更新检查已移到根组件 App.vue（initUpdateCheck）：网页版用的是 overrides 版 ChatView，
+  // 检查写在这里网页端就查不到；根组件三端都跑，位置也更早（登录页/游客全覆盖）。
   const root = document.documentElement;
   if (setting.value.theme && setting.value.theme !== 'default' && setting.value.theme !== 'custom') root.classList.add(`theme-${setting.value.theme}`);
   if (setting.value.theme === 'custom' && setting.value.customVars) { for (const [k, v] of Object.entries(setting.value.customVars)) root.style.setProperty(k, v); }

@@ -55,7 +55,8 @@
                 :result="pollOf(item.data).result"
                 :own="false"
                 :voting="votingPollId === String(item.data.id)"
-                @vote="onPollVote(item.data, $event)"
+                :name-of="pollVoterName"
+                @vote="(pick, custom) => onPollVote(item.data, pick, custom)"
               />
               <div v-else class="bubble-content luogu-md" v-html="renderContent(item.data.content, item.data.sender)"></div>
             </div>
@@ -78,7 +79,8 @@
                 :result="pollOf(item.data).result"
                 :own="true"
                 :voting="votingPollId === String(item.data.id)"
-                @vote="onPollVote(item.data, $event)"
+                :name-of="pollVoterName"
+                @vote="(pick, custom) => onPollVote(item.data, pick, custom)"
               />
               <div v-else class="bubble-content luogu-md" v-html="renderContent(item.data.content, item.data.sender)"></div>
             </div>
@@ -112,7 +114,7 @@
 <script setup>
 import { ref, reactive, computed, onUpdated, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown, compressBase64Image, makeFavorite, parsePoll, isVoteMsg, aggregatePoll } from '../utils.js';
+import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown, compressBase64Image, makeFavorite, parsePoll, aggregatePoll } from '../utils.js';
 import MsgMenu from './MsgMenu.vue';
 import PollCard from './PollCard.vue';
 import { useCurrentMessages } from '../composables/useCurrentMessages.js';
@@ -150,7 +152,9 @@ const isAtBottom = ref(true);
 const targetUser = computed(() => store.users?.[props.pageId] || null);
 const targetGroup = computed(() => store.groups?.[props.pageId] || null);
 
-const currentMessages = useCurrentMessages(() => props.pageType, () => props.pageId).currentMessages;
+const _allMessages = useCurrentMessages(() => props.pageType, () => props.pageId).currentMessages;
+
+const currentMessages = _allMessages;
 
 const hasOlderMessages = computed(() => currentMessages.value.length > props.visibleCount);
 
@@ -161,15 +165,11 @@ const visibleMessages = computed(() => {
 });
 
 // 日期分组：在跨日消息间插入分隔线。
-// ⚠️ 投票回复（type:'vote'）不单独成行 —— 它的信息已被对应投票卡聚合展示，
-//    再显示一条气泡就成了「一堆看不懂的 JSON/占位」。这里直接从可见列表剔除，
-//    但**不删除数据**（消息仍在 store 与 SQLite 里，换客户端/旧版本仍能读到）。
 const messagesWithSeparators = computed(() => {
   const all = visibleMessages.value;
   const result = [];
   let lastDate = null;
   for (const msg of all) {
-    if (isVoteMsg(msg.content)) continue;
     if (!isSameDay(msg.send_time, lastDate)) {
       result.push({ type: 'separator', timestamp: msg.send_time, label: formatDateSeparator(msg.send_time) });
       lastDate = msg.send_time;
@@ -210,18 +210,7 @@ function renderContent(msg, senderId) {
 // ========== 投票 ==========
 const votingPollId = ref(null);
 
-/**
- * 会话内全部「投票发起」消息的解析 + 聚合结果，键为 msg.id。
- *
- * ⚠️ 必须是 computed 而不是普通函数：模板里 `pollOf(item.data)` 会对同一条消息
- * 访问三次（v-if / :poll / :result），且每条消息都要遍历一遍全部消息做聚合 ——
- * 群聊几百条消息时就是 O(n²) 次 JSON.parse + 数组扫描，每帧都可能重跑。
- * 用 computed 后：只在 currentMessages / selfUid 变化时算一次，
- * 且每个投票只聚合一次（而非每条消息 ×3 次）。
- *
- * 聚合范围 = 当前会话的全部已加载消息（发起消息 + 所有 vote 回复）。
- * ⚠️ 用 msg.id 当投票标识 —— 它就是消息主键，天然唯一，无需自造 id。
- */
+/** 会话内全部投票发起消息的解析+聚合结果（键 msg.id）；必须是 computed（模板访问三次，且数据源=poll 自带 votes） */
 const pollMap = computed(() => {
   const map = new Map();
   const selfUid = props.selfUid;
@@ -229,7 +218,7 @@ const pollMap = computed(() => {
     if (!msg) continue;
     const def = parsePoll(parseMsgContent(msg.content));
     if (!def) continue;
-    map.set(String(msg.id), { def, result: aggregatePoll(def, msg.id, currentMessages.value, selfUid) });
+    map.set(String(msg.id), { def, result: aggregatePoll(def, msg.id, selfUid) });
   }
   return map;
 });
@@ -244,15 +233,23 @@ function msgSenderUser(msg) {
   return store.users?.[msg.sender] || { uid: msg.sender };
 }
 
+/** uid → 显示名（供投票选项悬浮提示）；votes 的键是字符串 uid，store.users 是数字键，这里归一 */
+function pollVoterName(uid) {
+  const u = store.users?.[Number(uid)] || store.users?.[uid];
+  if (!u) return String(uid);
+  return displayName(u) || String(uid);
+}
+
 /**
  * 用户点了投票卡片右下角「确认投票」→ 交给父级（ChatView）发送一条 vote 回复消息。
  * pick 为选中项下标数组；空数组 = 取消投票（聚合时不会计入任何选项）。
  */
-function onPollVote(pollMsg, pick) {
+function onPollVote(pollMsg, pick, custom) {
   if (!pollMsg) return;
   const id = String(pollMsg.id);
   votingPollId.value = id;
-  emit('vote', { poll: id, pick: Array.isArray(pick) ? pick : [] });
+  // ⚠️ PollCard 现在会带第二个参数（自拟选项，开放题）；单选/普通票传空串。
+  emit('vote', { poll: id, pick: Array.isArray(pick) ? pick : [], custom: String(custom == null ? '' : custom).trim() });
   // 乐观解锁：父级提交很快，1.2s 兜底复位（防父级异常时按钮永久锁死）
   setTimeout(() => { if (votingPollId.value === id) votingPollId.value = null; }, 1200);
 }
@@ -306,7 +303,13 @@ onUpdated(() => {
   const rows = messageAreaEl.value.querySelectorAll('.msg-row');
   for (const row of rows) {
     const id = Number(row.dataset.msgId);
-    if (!id || props.collapsedMsgs[id]) continue;
+    if (!id) continue;
+    // 投票卡片默认不折叠（折叠会把「确认投票」藏到「查看更多」后）：主动清除其折叠标记，而非仅跳过
+    if (row.querySelector('.poll-card')) {
+      if (props.collapsedMsgs[id]) delete props.collapsedMsgs[id];
+      continue;
+    }
+    if (props.collapsedMsgs[id]) continue;
     const bubble = row.querySelector('.bubble');
     if (bubble && bubble.scrollHeight > 320) {
       props.collapsedMsgs[id] = true;
@@ -369,8 +372,15 @@ function doScrollToBottom(pageChanged) {
 watch(currentMessages, (msgs) => {
   const pageChanged = props.pageId !== lastPageId;
   lastPageId = props.pageId;
-  if (pageChanged || msgs.length > lastMsgCount) {
-    doScrollToBottom(pageChanged);
+  const grew = msgs.length > lastMsgCount;
+  // 自动滚动：只有「插入前就在底部」才跟随滚到最新，上翻看历史时保持不动；例外：自己刚发的总滚到底
+  if (pageChanged) {
+    doScrollToBottom(true);
+  } else if (grew) {
+    const wasAtBottom = isAtBottom.value;
+    const last = msgs[msgs.length - 1];
+    const mineJustSent = !!(last && props.selfUid != null && Number(last.sender) === Number(props.selfUid));
+    if (wasAtBottom || mineJustSent) doScrollToBottom(false);
   }
   lastMsgCount = msgs.length;
 });

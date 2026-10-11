@@ -9,7 +9,11 @@ const crypto = require('crypto')
 const path = require('path')
 const fs = require('fs')
 
-const DATA_PASSPHRASE = '7fa4-chat::userdata::v1'
+// 数据密钥版本：升到 v2 后，v1 密文一律解不开 —— 检测到旧版数据即整体作废，交给服务端重新拉取
+const DATA_KEY_VER = 2
+const DATA_PASSPHRASE = '7fa4-chat::userdata::v2'
+/** kv 表中的密钥版本标记；无标记 + 密文解不开 = 旧版数据 */
+const KEYVER_MARK = 'data-key-ver'
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS convos (
   uid INTEGER NOT NULL,
@@ -51,12 +55,12 @@ function encryptText(plain) {
   const iv = crypto.randomBytes(12)
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv)
   const enc = Buffer.concat([cipher.update(String(plain), 'utf8'), cipher.final()])
-  return JSON.stringify({ v: 1, iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64'), data: enc.toString('base64') })
+  return JSON.stringify({ v: DATA_KEY_VER, iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64'), data: enc.toString('base64') })
 }
 
 function decryptText(payload) {
   const p = JSON.parse(payload)
-  if (p.v !== 1) throw new Error('未知数据版本')
+  if (p.v !== DATA_KEY_VER) throw new Error('数据密钥版本不符（v' + p.v + '）')
   const key = aesKey()
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(p.iv, 'base64'))
   decipher.setAuthTag(Buffer.from(p.tag, 'base64'))
@@ -65,6 +69,15 @@ function decryptText(payload) {
 
 const encryptJSON = (obj) => encryptText(JSON.stringify(obj))
 const decryptJSON = (payload) => JSON.parse(decryptText(payload))
+
+/** 库文件（含 WAL/SHM）总字节数，仅用于日志 */
+function sizeOf(p) {
+  let n = 0
+  for (const suffix of ['', '-wal', '-shm']) {
+    try { n += fs.statSync(p + suffix).size } catch {}
+  }
+  return n
+}
 
 // ---------- 检索辅助 ----------
 /** 提取消息的可检索文本（类型分支与渲染层 SearchPanel 保持一致） */
@@ -103,6 +116,12 @@ class UserStore {
 
   init() {
     fs.mkdirSync(path.dirname(this.dbPath), { recursive: true })
+    // 密钥版本升级：旧版（v1）密文一律解不开，检测到就整体作废 —— 数据都由服务端重新拉取
+    if (this.detectStale()) {
+      const mb = (sizeOf(this.dbPath) / 1048576).toFixed(1)
+      this.dropStale()
+      console.log(`[Store] 检测到旧版数据（密钥 v1），已作废本地缓存 ${mb}MB，将从服务端重新拉取`)
+    }
     this.db = new DatabaseSync(this.dbPath)
     for (const stmt of SCHEMA.split(';')) {
       const s = stmt.trim()
@@ -112,7 +131,35 @@ class UserStore {
     }
     try { this.db.exec('PRAGMA journal_mode=WAL') } catch {}
     try { this.db.exec('PRAGMA synchronous=NORMAL') } catch {}
+    try { this.setKV(KEYVER_MARK, String(DATA_KEY_VER)) } catch {}
     return this
+  }
+
+  /** 是否残留旧密钥数据：kv 无版本标记，且库里已有密文用当前密钥解不开（空库/新库不算） */
+  detectStale() {
+    if (!fs.existsSync(this.dbPath)) return false
+    let db = null
+    try {
+      db = new DatabaseSync(this.dbPath)
+      const mark = db.prepare('SELECT value FROM kv WHERE key=?').get(KEYVER_MARK)
+      if (mark && String(mark.value) === String(DATA_KEY_VER)) return false
+      const row = db.prepare('SELECT content AS c FROM messages LIMIT 1').get()
+        || db.prepare('SELECT meta AS c FROM convos LIMIT 1').get()
+        || db.prepare('SELECT value AS c FROM prefs LIMIT 1').get()
+      if (!row) return false
+      try { decryptText(row.c); return false } catch { return true }
+    } catch {
+      return false // 表结构读不出（全新空文件等）→ 不擅自删
+    } finally {
+      try { db?.close() } catch {}
+    }
+  }
+
+  /** 作废整个本地库（含 WAL/SHM），下次启动即为全新空库 */
+  dropStale() {
+    for (const suffix of ['', '-wal', '-shm']) {
+      try { fs.rmSync(this.dbPath + suffix, { force: true }) } catch {}
+    }
   }
 
   close() {

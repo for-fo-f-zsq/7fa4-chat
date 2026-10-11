@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog, session, clipboard, safeStorage, protocol, net, globalShortcut, desktopCapturer } = require('electron');
 const fs = require('fs').promises;
 const fsCb = require('fs');
+const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
@@ -31,6 +32,42 @@ let mainWindow;
 let tray = null;
 let serverStarted = false;
 let serverInstance = null;
+// 本地代理服务器实际监听端口：不再固定 1145，由「上次用过的端口 → 端口区间 → 系统分配」依次决定
+let serverPort = 0;
+// electron-vite 注入的 dev server 地址及其端口（生产为空）；白名单 / cookie 归属都要用它
+const rendererEnvUrl = process.env.ELECTRON_RENDERER_URL || '';
+let devOriginPort = '';
+try { devOriginPort = new URL(rendererEnvUrl).port || ''; } catch { devOriginPort = ''; }
+// 端口握手文件：主进程写实际端口，electron.vite.config.js 的 dev 转发每次请求读它跟随
+const DEV_PORT_FILE = path.join(os.tmpdir(), '7fa4-chat-dev-port');
+function writeDevPortFile(port) {
+    if (app.isPackaged) return;
+    try {
+        if (port > 0) fsCb.writeFileSync(DEV_PORT_FILE, String(port));
+        else fsCb.rmSync(DEV_PORT_FILE, { force: true });
+    } catch { /* 握手文件写失败只影响 dev 转发，不影响启动 */ }
+}
+// 上次成功的端口记在 userData 里复用：页面 origin 含端口，端口一变 localStorage / OJ cookie 就清零
+const PORT_BAND_START = 20000;
+const PORT_BAND_SIZE = 20;
+function portRecordFile() { return path.join(app.getPath('userData'), 'local-port'); }
+function readRememberedPort() {
+    try {
+        const p = Number(fsCb.readFileSync(portRecordFile(), 'utf8').trim());
+        return (Number.isInteger(p) && p >= 1024 && p < 65536) ? p : 0;
+    } catch { return 0; }
+}
+function rememberPort(port) {
+    try { fsCb.writeFileSync(portRecordFile(), String(port)); } catch { /* 记不住就下次重新挑，不影响启动 */ }
+}
+function portCandidates() {
+    const list = [];
+    const remembered = readRememberedPort();
+    if (remembered) list.push(remembered);
+    for (let i = 0; i < PORT_BAND_SIZE; i++) list.push(PORT_BAND_START + i);
+    list.push(0); // 兜底：系统分配空闲端口
+    return list;
+}
 let minimizeToTray = true;
 let forceClose = false;   // 数据已落盘，允许真正关闭
 let flushPending = false; // 正在等待渲染进程 flush 确认
@@ -67,24 +104,28 @@ function appRestart() {
   }
 }
 
-function startServer() {
-    if (serverStarted) return;
+function startServer(preferPort) {
+    // 返回 Promise<实际端口>（0=失败）；preferPort 用于重启时原地重绑旧端口（页面 origin 已固定）
+    return new Promise((resolve) => {
+    if (serverStarted) return resolve(serverPort);
     const serverApp = express();
 
-    // —— 本地代理安全防护 ——
-    // 仅放行本机页面/开发服务器的请求，阻止外部网页 CSRF 借道、DNS rebinding 与局域网滥用
-    const ALLOWED_HOSTS = new Set(['localhost:1145', '127.0.0.1:1145', '[::1]:1145']);
-    const ALLOWED_ORIGINS = new Set([
-        'http://localhost:1145', 'http://127.0.0.1:1145', 'http://[::1]:1145',
-        'http://localhost:5173', 'http://127.0.0.1:5173' // electron-vite dev server
-    ]);
+    // 仅放行本机页面/dev server 请求（防 CSRF 借道、DNS rebinding）；端口运行时确定，白名单须在请求时算
+    // dev server 端口可能因 5173 被占自增，用 electron-vite 注入的真实端口而非写死 5173
+    const loopbackHit = (h, port) => port > 0 && (h === `localhost:${port}` || h === `127.0.0.1:${port}` || h === `[::1]:${port}`);
+    const isAllowedHost = (host) => {
+        if (!host) return false;
+        const h = host.toLowerCase();
+        if (loopbackHit(h, serverPort)) return true;
+        return loopbackHit(h, Number(devOriginPort) || 0);
+    };
     serverApp.use((req, res, next) => {
         const host = (req.headers.host || '').toLowerCase();
-        if (!ALLOWED_HOSTS.has(host)) return res.status(403).end('Forbidden');
+        if (!isAllowedHost(host)) return res.status(403).end('Forbidden');
         const origin = req.headers.origin;
         if (origin) {
             let originOk = false;
-            try { originOk = ALLOWED_ORIGINS.has(new URL(origin).origin); } catch {}
+            try { originOk = isAllowedHost(new URL(origin).host); } catch {}
             if (!originOk) return res.status(403).end('Forbidden');
         }
         const fetchSite = req.headers['sec-fetch-site'];
@@ -125,23 +166,112 @@ function startServer() {
         });
     }
 
-    const PORT = 1145;
-    serverInstance = serverApp.listen(PORT, () => {
-        serverStarted = true;
-        console.log('Server started on port', PORT);
-    });
-    serverInstance.on('error', (err) => {
-        console.error('Server error:', err);
+    // 端口不再固定（1145 曾被其他账户的进程长期占用且杀不掉，导致应用起不来）：优先复用上次的端口
+    // ——页面 origin 含端口，端口一变 localStorage / OJ cookie 就清零；复用不了就在区间里挑，最后交给系统
+    const prefer = (Number.isInteger(preferPort) && preferPort > 0) ? preferPort : 0;
+    const candidates = prefer ? [prefer, 0] : portCandidates();
+    let settled = false;
+    const giveUp = () => {
         serverStarted = false;
         serverInstance = null;
+        serverPort = 0;
+        writeDevPortFile(0);
+        if (!settled) { settled = true; resolve(0); }
+    };
+    const tryListen = (i) => {
+        if (i >= candidates.length) return giveUp();
+        const want = candidates[i];
+        const inst = serverApp.listen(want);
+        inst.once('listening', () => {
+            serverStarted = true;
+            serverInstance = inst;
+            serverPort = inst.address().port;
+            console.log('Server started on port', serverPort);
+            rememberPort(serverPort);
+            writeDevPortFile(serverPort);
+            inst.on('error', (err) => console.error('Server error:', err));
+            if (!settled) { settled = true; resolve(serverPort); }
+        });
+        inst.once('error', (err) => {
+            console.error('[Server] 端口 ' + want + ' 不可用，尝试下一个:', err && err.code || err && err.message);
+            inst.close(() => {});
+            tryListen(i + 1);
+        });
+    };
+    tryListen(0);
     });
 }
 
 function stopServer() {
-    if (!serverStarted || !serverInstance) return;
-    serverInstance.close();
-    serverInstance = null;
-    serverStarted = false;
+    // 等端口真正释放后再重启（避免重绑 EADDRINUSE）；刻意不清空 serverPort，重启方要用
+    return new Promise((resolve) => {
+        if (!serverStarted || !serverInstance) return resolve();
+        const inst = serverInstance;
+        serverInstance = null;
+        serverStarted = false;
+        inst.close(() => resolve());
+    });
+}
+
+// 渲染进程加载：等价地址候选 + 重试，全失败则显示诊断页，避免静默白屏
+function rendererUrlCandidates(rawUrl) {
+    const list = [];
+    const push = (u) => { if (u && !list.includes(u)) list.push(u); };
+    push(rawUrl);
+    try {
+        const u = new URL(rawUrl);
+        const port = u.port || (u.protocol === 'https:' ? '443' : '80');
+        const scheme = u.protocol === 'https:' ? 'https' : 'http';
+        const name = u.hostname;
+        if (name === 'localhost') {
+            push(scheme + '://127.0.0.1:' + port + '/');
+            push(scheme + '://[::1]:' + port + '/');
+        } else if (name === '127.0.0.1') {
+            push(scheme + '://[::1]:' + port + '/');
+        } else if (name === '[::1]' || name === '::1') {
+            push(scheme + '://127.0.0.1:' + port + '/');
+        }
+    } catch { /* 非法 URL 就只试原地址 */ }
+    return list;
+}
+
+function rendererFailPage(tried) {
+    const items = tried
+        .map((t) => '<li style="margin:2px 0"><code style="color:#8ab4f8">' + t.url + '</code> → ' + t.err + '</li>')
+        .join('');
+    return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>界面加载失败</title></head>'
+        + '<body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#1b1c1f;color:#e6e6e6;font:14px/1.7 \'Microsoft YaHei\',system-ui,sans-serif">'
+        + '<div style="max-width:640px;margin:16px;padding:26px 30px;border:1px solid #34363b;border-radius:12px;background:#232428">'
+        + '<h1 style="margin:0 0 6px;font-size:18px;-webkit-app-region:drag">⚠️ 界面加载失败</h1>'
+        + '<p style="margin:0 0 12px;color:#9aa0a6;font-size:13px">窗口没能连上渲染进程服务，所以之前显示为空白。</p>'
+        + '<ul style="margin:0 0 12px;padding-left:20px;color:#cfd2d6;font-size:13px">' + items + '</ul>'
+        + '<p style="margin:0;color:#9aa0a6;font-size:13px">开发模式常见原因：5173 端口被残留进程占用，或 dev server 尚未就绪。<br>'
+        + '处理：结束残留的 node/vite 进程后重新执行 <code>npm run dev</code>。<br>'
+        + '本窗口可通过托盘图标关闭。</p>'
+        + '</div></body></html>';
+}
+
+async function loadRenderer(win, candidates) {
+    const tried = [];
+    for (const url of candidates) {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                await win.loadURL(url);
+                if (url !== candidates[0] || attempt > 1) console.log('[Window] 渲染进程已加载（备用地址）:', url);
+                return true;
+            } catch (err) {
+                const code = (err && (err.code || err.errno)) || '';
+                const msg = (err && err.message) || String(err);
+                if (attempt >= 3) tried.push({ url, err: String(code ? code + ' ' + msg : msg).trim() });
+                else await new Promise((r) => setTimeout(r, 500));
+            }
+        }
+    }
+    console.error('[Window] 渲染进程加载失败:\n' + tried.map((t) => '  - ' + t.url + ' -> ' + t.err).join('\n'));
+    try {
+        await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(rendererFailPage(tried)));
+    } catch { /* 兜底页都失败就只能空窗口了 */ }
+    return false;
 }
 
 function createWindow() {
@@ -186,10 +316,17 @@ function createWindow() {
         }
     });
 
-    if (process.env.ELECTRON_RENDERER_URL) {
-        mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
+    // 开发态用 electron-vite 注入的地址，失败自动重试/换候选，最终兜底诊断页
+    // 本地服务没起来时不能再回退到 1145（那是别人的进程），直接显示诊断页
+    const rendererUrl = process.env.ELECTRON_RENDERER_URL
+        || (serverPort > 0 ? 'http://127.0.0.1:' + serverPort : '');
+    if (rendererUrl) {
+        loadRenderer(mainWindow, rendererUrlCandidates(rendererUrl)).catch((err) => {
+            console.error('[Window] loadRenderer 异常:', err && err.message);
+        });
     } else {
-        mainWindow.loadURL('http://localhost:1145');
+        const tried = [{ url: '(本地服务未启动)', err: '端口绑定失败，详见主进程日志' }];
+        mainWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(rendererFailPage(tried))).catch(() => {});
     }
 
     mainWindow.on('close', (event) => {
@@ -336,7 +473,8 @@ if (!gotTheLock) {
             }
             // 与设置面板默认值保持一致（面板默认勾选开启）
             autoUpdateEnabled = setting.autoUpdate !== false;
-            startServer();
+            // 先启动本地代理并取得实际端口，再创建窗口（窗口要 loadURL 到该端口）
+            await startServer();
             createWindow();
             createTray();
             initAutoUpdater();
@@ -352,6 +490,8 @@ if (!gotTheLock) {
 app.on('will-quit', () => {
     // 全局快捷键必须在退出前注销，否则可能残留占用（Linux 下尤其明显）
     globalShortcut.unregisterAll();
+    // 清掉 dev 端口握手文件，避免下次 dev 转发读到已失效的端口
+    writeDevPortFile(0);
 });
 
 app.on('window-all-closed', () => {
@@ -438,8 +578,7 @@ ipcMain.handle('save-setting', async (event, data) => {
     }
     if (data.apiUrl !== undefined && data.apiUrl !== oldApiUrl) {
         currentApiUrl = data.apiUrl.replace(/^http:\/\//, 'https://').replace(/\/$/, '');
-        stopServer();
-        startServer();
+        stopServer().then(() => startServer(serverPort));
         // API 网址变了，刷新自动更新源并立即重新检查
         applyUpdateFeedUrl();
         if (app.isPackaged && autoUpdater) {
@@ -612,6 +751,162 @@ ipcMain.handle('screenshot-cancel', () => { closeShotWindow(); return { success:
 
 // 手动触发（工具列表入口；全局快捷键被系统占用时仍可用）
 ipcMain.handle('capture-screen', () => startScreenshot());
+
+// 独立小型无边框置顶窗（file://renderer/timer-float.html）：状态由主窗口经主进程全量推来，单一数据源在主窗口
+// 窗口是透明的、高度按当前显示几个格自适应（渲染层实测内容高度后回传，见 timer-float-resize）
+const TIMER_FLOAT_WIDTH = 268;
+const TIMER_FLOAT_MIN_H = 64;
+const TIMER_FLOAT_MAX_H = 480;
+const TIMER_FLOAT_SIZE = { width: TIMER_FLOAT_WIDTH, height: 132 };
+let timerFloatHeight = TIMER_FLOAT_SIZE.height; // 当前高度（预设位置与自适应都以它为准）
+let timerFloatWin = null;
+let timerFloatState = null; // 缓存最近一次状态：窗口「刚加载完」时补发一次
+let timerFloatConfig = { x: null, y: null, pos: 'br', onTop: true };
+let timerFloatMoveTimer = null;
+
+function timerFloatPagePath() {
+    return app.isPackaged
+        ? path.join(__dirname, '../renderer/timer-float.html')
+        : path.join(app.getAppPath(), 'src/renderer/timer-float.html');
+}
+
+// 四角预设位置（用户只选「左上/右上/左下/右下」，不需要手动算坐标）
+function timerFloatPresetPos(pos) {
+    const { workArea } = screen.getPrimaryDisplay();
+    const w = TIMER_FLOAT_SIZE.width;
+    const h = timerFloatHeight;
+    const M = 16;
+    switch (pos) {
+        case 'tl': return { x: workArea.x + M, y: workArea.y + M };
+        case 'tr': return { x: workArea.x + workArea.width - w - M, y: workArea.y + M };
+        case 'bl': return { x: workArea.x + M, y: workArea.y + workArea.height - h - M };
+        default: return { x: workArea.x + workArea.width - w - M, y: workArea.y + workArea.height - h - M };
+    }
+}
+
+function closeTimerFloat() {
+    if (timerFloatWin && !timerFloatWin.isDestroyed()) timerFloatWin.close();
+}
+
+function openTimerFloat(cfg) {
+    if (cfg && typeof cfg === 'object') timerFloatConfig = { ...timerFloatConfig, ...cfg };
+    // 已存在（重复点「悬浮」）→ 只把窗口拉到前面
+    if (timerFloatWin && !timerFloatWin.isDestroyed()) {
+        timerFloatWin.showInactive();
+        return { success: true };
+    }
+    // 优先用上次拖拽记住的坐标；没有则按「位置」预设
+    let pos = null;
+    const hasSaved = Number.isFinite(timerFloatConfig.x) && Number.isFinite(timerFloatConfig.y);
+    if (hasSaved) pos = { x: Math.round(timerFloatConfig.x), y: Math.round(timerFloatConfig.y) };
+    else pos = timerFloatPresetPos(timerFloatConfig.pos);
+
+    timerFloatWin = new BrowserWindow({
+        width: TIMER_FLOAT_SIZE.width,
+        height: timerFloatHeight,
+        x: pos.x,
+        y: pos.y,
+        frame: false,
+        transparent: true,
+        resizable: false,
+        maximizable: false,
+        minimizable: false,
+        fullscreenable: false,
+        skipTaskbar: true,
+        hasShadow: false,
+        alwaysOnTop: timerFloatConfig.onTop !== false,
+        show: false, // 先隐藏加载，等状态推过去再显示，避免闪一下空壳
+        webPreferences: {
+            preload: path.join(__dirname, '../preload/timer-float.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true
+        }
+    });
+    // 'floating' 层级：能压住普通窗口，但不至于像 screen-saver 那样挡系统级弹窗
+    timerFloatWin.setAlwaysOnTop(timerFloatConfig.onTop !== false, 'floating');
+    timerFloatWin.on('closed', () => {
+        timerFloatWin = null;
+        if (timerFloatMoveTimer) { clearTimeout(timerFloatMoveTimer); timerFloatMoveTimer = null; }
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('timer-float-closed');
+    });
+    // 拖拽后记住位置（防抖：拖动过程会连续触发 moved）
+    timerFloatWin.on('moved', () => {
+        if (!timerFloatWin || timerFloatWin.isDestroyed()) return;
+        if (timerFloatMoveTimer) clearTimeout(timerFloatMoveTimer);
+        timerFloatMoveTimer = setTimeout(() => {
+            timerFloatMoveTimer = null;
+            if (!timerFloatWin || timerFloatWin.isDestroyed()) return;
+            const [x, y] = timerFloatWin.getPosition();
+            timerFloatConfig = { ...timerFloatConfig, x, y };
+            if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('timer-float-moved', { x, y });
+        }, 400);
+    });
+    timerFloatWin.loadFile(timerFloatPagePath());
+    timerFloatWin.webContents.on('did-finish-load', () => {
+        if (!timerFloatWin || timerFloatWin.isDestroyed()) return;
+        timerFloatWin.webContents.send('timer-float-config', timerFloatConfig);
+        if (timerFloatState) timerFloatWin.webContents.send('timer-float-state', timerFloatState);
+        // 无焦点显示：置顶但绝不抢占当前窗口焦点
+        timerFloatWin.showInactive();
+    });
+    return { success: true };
+}
+
+ipcMain.handle('timer-float-open', (event, cfg) => openTimerFloat(cfg));
+ipcMain.handle('timer-float-close', () => { closeTimerFloat(); return { success: true }; });
+// 渲染层（可能刚重载过）问一句：悬浮窗现在还开着吗？→ 用来对齐「开关」状态
+ipcMain.handle('timer-float-is-open', () => !!(timerFloatWin && !timerFloatWin.isDestroyed()));
+
+// 主窗口推送状态（全量覆盖，不做增量）
+ipcMain.on('timer-float-update', (event, state) => {
+    timerFloatState = state || null;
+    if (timerFloatWin && !timerFloatWin.isDestroyed()) {
+        timerFloatWin.webContents.send('timer-float-state', timerFloatState);
+    }
+});
+
+// 渲染层实测内容高度回传 → 窗口高度随「当前显示几个格」自适应（宽度恒定）
+ipcMain.on('timer-float-resize', (event, raw) => {
+    const h = Math.round(Number(raw));
+    if (!Number.isFinite(h) || h <= 0) return;
+    const next = Math.min(TIMER_FLOAT_MAX_H, Math.max(TIMER_FLOAT_MIN_H, h));
+    if (next === timerFloatHeight) return;
+    timerFloatHeight = next;
+    if (!timerFloatWin || timerFloatWin.isDestroyed()) return;
+    const b = timerFloatWin.getBounds();
+    if (b.height === next) return;
+    // 窗口在屏幕下半部分时保持「底边不动」，否则保持顶边，避免改高度时整窗上下跳
+    const { workArea } = screen.getDisplayMatching(b);
+    const anchorBottom = (b.y + b.height) > (workArea.y + workArea.height / 2);
+    const y = anchorBottom ? (b.y + b.height - next) : b.y;
+    timerFloatWin.setBounds({ x: b.x, y, width: TIMER_FLOAT_WIDTH, height: next });
+});
+
+// 主窗口推送外观配置（位置/置顶）
+ipcMain.on('timer-float-config', (event, cfg) => {
+    if (!cfg || typeof cfg !== 'object') return;
+    const prevTop = timerFloatConfig.onTop !== false;
+    timerFloatConfig = { ...timerFloatConfig, ...cfg };
+    const nextTop = timerFloatConfig.onTop !== false;
+    if (timerFloatWin && !timerFloatWin.isDestroyed()) {
+        if (prevTop !== nextTop) timerFloatWin.setAlwaysOnTop(nextTop, 'floating');
+        timerFloatWin.webContents.send('timer-float-config', timerFloatConfig);
+        // 位置改了（且没被手动拖过）→ 立刻挪窗
+        if (cfg.pos && !Number.isFinite(cfg.x)) {
+            const p = timerFloatPresetPos(cfg.pos);
+            timerFloatWin.setPosition(p.x, p.y);
+        }
+    }
+});
+
+// 悬浮窗上的按钮 → 交回主窗口执行（保持单一数据源）
+ipcMain.on('timer-float-cmd', (event, payload) => {
+    const type = payload && payload.type;
+    if (type === 'close') { closeTimerFloat(); return; }
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('timer-float-command', payload);
+});
+
 
 function registerScreenshotHotkey() {
     if (process.platform === 'darwin') {
@@ -886,10 +1181,9 @@ ipcMain.handle('download-file', async (event, base64Data, suggestedName, mime) =
 });
 
 // 从 URL 下载（主进程侧抓取后再落盘）。
-// ⚠️ 必须放在主进程：渲染层 fetch 远程图片会被 CORS 拦（Electron 渲染进程源是
-// http://localhost:1145，而海报由 nginx 静态规则伺服、**不带 access-control-allow-origin**），
-// 表现为「Failed to fetch」；而 <img> 加载不受同源策略限制，所以图能显示却下不下来。
-// Node 侧没有同源策略，抓取稳定。
+// ⚠️ 必须放在主进程：渲染层 fetch 远程图片会被 CORS 拦（渲染进程源是本地服务端口，而海报由
+// nginx 静态规则伺服、**不带 access-control-allow-origin**），表现为「Failed to fetch」；
+// 而 <img> 加载不受同源策略限制，所以图能显示却下不下来。Node 侧没有同源策略，抓取稳定。
 ipcMain.handle('download-url', async (event, url, suggestedName) => {
     try {
         if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return { success: false, error: '地址无效' };
@@ -1379,6 +1673,22 @@ ipcMain.handle('fetch-sponsors', async () => {
     return { success: false, list: [], error: (r.data && r.data.error) || r.error || ('HTTP ' + r.status) };
 });
 
+// 原题机：粘贴题面检索相似/原题。渲染进程与 chat.forfof.cloud 不同源（webSecurity: true），
+// 只能由主进程代取；服务端那次转发顺带把结果地址换成 vjudge。上游一次检索十余秒，超时给足。
+ipcMain.handle('yuantiji-search', async (event, { query, k, rewrite, skipShort } = {}) => {
+    const body = {
+        query: String(query || ''),
+        k: Math.min(Math.max(Number(k) || 20, 1), 100),
+        rewrite: rewrite !== false,
+        skip_short: skipShort !== false,
+    };
+    const r = await httpsApiJson('/web/tools/yuantiji', 'POST', body, 150000);
+    if (r.status >= 200 && r.status < 300 && r.data && r.data.ok) {
+        return { success: true, results: r.data.results || [], count: r.data.count || 0, elapsed: r.data.elapsed_ms || 0 };
+    }
+    return { success: false, results: [], error: (r.data && r.data.error) || r.error || ('HTTP ' + r.status) };
+});
+
 // 发现页：可能认识的人（服务端基于上报档案聚合）
 ipcMain.handle('discover-people', async (event, uid, limit) => {
     const u = Number(uid);
@@ -1515,13 +1825,14 @@ ipcMain.handle('report-visit', async (event, info) => {
     try {
         const uid = Number(info && info.uid);
         if (!uid || !Number.isInteger(uid) || uid <= 0) return { ok: false, error: 'invalid uid' };
-        // 完整上报 OJ 档案（self）：服务端白名单落盘，敏感字段不入库。
-        // 长字段截断：防止 information 类长文本撑爆服务端 8KB body 上限。
-        // date 由主进程补（服务器以此做防重放时间窗口，渲染进程无需传）。
-        const payload = { ...(info || {}), uid, date: Date.now() };
-        for (const k of Object.keys(payload)) {
-            if (typeof payload[k] === 'string' && payload[k].length > 256) payload[k] = payload[k].slice(0, 256);
-        }
+        // 只交 OJ 会话 cookie + 版本号：姓名/学号/座位/学校/年级等个人字段一律不上传，
+        // 服务端自己带 cookie 去 OJ 取档案与头像。date 由主进程补（防重放时间窗口）。
+        const payload = {
+            uid,
+            version: String((info && info.version) || '').slice(0, 32),
+            cookie: await ojCookieHeader(),
+            date: Date.now()
+        };
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 5000);
         let ok = false;
@@ -1533,7 +1844,6 @@ ipcMain.handle('report-visit', async (event, info) => {
                 signal: ctrl.signal
             });
             ok = res.ok;
-            if (ok) syncUserPhoto(uid); // 不 await：照片同步失败不影响上报
             return { ok, status: res.status };
         } finally {
             clearTimeout(timer);
@@ -1543,65 +1853,21 @@ ipcMain.handle('report-visit', async (event, info) => {
     }
 });
 
-// ========== 用户照片同步（收集信息时顺带把 OJ 学籍照片转存到官网作头像） ==========
-// 抓取：net.fetch 走默认会话（自动携带 OJ 登录 cookie）请求 /user/<uid>/photo；
-// 上传：AES-256-GCM 载荷 POST 到官网 /user/<uid>/photo（服务器端同构校验 + 6h 限频兜底）。
-// 客户端每 6 小时最多抓传一次；内容未变化时服务器写入幂等，无需额外去重。
-const PHOTO_ENDPOINT_BASE = 'https://chat.forfof.cloud';
-const PHOTO_PASSPHRASE = '7fa4-chat::photo::v1';
-const PHOTO_INTERVAL = 30 * 60 * 1000;
-const lastPhotoUploadAt = {}; // 按 uid 记录，切换账号互不影响
-
-function encryptPhotoPayload(info) {
-    const key = crypto.createHash('sha256').update(PHOTO_PASSPHRASE).digest();
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-    const data = Buffer.concat([cipher.update(JSON.stringify(info), 'utf8'), cipher.final()]);
-    return JSON.stringify({
-        v: 1,
-        iv: iv.toString('base64'),
-        tag: cipher.getAuthTag().toString('base64'),
-        data: data.toString('base64')
-    });
-}
-
-async function syncUserPhoto(uid) {
-    const now = Date.now();
-    if (now - (lastPhotoUploadAt[uid] || 0) < PHOTO_INTERVAL) { console.error('[photo] 跳过：6h 频控内'); return; }
-    lastPhotoUploadAt[uid] = now;
-    try {
-        // 1) 从 OJ 抓照片。渲染进程 API 走本地 1145 代理（同源），OJ 的 Set-Cookie 实际存在
-        //    localhost:1145 域下（而非 jx.7fa4.cn），必须从这里读；OJ cookie 是 SameSite=Lax，
-        //    主进程 net.fetch 也不会自动附带，需手动加 Cookie 头（无 cookie 时 OJ 返回 200 的 HTML 登录页）
-        const ck = await session.defaultSession.cookies.get({ url: 'http://localhost:1145' });
-        const cookieHeader = ck.map(c => `${c.name}=${c.value}`).join('; ');
-        const photoRes = await net.fetch(`https://jx.7fa4.cn:8888/user/${uid}/photo`, {
-            signal: AbortSignal.timeout(10000),
-            headers: cookieHeader ? { Cookie: cookieHeader } : {}
-        });
-        if (!photoRes.ok) { console.error('[photo] OJ 抓取失败:', photoRes.status); return; }
-        const mime = (photoRes.headers.get('content-type') || '').split(';')[0].trim();
-        if (!/^image\/(jpeg|png|webp|gif)$/.test(mime)) { console.error('[photo] OJ 返回非图片:', mime, cookieHeader ? '(已带 cookie)' : '(会话无 OJ cookie)'); return; }
-        const buf = Buffer.from(await photoRes.arrayBuffer());
-        if (!buf.length || buf.length > 2 * 1024 * 1024) { console.error('[photo] 图片大小异常:', buf.length); return; }
-        console.error('[photo] 已抓取 OJ 照片', buf.length, 'B，开始上传');
-        // 2) 加密上传到官网
-        const body = encryptPhotoPayload({
-            uid,
-            mime,
-            data: buf.toString('base64'),
-            date: Date.now()
-        });
-        const upRes = await net.fetch(`${PHOTO_ENDPOINT_BASE}/user/${uid}/photo`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body
-        });
-        if (!upRes.ok) console.error('[photo] 上传失败:', upRes.status, await upRes.text().catch(() => ''));
-        else console.error('[photo] 上传成功');
-    } catch (e) {
-        console.error('[photo] 同步失败:', e.message);
+// OJ 会话 cookie（上报时交给官网，由官网自己带它去 OJ 取档案与头像）
+// 存在渲染层页面的 origin 下（dev 是 vite 端口、生产是本地代理端口），逐个查后按 name 去重
+async function ojCookieHeader() {
+    const seen = new Map();
+    const origins = [];
+    if (serverPort > 0) origins.push(`http://127.0.0.1:${serverPort}`, `http://localhost:${serverPort}`);
+    if (devOriginPort) origins.push(`http://127.0.0.1:${devOriginPort}`, `http://localhost:${devOriginPort}`);
+    for (const url of origins) {
+        try {
+            for (const c of await session.defaultSession.cookies.get({ url })) {
+                if (!seen.has(c.name)) seen.set(c.name, c.value);
+            }
+        } catch { /* 单个 origin 没 cookie 就跳过 */ }
     }
+    return [...seen].map(([name, value]) => `${name}=${value}`).join('; ');
 }
 
 // ========== 海报（客户端投稿 → 服务端 /dev 审核 → 公开） ==========

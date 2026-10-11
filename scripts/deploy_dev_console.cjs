@@ -27,7 +27,7 @@ const CONSOLE_DIR = path.join(ROOT, 'dev-console');
 const SERVER_DIR = path.join(ROOT, 'server');
 
 // 服务器参数（与现有运维一致）
-const SSH_KEY = process.env.DEPLOY_SSH_KEY || 'D:/projects/main/.ssh/tencent_server.key';
+const SSH_KEY = process.env.DEPLOY_SSH_KEY || path.join(os.homedir(), '.ssh', 'tencent');
 const SSH_HOST = process.env.DEPLOY_SSH_HOST || 'ubuntu@forfof.cloud';
 const API_DIR = process.env.DEPLOY_API_DIR || '/home/ubuntu/website-api';
 const WEBSITE_DIR = process.env.DEPLOY_WEBSITE_DIR || '/home/ubuntu/website';

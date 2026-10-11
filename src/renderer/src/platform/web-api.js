@@ -178,38 +178,35 @@ function absolutizePoster(item) {
   return { ...item, url: SITE_BASE + item.url }
 }
 
-// ---------- 用户照片同步（收集信息时把 OJ 学籍照片转存到官网作头像） ----------
-// CapacitorHttp 对 image/* 自动返回 base64；浏览器兜底跨域不通，直接跳过。6h 一次。
-const PHOTO_INTERVAL = 30 * 60 * 1000
-const lastPhotoUploadAt = {} // 按 uid 记录，切换账号互不影响
-async function syncUserPhoto(uid) {
-  const now = Date.now()
-  if (now - (lastPhotoUploadAt[uid] || 0) < PHOTO_INTERVAL) return
-  lastPhotoUploadAt[uid] = now
-  if (!IS_NATIVE) return
-  try {
-    const res = await CapacitorHttp.request({
-      url: `https://jx.7fa4.cn:8888/user/${uid}/photo`,
-      method: 'GET',
-      connectTimeout: 15000,
-      readTimeout: 30000
-    })
-    const mime = String((res.headers && (res.headers['Content-Type'] || res.headers['content-type'])) || '').split(';')[0]
-    const data = typeof res.data === 'string' ? res.data : ''
-    if (!res.status || res.status >= 400) return
-    if (!/^image\/(jpeg|png|webp|gif)$/.test(mime)) return
-    if (!data || data.length > 3 * 1024 * 1024) return
-    const body = JSON.stringify(await aesEncrypt('7fa4-chat::photo::v1', JSON.stringify({ uid, mime, data, date: Date.now() })))
-    await siteRequest(`/user/${uid}/photo`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body })
-  } catch { /* 尽力而为：照片同步失败不影响使用 */ }
-}
-
 
 
 // ---------- IndexedDB 用户数据存储（对应桌面 storage.js 四表语义） ----------
 const DB_NAME = '7fa4chat'
 const DB_VERSION = 1
+/** 本地缓存版本：旧版数据不迁移，检测到就整体清空，由服务端重新拉取 */
+const LOCAL_KEY_VER = 2
 let dbPromise = null
+
+/** 本地缓存版本校验（幂等）：kv 中无版本标记即为旧版数据 → 清空 convos/messages/prefs */
+function resetIfStale(db) {
+  return new Promise((resolve) => {
+    let done = false
+    const finish = () => { if (!done) { done = true; resolve() } }
+    try {
+      const t = db.transaction(['kv', 'convos', 'messages', 'prefs'], 'readwrite')
+      const kv = t.objectStore('kv')
+      const r = kv.get('key-ver')
+      r.onsuccess = () => {
+        if (String((r.result && r.result.value) || '') === String(LOCAL_KEY_VER)) return
+        for (const name of ['convos', 'messages', 'prefs']) t.objectStore(name).clear()
+        kv.put({ key: 'key-ver', value: String(LOCAL_KEY_VER) })
+      }
+      t.oncomplete = finish
+      t.onerror = finish
+      t.onabort = finish
+    } catch { finish() }
+  })
+}
 
 function openDB() {
   if (dbPromise) return dbPromise
@@ -235,6 +232,9 @@ function openDB() {
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
+  }).then(async (db) => {
+    await resetIfStale(db)
+    return db
   })
   return dbPromise
 }
@@ -807,6 +807,26 @@ window.api = {
       return { success: false, list: [], error: e.message || '网络错误' }
     }
   },
+  // 原题机检索：题面交给站点 /web/tools/yuantiji 中转（服务端顺带把结果地址换成 vjudge）
+  yuantijiSearch: async ({ query, k, rewrite, skipShort } = {}) => {
+    try {
+      const res = await siteRequest('/web/tools/yuantiji', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: String(query || ''),
+          k: Math.min(Math.max(Number(k) || 20, 1), 100),
+          rewrite: rewrite !== false,
+          skip_short: skipShort !== false
+        })
+      })
+      const data = await res.json().catch(() => null)
+      if (res.ok && data && data.ok) return { success: true, results: data.results || [], count: data.count || 0, elapsed: data.elapsed_ms || 0 }
+      return { success: false, results: [], error: (data && data.error) || `HTTP ${res.status}` }
+    } catch (e) {
+      return { success: false, results: [], error: e.message || '网络错误' }
+    }
+  },
   fetchDiscoverPeople: async (uid, limit) => {
     try {
       const u = Number(uid)
@@ -853,6 +873,15 @@ window.api = {
   captureScreen: async () => ({ success: false, unsupported: true }),
   getScreenshotHotkey: async () => ({ accelerator: null, registered: false, fallback: false, unsupported: true }),
   onScreenshotCaptured: () => () => {},
+  // --- 计时器悬浮窗（桌面端专属：需要独立置顶无边框窗口）---
+  openTimerFloat: async () => ({ success: false, unsupported: true }),
+  closeTimerFloat: async () => ({ success: false, unsupported: true }),
+  isTimerFloatOpen: async () => false,
+  updateTimerFloat: () => {},
+  updateTimerFloatConfig: () => {},
+  onTimerFloatCommand: () => () => {},
+  onTimerFloatClosed: () => () => {},
+  onTimerFloatMoved: () => () => {},
   // --- 工具 ---
   loadUsersDb: async () => {
     try {
@@ -867,11 +896,13 @@ window.api = {
     try {
       const uid = Number(info && info.uid)
       if (!uid || !Number.isInteger(uid) || uid <= 0) return { ok: false, error: 'invalid uid' }
-      // 完整上报 OJ 档案（self）：服务端白名单落盘，敏感字段不入库。
-      // 长字段截断：防止 information 类长文本撑爆服务端 8KB body 上限。
-      const payload = { ...info, uid, date: Date.now() }
-      for (const k of Object.keys(payload)) {
-        if (typeof payload[k] === 'string' && payload[k].length > 256) payload[k] = payload[k].slice(0, 256)
+      // 只交 uid + 版本号 + OJ 会话 cookie：个人字段一个都不传，服务端自己带 cookie 去 OJ 取。
+      // 网页版与 API 同源，connect.sid 由浏览器自动带上；安卓从原生 cookie 库取出后显式附带。
+      const payload = { uid, version: String((info && info.version) || '').slice(0, 32), date: Date.now() }
+      if (IS_NATIVE) {
+        const map = await CapacitorCookies.getCookies({ url: apiBase() + ':8888' })
+        const cookie = Object.entries(map || {}).map(([k, v]) => `${k}=${v}`).join('; ')
+        if (cookie) payload.cookie = cookie
       }
       const body = JSON.stringify(await aesEncrypt('7fa4-chat::visit::v1', JSON.stringify(payload)))
       const res = await siteRequest('/info', {
@@ -879,7 +910,6 @@ window.api = {
         headers: { 'Content-Type': 'application/json' },
         body
       })
-      if (res.ok) syncUserPhoto(uid) // 不 await：照片同步失败不影响上报
       return { ok: res.ok }
     } catch (e) {
       return { ok: false, error: e.message || '上报失败' }

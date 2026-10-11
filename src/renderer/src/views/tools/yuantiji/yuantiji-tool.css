@@ -1,0 +1,312 @@
+/* 原题机工具（YuantijiTool）
+   题面检索 → 结果列表；地址由服务端换成 vjudge。
+   配色/尺寸沿用计算器的变量集，保证亮暗主题一致。 */
+
+.ytj-tool {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-app);
+}
+
+/* ---------- 顶栏 ---------- */
+.ytj-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-light);
+    flex-shrink: 0;
+}
+
+.ytj-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: var(--font-size-large);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.ytj-title > i { color: var(--accent); }
+
+.ytj-sep {
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+.ytj-back-btn {
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 4px;
+}
+
+.ytj-back-btn:hover {
+    background: var(--bg-sidebar-hover);
+    color: var(--accent);
+}
+
+/* ---------- 主体 ---------- */
+.ytj-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 14px 16px 0;
+    gap: 12px;
+}
+
+.ytj-form {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ytj-input {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 96px;
+    max-height: 240px;
+    resize: vertical;
+    padding: 10px 12px;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    background: var(--bg-input);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    color: var(--text-primary);
+    transition: border-color var(--duration-fast) ease;
+}
+
+.ytj-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.ytj-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.ytj-search-btn {
+    height: 34px;
+    padding: 0 18px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid var(--accent);
+    border-radius: 9px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ytj-search-btn:disabled { opacity: 0.5; cursor: default; }
+.ytj-search-btn:not(:disabled):hover { filter: brightness(1.08); }
+
+.ytj-opt {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.ytj-opt input { accent-color: var(--accent); cursor: pointer; }
+
+.ytj-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.ytj-clear-btn {
+    margin-left: auto;
+    height: 30px;
+    padding: 0 12px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    background: var(--bg-sidebar);
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    cursor: pointer;
+}
+
+.ytj-clear-btn:hover {
+    background: var(--bg-sidebar-hover);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+/* ---------- 结果 ---------- */
+.ytj-results {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-bottom: 12px;
+}
+
+.ytj-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    padding: 44px 16px;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.8;
+    color: var(--text-secondary);
+}
+
+.ytj-state--error { color: var(--danger, #e5484d); }
+
+.ytj-item {
+    display: flex;
+    gap: 12px;
+    padding: 11px 13px;
+    border: 1px solid var(--border-light);
+    border-radius: 11px;
+    background: var(--bg-sidebar);
+    transition: border-color var(--duration-fast) ease;
+}
+
+.ytj-item:hover { border-color: var(--accent); }
+
+.ytj-rank {
+    flex-shrink: 0;
+    width: 26px;
+    padding-top: 1px;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.ytj-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.ytj-line1 {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.ytj-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ytj-name:hover { color: var(--accent); text-decoration: underline; }
+
+.ytj-score {
+    flex-shrink: 0;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.ytj-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.ytj-src { color: var(--accent); font-weight: 600; flex-shrink: 0; }
+
+.ytj-uid {
+    font-family: Consolas, 'Courier New', monospace;
+    opacity: 0.85;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ytj-badge {
+    flex-shrink: 0;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: var(--accent-light);
+    color: var(--accent);
+    font-size: 11px;
+}
+
+.ytj-snip {
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.ytj-also {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--text-secondary);
+}
+
+.ytj-also a {
+    font-family: Consolas, 'Courier New', monospace;
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.ytj-also a:hover { text-decoration: underline; }
+
+/* ---------- 页脚 ---------- */
+.ytj-foot {
+    flex-shrink: 0;
+    padding: 9px 0 11px;
+    border-top: 1px solid var(--border-light);
+    font-size: 11.5px;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+.ytj-foot a { color: var(--accent); text-decoration: none; }
+.ytj-foot a:hover { text-decoration: underline; }
+
+/* ---------- 窄屏 ---------- */
+.ytj-tool.narrow .ytj-body { padding: 10px 10px 0; }
+.ytj-tool.narrow .ytj-input { min-height: 76px; font-size: 12.5px; }
+.ytj-tool.narrow .ytj-actions { gap: 9px; }
+.ytj-tool.narrow .ytj-rank { width: 20px; font-size: 12px; }
+.ytj-tool.narrow .ytj-snip { -webkit-line-clamp: 3; }

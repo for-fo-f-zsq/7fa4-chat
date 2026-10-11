@@ -10,16 +10,57 @@
 
       <div class="tm-header-right">
         <div class="tm-seg tm-layout-seg" title="显示格数">
-          <button v-for="n in LAYOUTS" :key="n" :class="{ on: layout === n }" @click="layout = n">{{ n }} 格</button>
+          <button v-for="n in LAYOUTS" :key="n" :class="{ on: timer.layout === n }" @click="timer.layout = n">{{ n }} 格</button>
         </div>
         <button
           class="tm-icon-btn"
-          :class="{ on: soundOn }"
-          :title="soundOn ? '提示音：开' : '提示音：关'"
-          @click="soundOn = !soundOn"
+          :class="{ on: timer.soundOn }"
+          :title="timer.soundOn ? '提示音：开' : '提示音：关'"
+          @click="timer.soundOn = !timer.soundOn"
         >
-          <i :class="soundOn ? 'fas fa-volume-high' : 'fas fa-volume-xmark'"></i>
+          <i :class="timer.soundOn ? 'fas fa-volume-high' : 'fas fa-volume-xmark'"></i>
         </button>
+
+        <!-- 计时器悬浮窗：独立置顶小窗，开了就一直留着（由计时引擎托管），只有点 ✕ 才关（桌面端专属） -->
+        <div v-if="timer.floatSupported" class="tm-float-wrap">
+          <div class="tm-float-group">
+            <button
+              class="tm-icon-btn tm-float-main"
+              :class="{ on: timer.float.on }"
+              :title="timer.float.on ? '关闭计时器悬浮窗' : '打开计时器悬浮窗（置顶显示，随时瞄一眼）'"
+              @click="toggleFloat"
+            >
+              <i class="fas fa-window-restore"></i>
+            </button>
+            <button
+              class="tm-icon-btn tm-float-caret"
+              :class="{ on: timer.float.on }"
+              title="悬浮窗设置（位置 / 置顶）"
+              @click.stop="toggleFloatPanel"
+            >
+              <i class="fas fa-chevron-down"></i>
+            </button>
+          </div>
+          <div v-if="timer.floatPanelOpen" class="tm-float-pop" @click.stop>
+            <div class="tm-float-title">计时器悬浮窗</div>
+            <div class="tm-float-row">
+              <span class="tm-float-label">位置</span>
+              <div class="tm-float-pos">
+                <button
+                  v-for="opt in FLOAT_POS"
+                  :key="opt.key"
+                  :class="{ on: timer.float.pos === opt.key }"
+                  :title="opt.label"
+                  @click="setFloatPos(opt.key)"
+                >{{ opt.short }}</button>
+              </div>
+            </div>
+            <label class="tm-float-check">
+              <input type="checkbox" v-model="timer.float.onTop" @change="pushFloatConfig" /><span>窗口置顶</span>
+            </label>
+            <p class="tm-float-tip">直接拖动悬浮窗可自由移动，位置会被记住；切换「位置」则回到预设角落。</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -31,7 +72,7 @@
       <span class="tm-hint" v-if="!isNarrow">输入框回车即开始</span>
     </div>
 
-    <div class="tm-stage" :class="`layout-${layout}`">
+    <div class="tm-stage" :class="`layout-${timer.layout}`">
       <section
         v-for="cell in shownPanels"
         :key="cell.i"
@@ -48,6 +89,16 @@
             <span class="tm-who-name" :class="{ custom: !!(cell.p.customName && !cell.p.uid) }">{{ panelUser(cell.p)?.name || '选择用户' }}</span>
             <i class="fas fa-chevron-down tm-who-caret"></i>
           </button>
+
+          <input
+            v-model="cell.p.task"
+            class="tm-task"
+            type="text"
+            maxlength="40"
+            placeholder="任务（可选）"
+            spellcheck="false"
+            @keydown.enter="onTaskEnter"
+          />
 
           <div
             v-if="pickerOpen === cell.i"
@@ -156,97 +207,38 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { store } from '../../../store.js'
 import { getAvatarInitial, getGradeColor, ranklistOrder, usersJson } from '../../../utils.js'
 import { useNarrow } from '../../../composables/useNarrow.js'
-import endSoundSrc from '../../../assets/timer-end.mp3'
+import {
+  timer, LAYOUTS, QUICK, PALETTE, FLOAT_POS,
+  panelUser, start, reset, toggle, toggleLabel, setMode,
+  onDurationInput, onTargetChange, setQuick, toggleAll, resetAll,
+  toggleFloat, setFloatPos, pushFloatConfig, toggleFloatPanel, saveConfig
+} from './timerStore.js'
 import './timer-tool.css'
 
 defineEmits(['back'])
 
 const { isNarrow } = useNarrow()
 
-const STORAGE_KEY = '7fa4-timer-v1'
-const PANEL_COUNT = 4
-const LAYOUTS = [1, 2, 4]
-const QUICK = [1, 3, 5, 10]
 // 用户选择下拉的高度上限（与 timer-tool.css 的 max-height 对应）
 const PICKER_WANT = 380
 const BASE_FONT = 11 // cqw，与 CSS 中 .tm-time 的 min() 首项一致（超长时按位数折算）
-// 下课时间：12:00 / 17:30 / 22:00
-const BREAK_TIMES = [
-  [12, 0],
-  [17, 30],
-  [22, 0]
-]
-
-// 最近的下课时刻（今天剩下的第一个；都过了则取明天 12:00）——「目标时刻」的默认值
-function nextBreakTarget(from = Date.now()) {
-  const base = new Date(from)
-  for (const [h, m] of BREAK_TIMES) {
-    const t = new Date(base)
-    t.setHours(h, m, 0, 0)
-    if (t.getTime() > from) return t.getTime()
-  }
-  const t = new Date(base)
-  t.setDate(t.getDate() + 1)
-  t.setHours(BREAK_TIMES[0][0], BREAK_TIMES[0][1], 0, 0)
-  return t.getTime()
-}
-
-// 每格配色：取自主题色板 `css/themes/palette.css`（每套主题一组 --palette-1..4，
-// 均为该主题色系下适度提纯的鲜艳色；缺失时回落 :root 的 default 组）
-const PALETTE = ['var(--palette-1)', 'var(--palette-2)', 'var(--palette-3)', 'var(--palette-4)']
 
 const pad = (n) => String(n).padStart(2, '0')
 
-function toLocalInput(ts) {
-  const d = new Date(ts)
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
+/* ---------- 展示 ---------- */
+const shownPanels = computed(() => timer.panels.slice(0, timer.layout).map((p, i) => ({ p, i })))
+const anyRunning = computed(() => timer.panels.some((p) => p.running))
 
-/* 时长解析：支持 "1:30:00"、"05:00"、"90"(分钟)、"0.5"(分钟) */
-function parseDuration(str) {
-  if (str == null) return 0
-  const s = String(str).trim()
-  if (!s) return 0
-  if (/^\d+(\.\d+)?$/.test(s)) return Math.round(parseFloat(s) * 60000)
-  const parts = s.split(':').map((p) => Number(p.trim()))
-  if (parts.some((n) => !Number.isFinite(n))) return 0
-  let sec = 0
-  for (const p of parts) sec = sec * 60 + p
-  return Math.max(0, Math.round(sec * 1000))
-}
-
-function createPanel() {
-  return {
-    uid: null,
-    // 自定义名字：未登录或名单外的人用它计时（与 uid 互斥，存 localStorage）
-    customName: '',
-    mode: 'duration',
-    durationText: '00:05:00',
-    targetText: toLocalInput(nextBreakTarget()),
-    total: 0,        // 本轮计时总时长（进度条用）
-    remaining: 5 * 60 * 1000,
-    running: false,
-    done: false,
-    deadline: 0
-  }
-}
-
-const panels = reactive(Array.from({ length: PANEL_COUNT }, createPanel))
-const layout = ref(4)
-const soundOn = ref(true)
 const pickerOpen = ref(null)
 const pickerUp = ref(false)
 const pickerMaxH = ref(380)
 const pickerRef = ref(null)
 const pickerQuery = ref('')
 const pickerInputRef = ref(null)
-
-/* ---------- 展示 ---------- */
-const shownPanels = computed(() => panels.slice(0, layout.value).map((p, i) => ({ p, i })))
 
 function timeText(p) {
   const total = Math.ceil(p.remaining / 1000)
@@ -269,19 +261,6 @@ function progressPct(p) {
 }
 
 /* ---------- 用户选择 ---------- */
-function panelUser(p) {
-  // 自定义名字优先：未登录 / 名单里没有的人也能计时（且不依赖任何远端数据）
-  const custom = String(p.customName || '').trim()
-  if (custom) {
-    return { name: custom, initial: custom.charAt(0), color: 'var(--accent)' }
-  }
-  if (!p.uid) return null
-  const u = store.users[p.uid]
-  const info = usersJson?.[p.uid]
-  const name = info?.name || u?.realname || u?.nickname || u?.username || `User_${p.uid}`
-  return { name, initial: getAvatarInitial(p.uid), color: getGradeColor(p.uid) }
-}
-
 const pickerResult = computed(() => {
   const q = pickerQuery.value.trim().toLowerCase()
   const out = []
@@ -360,8 +339,8 @@ function closePicker() {
 }
 
 function selectUser(i, u) {
-  panels[i].uid = u ? u.uid : null
-  panels[i].customName = ''
+  timer.panels[i].uid = u ? u.uid : null
+  timer.panels[i].customName = ''
   customEditing.value = null
   closePicker()
 }
@@ -373,275 +352,52 @@ const customInputRef = ref(null)
 
 function openCustomName(i) {
   customEditing.value = i
-  customDraft.value = panels[i].customName || ''
+  customDraft.value = timer.panels[i].customName || ''
   nextTick(() => refEl(customInputRef.value)?.focus?.())
 }
 
 function commitCustomName(i) {
   const v = customDraft.value.trim().slice(0, 24)
-  panels[i].customName = v
-  if (v) panels[i].uid = null // 与名单用户互斥，避免出现「有 uid 又顶着别的名字」
+  timer.panels[i].customName = v
+  if (v) timer.panels[i].uid = null // 与名单用户互斥，避免出现「有 uid 又顶着别的名字」
   customEditing.value = null
   closePicker()
 }
 
+/* 任务框回车 = 结束编辑（中文组词时的回车不误触）。
+   任务经 v-model 实时写进 store（watch 自动落盘 + 推悬浮窗），无需额外保存动作。 */
+function onTaskEnter(e) {
+  if (e.isComposing) return
+  e.target.blur()
+}
+
 function onDocMouseDown(e) {
+  // 悬浮窗设置气泡：点外部即收起
+  if (timer.floatPanelOpen && !e.target?.closest?.('.tm-float-wrap')) timer.floatPanelOpen = false
   if (pickerOpen.value === null) return
   if (e.target?.closest?.('.tm-panel-head')) return
   closePicker()
 }
 
-/* ---------- 计时 ---------- */
-function loadFromInput(p) {
-  p.done = false
-  if (p.mode === 'target') {
-    const t = new Date(p.targetText).getTime()
-    p.remaining = Number.isFinite(t) ? Math.max(0, t - Date.now()) : 0
-  } else {
-    p.remaining = parseDuration(p.durationText)
-  }
-  p.total = p.remaining
-}
-
-// 编辑时长时若未在运行，实时刷新显示（运行中不打断）
-function onDurationInput(p) {
-  if (!p.running) loadFromInput(p)
-}
-
-function setMode(p, mode) {
-  if (p.mode === mode) return
-  p.mode = mode
-  p.running = false
-  p.done = false
-  loadFromInput(p)
-}
-
-function onTargetChange(p) {
-  if (!p.running) loadFromInput(p)
-}
-
-function setQuick(p, minutes) {
-  p.mode = 'duration'
-  p.durationText = `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}:00`
-  p.done = false
-  p.running = false
-  loadFromInput(p)
-}
-
-/* 结束音效文件：用户提供的素材，已裁掉原文件开头 1.3s 的无声段（4.18s → 2.88s）。
-   走 vite 静态资源导入，生成的 URL 在 Electron / web / Android 三端都成立。 */
-let endAudioPrimed = false
-/* 预热：首次点击（开始/切音效开关）时就把音频拉进缓存，归零那刻才能立刻响 */
-function primeEndAudio() {
-  if (endAudioPrimed || !soundOn.value) return
-  endAudioPrimed = true
-  try { new Audio(endSoundSrc).load() } catch { /* 忽略：无音频能力时静默降级 */ }
-}
-
-let lastChimeAt = 0
-/* 结束提示音：播放音效文件。
-   1.2s 节流：多格几乎同时归零时不叠成一团噪音。
-   每次新建 audio 元素 —— 前一次尚未播完时允许叠加重放（同 URL 命中缓存，起播延迟可忽略）。 */
-function playChime() {
-  if (!soundOn.value) return
-  const now = Date.now()
-  if (now - lastChimeAt < 1200) return
-  lastChimeAt = now
-  try {
-    const a = new Audio(endSoundSrc)
-    a.volume = 1
-    const p = a.play()
-    if (p && typeof p.catch === 'function') p.catch(() => {})
-  } catch { /* 忽略：无音频能力时静默无声 */ }
-}
-
-function start(p) {
-  if (p.running) return
-  p.done = false
-  if (p.mode === 'target') {
-    // 目标时刻：每次以「距目标的时长」为整段
-    const t = new Date(p.targetText).getTime()
-    if (Number.isFinite(t)) p.remaining = Math.max(0, t - Date.now())
-    p.total = p.remaining
-  } else if (p.remaining <= 0) {
-    // 已归零（或尚未载入）：按输入框时长重新整段
-    loadFromInput(p)
-  }
-  // 注意：中途暂停后继续时**不要**改写 total，否则进度条会从 0 重算
-  if (p.remaining <= 0) return
-  p.running = true
-  p.deadline = Date.now() + p.remaining
-  primeEndAudio()
-  saveConfig()
-}
-
-function pause(p) {
-  if (!p.running) return
-  p.remaining = Math.max(0, p.deadline - Date.now())
-  p.running = false
-  saveConfig()
-}
-
-function reset(p) {
-  p.running = false
-  p.done = false
-  loadFromInput(p)
-  saveConfig()
-}
-
-// 开始/暂停合并为一个按钮：运行中→暂停；中途停下过→继续；否则→开始
-function toggleLabel(p) {
-  if (p.running) return '暂停'
-  return p.total > 0 && p.remaining > 0 && p.remaining < p.total ? '继续' : '开始'
-}
-
-function toggle(p) {
-  if (p.running) pause(p)
-  else start(p)
-}
-
-const anyRunning = computed(() => panels.some((p) => p.running))
-
-function toggleAll() {
-  if (anyRunning.value) pauseAll()
-  else startAll()
-}
-
-function startAll() {
-  for (const p of panels) start(p)
-}
-
-function pauseAll() {
-  for (const p of panels) pause(p)
-}
-
-function resetAll() {
-  for (const p of panels) reset(p)
-}
-
-/* ---------- 心跳 ---------- */
-let timerId = null
-function tick() {
-  const now = Date.now()
-  for (const p of panels) {
-    if (!p.running) continue
-    p.remaining = Math.max(0, p.deadline - now)
-    if (p.remaining === 0) {
-      p.running = false
-      p.done = true
-      playChime()
-    }
-  }
-}
-
-/* ---------- 持久化 ---------- */
-function saveConfig() {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        layout: layout.value,
-        soundOn: soundOn.value,
-        panels: panels.map((p) => ({
-          uid: p.uid,
-          customName: p.customName,
-          mode: p.mode,
-          durationText: p.durationText,
-          targetText: p.targetText,
-          // 运行态一并落盘：离开工具页再回来（组件重建）时接着走，而不是重置
-          running: p.running,
-          deadline: p.deadline,
-          total: p.total,
-          remaining: p.remaining
-        }))
-      })
-    )
-  } catch { /* 忽略：隐私模式等存储不可用 */ }
-}
-
-function restoreConfig() {
-  let cfg = null
-  try {
-    cfg = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
-  } catch { cfg = null }
-  const saved = Array.isArray(cfg?.panels) ? cfg.panels : []
-  if (cfg) {
-    if (LAYOUTS.includes(cfg.layout)) layout.value = cfg.layout
-    if (typeof cfg.soundOn === 'boolean') soundOn.value = cfg.soundOn
-  }
-  panels.forEach((p, i) => {
-    const s = saved[i]
-    if (s) {
-      p.uid = s.uid ?? null
-      p.customName = typeof s.customName === 'string' ? s.customName : ''
-      p.mode = s.mode === 'target' ? 'target' : 'duration'
-      if (typeof s.durationText === 'string') p.durationText = s.durationText
-      if (typeof s.targetText === 'string' && s.targetText) p.targetText = s.targetText
-    }
-    const savedTotal = Number.isFinite(s?.total) ? s.total : 0
-    const savedRemaining = Number.isFinite(s?.remaining) ? s.remaining : 0
-    // 1) 上次离开时正在计时且未到点：接着走
-    if (s?.running === true && Number.isFinite(s.deadline) && s.deadline > Date.now()) {
-      p.total = savedTotal
-      p.deadline = s.deadline
-      p.remaining = s.deadline - Date.now()
-      p.running = true
-      p.done = false
-      return
-    }
-    // 2) 上次离开时在计时但已过点：显示归零（不补响铃）
-    if (s?.running === true && Number.isFinite(s.deadline)) {
-      p.total = savedTotal
-      p.remaining = 0
-      p.running = false
-      p.done = true
-      return
-    }
-    // 3) 未运行：按输入框重算；但若是「中途暂停」，保留原有进度（进度条不回退到 0）
-    loadFromInput(p)
-    if (p.mode === 'duration' && savedTotal > 0 && savedRemaining > 0 && savedRemaining < savedTotal) {
-      p.total = savedTotal
-      p.remaining = savedRemaining
-    }
-  })
-}
-
-// 仅配置字段变化时落盘（剩余时间每 100ms 变化，不能进 watch）
-const configSnapshot = computed(() =>
-  JSON.stringify({
-    layout: layout.value,
-    soundOn: soundOn.value,
-    panels: panels.map((p) => [p.uid, p.customName, p.mode, p.durationText, p.targetText])
-  })
-)
-watch(configSnapshot, saveConfig)
-watch(soundOn, (v) => { if (v) primeEndAudio() })
+/* 开始/暂停/重置/落盘/心跳/悬浮窗桥接 全在 timerStore.js —— 那份状态活得比本页久，
+   点返回不会把计时和悬浮窗一起带走。本组件只负责这一页的交互与展示。 */
 
 function onKeydown(e) {
   if (e.key === 'Escape' && pickerOpen.value !== null) closePicker()
 }
 
 onMounted(() => {
-  restoreConfig()
-  timerId = setInterval(tick, 100)
   document.addEventListener('mousedown', onDocMouseDown)
   window.addEventListener('keydown', onKeydown)
-  // 目标时刻兜底：缺失/非法、或上次存的时刻已经过去（且该格未处于归零态）→ 重置为最近的下课时间
-  const now = Date.now()
-  for (const p of panels) {
-    const t = new Date(p.targetText).getTime()
-    if (!p.targetText || !Number.isFinite(t) || (t < now && !p.done)) {
-      p.targetText = toLocalInput(nextBreakTarget(now))
-    }
-  }
 })
 
 onBeforeUnmount(() => {
-  // 离开工具页时把当前运行态落盘（下次进入据此续算）
+  // 落一次盘，保证刚改的配置在下次进入时还在
   saveConfig()
-  if (timerId) clearInterval(timerId)
-  timerId = null
+  // 注意：这里**不关**悬浮窗、也不拆悬浮窗的事件监听 —— 都归 timerStore.js 管，
+  // 否则返回后窗口还在、按钮却没人响应（僵尸窗口）。
   document.removeEventListener('mousedown', onDocMouseDown)
   window.removeEventListener('keydown', onKeydown)
 })
 </script>
+

@@ -62,39 +62,110 @@
     display: flex;
     flex-direction: column;
     padding: 16px;
-    gap: 12px;
+    gap: 14px;
     overflow-y: auto;
 }
 
+/* ---------- 模式切换：分段控件（不再各占一行 1/3 的大方块） ---------- */
+.calc-modes {
+    flex-shrink: 0;
+    align-self: flex-start;
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border-light);
+    border-radius: 11px;
+}
+
+.calc-mode-btn {
+    height: 30px;
+    padding: 0 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--duration-fast) ease, color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+}
+
+.calc-mode-btn > i { font-size: 11px; }
+
+.calc-mode-btn:hover { color: var(--accent); }
+
+.calc-mode-btn.active {
+    background: var(--bg-input);
+    color: var(--accent);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .10);
+}
+
+/* ---------- 显示区：模数选择在输入框左边 ---------- */
 .calc-display {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     flex-shrink: 0;
 }
 
+.calc-display-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.calc-mod-select,
+.calc-mod-custom {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    background: var(--bg-input);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    color: var(--text-primary);
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 14px;
+    padding: 0 10px;
+    transition: border-color var(--duration-fast) ease;
+}
+
+.calc-mod-select { max-width: 44%; cursor: pointer; }
+.calc-mod-custom { width: 116px; }
+
 .calc-expr-input {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     box-sizing: border-box;
     padding: 12px 14px;
-    font-size: 18px;
+    font-size: 19px;
     font-family: Consolas, 'Courier New', monospace;
     background: var(--bg-input);
     border: 1px solid var(--border-light);
     border-radius: 10px;
     color: var(--text-primary);
+    transition: border-color var(--duration-fast) ease;
 }
 
+.calc-mod-select:focus,
+.calc-mod-custom:focus,
 .calc-expr-input:focus {
     outline: none;
     border-color: var(--accent);
 }
 
+/* 结果：右对齐 + 等宽，像真计算器的显示屏 */
 .calc-result {
-    min-height: 24px;
+    min-height: 26px;
     padding: 0 4px;
-    font-size: 15px;
+    font-size: 16px;
+    font-weight: 600;
+    font-family: Consolas, 'Courier New', monospace;
     color: var(--accent);
+    text-align: right;
     word-break: break-all;
     line-height: 1.5;
 }
@@ -103,22 +174,59 @@
     color: var(--danger, #e5484d);
 }
 
-.calc-pad {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 6px;
-    flex-shrink: 0;
+/* ---------- 网格 ---------- */
+.calc-grid { display: grid; gap: 6px; flex-shrink: 0; }
+.calc-grid--funcs { grid-template-columns: repeat(6, 1fr); }
+.calc-grid--keys { grid-template-columns: repeat(5, 1fr); }
+
+/* ---------- 函数键（6 列；常量与三角/对数在前，数论与位运算在后） ---------- */
+.calc-func {
+    height: 34px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    background: var(--bg-sidebar);
+    color: var(--text-primary);
+    font-size: 12.5px;
+    font-family: Consolas, 'Courier New', monospace;
+    cursor: pointer;
+    transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease,
+                color var(--duration-fast) ease, transform .06s ease;
 }
 
+.calc-func:hover {
+    background: var(--bg-sidebar-hover);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.calc-func:active { transform: translateY(1px); }
+
+/* ---------- 主键盘（5 列） ---------- */
 .calc-key {
-    height: 44px;
+    height: 46px;
     border: 1px solid var(--border-light);
-    border-radius: 9px;
+    border-radius: 10px;
     background: var(--bg-input);
     color: var(--text-primary);
-    font-size: 16px;
+    font-size: 17px;
+    font-weight: 500;
     cursor: pointer;
-    transition: all var(--duration-fast) ease;
+    transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease,
+                color var(--duration-fast) ease, transform .06s ease;
+}
+
+/* 分类配色：运算符成列、编辑键弱化，只影响观感不改行为。
+   ⚠️ 不设 border-color，hover 的描边反馈才不会被吃掉。 */
+.calc-key--op {
+    background: var(--accent-light);
+    color: var(--accent);
+    font-weight: 600;
+}
+.calc-key--act {
+    background: var(--bg-sidebar);
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 500;
 }
 
 .calc-key:hover {
@@ -126,109 +234,26 @@
     border-color: var(--accent);
 }
 
+.calc-key:active { transform: translateY(1px); }
+
+/* 等号：末行占 3 格 + 实心 accent + 轻投影，主操作一眼可见 */
 .calc-key.wide {
+    grid-column: span 3;
     background: var(--accent);
     border-color: var(--accent);
     color: #fff;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .16);
 }
 
-.calc-bits {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 6px;
-    flex-shrink: 0;
-}
-
-.calc-bit {
-    height: 34px;
-    border: 1px solid var(--border-light);
-    border-radius: 8px;
-    background: var(--bg-sidebar);
-    color: var(--accent);
-    font-size: 13px;
-    font-family: Consolas, 'Courier New', monospace;
-    cursor: pointer;
-    transition: all var(--duration-fast) ease;
-}
-
-.calc-bit:hover {
-    background: var(--bg-sidebar-hover);
-    border-color: var(--accent);
-    color: var(--accent);
-}
-
-.calc-funcs {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
-    flex-shrink: 0;
-}
-
-.calc-func {
-    height: 32px;
-    border: 1px solid var(--border-light);
-    border-radius: 8px;
-    background: var(--bg-sidebar);
-    color: var(--text-secondary);
-    font-size: 12px;
-    cursor: pointer;
-    transition: all var(--duration-fast) ease;
-}
-
-.calc-func:hover {
-    background: var(--bg-sidebar-hover);
-    color: var(--accent);
-    border-color: var(--accent);
-}
-
-.calc-modbar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    border: 1px solid var(--border-light);
-    border-radius: 10px;
-    background: var(--bg-sidebar);
-    flex-shrink: 0;
-}
-
-.calc-modbar > i {
-    color: var(--accent);
-}
-
-.calc-modbar-label {
-    font-size: 12px;
-    color: var(--text-secondary);
-    flex: 1;
-    min-width: 0;
-}
-
-.calc-modbar-input {
-    width: 140px;
-    flex-shrink: 0;
-    box-sizing: border-box;
-    background: var(--bg-input);
-    border: 1px solid var(--border-light);
-    border-radius: 8px;
-    color: var(--text-primary);
-    padding: 6px 10px;
-    font-size: 12px;
-}
-
-.calc-modbar-input:focus {
-    outline: none;
-    border-color: var(--accent);
-}
-
-.calc-modbar-badge {
-    flex-shrink: 0;
-    font-size: 11px;
-    color: #fff;
+.calc-key.wide:hover {
     background: var(--accent);
-    padding: 3px 9px;
-    border-radius: 999px;
+    border-color: var(--accent);
+    color: #fff;
+    filter: brightness(1.08);
 }
 
+/* ---------- 历史 ---------- */
 .calc-side {
     width: 260px;
     flex-shrink: 0;
@@ -340,4 +365,26 @@
 }
 .calc-tool.narrow .calc-main {
     width: 100%;
+}
+/* 窄屏：函数区降到 5 列（6 列会把按键压到 ~55px，太窄）；主键盘保持 5 列
+   —— 主键盘末行 0 / . / = 需要 5 格，= 占 3 格。 */
+.calc-tool.narrow .calc-grid--funcs {
+    grid-template-columns: repeat(5, 1fr);
+}
+.calc-tool.narrow .calc-func {
+    height: 34px;
+    font-size: 12px;
+}
+/* 窄屏：模式分段控件与模数区都收紧，给输入框留空间 */
+.calc-tool.narrow .calc-mode-btn {
+    padding: 0 8px;
+    font-size: 12px;
+}
+.calc-tool.narrow .calc-mod-select {
+    max-width: 40%;
+    font-size: 13px;
+    padding: 0 6px;
+}
+.calc-tool.narrow .calc-mod-custom {
+    width: 86px;
 }

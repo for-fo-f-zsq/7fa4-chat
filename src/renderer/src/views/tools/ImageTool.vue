@@ -97,7 +97,7 @@
         </div>
         <div class="img-footer">
           <span class="img-meta">{{ currentName || '未命名' }} · {{ width }} × {{ height }}px{{ mime === 'image/jpeg' ? ' · JPEG' : mime === 'image/png' ? '' : ' · 保存时将转为 PNG' }}</span>
-          <button class="md-save-btn md-save-btn-icon" :title="'保存到文件'" :disabled="!dirty || !!loadError" @click="save"><i class="fas fa-save"></i></button>
+          <button class="md-save-btn md-save-btn-icon" :title="'保存到文件'" :disabled="!!loadError || (!dirty && !!savedPath)" @click="save"><i class="fas fa-save"></i></button>
         </div>
       </div>
     </div>
@@ -702,7 +702,8 @@ async function save() {
   // 以前这里是静默 return：没打开图片、或没有任何改动时按 Ctrl+S 完全没反馈，
   // 用户无法判断是「不需要保存」还是「保存坏了」。
   if (!canvasReady.value || !displayCanvas) { flashTip('还没有可保存的画面：请先打开图片或新建画布'); return }
-  if (!dirty.value) { flashTip('没有需要保存的改动'); return }
+  // 未落盘到任何文件时（如从截图/会话预览进入）保存本质是「另存为」，无改动也要放行；只有「已有文件且无新改动」才算没东西可存
+  if (!dirty.value && savedPath.value) { flashTip('没有需要保存的改动'); return }
   saving.value = true
   try {
     const { base64, mime: outMime, name } = flatten()
