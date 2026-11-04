@@ -46,7 +46,7 @@
           <div class="about-feat-icon"><i class="fas fa-comment-dots"></i></div>
           <div class="about-feat-body">
             <div class="about-feat-name">即时通讯</div>
-            <div class="about-feat-desc">私聊与群聊、@ 提醒与拍一拍；消息置顶收藏、自定义表情、图片与文件消息，历史记录完整拉取。</div>
+            <div class="about-feat-desc">私聊与群聊、@ 提醒与拍一拍；消息置顶、自定义表情、图片与文件消息，历史记录完整拉取。</div>
           </div>
         </div>
         <div class="about-feat">

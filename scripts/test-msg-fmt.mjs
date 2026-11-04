@@ -96,10 +96,10 @@ const j = (o) => JSON.stringify(o).replace(/"/g, '&quot;')
   chk('类型：javascript: 图片不当图片消息', !js.includes('src="javascript:'), js.slice(0, 150))
 }
 
-// 收藏重发（InputFooter sendFavorite 口径）：fmt 字段透传
+// 发送口径：fmt 字段透传
 {
   const obj = u.parseMsgContent(j({ type: 'text', content: 'a#b', fmt: 'txt' }))
-  chk('收藏：parseMsgContent 保留 fmt', obj.fmt === 'txt', '')
+  chk('发送：parseMsgContent 保留 fmt', obj.fmt === 'txt', '')
 }
 
 // ---------- 4. 汇总 ----------

@@ -70,12 +70,6 @@
         </div>
         <!-- 导航分组 -->
         <div class="nav-user-menu-group">
-          <div
-            class="nav-user-menu-item"
-            :class="{ disabled: isLocked('favorites') }"
-            :title="isLocked('favorites') ? '登录后可用' : ''"
-            @click="onMenuGo('favorites')"
-          ><i class="fas fa-star"></i><span>收藏</span></div>
           <div class="nav-user-menu-item" @click="go('update')"><i class="fas fa-cloud-upload-alt"></i><span>版本更新</span><span v-if="store.update.hasUpdate" class="nav-update-tag">有新版本</span></div>
           <div class="nav-user-menu-item" @click="go('donate')"><i class="fas fa-heart"></i><span>赞助</span></div>
           <div class="nav-user-menu-item" @click="go('about')"><i class="fas fa-info-circle"></i><span>关于</span></div>
@@ -131,7 +125,7 @@ const userTitle = computed(() => props.loggedIn ? (selfName.value || `UID ${self
 // 未登录（游客）进不去的入口：不隐藏，改为变浅且不可交互。
 // 隐藏会让人以为软件没这个功能；保留可见 + 灰掉 + 悬停提示"登录后可用"，才知道是登录态限制。
 // 与 ChatView.switchPage 的游客拦截同一份清单（那边是兜底，快捷键也走它）。
-const LOGIN_ONLY_PAGES = ['chat', 'favorites'];
+const LOGIN_ONLY_PAGES = ['chat'];
 function isLocked(page) { return !props.loggedIn && LOGIN_ONLY_PAGES.includes(page); }
 function onNavClick(page) { if (isLocked(page)) return; emit('switch', page); }
 function onMenuGo(page) { if (isLocked(page)) return; go(page); }

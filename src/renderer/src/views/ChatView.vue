@@ -12,7 +12,7 @@
     </div>
     <!-- 网络/登录状态横幅：位于 app-body 外，全宽横条 -->
     <div class="network-banner" v-if="store.logined && store.netError && !netBannerMuted"><i class="fas fa-wifi"></i> 未连接<template v-if="netDownText">，已断线 {{ netDownText }}</template>，正在尝试重新连接… <button class="banner-login-btn" @click="onUserAction('relogin')">重新登录</button><button class="banner-close" title="本次不再提示（重新连接成功后再次断开会重新出现）" @click="netBannerMuted = true"><i class="fas fa-times"></i></button></div>
-    <div class="network-banner not-logged-in" v-if="!store.logined && !guestBannerMuted"><i class="fas fa-user-lock"></i> 您还未登录，聊天与收藏暂不可用。 <button class="banner-login-btn" @click="gotoLogin">去登录</button><button class="banner-close" title="本次不再提示（重新登录或重启后会重新出现）" @click="guestBannerMuted = true"><i class="fas fa-times"></i></button></div>
+    <div class="network-banner not-logged-in" v-if="!store.logined && !guestBannerMuted"><i class="fas fa-user-lock"></i> 您还未登录，聊天暂不可用。 <button class="banner-login-btn" @click="gotoLogin">去登录</button><button class="banner-close" title="本次不再提示（重新登录或重启后会重新出现）" @click="guestBannerMuted = true"><i class="fas fa-times"></i></button></div>
     <div class="app-body" :class="{ narrow: isNarrowLayout }">
     <NavBar
       v-if="showNavBar"
@@ -89,7 +89,6 @@
         @openUserInfo="openuserinfo"
         @forward="startForward"
         @batchForward="batchForward"
-        @batchFavorite="batchFavorite"
         @openPreview="onOpenPreview"
         @vote="onPollVote"
       />
@@ -102,20 +101,8 @@
         :inputDisabled="inputDisabled"
       @dropFile="onDropFile"
       @openPreview="onOpenPreview"
-      @openFavorites="switchPage('favorites')"
       />
     </div>
-    <FavoritesPanel
-      v-if="pageType==='favorites'"
-      class="fade-content"
-      :class="{ 'fade-out': contentFading }"
-      @preview="onFavPreview"
-      @forward="onFavForward"
-      @copy="onFavCopy"
-      @download="onFavDownload"
-      @jump="onFavJump"
-      @back="backToChatList"
-    />
     <!-- 工具入口页（仅列表）；各工具在外层独立渲染：返回时按打开来源回到工具列表或对应会话 -->
     <ToolsView
       v-if="pageType==='tools' && currentTool==='list'"
@@ -306,7 +293,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, ingestMessage, clearPendingVotes, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys, isUserHiddenBySetting, normalizeFavorites, makeFavorite, makeVoteContent } from '../utils.js';
+import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, ingestMessage, clearPendingVotes, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys, isUserHiddenBySetting, makeVoteContent } from '../utils.js';
 
 import NavBar from '../components/NavBar.vue';
 import ConversationList from '../components/ConversationList.vue';
@@ -328,7 +315,6 @@ import InputModal from '../components/InputModal.vue';
 import AddFriendModal from '../components/AddFriendModal.vue';
 import GroupActionMenu from '../components/GroupActionMenu.vue';
 import SearchPanel from '../components/SearchPanel.vue';
-import FavoritesPanel from '../components/FavoritesPanel.vue';
 import ToolsView from './ToolsView.vue';
 import MarkdownTool from './tools/MarkdownTool.vue';
 import ImageTool from './tools/ImageTool.vue';
@@ -356,7 +342,6 @@ import '../css/shortcut-modal.css';
 import '../css/user-info.css';
 import '../css/addfriend-modal.css';
 import '../css/search-panel.css';
-import '../css/favorites-panel.css';
 import '../css/announcement.css';
 
 import 'katex/dist/katex.min.css';
@@ -388,9 +373,9 @@ const showNavBar = computed(() => {
   return navPageType.value === 'chat'
 })
 
-// 游客模式：聊天/收藏不可用，落到关于页浏览
+// 游客模式：聊天不可用，落到关于页浏览
 watch(() => store.logined, (logged) => {
-  if (!logged && (isChatPage.value || pageType.value === 'favorites')) {
+  if (!logged && isChatPage.value) {
     pageType.value = 'about';
     pageId.value = null;
   }
@@ -550,7 +535,7 @@ watch(pageType, (newType, oldType) => {
       });
     }, 300);
   } else if (fromChat || toChat) {
-    // 聊天页面与其他页面（设置/收藏/关于）之间切换
+    // 聊天页面与其他页面（设置/关于）之间切换
     listFading.value = true;
     contentFading.value = true;
     setTimeout(() => {
@@ -586,7 +571,7 @@ watch(pageId, (newId) => {
 
 // 登录后恢复本地数据：uid 就绪即触发 loadData()
 // 根因修复：onMounted 时若 /chat/info 失败（uid 未设置），loadData 会 return 跳过，
-// 之后轮询 update() 虽会设置 uid，但 loadData 不会再被调用 → 本地数据永不恢复 → 消息全从服务器重拉 + 收藏丢失
+// 之后轮询 update() 虽会设置 uid，但 loadData 不会再被调用 → 本地数据永不恢复 → 消息全从服务器重拉
 watch(() => (store.logined && store.self.uid) || false, (ready) => {
   if (ready) loadData();
 }, { immediate: true });
@@ -610,8 +595,8 @@ function startListResize(e) {
 
 // --- 页面导航 ---
 function switchPage(type) {
-  // 游客模式：聊天/收藏不可用，拦截导航
-  if (!store.logined && (type === 'chat' || type === 'favorites')) return;
+  // 游客模式：聊天不可用，拦截导航
+  if (!store.logined && type === 'chat') return;
   // 未保存的工具内容（图片/Markdown）：离开工具前先确认（保存/不保存/取消）
   if (toolsDirty.value && pageType.value === 'tools' && currentTool.value !== 'list') {
     pendingSwitch = { type };
@@ -650,7 +635,7 @@ function switchPage(type) {
   if (type === 'settings') updateSettingsPanel();
 }
 
-// 从头像菜单子页（收藏/设置/关于/更新/赞助）返回消息列表
+// 从头像菜单子页（设置/关于/更新/赞助）返回消息列表
 function backToChatList() {
   // 未登录（游客）无消息列表可回：返回按钮始终可用，回到游客可用的工具列表；
   // 登录用户则回到消息列表。switchPage('tools') 会把 currentTool 置 'list' 回到工具列表。
@@ -1076,19 +1061,6 @@ function batchForward() {
   messageListRef.value?.exitMultiSelect();
 }
 
-function batchFavorite() {
-  const selectedIds = [...store.selectedMsgIds];
-  if (!selectedIds.length) return;
-  for (const msgId of selectedIds) {
-    const msg = store.messages[msgId];
-    if (!msg) continue;
-    if (!store.favorites.some(f => f.id === msgId)) {
-      store.favorites.push(makeFavorite(msg, pageType.value, pageId.value));
-    }
-  }
-  messageListRef.value?.exitMultiSelect();
-}
-
 // --- 全部已读 ---
 function markAllRead() {
   for (const user of Object.values(store.users)) { user.unread = 0; }
@@ -1144,22 +1116,9 @@ function toggleSearch() { searchVisible.value = !searchVisible.value; }
 function closeSearch() { searchVisible.value = false; }
 
 // --- 弹窗 ---
-function onFavPreview(fav) {
-  previewData.type = 'html';
-  previewData.title = '收藏消息';
-  previewData.src = '';
-  previewData.text = parseContent(fav.content);
-  previewData.rawContent = fav.content;
-  previewData.showActions = true;
-  previewData.show = true;
-}
-
-function onFavForward(fav) {
-  startForward(fav.content);
-}
-
-async function onFavCopy(fav) {
-  const obj = parseMsgContent(fav.content);
+/** 复制消息内容（文本 / 表情 / 文件 / 自定义表情），供消息预览底部栏复用 */
+async function copyMsgContent(content) {
+  const obj = parseMsgContent(content);
   if (obj && obj.type === 'file' && obj.data) {
     const isImage = /^image\//.test(obj.mime || '');
     if (isImage) {
@@ -1176,33 +1135,26 @@ async function onFavCopy(fav) {
     if (obj) {
       if (obj.type === 'text') text = obj.content;
       else if (obj.type === 'emoji') text = obj.content;
-      else text = fav.content;
+      else text = content;
     } else {
-      text = fav.content;
+      text = content;
     }
     await window.api.clipboardWriteText(text);
   }
 }
 
-function onFavDownload(fav) {
-  const obj = parseMsgContent(fav.content);
+/** 下载消息内嵌的文件 / 图片，供消息预览底部栏复用 */
+function downloadMsgContent(content) {
+  const obj = parseMsgContent(content);
   if (obj && (obj.type === 'file' || obj.type === 'sticker') && obj.data) {
     window.api.downloadFile(obj.data, obj.name || 'download', obj.mime);
   }
 }
 
-// 收藏 → 跳转原消息：先确保目标会话的消息已从 SQLite 懒加载，再走全局跨会话跳转通路。
-// 原消息已被删除时，jumpToMessage 定位不到，届时由消息列表自身给出"未找到"反馈。
-async function onFavJump(data) {
-  if (!data || !data.convoType || data.convoId == null) return;
-  try { await ensureConvoMessages(data.convoType, Number(data.convoId)); } catch {}
-  onSearchJump(data);
-}
-
 function onPreviewCopy() {
   const content = previewData.rawContent;
   if (!content) return;
-  onFavCopy({ content });
+  copyMsgContent(content);
 }
 
 function onPreviewForward() {
@@ -1251,7 +1203,7 @@ async function onPreviewDownload() {
   }
   const content = previewData.rawContent;
   if (!content) return;
-  onFavDownload({ content });
+  downloadMsgContent(content);
 }
 
 function onOpenPreview(data) {
@@ -1458,8 +1410,8 @@ async function addfriend(q) {
 }
 
 // --- 快捷键 ---
-// 编号严格跟随 NavBar 主导航顺序：消息 / 工具 / 设置；收藏与关于排在其后
-const DEFAULT_SHORTCUTS = { sendMessage: 'enter', search: 'ctrl+f', switchToChat: 'ctrl+1', switchToTools: 'ctrl+2', switchToSettings: 'ctrl+3', switchToFavorites: 'ctrl+4', switchToAbout: 'ctrl+5', newConversation: 'ctrl+n' };
+// 编号严格跟随 NavBar 主导航顺序：消息 / 工具 / 设置；关于排在其后
+const DEFAULT_SHORTCUTS = { sendMessage: 'enter', search: 'ctrl+f', switchToChat: 'ctrl+1', switchToTools: 'ctrl+2', switchToSettings: 'ctrl+3', switchToAbout: 'ctrl+4', newConversation: 'ctrl+n' };
 function getShortcutValue(action) { return setting.value?.shortcuts?.[action] || DEFAULT_SHORTCUTS[action]; }
 function parseShortcut(shortcut) {
   const parts = shortcut.toLowerCase().split('+');
@@ -1499,7 +1451,6 @@ function handleGlobalShortcuts(e) {
   if (matchShortcut(e, getShortcutValue('switchToChat'))) { e.preventDefault(); switchPage('chat'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToTools'))) { e.preventDefault(); switchPage('tools'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToSettings'))) { e.preventDefault(); switchPage('settings'); return true; }
-  if (matchShortcut(e, getShortcutValue('switchToFavorites'))) { e.preventDefault(); switchPage('favorites'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToAbout'))) { e.preventDefault(); switchPage('about'); return true; }
   if (matchShortcut(e, getShortcutValue('newConversation'))) { e.preventDefault(); showAddFriendModal.value = true; return true; }
   return false;
@@ -1526,7 +1477,6 @@ async function clearCacheAndReload() {
     store.messages = {};
     store.stickers = [];
     store.drafts = {};
-    store.favorites = [];
     store.mutedConvos = {};
     store.hiddenConvos = {};
     // 从服务器重新拉取（爬取模式：拉取 100 条 + 继续翻页取尽历史）
@@ -1733,7 +1683,6 @@ async function saveAll() {
     // 偏好
     const prefs = JSON.parse(JSON.stringify({
       drafts: store.drafts || {},
-      favorites: store.favorites || [],
       mutedConvos: store.mutedConvos || {},
       hiddenConvos: store.hiddenConvos || {},
       stickers: store.stickers || []
@@ -1809,7 +1758,6 @@ async function loadData() {
     }
     if (pr && pr.success && pr.data) {
       const d = pr.data
-      if (d.favorites) store.favorites = normalizeFavorites(d.favorites)
       if (d.drafts) store.drafts = d.drafts
       if (d.mutedConvos) store.mutedConvos = d.mutedConvos
       if (d.hiddenConvos) store.hiddenConvos = d.hiddenConvos
@@ -1866,7 +1814,7 @@ async function logout(toLogin = false, clearCred = false) {
   try {
     if (clearCred) localStorage.removeItem('7fa4_logined');
   } catch {}
-  Object.assign(store, { self: { uid: null, username: null, nickname: null, realname: null }, users: {}, groups: {}, messages: {}, stickers: [], drafts: {}, favorites: [], mutedConvos: {}, hiddenConvos: {} });
+  Object.assign(store, { self: { uid: null, username: null, nickname: null, realname: null }, users: {}, groups: {}, messages: {}, stickers: [], drafts: {}, mutedConvos: {}, hiddenConvos: {} });
   clearPendingVotes(); // 清空待落地投票缓冲，避免串到下一个账号
   store.logined = false;
   store.netError = false;
@@ -2006,7 +1954,7 @@ onMounted(async () => {
     }
   });
   // 未登录（游客模式）：仅加载本地偏好设置与主题，跳过网络初始化，
-  // 不拉取 /chat/info、不进入轮询；聊天/收藏入口由 NavBar 隐藏。登录后由登录门控触发重新挂载。
+  // 不拉取 /chat/info、不进入轮询；聊天入口由 NavBar 隐藏。登录后由登录门控触发重新挂载。
   if (!store.logined) {
     store.online = true;
     store.netError = false;

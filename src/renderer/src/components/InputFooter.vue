@@ -86,7 +86,6 @@
           <button id="more_btn" title="更多" @click.stop="toggleMore" :disabled="sending || inputDisabled"><i class="fas fa-ellipsis-h"></i></button>
           <div class="more-panel" v-if="moreVisible" @click.stop>
             <button @click="moreAction(sendFileMessage)"><i class="fas fa-paperclip"></i>文件</button>
-            <button @click="moreAction(toggleFavorites)"><i class="fas fa-star"></i>收藏</button>
             <button @click="moreAction(openPollCompose)"><i class="fas fa-poll"></i>投票</button>
           </div>
         </div>
@@ -107,37 +106,6 @@
           <div v-else class="token-tooltip-row">全部 token 可用</div>
         </span>
       </span>
-    </div>
-    <!-- 收藏选择弹窗（居中模态：遮罩 + 卡片，形态与投票弹窗一致；
-         高度仍可拖拽调高并持久化，列表内部滚动） -->
-    <div class="favpick-mask" v-if="favoritesVisible" @click.self="closeFavorites">
-      <div class="favpick" ref="favpickEl" :style="favpickStyleObj">
-        <div class="favpick-drag" title="上下拖动调整高度" @mousedown.prevent="onFavDragStart"><i></i></div>
-        <div class="favpick-head">
-          <span class="favpick-title"><i class="fas fa-star"></i>从收藏中选择</span>
-          <span class="favpick-count" v-if="store.favorites.length">{{ store.favorites.length }}</span>
-          <button type="button" class="favpick-close" title="关闭" @click="closeFavorites"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="favpick-search">
-          <i class="fas fa-search"></i>
-          <input v-model="favQuery" placeholder="搜索收藏…" />
-        </div>
-        <div class="favpick-list">
-          <div v-if="!favFiltered.length" class="favpick-empty">
-            <i class="far fa-star"></i>
-            <p>{{ store.favorites.length ? '没有匹配的收藏' : '还没有收藏' }}</p>
-            <p class="favpick-empty-sub">在聊天中右键消息即可收藏</p>
-          </div>
-          <button v-for="fav in favFiltered" :key="fav.id" type="button" class="favpick-item" @click="sendFavorite(fav)">
-            <span class="favpick-icon" :class="FAV_KIND_META[favKind(fav)].cls"><i :class="FAV_KIND_META[favKind(fav)].icon"></i></span>
-            <span class="favpick-main">
-              <span class="favpick-kind">{{ FAV_KIND_META[favKind(fav)].name }}</span>
-              <span class="favpick-preview">{{ clipPreview(fav) }}</span>
-            </span>
-            <span class="favpick-time">{{ favTime(fav) }}</span>
-          </button>
-        </div>
-      </div>
     </div>
     <EmojiPicker
       v-if="emojiVisible"
@@ -209,7 +177,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
 import { store } from '../store.js';
 import { displayName, parseMsgContent, renderMarkdownPreview, applyChatToStore, sendChatMessage, getConvoKey, formatSize, compressImage, compressBase64Image, extractMentions, isSingleEmoji, esc, makePollContent, POLL_MAX_OPTS, POLL_MAX_OPT_LEN, POLL_MAX_Q_LEN } from '../utils.js';
 import EmojiPicker from './EmojiPicker.vue';
@@ -422,7 +390,7 @@ onUnmounted(() => {
 });
 const replyTo = ref(null);
 const emojiVisible = ref(false);
-/** 「更多」菜单（文件 / 收藏 / 投票） */
+/** 「更多」菜单（文件 / 投票） */
 const moreVisible = ref(false);
 const mentionVisible = ref(false);
 const mentionIndex = ref(0);
@@ -471,139 +439,9 @@ watch(convoKey, (newKey) => {
 // --- 发送消息 ---
 // （@提及解析已移至 utils.extractMentions：发送时从文本按昵称反查 uid，与拍一拍同模式）
 
-// --- 收藏选择发送 ---
-const favoritesVisible = ref(false);
-
-// 拖拽调整高度（与表情面板同款交互，独立持久化）
-const FAV_DRAG_MIN = 160;
-const FAV_DRAG_MAX = 480;
-const FAV_DRAG_KEY = '7fa4_favpick_h';
-const favpickEl = ref(null);
-const favpickHeight = ref(null);
-let favDragState = null;
-const favpickStyleObj = () => (favpickHeight.value
-  ? { height: favpickHeight.value + 'px', maxHeight: FAV_DRAG_MAX + 'px', flex: 'none' }
-  : {});
-
-function restoreFavpickHeight() {
-  try {
-    const v = parseInt(localStorage.getItem(FAV_DRAG_KEY) || '', 10);
-    if (Number.isFinite(v) && v >= FAV_DRAG_MIN && v <= FAV_DRAG_MAX) favpickHeight.value = v;
-  } catch {}
-}
-function onFavDragStart(e) {
-  const el = favpickEl.value;
-  if (!el) return;
-  favDragState = { startH: el.offsetHeight, startY: e.clientY };
-  document.addEventListener('mousemove', onFavDragMove);
-  document.addEventListener('mouseup', onFavDragEnd);
-  document.body.style.cursor = 'ns-resize';
-  document.body.style.userSelect = 'none';
-}
-function onFavDragMove(e) {
-  if (!favDragState) return;
-  const h = Math.round(Math.max(FAV_DRAG_MIN, Math.min(FAV_DRAG_MAX, favDragState.startH + (favDragState.startY - e.clientY))));
-  favpickHeight.value = h;
-  try { localStorage.setItem(FAV_DRAG_KEY, String(h)) } catch {}
-}
-function onFavDragEnd() {
-  favDragState = null;
-  document.removeEventListener('mousemove', onFavDragMove);
-  document.removeEventListener('mouseup', onFavDragEnd);
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
-}
-onMounted(() => restoreFavpickHeight());
-onUnmounted(() => onFavDragEnd());
-
-// 点击收藏面板以外的区域时关闭
-// ⚠️ 白名单必须同时含 `.more-menu`：收藏入口已移进「更多」菜单（2026-10-02 工具栏改版），
-// 若只认旧类名 `.favorites-btn`（该元素已不存在），点「更多」里的「收藏」会
-// 先被 moreAction 打开面板、紧接着又被这里的 document 监听判定为「点了外面」关掉
-// → 表现为「收藏选择框点不出来」（面板闪一下就没）。
-// 双保险：`.more-panel` 上还挂了 @click.stop，事件根本到不了 document。
-function onFavoritesDocClick(e) {
-  if (!favoritesVisible.value) return
-  const el = e.target
-  if (el && !el.closest('.favpick') && !el.closest('.favpick-mask') && !el.closest('.more-menu')) {
-    closeFavorites()
-  }
-}
-document.addEventListener('click', onFavoritesDocClick)
-onUnmounted(() => document.removeEventListener('click', onFavoritesDocClick))
-
 // 点击「更多」菜单以外的区域时关闭
 document.addEventListener('click', onMoreDocClick)
 onUnmounted(() => document.removeEventListener('click', onMoreDocClick))
-
-// 收藏选择弹窗：类型判定 / 预览 / 搜索过滤 / 排序
-const favQuery = ref('');
-const FAV_KIND_META = {
-  text: { name: '文本', icon: 'fas fa-font', cls: 't-text' },
-  file: { name: '文件', icon: 'fas fa-file', cls: 't-file' },
-  sticker: { name: '图片', icon: 'fas fa-image', cls: 't-sticker' },
-  emoji: { name: '表情', icon: 'far fa-smile', cls: 't-emoji' },
-};
-function favKind(fav) {
-  const obj = parseMsgContent(fav.content);
-  if (!obj) return 'text';
-  if (obj.type === 'emoji') return 'emoji';
-  if (obj.type === 'file') return 'file';
-  if (obj.type === 'sticker') return 'sticker';
-  return 'text';
-}
-function favPreviewText(fav) {
-  const obj = parseMsgContent(fav.content);
-  if (!obj) return (fav.content || '').replace(/\s+/g, ' ').trim();
-  if (obj.type === 'text') return (obj.content || '').replace(/\s+/g, ' ').trim();
-  if (obj.type === 'emoji') return obj.content || '表情';
-  if (obj.type === 'file') return obj.name || '文件';
-  if (obj.type === 'sticker') return obj.name || '图片';
-  return '消息';
-}
-function clipPreview(fav) {
-  const s = favPreviewText(fav);
-  return s.length > 46 ? s.slice(0, 46) + '…' : s;
-}
-function favTime(fav) {
-  let t = Number(fav.savedAt || fav.send_time || 0);
-  if (t && t < 1e12) t *= 1000; // send_time 是秒级（savedAt 是毫秒），统一到毫秒
-  if (!t) return '';
-  const d = new Date(t);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-}
-const favFiltered = computed(() => {
-  // 最近收藏的排前，再按关键词过滤（匹配预览文本或类型名）
-  const list = (store.favorites || []).slice().sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
-  const q = favQuery.value.trim().toLowerCase();
-  if (!q) return list;
-  return list.filter((f) => (favPreviewText(f) + ' ' + FAV_KIND_META[favKind(f)].name).toLowerCase().includes(q));
-});
-
-// 从收藏中选一条发送到当前会话（按收藏内容类型重建消息）
-async function sendFavorite(fav) {
-  const obj = parseMsgContent(fav.content);
-  if (!obj) { errorMessage.value = '收藏内容无效'; return; }
-  let msgObj = null;
-  if (obj.type === 'text') msgObj = { type: 'text', content: obj.content || '', fmt: obj.fmt || 'md' };
-  else if (obj.type === 'emoji') msgObj = { type: 'emoji', content: obj.content || '' };
-  else if (obj.type === 'file') msgObj = { type: 'file', name: obj.name, size: obj.size, data: obj.data, mime: obj.mime };
-  else if (obj.type === 'sticker') msgObj = { type: 'sticker', data: obj.data, mime: obj.mime, name: obj.name };
-  else { errorMessage.value = '该类型收藏不支持发送'; return; }
-  closeFavorites();
-  try {
-    const r = await sendChatMessage({ type: props.pageType, targetId: props.pageId, msgObj });
-    if (!r.success) {
-      errorMessage.value = r.err?.message || '发送失败';
-    } else {
-      errorMessage.value = '';
-      const { tokenInfo: info } = applyChatToStore(r, props.pageType, props.pageId);
-      tokenInfo.value = info;
-    }
-  } catch {
-    errorMessage.value = '发送失败';
-  }
-}
 
 async function sendMessage() {
   // 末尾空行只是键入习惯，发送前统一去掉
@@ -859,7 +697,7 @@ async function addSticker() {
   try {
     const sel = await window.api.selectImage();
     if (!sel.success) { sending.value = false; return; }
-    // 压缩：GIF 保留动画不压缩；其余图片压缩到 ≤100KB，避免"收藏表情超100KB"
+    // 压缩：GIF 保留动画不压缩；其余图片压缩到 ≤100KB，避免"表情超100KB"
     let data = sel.data;
     let mime = sel.mime;
     if (sel.mime && !/^image\/gif$/i.test(sel.mime)) {
@@ -898,24 +736,12 @@ function startReply(msg) {
 
 function toggleEmoji() {
   emojiVisible.value = !emojiVisible.value;
-  if (emojiVisible.value) favoritesVisible.value = false; // 与收藏面板互斥
 }
 
-function toggleFavorites() {
-  favoritesVisible.value = !favoritesVisible.value;
-  if (favoritesVisible.value) emojiVisible.value = false; // 与表情面板互斥
-}
-/** 关闭收藏弹窗（点遮罩 / 点关闭按钮 / 发送后统一走这里，顺带清掉搜索词） */
-function closeFavorites() {
-  favoritesVisible.value = false;
-  favQuery.value = '';
-}
-
-// --- 「更多」菜单（文件 / 收藏 / 投票） ---
-// 点面板外任意处关闭：与收藏面板同一套 document 监听风格。
+// --- 「更多」菜单（文件 / 投票） ---
 function toggleMore() {
   moreVisible.value = !moreVisible.value;
-  if (moreVisible.value) { emojiVisible.value = false; favoritesVisible.value = false; }
+  if (moreVisible.value) { emojiVisible.value = false; }
 }
 /** 执行菜单项后立即收起菜单（先收起再跑，避免动作打开的面板被自己的关闭逻辑带走） */
 function moreAction(fn) {

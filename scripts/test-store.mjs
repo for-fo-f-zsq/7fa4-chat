@@ -49,7 +49,7 @@ try {
         { id: 301, sender: 3, send_time: 1000, content: '{"type":"text","content":"hi-lisi"}' },
       ],
     },
-    prefs: { favorites: [{ id: 1 }], drafts: { a: 1 } },
+    prefs: { drafts: { a: 1 } },
   })
   chk('saveAll 成功完成', true)
 
@@ -70,7 +70,7 @@ try {
 
   // 5. loadPrefs
   const prefs = await api.storeLoadPrefs(999)
-  chk('prefs.favorites 恢复', (prefs.data || {}).favorites?.length === 1)
+  chk('prefs.drafts 恢复', (prefs.data || {}).drafts?.a === 1)
 
   // 6. loadMessages 不带 before（翻页语义），分页翻一半
   const page1 = await api.storeLoadMessages(999, 'user', 1, 3)
@@ -84,7 +84,7 @@ try {
   await api.storeSaveAll(999, {
     convos: [{ kind: 'user', cid: 1, meta: { uid: 1, name: '张三', message_ids: [101, 102, 103, 104, 105, 106] } }],
     messages: { 'user:1': [{ id: 106, sender: 1, send_time: 6000, content: '{"type":"text","content":"hi6"}' }] },
-    prefs: { favorites: [{ id: 1 }] },
+    prefs: { drafts: { a: 2 } },
   })
   const m2 = await api.storeLoadMessages(999, 'user', 1, 1000)
   chk('追加后 user:1 读出 6 条（不清空旧 5 条）', (m2.data || []).length === 6)

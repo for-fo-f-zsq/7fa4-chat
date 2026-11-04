@@ -2,7 +2,7 @@
 // 取代旧的单文件 data/<uid>.7c JSON 存储，解决：
 //  1. 安全性：敏感内容 AES-256-GCM 加密（密钥随客户端分发属混淆级防护，防明文直读/拖走查看）
 //  2. 数据丢失：SQLite 事务 + WAL，写一半崩溃不损坏（原子性）
-//  3. 单文件耦合：拆分为 convos（会话元数据）/ messages（消息，按会话索引）/ prefs（收藏草稿等）/ kv
+//  3. 单文件耦合：拆分为 convos（会话元数据）/ messages（消息，按会话索引）/ prefs（草稿/免打扰等）/ kv
 //  4. 大文件全量读写：按会话索引 + 渲染层懒加载 + 增量写入
 const { DatabaseSync } = require('node:sqlite')
 const crypto = require('crypto')
@@ -379,7 +379,7 @@ class UserStore {
     }
   }
 
-  // ---------- 偏好（收藏/草稿/免打扰/隐藏/已删/表情） ----------
+  // ---------- 偏好（草稿/免打扰/隐藏/已删/表情） ----------
   /** entries: {key: value(obj)}，事务批量 upsert */
   savePrefs(uid, entries) {
     if (!this.db || !entries) return { success: true }

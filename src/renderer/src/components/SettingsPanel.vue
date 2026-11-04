@@ -82,7 +82,7 @@
       </div>
       <div class="settings-divider"></div>
       <div class="option-row shortcut-entry" @click="exportData">
-        <span class="option-label">备份聊天数据<i class="fas fa-circle-info option-info" title="把本机的聊天记录、群、收藏与设置全部导出为一个文件" @click.stop></i></span>
+        <span class="option-label">备份聊天数据<i class="fas fa-circle-info option-info" title="把本机的聊天记录、群与设置全部导出为一个文件" @click.stop></i></span>
         <div class="shortcut-entry-right"><span class="shortcut-entry-hint">导出到文件</span><i class="fas fa-download theme-row-arrow"></i></div>
       </div>
       <div class="option-row shortcut-entry" @click="importData">

@@ -3,7 +3,6 @@
     <span class="msb-info">已选 {{ store.selectedMsgIds.length }} 条</span>
     <div class="msb-actions">
       <button class="msb-btn" @click="$emit('batchForward')" :disabled="!store.selectedMsgIds.length"><i class="fas fa-share"></i> 批量转发</button>
-      <button class="msb-btn" @click="$emit('batchFavorite')" :disabled="!store.selectedMsgIds.length"><i class="fas fa-bookmark"></i> 批量收藏</button>
       <button class="msb-btn" @click="exitMultiSelect"><i class="fas fa-times"></i> 退出多选</button>
     </div>
   </div>
@@ -96,14 +95,12 @@
     :y="msgCtx.y"
     :canDownload="msgCtx.canDownload"
     :canCollect="msgCtx.canCollect"
-    :canFavorite="msgCtx.canFavorite"
     :isOwn="msgCtx.isOwn"
     @copy="copyMsg"
     @forward="startForward"
     @download="downloadMsg"
     @reply="$emit('startReply', store.messages[msgCtx.msgId]); msgCtx.show = false"
     @collect="collectMsg"
-    @favorite="favoriteMsg"
     @multiselect="enterMultiSelect"
   />
 </template>
@@ -111,7 +108,7 @@
 <script setup>
 import { ref, reactive, computed, onUpdated, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown, compressBase64Image, makeFavorite, parsePoll, aggregatePoll } from '../utils.js';
+import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown, compressBase64Image, parsePoll, aggregatePoll } from '../utils.js';
 import MsgMenu from './MsgMenu.vue';
 import PollCard from './PollCard.vue';
 import { useCurrentMessages } from '../composables/useCurrentMessages.js';
@@ -133,9 +130,7 @@ const emit = defineEmits([
   'startReply',
   'openUserInfo',
   'forward',
-  'favorite',
   'batchForward',
-  'batchFavorite',
   'openPreview',
   'vote'
 ]);
@@ -441,7 +436,7 @@ function isPatMsg(msg) {
 }
 
 // --- 消息右键菜单 ---
-const msgCtx = reactive({ show: false, x: 0, y: 0, msgId: null, msgContent: '', canDownload: false, canCollect: false, canFavorite: false, isOwn: false });
+const msgCtx = reactive({ show: false, x: 0, y: 0, msgId: null, msgContent: '', canDownload: false, canCollect: false, isOwn: false });
 
 function onMsgMenu(e, msg) {
   e.preventDefault();
@@ -458,7 +453,6 @@ function onMsgMenu(e, msg) {
   msgCtx.msgContent = msg.content;
   msgCtx.canDownload = isFile || isSticker;
   msgCtx.canCollect = isSticker || isImage;
-  msgCtx.canFavorite = !!(obj && obj.type !== 'pat');
   msgCtx.isOwn = isOwn;
   setTimeout(() => msgCtx.show = true, 1);
 }
@@ -506,7 +500,7 @@ async function collectMsg() {
     const isImage = obj.type === 'file' && /^image\//.test(obj.mime);
     if ((isSticker || isImage) && obj.data) {
       if (!store.stickers.some(s => s.name === obj.name)) {
-        // 压缩后收藏：GIF 保留动画不压缩，其余压缩到 ≤100KB，避免"收藏表情超100KB"
+        // 压缩后添加表情：GIF 保留动画不压缩，其余压缩到 ≤100KB，避免"表情超100KB"
         let data = obj.data;
         let mime = obj.mime;
         if (!/^image\/gif$/i.test(mime)) {
@@ -523,17 +517,6 @@ async function collectMsg() {
 function startForward() {
   emit('forward', msgCtx.msgContent);
   msgCtx.show = false;
-}
-
-// --- 收藏 ---
-function favoriteMsg() {
-  const msgId = msgCtx.msgId;
-  const msg = store.messages[msgId];
-  msgCtx.show = false;
-  if (!msg) return;
-  if (!store.favorites.some(f => f.id === msgId)) {
-    store.favorites.push(makeFavorite(msg, props.pageType, props.pageId));
-  }
 }
 
 // --- 预览 ---

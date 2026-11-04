@@ -5,6 +5,7 @@
   <li><span class="change-tag improve">优化</span>客户端不再依赖自建后端：更新检查、更新日志、赞助名单改为直接读取 GitLab，意见反馈改为跳转 GitLab Issues</li>
   <li><span class="change-tag improve">优化</span>移除「删除聊天记录」与「删除单条消息」：本地删除不影响服务器记录，整理会话请使用「不显示」</li>
   <li><span class="change-tag improve">优化</span>下线「发现」页、原题机、海报墙、访问统计与网页端，聚焦聊天与工具功能</li>
+  <li><span class="change-tag improve">优化</span>移除「收藏」功能：消息收藏、批量收藏、从收藏中选择发送与收藏页一并下线</li>
   <li><span class="change-tag improve">优化</span>发布流程调整：GitLab 仅保留最新版安装包，历史版本统一归档到 GitHub Releases</li>
 </ul>
 <h2>3.6.1</h2>

@@ -1320,7 +1320,7 @@ function _parseContentImpl(raw, senderId) {
     return '<div class="pat-msg">' + senderHtml + ' 拍了拍 ' + targetHtml + '</div>'
   }
   // 投票：正常由 MessageList 的 PollCard 组件渲染（可交互）；
-  // 这里只做兜底（转发预览、收藏预览、搜索结果等走 v-html 的场景）→ 输出可读纯文本，
+  // 这里只做兜底（转发预览、搜索结果等走 v-html 的场景）→ 输出可读纯文本，
   // 绝不把 JSON 原样吐给用户。
   if (obj.type === 'poll') {
     const p = parsePoll(obj)
@@ -1486,46 +1486,6 @@ export function highlightKeyword(text, keyword) {
   const escaped = esc(text);
   const re = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
   return escaped.replace(re, '<mark class="search-highlight">$1</mark>');
-}
-
-// ========== 收藏结构归一化 ==========
-// v2 起新增 tags / note / pinned。读取时补默认值但不写回（避免轮询期间频繁改动响应式数据），
-// 由 saveAll 的自然落盘完成升级；旧客户端读到多余字段会忽略 → 新旧版本双向兼容。
-export const FAVORITES_SCHEMA = 2
-
-/**
- * 构造一条收藏记录（唯一入口）。
- * 各处收藏按钮都走这里，避免写入结构不一致 —— 曾出现 MessageList 与 ChatView 两处
- * 都只写旧 7 字段，导致新收藏缺 tags/note/pinned，每次渲染都要重新归一化。
- */
-export function makeFavorite(msg, fromType, fromId) {
-  return {
-    id: msg.id ?? msg.mid,
-    content: msg.content || '',
-    sender: msg.sender,
-    send_time: msg.send_time,
-    fromType: fromType ?? null,
-    fromId: fromId ?? null,
-    savedAt: Date.now(),
-    tags: [],
-    note: '',
-    pinned: false,
-    schema: FAVORITES_SCHEMA
-  }
-}
-
-export function normalizeFavorites(list) {
-  if (!Array.isArray(list)) return []
-  return list.map((f) => {
-    if (!f || typeof f !== 'object' || f.schema === FAVORITES_SCHEMA) return f
-    return {
-      ...f,
-      tags: Array.isArray(f.tags) ? f.tags : [],
-      note: typeof f.note === 'string' ? f.note : '',
-      pinned: f.pinned === true,
-      schema: FAVORITES_SCHEMA
-    }
-  })
 }
 
 // ========== 全量消息检索（三端统一入口） ==========

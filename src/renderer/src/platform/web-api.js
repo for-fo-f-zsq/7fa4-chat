@@ -475,7 +475,6 @@ const store = {
       convos,
       prefs: {
         drafts: data.drafts || {},
-        favorites: data.favorites || [],
         mutedConvos: data.mutedConvos || {},
         hiddenConvos: data.hiddenConvos || {},
         stickers: data.stickers || []

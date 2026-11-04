@@ -77,7 +77,7 @@ try {
   }
 } catch {}
 
-// 游客模式：未登录直接进入主界面（聊天/收藏不可用，工具/设置/关于可浏览）
+// 游客模式：未登录直接进入主界面（聊天不可用，工具/设置/关于可浏览）
 function onGuest() {
   store.guestMode = true;
   loginSeq.value++;

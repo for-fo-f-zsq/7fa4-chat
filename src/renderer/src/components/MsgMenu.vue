@@ -19,11 +19,10 @@ const props = defineProps({
   y: Number,
   canDownload: Boolean,
   canCollect: Boolean,
-  canFavorite: { type: Boolean, default: false },
   isOwn: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['copy', 'forward', 'download', 'reply', 'collect', 'close', 'multiselect', 'favorite'])
+const emit = defineEmits(['copy', 'forward', 'download', 'reply', 'collect', 'close', 'multiselect'])
 
 const show = computed(() => true)
 
@@ -33,9 +32,6 @@ const menuItems = computed(() => {
     { value: 'copy', label: '复制', icon: 'fas fa-copy' },
     { value: 'forward', label: '转发', icon: 'fas fa-share' }
   ]
-  if (props.canFavorite) {
-    items.push({ value: 'favorite', label: '收藏消息', icon: 'fas fa-bookmark' })
-  }
   if (props.canCollect) {
     items.push({ value: 'collect', label: '添加表情', icon: 'fas fa-star' })
   }
