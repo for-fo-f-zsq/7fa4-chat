@@ -57,7 +57,7 @@
         class="tool-card"
         :class="{ 'is-disabled': card.blocked }"
       >
-        <i :class="card.icon || 'fas fa-puzzle-piece'"></i>
+        <i :class="toolIcon(card)"></i>
         <div class="tool-card-name">{{ card.name || card.id }}</div>
         <div class="tool-card-desc">{{ card.desc || '远端工具' }}</div>
         <div class="tool-card-meta">
@@ -231,6 +231,36 @@ const busyMap = ref({})
 const updatedAt = ref('')
 const appVersion = ref('')
 
+// 远端清单缓存：已安装的工具即使断网/接口挂了也要能打开，
+// 所以成功拉取后存一份，加载失败时回落到上次清单。
+const MANIFEST_CACHE_KEY = 'tools-manifest-cache-v1'
+
+function readManifestCache() {
+  try {
+    const raw = localStorage.getItem(MANIFEST_CACHE_KEY)
+    if (!raw) return null
+    const data = JSON.parse(raw)
+    if (!data || !Array.isArray(data.tools)) return null
+    return data
+  } catch {
+    return null
+  }
+}
+
+function writeManifestCache(tools, at) {
+  try {
+    localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify({ updatedAt: at || '', tools }))
+  } catch {
+    /* 配额不足只影响离线兜底，不影响在线使用 */
+  }
+}
+
+const cachedManifest = readManifestCache()
+if (cachedManifest) {
+  remoteTools.value = cachedManifest.tools
+  updatedAt.value = cachedManifest.updatedAt || ''
+}
+
 const errorText = computed(() => loadError.value || actionError.value)
 const canRetry = computed(() => !!loadError.value)
 
@@ -300,6 +330,21 @@ function isBelowMinApp(tool) {
   return compareVersion(appVersion.value, String(tool.minAppVersion)) < 0
 }
 
+// 旧版工具清单没有 icon 字段（图标是后加的），这里按 id 兜底，
+// 保证拿到旧 manifest 时不至于全显示成拼图占位。
+const FALLBACK_ICONS = {
+  markdown: 'fas fa-file-lines',
+  image: 'fas fa-image',
+  graph_editor: 'fas fa-diagram-project',
+  calculator: 'fas fa-calculator',
+  timer: 'fas fa-stopwatch',
+  math: 'fas fa-square-root-variable',
+}
+
+function toolIcon(card) {
+  return card?.icon || FALLBACK_ICONS[card?.id] || 'fas fa-puzzle-piece'
+}
+
 function statusText(state) {
   return STATUS_TEXT[state] || state
 }
@@ -366,13 +411,26 @@ async function load() {
     if (res.success) {
       remoteTools.value = Array.isArray(res.tools) ? res.tools : []
       updatedAt.value = res.updatedAt || ''
+      writeManifestCache(remoteTools.value, updatedAt.value)
     } else {
-      remoteTools.value = []
-      errors.push(`获取工具列表失败：${res.error || '未知错误'}`)
+      const cache = readManifestCache()
+      remoteTools.value = cache ? cache.tools : []
+      updatedAt.value = cache ? cache.updatedAt || '' : ''
+      errors.push(
+        cache
+          ? `获取工具列表失败：${res.error || '未知错误'}（已显示上次缓存的清单，已安装工具仍可打开）`
+          : `获取工具列表失败：${res.error || '未知错误'}`
+      )
     }
   } else {
-    remoteTools.value = []
-    errors.push(`获取工具列表失败：${formatError(manifestResult.reason)}`)
+    const cache = readManifestCache()
+    remoteTools.value = cache ? cache.tools : []
+    updatedAt.value = cache ? cache.updatedAt || '' : ''
+    errors.push(
+      cache
+        ? `获取工具列表失败：${formatError(manifestResult.reason)}（已显示上次缓存的清单，已安装工具仍可打开）`
+        : `获取工具列表失败：${formatError(manifestResult.reason)}`
+    )
   }
 
   if (installedResult.status === 'fulfilled') {

@@ -1512,6 +1512,15 @@ async function installTool(sender, toolMeta) {
     const count = meta.files.length;
     let received = 0;
     try {
+        // 清掉上次异常退出（断电/崩溃/强杀）可能留下的临时目录：
+        // 同一工具同时只会有一次安装，旧的 .staging-* 一律可以安全删除。
+        await fs.readdir(idDir)
+            .then((names) => Promise.all(
+                names
+                    .filter((name) => name.startsWith('.staging-'))
+                    .map((name) => fs.rm(path.join(idDir, name), { recursive: true, force: true }))
+            ))
+            .catch(() => {});
         await fs.mkdir(stagingDir, { recursive: true });
         for (let i = 0; i < count; i++) {
             const file = meta.files[i];
@@ -1552,6 +1561,16 @@ async function installTool(sender, toolMeta) {
             files: meta.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 }))
         };
         await writeFileAtomic(toolInstalledFile(meta.id), JSON.stringify(installed, null, 2));
+        // 安装/更新成功后再清理旧版本目录：只留 upgraded 到的当前版本，
+        // 否则每次更新都会在 userData/tools/<id>/ 下堆积一份完整旧包。
+        try {
+            const entries = await fs.readdir(idDir, { withFileTypes: true });
+            await Promise.all(
+                entries
+                    .filter((entry) => entry.isDirectory() && entry.name !== meta.version)
+                    .map((entry) => fs.rm(path.join(idDir, entry.name), { recursive: true, force: true }))
+            );
+        } catch { /* 清理失败不影响本次安装结果，下次安装会再试 */ }
         return { success: true };
     } catch (e) {
         // 失败清理半成品；不动旧版本目录与旧 installed.json
