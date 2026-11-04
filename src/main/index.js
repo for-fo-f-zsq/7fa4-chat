@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog, session, clipboard, safeStorage, protocol, net, globalShortcut, desktopCapturer } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog, session, clipboard, safeStorage, protocol, net } = require('electron');
 const fs = require('fs').promises;
 const fsCb = require('fs');
 const os = require('os');
@@ -476,8 +476,6 @@ if (!gotTheLock) {
             createWindow();
             createTray();
             initAutoUpdater();
-            // 全局截图快捷键（Win + Shift + S）
-            registerScreenshotHotkey();
         } catch (err) {
             console.error('Startup error:', err);
             dialog.showErrorBox('启动错误', err.message || String(err));
@@ -486,8 +484,6 @@ if (!gotTheLock) {
 }
 
 app.on('will-quit', () => {
-    // 全局快捷键必须在退出前注销，否则可能残留占用（Linux 下尤其明显）
-    globalShortcut.unregisterAll();
     // 清掉 dev 端口握手文件，避免下次 dev 转发读到已失效的端口
     writeDevPortFile(0);
 });
@@ -636,119 +632,6 @@ ipcMain.handle('show-mainwindow', (e, chatType, targetId) => {
         mainWindow.webContents.send('notif-click', { chatType, targetId });
     }
 });
-
-// ========== 截图（Win + Shift + S：矩形选区 → 图片编辑器）==========
-// 流程：全局快捷键 → desktopCapturer 抓取光标所在屏 → 全屏遮罩窗口框选 → 裁剪 → 送回主窗口渲染层打开图片编辑器
-let shotWin = null;
-const SCREENSHOT_HOTKEY = 'Super+Shift+S';
-// 候选快捷键（按优先级）：首选 Win+Shift+S；Windows shell 已占用该键时依次降级。
-// 实测（RegisterHotKey）：Win+Shift+S / Win+Shift+A / Alt+Shift+S / Ctrl+Alt+A 均被占用；
-// 故意不放 Ctrl+Shift+S —— 全局注册会抢掉所有软件的「另存为」。
-const SCREENSHOT_HOTKEY_CANDIDATES = ['Super+Shift+S', 'Super+Alt+S', 'Control+Alt+S', 'Alt+Shift+A'];
-// 当前实际生效的快捷键状态，渲染层通过 get-screenshot-hotkey 查询后展示在工具卡片上
-let shotHotkey = { accelerator: null, registered: false, preferred: SCREENSHOT_HOTKEY, fallback: false, candidates: SCREENSHOT_HOTKEY_CANDIDATES, skipped: false };
-
-// 截图默认文件名：截图-YYYYMMDD-HHMMSS.png
-function defaultShotName() {
-    const d = new Date();
-    const p = (n) => String(n).padStart(2, '0');
-    return `截图-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.png`;
-}
-
-function shotPagePath() {
-    return app.isPackaged
-        ? path.join(__dirname, '../renderer/screenshot.html')
-        : path.join(app.getAppPath(), 'src/renderer/screenshot.html');
-}
-
-function closeShotWindow() {
-    if (shotWin && !shotWin.isDestroyed()) shotWin.close();
-}
-
-async function startScreenshot() {
-    // 遮罩已存在（重复触发）→ 只把焦点拉回去，不再抓第二张
-    if (shotWin && !shotWin.isDestroyed()) { shotWin.focus(); return { success: true }; }
-    try {
-        const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-        const scale = display.scaleFactor || 1;
-        // 请求物理像素尺寸：高 DPI 屏若按逻辑像素请求会拿到低清图，放大后发虚
-        const sources = await desktopCapturer.getSources({
-            types: ['screen'],
-            thumbnailSize: {
-                width: Math.round(display.size.width * scale),
-                height: Math.round(display.size.height * scale)
-            }
-        });
-        const source = sources.find((s) => String(s.display_id) === String(display.id)) || sources[0];
-        if (!source || source.thumbnail.isEmpty()) return { success: false, error: '无法获取屏幕画面' };
-        createShotWindow(display, source.thumbnail.toDataURL(), source.thumbnail.getSize());
-        return { success: true };
-    } catch (e) {
-        console.error('[Screenshot] 截图失败:', e && e.message);
-        return { success: false, error: (e && e.message) || '截图失败' };
-    }
-}
-
-function createShotWindow(display, dataUrl, imgSize) {
-    const { x, y, width, height } = display.bounds;
-    shotWin = new BrowserWindow({
-        x, y, width, height,
-        frame: false,
-        backgroundColor: '#000000',
-        resizable: false,
-        movable: false,
-        minimizable: false,
-        maximizable: false,
-        fullscreenable: false,
-        skipTaskbar: true,
-        alwaysOnTop: true,
-        hasShadow: false,
-        enableLargerThanScreen: true,
-        show: false, // 先隐藏加载，等底图就绪再显示，避免闪一下黑屏
-        webPreferences: {
-            preload: path.join(__dirname, '../preload/screenshot.js'),
-            contextIsolation: true,
-            nodeIntegration: false,
-            sandbox: true
-        }
-    });
-    // 盖住全屏（含任务栏），并压过其它置顶窗口
-    shotWin.setAlwaysOnTop(true, 'screen-saver');
-    shotWin.on('closed', () => { shotWin = null; });
-    shotWin.webContents.on('did-finish-load', () => {
-        if (!shotWin || shotWin.isDestroyed()) return;
-        shotWin.webContents.send('shot-data', { dataUrl, width: imgSize.width, height: imgSize.height });
-        shotWin.setBounds({ x, y, width, height });
-        shotWin.show();
-        shotWin.focus();
-    });
-    shotWin.loadFile(shotPagePath());
-}
-
-// 框选完成：关闭遮罩 → 显示主窗口 → 把裁剪后的 PNG 交给渲染层打开图片编辑器
-ipcMain.handle('screenshot-finish', (event, payload) => {
-    const data = payload && payload.data;
-    closeShotWindow();
-    if (!data) return { success: false };
-    // 等遮罩窗口释放焦点后再拉起主窗口，否则焦点可能被系统收回
-    setTimeout(() => {
-        if (!mainWindow || mainWindow.isDestroyed()) return;
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        if (!mainWindow.isVisible()) mainWindow.show();
-        mainWindow.focus();
-        mainWindow.webContents.send('screenshot-captured', {
-            data,
-            mime: payload.mime || 'image/png',
-            name: payload.name || defaultShotName()
-        });
-    }, 60);
-    return { success: true };
-});
-
-ipcMain.handle('screenshot-cancel', () => { closeShotWindow(); return { success: true }; });
-
-// 手动触发（工具列表入口；全局快捷键被系统占用时仍可用）
-ipcMain.handle('capture-screen', () => startScreenshot());
 
 // 独立小型无边框置顶窗（file://renderer/timer-float.html）：状态由主窗口经主进程全量推来，单一数据源在主窗口
 // 窗口是透明的、高度按当前显示几个格自适应（渲染层实测内容高度后回传，见 timer-float-resize）
@@ -905,33 +788,6 @@ ipcMain.on('timer-float-cmd', (event, payload) => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('timer-float-command', payload);
 });
 
-
-function registerScreenshotHotkey() {
-    if (process.platform === 'darwin') {
-        // macOS 的 Super 即 Cmd，Cmd+Shift+S 与系统通用「存储为」冲突，不注册
-        shotHotkey = { accelerator: null, registered: false, preferred: null, fallback: false, candidates: [], skipped: true };
-        return;
-    }
-    for (let i = 0; i < SCREENSHOT_HOTKEY_CANDIDATES.length; i++) {
-        const accelerator = SCREENSHOT_HOTKEY_CANDIDATES[i];
-        try {
-            // register 返回 false 表示已被其它程序/系统占用（OS 不允许抢占），继续试下一个
-            if (globalShortcut.register(accelerator, () => { startScreenshot(); })) {
-                shotHotkey = { accelerator, registered: true, preferred: SCREENSHOT_HOTKEY, fallback: i > 0, candidates: SCREENSHOT_HOTKEY_CANDIDATES };
-                // 日志用英文：Windows 控制台为 GBK 代码页，中文会变乱码
-                if (i > 0) console.warn('[Screenshot] ' + SCREENSHOT_HOTKEY + ' is taken, fallback to ' + accelerator);
-                return;
-            }
-        } catch (e) {
-            console.warn('[Screenshot] register failed for ' + accelerator + ': ' + (e && e.message));
-        }
-    }
-    shotHotkey = { accelerator: null, registered: false, preferred: SCREENSHOT_HOTKEY, fallback: false, candidates: SCREENSHOT_HOTKEY_CANDIDATES };
-    console.warn('[Screenshot] all candidate hotkeys are taken; use the Tools list card to capture');
-}
-
-// 渲染层查询实际生效的截图快捷键（工具卡片上展示，注册失败时给出提示）
-ipcMain.handle('get-screenshot-hotkey', () => shotHotkey);
 
 ipcMain.handle('window-minimize', () => { if (mainWindow) mainWindow.minimize(); });
 ipcMain.handle('window-maximize', () => { if (mainWindow) mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize(); });
@@ -1596,16 +1452,16 @@ ipcMain.handle('install-update', () => {
     }
 });
 
-// ========== 获取远程 CHANGELOG（GitLab latest/CHANGELOG，发版时随包上传） ==========
+// ========== 获取远程 CHANGELOG（GitLab latest/CHANGELOG，Markdown，渲染层自行渲染） ==========
 ipcMain.handle('fetch-changelog', async () => {
     try {
         const res = await net.fetch(`${GITLAB_LATEST_PACKAGE}/CHANGELOG`, { signal: AbortSignal.timeout(15000) });
         if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
-        const html = await res.text();
-        if (!html || html.trim().length === 0) {
+        const markdown = await res.text();
+        if (!markdown || markdown.trim().length === 0) {
             return { success: false, error: '更新日志为空' };
         }
-        return { success: true, html };
+        return { success: true, markdown };
     } catch (e) {
         return { success: false, error: e.message || '获取更新日志失败' };
     }

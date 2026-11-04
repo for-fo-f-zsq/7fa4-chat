@@ -147,7 +147,7 @@ function openAnnouncement() {
   window.dispatchEvent(new CustomEvent('open-announcement'))
 }
 
-// 意见反馈：直接跳转 GitLab Issues（不再走客户端内置表单与截图上传）
+// 意见反馈：直接跳转 GitLab Issues（不再走客户端内置表单）
 function openFeedback() {
   userMenu.value = false
   try { window.api.openExternal('https://jx.7fa4.cn:9080/student-archive/7fa4-chat/-/issues') } catch {}

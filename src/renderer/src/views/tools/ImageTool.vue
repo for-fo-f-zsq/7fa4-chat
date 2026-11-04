@@ -702,7 +702,7 @@ async function save() {
   // 以前这里是静默 return：没打开图片、或没有任何改动时按 Ctrl+S 完全没反馈，
   // 用户无法判断是「不需要保存」还是「保存坏了」。
   if (!canvasReady.value || !displayCanvas) { flashTip('还没有可保存的画面：请先打开图片或新建画布'); return }
-  // 未落盘到任何文件时（如从截图/会话预览进入）保存本质是「另存为」，无改动也要放行；只有「已有文件且无新改动」才算没东西可存
+  // 未落盘到任何文件时（如从外部传入的图片/会话预览进入）保存本质是「另存为」，无改动也要放行；只有「已有文件且无新改动」才算没东西可存
   if (!dirty.value && savedPath.value) { flashTip('没有需要保存的改动'); return }
   saving.value = true
   try {
@@ -760,7 +760,7 @@ function sendToChat() {
 // 供上层/预览"编辑"入口载入图片（有未保存绘制时确认丢弃）
 function imageOpen(base64Data, mime, name) {
   if (dirty.value && !confirm('当前有未保存的绘制，确定丢弃并载入新图片？')) return false
-  // 外部传入的图（会话预览、截图）没有磁盘路径：savedName 留空 → 状态显示「未保存」，
+  // 外部传入的图（会话预览等）没有磁盘路径：savedName 留空 → 状态显示「未保存」，
   // savedPath 留空 → 保存时必然走「另存为」让用户选位置。
   savedName.value = ''
   savedPath.value = ''

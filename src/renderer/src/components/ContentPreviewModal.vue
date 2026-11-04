@@ -116,7 +116,7 @@ async function fetchAsBase64(url) {
 async function fallbackDownload() {
   const url = props.remoteSrc || props.src
   if (!url || downloading.value) return
-  // 已有的 data: URL（内联图 / 截图）无需再取一次
+  // 已有的 data: URL（内联图）无需再取一次
   if (url.startsWith('data:')) {
     const m = url.match(/^data:([^;,]+);base64,(.*)$/)
     if (m) {

@@ -72,16 +72,6 @@ contextBridge.exposeInMainWorld('api', {
   clearCache: () => ipcRenderer.invoke('clear-cache'),
   // --- 工具 ---
   loadUsersDb: () => ipcRenderer.invoke('load-users-db'),
-  // --- 截图（Win + Shift + S 矩形框选 → 图片编辑器）---
-  // 手动触发截图框选；全局快捷键被系统占用时的兜底入口
-  captureScreen: () => ipcRenderer.invoke('capture-screen'),
-  // 查询实际生效的截图快捷键（候选键自动降级，UI 需如实展示，否则用户按了没反应也不知道）
-  getScreenshotHotkey: () => ipcRenderer.invoke('get-screenshot-hotkey'),
-  onScreenshotCaptured: (callback) => {
-    const handler = (event, data) => callback(data);
-    ipcRenderer.on('screenshot-captured', handler);
-    return () => ipcRenderer.removeListener('screenshot-captured', handler);
-  },
   clearSessionCookies: () => ipcRenderer.invoke('clear-session-cookies'),
   exportMarkdownPng: (suggestedName, html) => ipcRenderer.invoke('export-markdown-png', suggestedName, html),
   // --- 计时器悬浮窗（独立置顶小窗；状态由本窗口推送，见 main/index.js）---

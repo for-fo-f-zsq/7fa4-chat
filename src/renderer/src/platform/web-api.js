@@ -680,13 +680,13 @@ window.api = {
     }
   },
   fetchChangelog: async () => {
-    // 更新日志随包上传在 GitLab 的 latest/CHANGELOG
+    // 更新日志随包上传在 GitLab 的 latest/CHANGELOG（Markdown，渲染层自行渲染）
     try {
       const res = await gitlabRequest(`${GITLAB_LATEST_PACKAGE}/CHANGELOG`, { method: 'GET' })
       if (!res.ok) return { success: false, error: `HTTP ${res.status}` }
-      const html = await res.text()
-      if (!html || !html.trim()) return { success: false, error: '更新日志为空' }
-      return { success: true, html }
+      const markdown = await res.text()
+      if (!markdown || !markdown.trim()) return { success: false, error: '更新日志为空' }
+      return { success: true, markdown }
     } catch (e) {
       return { success: false, error: e.message || '获取更新日志失败' }
     }
@@ -732,10 +732,6 @@ window.api = {
       return { success: true }
     } catch (e) { return { success: false, error: e.message } }
   },
-  // --- 截图（桌面端专属：依赖 desktopCapturer 与全屏遮罩窗口）---
-  captureScreen: async () => ({ success: false, unsupported: true }),
-  getScreenshotHotkey: async () => ({ accelerator: null, registered: false, fallback: false, unsupported: true }),
-  onScreenshotCaptured: () => () => {},
   // --- 计时器悬浮窗（桌面端专属：需要独立置顶无边框窗口）---
   openTimerFloat: async () => ({ success: false, unsupported: true }),
   closeTimerFloat: async () => ({ success: false, unsupported: true }),

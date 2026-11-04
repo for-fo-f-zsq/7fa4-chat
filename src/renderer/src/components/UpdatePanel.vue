@@ -68,6 +68,7 @@ import { computed, ref, onMounted } from 'vue'
 import BackButton from './BackButton.vue'
 import { compareVersion, checkAppUpdate } from '../utils.js'
 import { store } from '../store.js'
+import { renderChangelogMarkdown } from '../changelog-md.js'
 
 const props = defineProps({ version: { type: String, default: '' } })
 const emit = defineEmits(['back'])
@@ -195,7 +196,7 @@ async function fetchChangelog() {
   try {
     const result = await window.api.fetchChangelog()
     if (result.success) {
-      changelogHtml.value = result.html
+      changelogHtml.value = renderChangelogMarkdown(result.markdown)
     } else {
       changelogError.value = result.error || '获取失败'
     }

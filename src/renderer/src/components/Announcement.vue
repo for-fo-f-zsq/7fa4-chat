@@ -17,6 +17,7 @@
           <li>移除「发现」页：推荐、海报墙与开屏海报等配套功能一并下线</li>
           <li>移除「原题机」工具入口，工具箱更精简</li>
           <li>移除「收藏」功能：收藏面板、收藏消息、批量收藏与相关快捷键全部下线</li>
+          <li>移除「截图」功能：不再支持 Win+Shift+S 选区截图与工具入口，需要时请使用系统截图后粘贴发送</li>
           <li>会话右键新增「不显示 / 取消不显示」：隐藏后不在列表显示，搜索时仍可找到并恢复</li>
           <li>移除「删除聊天记录」以及单条消息删除、批量删除功能</li>
           <li>「意见反馈」改为直接跳转 GitLab Issues，链接与下载地址统一切换到项目仓库</li>
@@ -78,6 +79,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
+import { renderChangelogMarkdown } from '../changelog-md.js'
 
 const DONATE_URL = 'https://jx.7fa4.cn:9080/student-archive/7fa4-chat/-/raw/master/assets/donate-qr.jpg'
 const page = ref(0)
@@ -105,7 +107,7 @@ async function fetchChangelog() {
   changelogError.value = ''
   try {
     const result = await window.api.fetchChangelog()
-    if (result.success) changelogHtml.value = result.html
+    if (result.success) changelogHtml.value = renderChangelogMarkdown(result.markdown)
     else changelogError.value = result.error || '获取失败'
   } catch (e) { changelogError.value = e.message || '获取失败' }
   changelogLoading.value = false

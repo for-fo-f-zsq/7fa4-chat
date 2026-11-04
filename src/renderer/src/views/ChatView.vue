@@ -683,36 +683,6 @@ function leaveToolToOrigin() {
   toolOrigin = { type: 'list' };
 }
 
-// 截图落库后的跳转：切到图片编辑器并载入（不做确认，确认由调用方处理）
-async function applyScreenshot(payload) {
-  toolOrigin = { type: 'list' };
-  pageType.value = 'tools';
-  pageId.value = null;
-  currentTool.value = 'image';
-  if (inputFooterRef.value) {
-    inputFooterRef.value.mentionVisible = false;
-    inputFooterRef.value.emojiVisible = false;
-  }
-  closeSearch();
-  await nextTick();
-  await nextTick();
-  imageToolRef.value?.imageOpen?.(payload.data, payload.mime || 'image/png', payload.name || '截图.png');
-}
-
-// 截图（全局快捷键 Win+Shift+S / 工具列表入口）→ 打开图片编辑器
-function onScreenshotCaptured(payload) {
-  if (!payload || !payload.data) return;
-  // 已在图片编辑器：交给 ImageTool 自己确认是否丢弃当前绘制
-  if (pageType.value === 'tools' && currentTool.value === 'image') { applyScreenshot(payload); return; }
-  // 其它工具里有未保存内容：走统一的「保存 / 不保存 / 取消」流程，避免静默丢内容
-  if (toolsDirty.value && pageType.value === 'tools' && currentTool.value !== 'list') {
-    pendingSwitch = { type: 'screenshot', payload };
-    saveConfirmVisible.value = true;
-    return;
-  }
-  applyScreenshot(payload);
-}
-
 // 未保存拦截弹窗：保存后离开
 async function onSaveConfirmSave() {
   saveConfirmVisible.value = false;
@@ -724,10 +694,8 @@ async function onSaveConfirmSave() {
   // 保存成功后 dirty=false → emit 更新 toolsDirty=false；失败/取消则留在页面
   if (!toolsDirty.value && pendingSwitch) {
     const t = pendingSwitch.type;
-    const shot = pendingSwitch.payload;
     pendingSwitch = null;
     if (t === 'tool-back') leaveToolToOrigin();
-    else if (t === 'screenshot') applyScreenshot(shot);
     else switchPage(t);
   } else {
     pendingSwitch = null;
@@ -739,13 +707,11 @@ function onSaveConfirmDiscard() {
   saveConfirmVisible.value = false;
   if (pendingSwitch) {
     const t = pendingSwitch.type;
-    const shot = pendingSwitch.payload;
     pendingSwitch = null;
     // 丢弃未保存内容：清除 dirty 标记，否则 switchPage 会再次命中未保存拦截，
     // 弹窗关闭后立刻重开，表现为"不保存"无法点击/点了没反应
     toolsDirty.value = false;
     if (t === 'tool-back') leaveToolToOrigin();
-    else if (t === 'screenshot') applyScreenshot(shot);
     else switchPage(t);
   }
 }
@@ -1493,7 +1459,6 @@ let pollTimer = null;
 let infoLoopRunning = false;
 let autoSaveTimer = null;
 let unsubscribeNotifClick = null;
-let unsubscribeShotCaptured = null;
 let unsubscribeUploadProgress = null;
 let unsubscribeFlush = null;
 let unsubscribeAndroidBack = null;
@@ -1931,8 +1896,6 @@ onMounted(async () => {
   if (setting.value.theme === 'custom' && setting.value.customVars) { for (const [k, v] of Object.entries(setting.value.customVars)) root.style.setProperty(k, v); }
   autoSaveTimer = setInterval(async () => { await saveAll(); }, 10000);
   unsubscribeNotifClick = window.api.onNotifClick((data) => { if (data.chatType && data.targetId) { pageType.value = data.chatType; pageId.value = Number(data.targetId); } });
-  // 全局截图（Win+Shift+S）：主进程框选完成后把图片送进来，直接打开图片编辑器
-  unsubscribeShotCaptured = window.api.onScreenshotCaptured((data) => onScreenshotCaptured(data));
   // 网络状态监听
   window.addEventListener('online', onOnline);
   window.addEventListener('offline', onOffline);
@@ -1992,7 +1955,6 @@ onUnmounted(() => {
   window.removeEventListener('focus', onWindowFocus);
   window.removeEventListener('resize', updateLayoutMode);
   if (unsubscribeNotifClick) unsubscribeNotifClick();
-  if (unsubscribeShotCaptured) unsubscribeShotCaptured();
   if (unsubscribeUploadProgress) unsubscribeUploadProgress();
   if (unsubscribeFlush) unsubscribeFlush();
   if (unsubscribeAndroidBack) unsubscribeAndroidBack();

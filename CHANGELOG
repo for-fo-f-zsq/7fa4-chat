@@ -1,412 +1,370 @@
-<h2>3.7.0</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>会话右键菜单新增「不显示」：默认聊天列表不显示该会话，仍可通过搜索找到，搜索到后可右键取消不显示</li>
-  <li><span class="change-tag new">新功能</span>登录新增错误提示「本节课你不该在教室」</li>
-  <li><span class="change-tag improve">优化</span>客户端不再依赖自建后端：更新检查、更新日志、赞助名单改为直接读取 GitLab，意见反馈改为跳转 GitLab Issues</li>
-  <li><span class="change-tag improve">优化</span>移除「删除聊天记录」与「删除单条消息」：本地删除不影响服务器记录，整理会话请使用「不显示」</li>
-  <li><span class="change-tag improve">优化</span>下线「发现」页、原题机、海报墙、访问统计与网页端，聚焦聊天与工具功能</li>
-  <li><span class="change-tag improve">优化</span>移除「收藏」功能：消息收藏、批量收藏、从收藏中选择发送与收藏页一并下线</li>
-  <li><span class="change-tag improve">优化</span>发布流程调整：GitLab 仅保留最新版安装包，历史版本统一归档到 GitHub Releases</li>
-</ul>
-<h2>3.6.1</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>工具新增「原题机」：粘贴题面即可找到原题与相似题目，结果直达 vjudge</li>
-  <li><span class="change-tag new">新功能</span>计算器新增分数模式、mex 与位运算等函数，模数运算支持常用预设</li>
-  <li><span class="change-tag new">新功能</span>计时器支持悬浮窗，可置顶显示并记忆位置，切走也不会中断</li>
-  <li><span class="change-tag new">新功能</span>投票新增「开放题」，可由投票者自行填写答案</li>
-  <li><span class="change-tag new">新功能</span>网页端发现新版本时在顶部提示，可一键升级</li>
-  <li><span class="change-tag improve">优化</span>投票支持限制最多可选项数，选项可悬浮查看得票数并标出无效投票</li>
-  <li><span class="change-tag improve">优化</span>投票卡片不再被自动折叠，可直接看到「确认投票」</li>
-  <li><span class="change-tag improve">优化</span>上翻历史消息时位置保持不动</li>
-  <li><span class="change-tag fix">修复</span>修复更新后仍显示旧版本的问题</li>
-  <li><span class="change-tag fix">修复</span>修复图片无法保存到本机的问题</li>
-  <li><span class="change-tag fix">修复</span>修复安卓端被系统栏遮挡的问题</li>
-</ul>
-<h2>3.6.0</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>聊天支持发起投票：可设置单选或多选、设置截止时间，到期后自动停止</li>
-  <li><span class="change-tag new">新功能</span>发送栏新增「拍照」，调用系统相机拍摄后即可发送</li>
-  <li><span class="change-tag new">新功能</span>发送栏新增「语音」，说话即可转为文字</li>
-  <li><span class="change-tag new">新功能</span>图片预览支持下载到本机</li>
-  <li><span class="change-tag new">新功能</span>计时器支持自定义名字</li>
-  <li><span class="change-tag improve">优化</span>发送栏工具栏改版，文件、收藏、投票等入口收纳进「更多」菜单</li>
-  <li><span class="change-tag improve">优化</span>收藏改为居中弹窗选择，点击即发送</li>
-  <li><span class="change-tag improve">优化</span>海报显示投稿人署名，展示顺序可调整</li>
-  <li><span class="change-tag improve">优化</span>意见反馈填写内容后关闭时需二次确认，不再误丢内容</li>
-  <li><span class="change-tag fix">修复</span>修复海报无法下载的问题</li>
-  <li><span class="change-tag fix">修复</span>修复深色模式下默认主题的预览显示为深色的问题</li>
-  <li><span class="change-tag fix">修复</span>修复已投票或已截止的投票仍可再次选择的问题</li>
-  <li><span class="change-tag fix">修复</span>修复投票选项选中后偶尔被清空的问题</li>
-  <li><span class="change-tag fix">修复</span>修复使用情况统计上传了多余个人信息的问题</li>
-  <li><span class="change-tag fix">修复</span>修复个别情况下使用情况统计停止上传的问题</li>
-</ul>
-<h2>3.5.2</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>工具新增「截图」：框选屏幕任意区域，截图后自动在图片编辑器中打开</li>
-  <li><span class="change-tag new">新功能</span>新增海报功能：启动时随机展示一张海报，发现页新增海报墙，登录用户可投稿（审核通过后公开）</li>
-  <li><span class="change-tag improve">优化</span>发现页「刷新」同时刷新推荐与海报墙</li>
-  <li><span class="change-tag improve">优化</span>教练身份在年级显示中优先，不再被默认的「毕业」覆盖</li>
-  <li><span class="change-tag improve">优化</span>工具保存统一：首次保存选择位置，之后按 Ctrl+S 直接覆盖原文件，Ctrl+Shift+S 另存为</li>
-  <li><span class="change-tag fix">修复</span>修复正停留在群聊时收到 @ 仍显示「有人@你」的问题</li>
-  <li><span class="change-tag fix">修复</span>修复收藏设置分类后仍显示为未分类的问题</li>
-  <li><span class="change-tag fix">修复</span>修复未选择保存位置时按 Ctrl+S 误显示「已保存」的问题</li>
-  <li><span class="change-tag fix">修复</span>修复 Linux 系统下应用启动缓慢的问题</li>
-</ul>
-<h2>3.5.1</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>启动时展示社团宣传</li>
-  <li><span class="change-tag improve">优化</span>网络与登录状态提示可手动收起，未连接时显示已断线时长</li>
-  <li><span class="change-tag improve">优化</span>未登录时暂不可用的入口改为置灰展示，不再直接隐藏</li>
-  <li><span class="change-tag improve">优化</span>设置项新增说明，悬停即可查看该项作用</li>
-  <li><span class="change-tag improve">优化</span>导航图标与页面标题统一，窄屏下发现页与设置页保留底栏</li>
-  <li><span class="change-tag fix">修复</span>修复浅色主题下代码块显示异常的问题</li>
-</ul>
+## 3.7.0
+- 新功能：会话右键菜单新增「不显示」：默认聊天列表不显示该会话，仍可通过搜索找到，搜索到后可右键取消不显示
+- 新功能：登录新增错误提示「本节课你不该在教室」
+- 优化：客户端不再依赖自建后端：更新检查、更新日志、赞助名单改为直接读取 GitLab，意见反馈改为跳转 GitLab Issues
+- 优化：移除「删除聊天记录」与「删除单条消息」：本地删除不影响服务器记录，整理会话请使用「不显示」
+- 优化：下线「发现」页、原题机、海报墙、访问统计与网页端，聚焦聊天与工具功能
+- 优化：移除「收藏」功能：消息收藏、批量收藏、从收藏中选择发送与收藏页一并下线
+- 优化：移除「截图」功能：不再提供 Win+Shift+S 选区截图与工具入口
+- 优化：发布流程调整：GitLab 仅保留最新版安装包，历史版本统一归档到 GitHub Releases
 
-<h2>3.5.0</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>新增「发现」页：推荐可能认识的人与可能相关的群</li>
-  <li><span class="change-tag new">新功能</span>新增聚合搜索：一次搜出用户、消息、群聊与收藏</li>
-  <li><span class="change-tag new">新功能</span>消息搜索升级为全量检索</li>
-  <li><span class="change-tag new">新功能</span>收藏夹全面升级：支持搜索、标签、备注、置顶、批量管理与跳转原消息</li>
-  <li><span class="change-tag improve">优化</span>搜索结果分区展示，可一键查看某一类的全部结果</li>
-  <li><span class="change-tag improve">优化</span>收藏发送面板改版，支持搜索并与表情面板同形态</li>
-  <li><span class="change-tag improve">优化</span>主题设置改版，年级颜色与主题变量同处编辑，可整体导出导入</li>
-  <li><span class="change-tag improve">优化</span>备份导出包含全部数据与设置，可一次恢复</li>
-  <li><span class="change-tag improve">优化</span>设置入口移至导航栏，头像菜单精简</li>
-</ul>
-<h2>3.4.9</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>新增「计时器」工具，支持四宫格倒计时与结束提示音</li>
-  <li><span class="change-tag improve">优化</span>重构工具架构，各工具独立成页</li>
-  <li><span class="change-tag fix">修复</span>修复 Markdown 编辑器长行折行后行号错位的问题</li>
-  <li><span class="change-tag fix">修复</span>修复从工具返回时重复弹出未保存提示的问题</li>
-</ul>
-<h2>3.4.8</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>新手引导全新设计，不再遮挡操作，完成由真实操作判定，可随时跳过</li>
-  <li><span class="change-tag new">新功能</span>聊天输入框支持实时 Markdown 预览</li>
-  <li><span class="change-tag new">新功能</span>「工具 → Markdown」编辑器彻底重做，配色跟随应用主题</li>
-  <li><span class="change-tag improve">优化</span>Markdown 渲染增强，支持更多语法且代码块配色跟随明暗主题</li>
-  <li><span class="change-tag improve">优化</span>图片消息判定更合理，仅整条为图片时才作为图片消息显示</li>
-  <li><span class="change-tag improve">优化</span>工具页重构：各工具独立成页，从消息打开的工具返回时回到原会话</li>
-  <li><span class="change-tag fix">修复</span>修复含图片的长文本消息被错误显示为图片、文字丢失的问题</li>
-</ul>
-<h2>3.4.7</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>意见反馈支持附带截图，并自动带上客户端信息（平台 / 版本号 / UID）</li>
-  <li><span class="change-tag new">新功能</span>安卓端可检测最新版本并跳转官网下载页；网页端与安卓端版本信息改由服务端统一获取，兼容性更好</li>
-  <li><span class="change-tag fix">修复</span>修复发送失败等错误提示显示异常的问题</li>
-  <li><span class="change-tag fix">修复</span>修复 Linux 系统重启应用后无法自动打开的问题</li>
-  <li><span class="change-tag fix">修复</span>修复网页端切换会话未自动滚到最新消息、顶部加载更多重复触发与样式异常的问题</li>
-  <li><span class="change-tag fix">修复</span>修复图编辑器重边权重标签重叠的问题</li>
-  <li><span class="change-tag fix">修复</span>修复图片编辑器点击发送无反应的问题</li>
-  <li><span class="change-tag improve">优化</span>token 恢复倒计时改为按消息记录统计，多端一致且重启后准确</li>
-  <li><span class="change-tag improve">优化</span>图编辑器力导向布局整体增强，排版更舒展</li>
-  <li><span class="change-tag improve">优化</span>Markdown 编辑器保存与重命名逻辑重构，重命名生效且避免覆盖已有文件</li>
-  <li><span class="change-tag improve">优化</span>年级颜色全新设计：按学段分色系（小学橙棕 / 初中青 / 高中绿 / 大学蓝靛），深浅主题各配一档，更好分辨</li>
-</ul>
-<h2>3.4.6</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>关于页新增作者与 AI 协作者展示，列出参与开发的 DeepSeek、GLM、腾讯混元等模型</li>
-  <li><span class="change-tag new">新功能</span>Android 桌面图标与启动屏改为 7FA4 完整 Logo，白色背景居中显示，比例协调不变形</li>
-  <li><span class="change-tag fix">修复</span>修复新用户登录后历史消息显示不全的问题，登录时显示加载提示并完整加载聊天记录</li>
-  <li><span class="change-tag fix">修复</span>修复输入文字时软键盘弹出导致计算器等工具界面布局错乱的问题</li>
-  <li><span class="change-tag improve">优化</span>消息气泡加宽，左右留白更少，阅读更紧凑</li>
-</ul>
-<h2>3.4.5</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>新增 Android 移动端版本，功能与桌面版一致，支持 Android 6.0 及以上，可在官网下载安装包</li>
-  <li><span class="change-tag fix">修复</span>修复登录后历史消息显示不全、重启后消息可能丢失的问题</li>
-  <li><span class="change-tag fix">修复</span>修复输入文字时软键盘弹出导致界面布局错乱、数学画板窄窗口无法铺满、未登录时返回按钮无效等问题</li>
-</ul>
-<h2>3.4.4</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>添加好友支持直接输入用户名或编号，不再局限于榜单内用户</li>
-  <li><span class="change-tag new">新功能</span>收藏、设置、关于、版本更新、赞助页面新增返回按钮，可一键回到消息列表</li>
-  <li><span class="change-tag new">新功能</span>未登录打开应用默认进入"关于"页面</li>
-  <li><span class="change-tag improve">优化</span>窗口较窄时导航栏自动移到界面底部，进入聊天时自动隐藏，使用更顺手</li>
-  <li><span class="change-tag improve">优化</span>工具页面自动适应窗口宽度，窗口较窄时各项自动占满显示</li>
-  <li><span class="change-tag improve">优化</span>图编辑器、计算器窗口较窄时自动收起侧边面板，主区域更开阔</li>
-  <li><span class="change-tag improve">优化</span>Markdown 编辑器窗口较窄时自动改为上下分栏显示</li>
-  <li><span class="change-tag improve">优化</span>消息保存方式优化，退出后重启不再丢失最近发送的消息</li>
-  <li><span class="change-tag improve">优化</span>表情插入改用最短快捷码，连续选择多个表情也能正常显示</li>
-  <li><span class="change-tag fix">修复</span>修复自己发送的消息在重启后有时不显示的问题</li>
-  <li><span class="change-tag fix">修复</span>修复未保存提示中"不保存"按钮无法点击的问题</li>
-</ul>
-<h2>3.4.3</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>头像菜单新增"版本更新"与"赞助"独立页面</li>
-  <li><span class="change-tag improve">优化</span>重做"关于"页面，新增完整的软件介绍与功能说明</li>
-  <li><span class="change-tag improve">优化</span>更新日志改为内部滚动显示，页面布局更整洁</li>
-  <li><span class="change-tag improve">优化</span>赞助页改为左右并排布局，展示更清晰</li>
-  <li><span class="change-tag improve">优化</span>优化版本更新页布局与更新状态显示</li>
-  <li><span class="change-tag improve">优化</span>版本公告页更新日志占满高度，可完整滚动浏览</li>
-  <li><span class="change-tag fix">修复</span>修复若干界面与显示问题</li>
-</ul>
-<h2>3.4.2</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>新增群成员批量管理操作，支持间隔执行、进度显示与失败重试</li>
-  <li><span class="change-tag improve">优化</span>打开输入框自动聚焦，光标定位更顺手</li>
-  <li><span class="change-tag improve">优化</span>优化版本公告显示，固定高度并增加跳过入口</li>
-  <li><span class="change-tag improve">优化</span>优化表情消息渲染性能</li>
-  <li><span class="change-tag fix">修复</span>修复 Markdown 公式中字体显示异常的问题</li>
-  <li><span class="change-tag fix">修复</span>修复打开大表情图片卡死的问题</li>
-  <li><span class="change-tag fix">修复</span>修复 Linux 重启后应用无法自动打开的问题</li>
-  <li><span class="change-tag fix">修复</span>修复链接地址被误渲染成表情的问题</li>
-  <li><span class="change-tag fix">修复</span>修复超大自定义表情无法使用的问题</li>
-</ul>
-<h2>3.4.1</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>未登录可直接进入主界面，聊天与收藏需登录后使用；登录状态本地持久化，重启不退出</li>
-  <li><span class="change-tag new">新功能</span>左下角头像菜单重构：个人信息、收藏、设置、关于、版本公告、意见反馈统一收纳</li>
-  <li><span class="change-tag new">新功能</span>新增意见反馈功能，可在应用内提交建议与 Bug</li>
-  <li><span class="change-tag new">新功能</span>关于页与公告展示赞助者列表（表格）</li>
-  <li><span class="change-tag new">新功能</span>图片编辑新增就地文字工具（所见即所得、字号颜色可调）</li>
-  <li><span class="change-tag new">新功能</span>Markdown 编辑器新增富文本工具栏（标题、列表、代码块、表格等）</li>
-  <li><span class="change-tag new">新功能</span>计算器质因数分解移除数值上限</li>
-  <li><span class="change-tag new">新功能</span>系统托盘新增"重启"入口</li>
-  <li><span class="change-tag improve">优化</span>重新登录时保留账号密码，仅退出登录时清除</li>
-  <li><span class="change-tag improve">优化</span>一键已读同步清除 @ 提醒</li>
-  <li><span class="change-tag improve">优化</span>输入框滚动改为光标跟随，与编辑器一致</li>
-  <li><span class="change-tag improve">优化</span>表情渲染重构：输入框不渲染、仅在发送与预览渲染，避免误渲染</li>
-  <li><span class="change-tag improve">优化</span>消息拉取策略优化，历史消息获取更完整</li>
-  <li><span class="change-tag improve">优化</span>工具按钮全面图标化，界面更简洁</li>
-  <li><span class="change-tag improve">优化</span>官网支持自动降级到备用服务器，下载链接修复</li>
-  <li><span class="change-tag improve">优化</span>官网文案调整、macOS 下载默认 arm64 架构</li>
-  <li><span class="change-tag improve">优化</span>访问统计上报频率提升至 1 分钟</li>
-  <li><span class="change-tag improve">优化</span>关于页布局优化：更新日志与赞助者分栏展示</li>
-  <li><span class="change-tag improve">优化</span>管理后台用户列表支持滚动浏览</li>
-  <li><span class="change-tag fix">修复</span>修复部分主题下头像菜单背景显示异常</li>
-  <li><span class="change-tag fix">修复</span>修复表情码被误渲染的问题</li>
-  <li><span class="change-tag fix">修复</span>修复更新日志显示乱码的问题</li>
-</ul>
-<h2>3.4.0</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>未登录可直接进入主界面浏览，聊天与收藏需登录后使用</li>
-  <li><span class="change-tag new">新功能</span>左下角新增用户头像入口，可查看个人信息、重新登录与退出登录</li>
-  <li><span class="change-tag new">新功能</span>网络异常时顶部显示未连接提示，支持一键重新登录</li>
-  <li><span class="change-tag improve">优化</span>粘贴内容自动过滤样式，表情粘贴为源码形式</li>
-  <li><span class="change-tag improve">优化</span>服务端全面升级为 HTTPS 加密访问</li>
-  <li><span class="change-tag fix">修复</span>修复表情在行中不渲染的问题</li>
-</ul>
-<h2>3.3.4</h2>
-<ul>
-  <li><span class="change-tag fix">修复</span>修复计算器模运算下除法计算不一致的问题</li>
-  <li><span class="change-tag fix">修复</span>修复退出时数据保存不完整的问题</li>
-  <li><span class="change-tag fix">修复</span>修复新消息通知弹窗抢占焦点的问题</li>
-  <li><span class="change-tag improve">优化</span>重构表情消息显示，单表情展示更清晰</li>
-  <li><span class="change-tag improve">优化</span>照片按原始比例显示</li>
-  <li><span class="change-tag improve">优化</span>照片点开全屏无边框预览</li>
-</ul>
-<h2>3.3.3</h2>
-<ul>
-  <li><span class="change-tag fix">修复</span>修复本地数据存储异常导致数据丢失的问题</li>
-  <li><span class="change-tag fix">修复</span>修复窗口关闭前未保存数据的问题</li>
-  <li><span class="change-tag fix">修复</span>修复群聊操作下拉框内容被截断的问题</li>
-  <li><span class="change-tag fix">修复</span>修复计算器模运算下除法计算的问题</li>
-  <li><span class="change-tag new">新功能</span>新增版本公告功能</li>
-  <li><span class="change-tag new">新功能</span>新增 GeoGebra 数学画板工具（完整版）</li>
-  <li><span class="change-tag new">新功能</span>新增页面切换快捷键（Ctrl+1~5）</li>
-  <li><span class="change-tag new">新功能</span>新增头像单击打开用户信息、双击拍一拍</li>
-  <li><span class="change-tag new">新功能</span>新增消息区头部返回按钮</li>
-  <li><span class="change-tag new">新功能</span>新增关于页面赞赏码展示</li>
-  <li><span class="change-tag improve">优化</span>重构@提及逻辑</li>
-  <li><span class="change-tag improve">优化</span>优化拍一拍消息</li>
-  <li><span class="change-tag improve">优化</span>优化表情消息的显示逻辑</li>
-  <li><span class="change-tag improve">优化</span>优化界面圆角显示</li>
-  <li><span class="change-tag improve">优化</span>优化窄长窗口单列布局</li>
-  <li><span class="change-tag improve">优化</span>优化深色主题显示</li>
-</ul>
-<h2>3.3.1</h2>
-<ul>
-  <li><span class="change-tag fix">修复</span>修复无法登录的问题</li>
-  <li><span class="change-tag fix">修复</span>修复连续多个表情被误解析为单个表情的问题</li>
-  <li><span class="change-tag improve">优化</span>群聊成员操作支持多选批量处理</li>
-</ul>
-<h2>3.3.0</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>「工具」板块重构：Markdown 编辑、图片编辑独立为两个工具</li>
-  <li><span class="change-tag new">新功能</span>Markdown 编辑支持打开 / 新建 / 保存 / 导出图片，编辑预览分屏联动</li>
-  <li><span class="change-tag new">新功能</span>图片编辑支持画布尺寸调整、新建画布、缩放与撤销增强</li>
-  <li><span class="change-tag new">新功能</span>Graph Editor 新增树形布局与导出为图片</li>
-  <li><span class="change-tag new">新功能</span>计算器新增三角函数 sin / cos / tan / cot</li>
-  <li><span class="change-tag new">新功能</span>访问统计上报客户端版本，分析页可查看用户使用版本</li>
-  <li><span class="change-tag new">新功能</span>token 余额提示：显示剩余数量与恢复倒计时</li>
-  <li><span class="change-tag new">新功能</span>文件预览支持 Markdown 渲染与 PDF 阅读，扩展更多文件类型</li>
-  <li><span class="change-tag new">新功能</span>输入栏新增收藏夹入口，可从收藏中直接选择发送</li>
-  <li><span class="change-tag new">新功能</span>聊天顶部新增关注按钮与单方面关注提示</li>
-  <li><span class="change-tag new">新功能</span>关于页新增 GitHub 项目入口，左上角 Logo 可点击前往官网</li>
-  <li><span class="change-tag improve">优化</span>表情包改为微信式：点击插入输入框，单表情直接发送</li>
-  <li><span class="change-tag improve">优化</span>好友关系改为基于 watchee / watcher 判断，仅展示有关联的会话</li>
-  <li><span class="change-tag improve">优化</span>年级信息改为从排行榜实时同步</li>
-  <li><span class="change-tag improve">优化</span>Graph Editor 力导向布局优化：增大节点间距，拖动时其余节点联动</li>
-  <li><span class="change-tag improve">优化</span>Markdown 输入框支持编辑预览分屏与同步滚动</li>
-  <li><span class="change-tag fix">修复</span> Markdown 公式渲染错误与复制重复的问题</li>
-  <li><span class="change-tag fix">修复</span>文本文件预览中文乱码的问题</li>
-  <li><span class="change-tag fix">修复</span>群聊消息通知误显示为私信的问题</li>
-  <li><span class="change-tag fix">修复</span>部分网络环境下启动卡死数分钟的问题</li>
-  <li><span class="change-tag fix">修复</span>计算器大数运算精度丢失的问题</li>
-</ul>
-<h2>3.2.3</h2>
-<ul>
-  <li><span class="change-tag improve">优化</span>优化消息样式</li>
-  <li><span class="change-tag improve">优化</span>优化文件树功能</li>
-  <li><span class="change-tag improve">更新</span>成员年级信息更新</li>
-</ul>
-<h2>3.2.2</h2>
-<ul>
-  <li><span class="change-tag fix">修复</span>修复 Linux 内置终端在 NOI Linux（Ubuntu 20.04）等旧系统上无法启动的问题</li>
-</ul>
-<h2>3.2.1</h2>
-<ul>
-  <li><span class="change-tag fix">修复</span>修复 Linux 版内置终端无法启动的问题</li>
-</ul>
-<h2>3.2.0</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>新增「工具」板块</li>
-  <li><span class="change-tag new">新功能</span>新增「工具」:IDE</li>
-  <li><span class="change-tag new">新功能</span>新增「工具」:Graph Editor</li>
-  <li><span class="change-tag new">新功能</span>新增「工具」:计算器</li>
-</ul>
-<h2>3.1.3</h2>
-<ul>
-  <li><span class="change-tag fix">修复</span>修复自动登录存在的问题</li>
-  <li><span class="change-tag fix">修复</span>修复消息拖动功能存在的问题</li>
-  <li><span class="change-tag fix">修复</span>修复消息滚动时闪烁的问题</li>
-</ul>
-<h2>3.1.2</h2>
-<ul>
-  <li><span class="change-tag improve">优化</span>自动更新源迁移至新的 GitLab 项目（663 → 886）</li>
-  <li><span class="change-tag improve">优化</span>引入 GitHub Actions 自动构建与发布（Windows / Linux / macOS 三平台）</li>
-  <li><span class="change-tag fix">修复</span>修复 macOS 打包时图标尺寸不足（低于 512×512）导致的构建失败</li>
-</ul>
-<h2>3.1.1</h2>
-<ul>
-  <li><span class="change-tag fix">修复</span>校外无法访问in时自动更新错误的问题</li>
-  <li><span class="change-tag fix">修复</span>修复了校外无法访问in时登录状态显示错误的问题</li>
-  <li><span class="change-tag improve">优化</span>删除切换对话时的神秘滚动动画</li>
-  <li><span class="change-tag improve">优化</span>进入时添加消息加载动画</li>
-</ul>
-<h2>3.1.0</h2>
-<ul>
-  <li><span class="change-tag improve">通知</span>应mulab要求，删除gitlab文件传输、头像、消息加密等多个功能😭</li>
-  <li><span class="change-tag improve">优化</span>轮询下限提升至1s，上限10s</li>
-  <li><span class="change-tag improve">优化</span>使用base64发送文件，不再依赖gitlab API</li>
-  <li><span class="change-tag improve">优化</span>图片超过102400字自动压缩</li>
-  <li><span class="change-tag fix">修复</span>Windows下通知弹窗显示在屏幕外</li>
-  <li><span class="change-tag improve">优化</span>发送文件时显示压缩后的大小</li>
-  <li><span class="change-tag improve">通知</span>删除消息加密功能</li>
-</ul>
-<h2>3.0.1</h2>
-<ul>
-  <li><span class="change-tag improve">优化</span>css源码位置和逻辑</li>
-  <li><span class="change-tag improve">优化</span>动画效果</li>
-  <li><span class="change-tag fix">修复</span>多个已知问题</li>
-</ul>
-<h2>3.0.0</h2>
-<ul>
-  <li><span class="change-tag improve">优化</span>文件消息不再直接发送，而是在输入框显示并可以预览</li>
-  <li><span class="change-tag improve">优化</span>文件消息可以发送附带文字</li>
-  <li><span class="change-tag fix">修复</span>消息删除错误</li>
-  <li><span class="change-tag fix">修复</span>滚动条错误</li>
-  <li><span class="change-tag fix">修复</span>部分硬编码的css</li>
-</ul>
-<h2>v2.10.0</h2>
-<ul>
-  <li><span class="change-tag notice">通知</span>新版本可能存在BUG，遇到清前往gitlub提交issue</li>
-  <li><span class="change-tag new">新功能</span>输入草稿持久化：切换会话自动保存/恢复输入内容，会话列表显示草稿标识</li>
-  <li><span class="change-tag new">新功能</span>图片粘贴发送：输入框 Ctrl+V 粘贴剪贴板图片直接发送</li>
-  <li><span class="change-tag new">新功能</span>Markdown实时预览：输入框旁预览 Markdown 渲染效果</li>
-  <li><span class="change-tag new">新功能</span>未读消息计数：会话列表红点改为数字，任务栏图标显示总未读数</li>
-  <li><span class="change-tag new">新功能</span>标记已读/未读/标记全部已读</li>
-  <li><span class="change-tag new">新功能</span>删除聊天记录：右键可删除部分或所有本地聊天记录</li>
-  <li><span class="change-tag new">新功能</span>会话免打扰：右键菜单可设置免打扰，免打扰会话不触发通知</li>
-  <li><span class="change-tag new">新功能</span>通知免打扰时段：设置中配置免打扰时间段，时段内不弹通知</li>
-  <li><span class="change-tag new">新功能</span>通知声音：新消息通知时播放提示音</li>
-  <li><span class="change-tag new">新功能</span>消息多选，可批量转发/删除/收藏</li>
-  <li><span class="change-tag new">新功能</span>收藏消息：右键菜单可收藏任意消息，收藏后可在收藏面板查看</li>
-  <li><span class="change-tag new">新功能</span>网络状态检测：断网时顶部显示红色横幅提示，恢复后自动消失</li>
-  <li><span class="change-tag new">新功能</span>字体大小调节：设置中可调节消息字体大小</li>
-  <li><span class="change-tag new">新功能</span>数据缓存清理/备份/导入</li>
-  <li><span class="change-tag new">新功能</span>截图工具：快捷键 Ctrl+Shift+S 截屏并发送到当前会话</li>
-  <li><span class="change-tag improve">优化</span>合并私信和群聊</li>
-  <li><span class="change-tag improve">优化</span>Enter直接发送选项：设置中可切换 Enter/Ctrl+Enter 发送方式</li>
-  <li><span class="change-tag improve">优化</span>@所有人功能：群聊中输入 @ 可选择"所有人"，被提及者收到通知</li>
-  <li><span class="change-tag improve">优化</span>群聊最后消息发送者名称：会话列表显示"发送者: 消息内容"</li>
-  <li><span class="change-tag improve">优化</span>优化弹窗内容显示+添加自定义是否隐藏消息内容</li>
-  <li><span class="change-tag improve">优化</span>搜索面板可选跨会话搜索消息+搜索关键词高亮+搜索结果分页</li>
-  <li><span class="change-tag improve">优化</span>代码块复制按钮：鼠标悬停代码块显示一键复制按钮</li>
-  <li><span class="change-tag improve">优化</span>消息日期分组线：跨日消息间显示"今天/昨天/日期"分隔线</li>
-  <li><span class="change-tag fix">修复</span>大量已知的问题</li>
-</ul>
-<h2>v2.9.3</h2>
-<ul>
-  <li><span class="change-tag improve">优化</span>可以跨私信群聊拖动消息并转发</li>
-  <li><span class="change-tag fix">修复</span>群详情面板头像和表格的位置关系错误</li>
-  <li><span class="change-tag fix">修复</span>长markdown在消息列表中显示错误</li>
-  <li><span class="change-tag fix">修复</span>切换对话头像显示错误</li>
-</ul>
-<h2>v2.9.2</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>自动爬取ranklist获取昵称/用户名等信息</li>
-  <li><span class="change-tag new">新功能</span>添加新好友筛选功能</li>
-  <li><span class="change-tag fix">修复</span>修复了开启自动登录且不应在教室时大量重复登录的问题</li>
-</ul>
-<h2>v2.9.1</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>将群头像/个人头像功能，默认为浅灰色背景+首字符，可自定义</li>
-  <li><span class="change-tag new">新功能</span>快捷键功能，可自定义</li>
-  <li><span class="change-tag new">新功能</span>可以拖动消息，实现编辑/转发</li>
-  <li><span class="change-tag fix">修复</span>拍一拍在群列表中显示错误的问题</li>
-  <li><span class="change-tag fix">修复</span>小概率点击新消息弹窗没有显示窗口</li>
-  <li><span class="change-tag fix">修复</span>可以仅发送换行的问题</li>
-  <li><span class="change-tag fix">修复</span>退出登录后仍然可能弹出消息弹窗的问题</li>
-</ul>
-<h2>v2.9.0</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>导入better names数据库(数据截至时间2026/5/22)</li>
-  <li><span class="change-tag new">新功能</span>添加按年级显示颜色/自定义年级颜色功能</li>
-  <li><span class="change-tag fix">修复</span>自动更新显示错误的BUG</li>
-</ul>
-<h2>v2.8.5</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>双击头像/昵称拍一拍对方</li>
-  <li><span class="change-tag improve">优化</span>点击新消息弹窗后跳转到对应聊天窗口</li>
-  <li><span class="change-tag fix">修复</span>在无法登录时重复尝试登录的问题</li>
-  <li><span class="change-tag fix">修复</span>消息中链接点击跳转的问题</li>
-</ul>
-<h2>v2.8.4</h2>
-<ul>
-  <li><span class="change-tag notice">通知</span>欢迎大家参与设计主题/为现有主题投票</li>
-  <li><span class="change-tag new">新功能</span>给部分选择框添加了搜索功能</li>
-  <li><span class="change-tag fix">修复</span>屏蔽群聊不生效的问题</li>
-  <li><span class="change-tag improve">优化</span>重新设计并添加了多个主题</li>
-</ul>
-<h2>v2.8.3</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>屏蔽群聊：退出，检测到被拉入后自动退出</li>
-  <li><span class="change-tag new">新功能</span>删除群聊：删除已经退出的群聊</li>
-  <li><span class="change-tag new">新功能</span>可以直接收藏图片为表情/下载表情</li>
-  <li><span class="change-tag fix">修复</span>部分情况退出群聊后错误删除数据的问题</li>
-  <li><span class="change-tag fix">修复</span>自定义表情包无法被搜索的问题</li>
-  <li><span class="change-tag fix">修复</span>点击新消息弹窗没有显示聊天窗口</li>
-  <li><span class="change-tag fix">修复</span>文件/表情无法下载的问题</li>
-  <li><span class="change-tag improve">优化</span>用户信息窗口的css样式</li>
-</ul>
-<h2>v2.8.2</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>自定义表情包：支持添加本地图片/动图为自定义表情，收藏他人发送的表情，右键菜单收藏</li>
-  <li><span class="change-tag new">新功能</span>消息加密开关：可在设置中控制发送消息是否加密，关闭后发送明文消息</li>
-  <li><span class="change-tag improve">优化</span>设置面板布局：8个选项分为左右两列显示</li>
-</ul>
-<h2>v2.8.1</h2>
-<ul>
-  <li><span class="change-tag fix">修复</span>消息预览滚动条和标题深色模式下不可见的问题</li>
-  <li><span class="change-tag fix">修复</span>自动更新卡在"正在下载 0.0%"及安装失败</li>
-  <li><span class="change-tag fix">修复</span>请求解析与登录跳转逻辑</li>
-</ul>
-<h2>v2.8.0</h2>
-<ul>
-  <li><span class="change-tag new">新功能</span>自动更新、消息搜索、群聊解散、已退出群聊保留</li>
-  <li><span class="change-tag improve">优化</span>群设置面板、用户信息弹窗、输入禁用状态、上传脚本</li>
-</ul>
+## 3.6.1
+- 新功能：工具新增「原题机」：粘贴题面即可找到原题与相似题目，结果直达 vjudge
+- 新功能：计算器新增分数模式、mex 与位运算等函数，模数运算支持常用预设
+- 新功能：计时器支持悬浮窗，可置顶显示并记忆位置，切走也不会中断
+- 新功能：投票新增「开放题」，可由投票者自行填写答案
+- 新功能：网页端发现新版本时在顶部提示，可一键升级
+- 优化：投票支持限制最多可选项数，选项可悬浮查看得票数并标出无效投票
+- 优化：投票卡片不再被自动折叠，可直接看到「确认投票」
+- 优化：上翻历史消息时位置保持不动
+- 修复：修复更新后仍显示旧版本的问题
+- 修复：修复图片无法保存到本机的问题
+- 修复：修复安卓端被系统栏遮挡的问题
+
+## 3.6.0
+- 新功能：聊天支持发起投票：可设置单选或多选、设置截止时间，到期后自动停止
+- 新功能：发送栏新增「拍照」，调用系统相机拍摄后即可发送
+- 新功能：发送栏新增「语音」，说话即可转为文字
+- 新功能：图片预览支持下载到本机
+- 新功能：计时器支持自定义名字
+- 优化：发送栏工具栏改版，文件、收藏、投票等入口收纳进「更多」菜单
+- 优化：收藏改为居中弹窗选择，点击即发送
+- 优化：海报显示投稿人署名，展示顺序可调整
+- 优化：意见反馈填写内容后关闭时需二次确认，不再误丢内容
+- 修复：修复海报无法下载的问题
+- 修复：修复深色模式下默认主题的预览显示为深色的问题
+- 修复：修复已投票或已截止的投票仍可再次选择的问题
+- 修复：修复投票选项选中后偶尔被清空的问题
+- 修复：修复使用情况统计上传了多余个人信息的问题
+- 修复：修复个别情况下使用情况统计停止上传的问题
+
+## 3.5.2
+- 新功能：工具新增「截图」：框选屏幕任意区域，截图后自动在图片编辑器中打开
+- 新功能：新增海报功能：启动时随机展示一张海报，发现页新增海报墙，登录用户可投稿（审核通过后公开）
+- 优化：发现页「刷新」同时刷新推荐与海报墙
+- 优化：教练身份在年级显示中优先，不再被默认的「毕业」覆盖
+- 优化：工具保存统一：首次保存选择位置，之后按 Ctrl+S 直接覆盖原文件，Ctrl+Shift+S 另存为
+- 修复：修复正停留在群聊时收到 @ 仍显示「有人@你」的问题
+- 修复：修复收藏设置分类后仍显示为未分类的问题
+- 修复：修复未选择保存位置时按 Ctrl+S 误显示「已保存」的问题
+- 修复：修复 Linux 系统下应用启动缓慢的问题
+
+## 3.5.1
+- 新功能：启动时展示社团宣传
+- 优化：网络与登录状态提示可手动收起，未连接时显示已断线时长
+- 优化：未登录时暂不可用的入口改为置灰展示，不再直接隐藏
+- 优化：设置项新增说明，悬停即可查看该项作用
+- 优化：导航图标与页面标题统一，窄屏下发现页与设置页保留底栏
+- 修复：修复浅色主题下代码块显示异常的问题
+
+## 3.5.0
+- 新功能：新增「发现」页：推荐可能认识的人与可能相关的群
+- 新功能：新增聚合搜索：一次搜出用户、消息、群聊与收藏
+- 新功能：消息搜索升级为全量检索
+- 新功能：收藏夹全面升级：支持搜索、标签、备注、置顶、批量管理与跳转原消息
+- 优化：搜索结果分区展示，可一键查看某一类的全部结果
+- 优化：收藏发送面板改版，支持搜索并与表情面板同形态
+- 优化：主题设置改版，年级颜色与主题变量同处编辑，可整体导出导入
+- 优化：备份导出包含全部数据与设置，可一次恢复
+- 优化：设置入口移至导航栏，头像菜单精简
+
+## 3.4.9
+- 新功能：新增「计时器」工具，支持四宫格倒计时与结束提示音
+- 优化：重构工具架构，各工具独立成页
+- 修复：修复 Markdown 编辑器长行折行后行号错位的问题
+- 修复：修复从工具返回时重复弹出未保存提示的问题
+
+## 3.4.8
+- 新功能：新手引导全新设计，不再遮挡操作，完成由真实操作判定，可随时跳过
+- 新功能：聊天输入框支持实时 Markdown 预览
+- 新功能：「工具 → Markdown」编辑器彻底重做，配色跟随应用主题
+- 优化：Markdown 渲染增强，支持更多语法且代码块配色跟随明暗主题
+- 优化：图片消息判定更合理，仅整条为图片时才作为图片消息显示
+- 优化：工具页重构：各工具独立成页，从消息打开的工具返回时回到原会话
+- 修复：修复含图片的长文本消息被错误显示为图片、文字丢失的问题
+
+## 3.4.7
+- 新功能：意见反馈支持附带截图，并自动带上客户端信息（平台 / 版本号 / UID）
+- 新功能：安卓端可检测最新版本并跳转官网下载页；网页端与安卓端版本信息改由服务端统一获取，兼容性更好
+- 修复：修复发送失败等错误提示显示异常的问题
+- 修复：修复 Linux 系统重启应用后无法自动打开的问题
+- 修复：修复网页端切换会话未自动滚到最新消息、顶部加载更多重复触发与样式异常的问题
+- 修复：修复图编辑器重边权重标签重叠的问题
+- 修复：修复图片编辑器点击发送无反应的问题
+- 优化：token 恢复倒计时改为按消息记录统计，多端一致且重启后准确
+- 优化：图编辑器力导向布局整体增强，排版更舒展
+- 优化：Markdown 编辑器保存与重命名逻辑重构，重命名生效且避免覆盖已有文件
+- 优化：年级颜色全新设计：按学段分色系（小学橙棕 / 初中青 / 高中绿 / 大学蓝靛），深浅主题各配一档，更好分辨
+
+## 3.4.6
+- 新功能：关于页新增作者与 AI 协作者展示，列出参与开发的 DeepSeek、GLM、腾讯混元等模型
+- 新功能：Android 桌面图标与启动屏改为 7FA4 完整 Logo，白色背景居中显示，比例协调不变形
+- 修复：修复新用户登录后历史消息显示不全的问题，登录时显示加载提示并完整加载聊天记录
+- 修复：修复输入文字时软键盘弹出导致计算器等工具界面布局错乱的问题
+- 优化：消息气泡加宽，左右留白更少，阅读更紧凑
+
+## 3.4.5
+- 新功能：新增 Android 移动端版本，功能与桌面版一致，支持 Android 6.0 及以上，可在官网下载安装包
+- 修复：修复登录后历史消息显示不全、重启后消息可能丢失的问题
+- 修复：修复输入文字时软键盘弹出导致界面布局错乱、数学画板窄窗口无法铺满、未登录时返回按钮无效等问题
+
+## 3.4.4
+- 新功能：添加好友支持直接输入用户名或编号，不再局限于榜单内用户
+- 新功能：收藏、设置、关于、版本更新、赞助页面新增返回按钮，可一键回到消息列表
+- 新功能：未登录打开应用默认进入"关于"页面
+- 优化：窗口较窄时导航栏自动移到界面底部，进入聊天时自动隐藏，使用更顺手
+- 优化：工具页面自动适应窗口宽度，窗口较窄时各项自动占满显示
+- 优化：图编辑器、计算器窗口较窄时自动收起侧边面板，主区域更开阔
+- 优化：Markdown 编辑器窗口较窄时自动改为上下分栏显示
+- 优化：消息保存方式优化，退出后重启不再丢失最近发送的消息
+- 优化：表情插入改用最短快捷码，连续选择多个表情也能正常显示
+- 修复：修复自己发送的消息在重启后有时不显示的问题
+- 修复：修复未保存提示中"不保存"按钮无法点击的问题
+
+## 3.4.3
+- 新功能：头像菜单新增"版本更新"与"赞助"独立页面
+- 优化：重做"关于"页面，新增完整的软件介绍与功能说明
+- 优化：更新日志改为内部滚动显示，页面布局更整洁
+- 优化：赞助页改为左右并排布局，展示更清晰
+- 优化：优化版本更新页布局与更新状态显示
+- 优化：版本公告页更新日志占满高度，可完整滚动浏览
+- 修复：修复若干界面与显示问题
+
+## 3.4.2
+- 新功能：新增群成员批量管理操作，支持间隔执行、进度显示与失败重试
+- 优化：打开输入框自动聚焦，光标定位更顺手
+- 优化：优化版本公告显示，固定高度并增加跳过入口
+- 优化：优化表情消息渲染性能
+- 修复：修复 Markdown 公式中字体显示异常的问题
+- 修复：修复打开大表情图片卡死的问题
+- 修复：修复 Linux 重启后应用无法自动打开的问题
+- 修复：修复链接地址被误渲染成表情的问题
+- 修复：修复超大自定义表情无法使用的问题
+
+## 3.4.1
+- 新功能：未登录可直接进入主界面，聊天与收藏需登录后使用；登录状态本地持久化，重启不退出
+- 新功能：左下角头像菜单重构：个人信息、收藏、设置、关于、版本公告、意见反馈统一收纳
+- 新功能：新增意见反馈功能，可在应用内提交建议与 Bug
+- 新功能：关于页与公告展示赞助者列表（表格）
+- 新功能：图片编辑新增就地文字工具（所见即所得、字号颜色可调）
+- 新功能：Markdown 编辑器新增富文本工具栏（标题、列表、代码块、表格等）
+- 新功能：计算器质因数分解移除数值上限
+- 新功能：系统托盘新增"重启"入口
+- 优化：重新登录时保留账号密码，仅退出登录时清除
+- 优化：一键已读同步清除 @ 提醒
+- 优化：输入框滚动改为光标跟随，与编辑器一致
+- 优化：表情渲染重构：输入框不渲染、仅在发送与预览渲染，避免误渲染
+- 优化：消息拉取策略优化，历史消息获取更完整
+- 优化：工具按钮全面图标化，界面更简洁
+- 优化：官网支持自动降级到备用服务器，下载链接修复
+- 优化：官网文案调整、macOS 下载默认 arm64 架构
+- 优化：访问统计上报频率提升至 1 分钟
+- 优化：关于页布局优化：更新日志与赞助者分栏展示
+- 优化：管理后台用户列表支持滚动浏览
+- 修复：修复部分主题下头像菜单背景显示异常
+- 修复：修复表情码被误渲染的问题
+- 修复：修复更新日志显示乱码的问题
+
+## 3.4.0
+- 新功能：未登录可直接进入主界面浏览，聊天与收藏需登录后使用
+- 新功能：左下角新增用户头像入口，可查看个人信息、重新登录与退出登录
+- 新功能：网络异常时顶部显示未连接提示，支持一键重新登录
+- 优化：粘贴内容自动过滤样式，表情粘贴为源码形式
+- 优化：服务端全面升级为 HTTPS 加密访问
+- 修复：修复表情在行中不渲染的问题
+
+## 3.3.4
+- 修复：修复计算器模运算下除法计算不一致的问题
+- 修复：修复退出时数据保存不完整的问题
+- 修复：修复新消息通知弹窗抢占焦点的问题
+- 优化：重构表情消息显示，单表情展示更清晰
+- 优化：照片按原始比例显示
+- 优化：照片点开全屏无边框预览
+
+## 3.3.3
+- 修复：修复本地数据存储异常导致数据丢失的问题
+- 修复：修复窗口关闭前未保存数据的问题
+- 修复：修复群聊操作下拉框内容被截断的问题
+- 修复：修复计算器模运算下除法计算的问题
+- 新功能：新增版本公告功能
+- 新功能：新增 GeoGebra 数学画板工具（完整版）
+- 新功能：新增页面切换快捷键（Ctrl+1~5）
+- 新功能：新增头像单击打开用户信息、双击拍一拍
+- 新功能：新增消息区头部返回按钮
+- 新功能：新增关于页面赞赏码展示
+- 优化：重构@提及逻辑
+- 优化：优化拍一拍消息
+- 优化：优化表情消息的显示逻辑
+- 优化：优化界面圆角显示
+- 优化：优化窄长窗口单列布局
+- 优化：优化深色主题显示
+
+## 3.3.1
+- 修复：修复无法登录的问题
+- 修复：修复连续多个表情被误解析为单个表情的问题
+- 优化：群聊成员操作支持多选批量处理
+
+## 3.3.0
+- 新功能：「工具」板块重构：Markdown 编辑、图片编辑独立为两个工具
+- 新功能：Markdown 编辑支持打开 / 新建 / 保存 / 导出图片，编辑预览分屏联动
+- 新功能：图片编辑支持画布尺寸调整、新建画布、缩放与撤销增强
+- 新功能：Graph Editor 新增树形布局与导出为图片
+- 新功能：计算器新增三角函数 sin / cos / tan / cot
+- 新功能：访问统计上报客户端版本，分析页可查看用户使用版本
+- 新功能：token 余额提示：显示剩余数量与恢复倒计时
+- 新功能：文件预览支持 Markdown 渲染与 PDF 阅读，扩展更多文件类型
+- 新功能：输入栏新增收藏夹入口，可从收藏中直接选择发送
+- 新功能：聊天顶部新增关注按钮与单方面关注提示
+- 新功能：关于页新增 GitHub 项目入口，左上角 Logo 可点击前往官网
+- 优化：表情包改为微信式：点击插入输入框，单表情直接发送
+- 优化：好友关系改为基于 watchee / watcher 判断，仅展示有关联的会话
+- 优化：年级信息改为从排行榜实时同步
+- 优化：Graph Editor 力导向布局优化：增大节点间距，拖动时其余节点联动
+- 优化：Markdown 输入框支持编辑预览分屏与同步滚动
+- 修复：Markdown 公式渲染错误与复制重复的问题
+- 修复：文本文件预览中文乱码的问题
+- 修复：群聊消息通知误显示为私信的问题
+- 修复：部分网络环境下启动卡死数分钟的问题
+- 修复：计算器大数运算精度丢失的问题
+
+## 3.2.3
+- 优化：优化消息样式
+- 优化：优化文件树功能
+- 更新：成员年级信息更新
+
+## 3.2.2
+- 修复：修复 Linux 内置终端在 NOI Linux（Ubuntu 20.04）等旧系统上无法启动的问题
+
+## 3.2.1
+- 修复：修复 Linux 版内置终端无法启动的问题
+
+## 3.2.0
+- 新功能：新增「工具」板块
+- 新功能：新增「工具」:IDE
+- 新功能：新增「工具」:Graph Editor
+- 新功能：新增「工具」:计算器
+
+## 3.1.3
+- 修复：修复自动登录存在的问题
+- 修复：修复消息拖动功能存在的问题
+- 修复：修复消息滚动时闪烁的问题
+
+## 3.1.2
+- 优化：自动更新源迁移至新的 GitLab 项目（663 → 886）
+- 优化：引入 GitHub Actions 自动构建与发布（Windows / Linux / macOS 三平台）
+- 修复：修复 macOS 打包时图标尺寸不足（低于 512×512）导致的构建失败
+
+## 3.1.1
+- 修复：校外无法访问in时自动更新错误的问题
+- 修复：修复了校外无法访问in时登录状态显示错误的问题
+- 优化：删除切换对话时的神秘滚动动画
+- 优化：进入时添加消息加载动画
+
+## 3.1.0
+- 通知：应mulab要求，删除gitlab文件传输、头像、消息加密等多个功能😭
+- 优化：轮询下限提升至1s，上限10s
+- 优化：使用base64发送文件，不再依赖gitlab API
+- 优化：图片超过102400字自动压缩
+- 修复：Windows下通知弹窗显示在屏幕外
+- 优化：发送文件时显示压缩后的大小
+- 通知：删除消息加密功能
+
+## 3.0.1
+- 优化：css源码位置和逻辑
+- 优化：动画效果
+- 修复：多个已知问题
+
+## 3.0.0
+- 优化：文件消息不再直接发送，而是在输入框显示并可以预览
+- 优化：文件消息可以发送附带文字
+- 修复：消息删除错误
+- 修复：滚动条错误
+- 修复：部分硬编码的css
+
+## v2.10.0
+- 通知：新版本可能存在BUG，遇到清前往gitlub提交issue
+- 新功能：输入草稿持久化：切换会话自动保存/恢复输入内容，会话列表显示草稿标识
+- 新功能：图片粘贴发送：输入框 Ctrl+V 粘贴剪贴板图片直接发送
+- 新功能：Markdown实时预览：输入框旁预览 Markdown 渲染效果
+- 新功能：未读消息计数：会话列表红点改为数字，任务栏图标显示总未读数
+- 新功能：标记已读/未读/标记全部已读
+- 新功能：删除聊天记录：右键可删除部分或所有本地聊天记录
+- 新功能：会话免打扰：右键菜单可设置免打扰，免打扰会话不触发通知
+- 新功能：通知免打扰时段：设置中配置免打扰时间段，时段内不弹通知
+- 新功能：通知声音：新消息通知时播放提示音
+- 新功能：消息多选，可批量转发/删除/收藏
+- 新功能：收藏消息：右键菜单可收藏任意消息，收藏后可在收藏面板查看
+- 新功能：网络状态检测：断网时顶部显示红色横幅提示，恢复后自动消失
+- 新功能：字体大小调节：设置中可调节消息字体大小
+- 新功能：数据缓存清理/备份/导入
+- 新功能：截图工具：快捷键 Ctrl+Shift+S 截屏并发送到当前会话
+- 优化：合并私信和群聊
+- 优化：Enter直接发送选项：设置中可切换 Enter/Ctrl+Enter 发送方式
+- 优化：@所有人功能：群聊中输入 @ 可选择"所有人"，被提及者收到通知
+- 优化：群聊最后消息发送者名称：会话列表显示"发送者: 消息内容"
+- 优化：优化弹窗内容显示+添加自定义是否隐藏消息内容
+- 优化：搜索面板可选跨会话搜索消息+搜索关键词高亮+搜索结果分页
+- 优化：代码块复制按钮：鼠标悬停代码块显示一键复制按钮
+- 优化：消息日期分组线：跨日消息间显示"今天/昨天/日期"分隔线
+- 修复：大量已知的问题
+
+## v2.9.3
+- 优化：可以跨私信群聊拖动消息并转发
+- 修复：群详情面板头像和表格的位置关系错误
+- 修复：长markdown在消息列表中显示错误
+- 修复：切换对话头像显示错误
+
+## v2.9.2
+- 新功能：自动爬取ranklist获取昵称/用户名等信息
+- 新功能：添加新好友筛选功能
+- 修复：修复了开启自动登录且不应在教室时大量重复登录的问题
+
+## v2.9.1
+- 新功能：将群头像/个人头像功能，默认为浅灰色背景+首字符，可自定义
+- 新功能：快捷键功能，可自定义
+- 新功能：可以拖动消息，实现编辑/转发
+- 修复：拍一拍在群列表中显示错误的问题
+- 修复：小概率点击新消息弹窗没有显示窗口
+- 修复：可以仅发送换行的问题
+- 修复：退出登录后仍然可能弹出消息弹窗的问题
+
+## v2.9.0
+- 新功能：导入better names数据库(数据截至时间2026/5/22)
+- 新功能：添加按年级显示颜色/自定义年级颜色功能
+- 修复：自动更新显示错误的BUG
+
+## v2.8.5
+- 新功能：双击头像/昵称拍一拍对方
+- 优化：点击新消息弹窗后跳转到对应聊天窗口
+- 修复：在无法登录时重复尝试登录的问题
+- 修复：消息中链接点击跳转的问题
+
+## v2.8.4
+- 通知：欢迎大家参与设计主题/为现有主题投票
+- 新功能：给部分选择框添加了搜索功能
+- 修复：屏蔽群聊不生效的问题
+- 优化：重新设计并添加了多个主题
+
+## v2.8.3
+- 新功能：屏蔽群聊：退出，检测到被拉入后自动退出
+- 新功能：删除群聊：删除已经退出的群聊
+- 新功能：可以直接收藏图片为表情/下载表情
+- 修复：部分情况退出群聊后错误删除数据的问题
+- 修复：自定义表情包无法被搜索的问题
+- 修复：点击新消息弹窗没有显示聊天窗口
+- 修复：文件/表情无法下载的问题
+- 优化：用户信息窗口的css样式
+
+## v2.8.2
+- 新功能：自定义表情包：支持添加本地图片/动图为自定义表情，收藏他人发送的表情，右键菜单收藏
+- 新功能：消息加密开关：可在设置中控制发送消息是否加密，关闭后发送明文消息
+- 优化：设置面板布局：8个选项分为左右两列显示
+
+## v2.8.1
+- 修复：消息预览滚动条和标题深色模式下不可见的问题
+- 修复：自动更新卡在"正在下载 0.0%"及安装失败
+- 修复：请求解析与登录跳转逻辑
+
+## v2.8.0
+- 新功能：自动更新、消息搜索、群聊解散、已退出群聊保留
+- 优化：群设置面板、用户信息弹窗、输入禁用状态、上传脚本

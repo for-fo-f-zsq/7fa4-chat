@@ -74,7 +74,6 @@ export default defineConfig({
         input: {
           index: resolve('src/preload/index.js'),
           notification: resolve('src/preload/notification.js'),
-          screenshot: resolve('src/preload/screenshot.js'),
           'timer-float': resolve('src/preload/timer-float.js')
         }
       }
@@ -95,7 +94,6 @@ export default defineConfig({
         input: {
           index: resolve('src/renderer/index.html'),
           notification: resolve('src/renderer/notification.html'),
-          screenshot: resolve('src/renderer/screenshot.html'),
           'timer-float': resolve('src/renderer/timer-float.html')
         }
       }
