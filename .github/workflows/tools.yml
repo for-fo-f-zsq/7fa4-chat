@@ -12,7 +12,9 @@ name: Build & Publish Tools
 #   - 该 GitLab 实例的 Generic Package 不支持嵌套路径文件名（file_name 含 '/' 会被 400 拒绝），
 #     所以包内文件是扁平名：相对路径中的 '/' 替换为 '__'（如 calculator__1.0.0__index.html）；
 #     发布脚本与客户端（src/main/index.js、src/renderer/src/platform/web-api.js）使用同一映射规则。
-#   - 发布采用整包替换：先校验本地产物（size/sha256），再删除旧 TOOLS 包，然后逐文件上传并匿名校验。
+#   - 发布采用「上传优先」：先上传全部工具文件，tools.json 最后上传作为清单切换开关，
+#     然后才清理旧条目（同名 PUT 会新增条目，按文件名保留最新一条）与新清单之外的过期文件；
+#     上传中途失败时线上仍是「旧清单 + 旧文件」的完整可用状态。
 on:
   push:
     # 只响应 main 分支：tag 推送（发版）也包含 tools/ 变更，但不应重复发布工具包
@@ -69,8 +71,9 @@ jobs:
           path: dist-tools/
 
       # 发布到 GitLab Generic Package TOOLS/latest：先校验本地 dist-tools（size/sha256），
-      # 再删除旧 TOOLS 包，逐文件上传（扁平文件名），最后匿名下载 tools.json 与抽样文件校验 size/sha256。
-      # 删除旧包到上传完成前客户端会短暂拿不到工具包（预期行为，与 release.yml 整包替换一致）。
+      # 再逐文件上传（扁平文件名，tools.json 最后上传作为清单切换开关），然后清理过期文件，
+      # 最后匿名下载 tools.json 与抽样文件校验 size/sha256。
+      # 上传期间客户端始终可读旧清单，中途失败不会出现空包。
       # 需要 secret GITLAB_TOKEN（api scope，项目 886 的 Maintainer/Owner 权限）
       - name: Publish to GitLab Generic Package
         env:

@@ -6,8 +6,12 @@
  *   - 包地址：${GITLAB_API}/projects/886/packages/generic/TOOLS/latest
  *   - 清单：包根 tools.json（不编码，直接 GET …/TOOLS/latest/tools.json）
  *   - 工具文件：同包内单层文件名（见下方「扁平映射」）
- *   - 发布策略：整包替换 —— 先本地校验全部文件（size + sha256），再分页 DELETE 所有旧 TOOLS 包，
- *     然后逐文件 PUT 上传，最后匿名校验（tools.json 200 + size/sha256 一致 + 抽查工具文件）。
+ *   - 发布策略：不删包，上传优先 —— 先逐文件 PUT 上传（tools.json 最后上传，作为「清单切换开关」；
+ *     旧清单在最后一步之前始终可用），然后清理旧条目与旧版本包，最后匿名校验
+ *     （tools.json 200 + size/sha256 一致 + 抽查工具文件）。
+ *     这样即使上传中途失败，线上仍是「旧 tools.json + 旧文件」的完整可用状态，不会出现空包。
+ *   - 注意：该实例的 Generic Package 对同名 PUT 会新增文件条目、不会原地覆盖，
+ *     因此清理阶段按 file_name 只保留 id 最大（最新上传）的条目。
  *
  * 扁平映射（发布端与客户端必须完全一致；客户端见 src/main/index.js、src/renderer/src/platform/web-api.js）：
  *   flatName(relPath) = relPath.split('/').join('__')
@@ -34,9 +38,10 @@
  *
  * 安全约束：
  *   - 默认 dry-run；没有 --apply 不会删除、上传任何远端内容。
- *   - 删除只针对 package_name=TOOLS（--probe 时是 TOOLS-PROBE）的包，绝不触碰其他包（如 7FA4-Chat）。
- *   - 本地文件读取与 sha256 自检在删除旧包之前完成；任一校验失败直接退出，远端保持原样。
- *   - 删除旧包后、上传完成前，线上会短暂没有工具包（与 release.yml 的整包替换策略一致，可接受）。
+ *   - 删除只针对本脚本新清单之外的过期文件，以及 package_name=TOOLS（--probe 时是 TOOLS-PROBE）
+ *     的旧版本包，绝不触碰其他包（如 7FA4-Chat）。
+ *   - 本地文件读取与 sha256 自检在上传之前完成；任一校验失败直接退出，远端保持原样。
+ *   - 上传期间线上始终可用：tools.json 最后上传，过期文件/旧版本包在清单切换成功后才清理。
  */
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, statSync } from 'node:fs'
@@ -170,7 +175,8 @@ function printUsage() {
   calculator__1.0.0__index.html               <- 工具文件扁平名：相对路径中 '/' → '__'
   math__1.0.0__geogebra__calculator.html      <- 例：math/1.0.0/geogebra/calculator.html
 
-安全说明：只有 --apply 会改动远端；删除仅限 --package 指定的包里列出的包 id，不会动其他包。`)
+安全说明：只有 --apply 会改动远端；上传优先（tools.json 最后上传），删除仅限新清单之外的过期文件
+          与 --package 指定包名的旧版本包，不会动其他包（如 7FA4-Chat）。`)
 }
 
 function parseArgs(argv) {
@@ -404,6 +410,49 @@ function createClient(opts) {
     return { alreadyGone: false, status: response.status }
   }
 
+  /** 分页列出某个包 id 下的文件（返回全部页） */
+  async function listPackageFiles(packageId) {
+    const files = []
+    const seen = new Set()
+    let page = 1
+    for (let guard = 0; guard < 1000; guard++) {
+      const url = `${projectUrl}/packages/${packageId}/package_files?per_page=100&page=${page}`
+      const response = await request('GET', url, { auth: Boolean(token) })
+      if (!response.ok) {
+        throw new Error(`列出包 ${packageId} 的文件失败：HTTP ${response.status} ${brief(response.json ?? response.text)}`)
+      }
+      if (!Array.isArray(response.json)) {
+        throw new Error(`列出包文件响应不是数组：${brief(response.text)}`)
+      }
+      for (const item of response.json) {
+        if (!item || typeof item.id !== 'number') continue
+        if (seen.has(item.id)) continue
+        seen.add(item.id)
+        files.push({ id: item.id, fileName: item.file_name, size: item.size })
+      }
+      const next = Number(response.headers.get('x-next-page') || 0)
+      if (!next || next <= page) break
+      page = next
+    }
+    return files
+  }
+
+  /** 删除包内某个文件（用于清理新清单之外的过期文件） */
+  async function deletePackageFile(packageId, fileId) {
+    const response = await request(
+      'DELETE',
+      `${projectUrl}/packages/${packageId}/package_files/${fileId}`,
+      { timeoutMs: LIST_TIMEOUT_MS }
+    )
+    if (response.status === 404) return { alreadyGone: true, status: 404 }
+    if (!response.ok) {
+      throw new Error(
+        `删除包文件 ${packageId}/${fileId} 失败：HTTP ${response.status} ${brief(response.json ?? response.text)}`
+      )
+    }
+    return { alreadyGone: false, status: response.status }
+  }
+
   async function uploadFile(baseUrl, name, buffer) {
     assertFlatName(name)
     const url = `${baseUrl}/${encodeURIComponent(name)}`
@@ -448,6 +497,8 @@ function createClient(opts) {
     request,
     listPackages,
     deletePackage,
+    listPackageFiles,
+    deletePackageFile,
     uploadFile,
     downloadFile,
     verifyToken
@@ -463,7 +514,7 @@ function printRemotePackages(packages, packageName) {
     console.log(`[remote] 远端还没有名为 ${packageName} 的包（首次发布）`)
     return
   }
-  console.log(`[remote] 远端已有 ${packages.length} 个名为 ${packageName} 的包，--apply 时将全部删除：`)
+  console.log(`[remote] 远端已有 ${packages.length} 个名为 ${packageName} 的包；--apply 将原地覆盖并只清理新清单之外的过期文件：`)
   for (const item of packages) {
     console.log(
       `[remote]   id=${item.id}  ${item.name}/${item.version}  type=${item.packageType || '?'}  created=${item.createdAt || '?'}`
@@ -477,37 +528,66 @@ async function applyPublish(client, opts, files) {
   }
   await client.verifyToken()
 
-  // 1) 删除所有旧包（每轮都重新取 page=1，避免分页偏移）
-  let deleted = 0
-  for (let round = 1; round <= DELETE_ROUND_LIMIT; round++) {
-    const packages = await client.listPackages(opts.packageName)
-    if (packages.length === 0) break
-    for (const item of packages) {
-      console.log(`[delete] 删除旧包 id=${item.id} ${item.name}/${item.version} …`)
-      await client.deletePackage(item.id)
-      deleted++
-    }
-    if (round === DELETE_ROUND_LIMIT) {
-      fail(`删除旧包达到 ${DELETE_ROUND_LIMIT} 轮仍未清空，已中止`)
-    }
-  }
-  console.log(`[delete] 完成：共删除 ${deleted} 个旧包`)
-
-  // 2) 逐文件上传（清单最后上传，避免"清单已存在但文件还没传完"的更早时间窗）
   const packageBase = client.packageBaseUrl(opts.packageName, opts.packageVersion)
   const ordered = [...files.filter((file) => !file.isManifest), ...files.filter((file) => file.isManifest)]
+  const nextNames = new Set(ordered.map((file) => file.flatName))
+
+  // 1) 逐文件上传；tools.json 最后上传，作为「清单切换」开关。
+  //    切换前客户端读到的仍是旧清单 + 旧文件（完整可用），上传中途失败也不会出现空包。
   let uploadedBytes = 0
   for (let i = 0; i < ordered.length; i++) {
     const file = ordered[i]
     const status = await client.uploadFile(packageBase, file.flatName, file.buffer)
     uploadedBytes += file.size
     console.log(
-      `[upload] ${String(i + 1).padStart(3)}/${ordered.length}  ${formatBytes(file.size).padStart(9)}  ${file.flatName}  (HTTP ${status})`
+      `[upload] ${String(i + 1).padStart(3)}/${ordered.length}  ${formatBytes(file.size).padStart(9)}  ${file.flatName}  (HTTP ${status})${file.isManifest ? '  <- 清单（切换开关）' : ''}`
     )
   }
   console.log(`[upload] 完成：${ordered.length} 个文件，${formatBytes(uploadedBytes)}`)
 
-  // 3) 校验
+  // 2) 清单已切换：清理旧条目。
+  //    该 GitLab 实例的 Generic Package 对同名 PUT 会新增条目而不是原地覆盖，
+  //    因此按 file_name 保留 id 最大的条目（最新上传），删除其余旧条目与新清单之外的文件。
+  const currentPackage = (await client.listPackages(opts.packageName)).find(
+    (item) => item.version === opts.packageVersion
+  )
+  if (currentPackage) {
+    const onlineFiles = await client.listPackageFiles(currentPackage.id)
+    const newestIdByName = new Map()
+    for (const file of onlineFiles) {
+      const prev = newestIdByName.get(file.fileName)
+      if (prev === undefined || file.id > prev) newestIdByName.set(file.fileName, file.id)
+    }
+    let removedFiles = 0
+    for (const file of onlineFiles) {
+      const keep = nextNames.has(file.fileName) && newestIdByName.get(file.fileName) === file.id
+      if (keep) continue
+      console.log(`[cleanup] 删除旧条目 ${file.fileName}（id=${file.id}）…`)
+      await client.deletePackageFile(currentPackage.id, file.id)
+      removedFiles++
+    }
+    if (removedFiles > 0) console.log(`[cleanup] 完成：删除 ${removedFiles} 个旧条目`)
+    else console.log('[cleanup] 无旧条目需要清理')
+  }
+
+  // 3) 清理同包名的旧版本包（GITLAB_TOOLS_VERSION 之外的历史版本；正常应不存在）
+  let removedPackages = 0
+  for (let round = 1; round <= DELETE_ROUND_LIMIT; round++) {
+    const packages = await client.listPackages(opts.packageName)
+    const stalePackages = packages.filter((item) => item.version !== opts.packageVersion)
+    if (stalePackages.length === 0) break
+    for (const item of stalePackages) {
+      console.log(`[cleanup] 删除旧版本包 id=${item.id} ${item.name}/${item.version} …`)
+      await client.deletePackage(item.id)
+      removedPackages++
+    }
+    if (round === DELETE_ROUND_LIMIT) {
+      fail(`清理旧版本包达到 ${DELETE_ROUND_LIMIT} 轮仍未清空，已中止`)
+    }
+  }
+  if (removedPackages > 0) console.log(`[cleanup] 完成：删除 ${removedPackages} 个旧版本包`)
+
+  // 5) 校验
   await verifyPublished(client, opts, files)
 }
 
