@@ -404,7 +404,9 @@ async function installTool(card) {
     actionError.value = '当前客户端不支持安装远端工具，请更新应用'
     return
   }
-  const meta = card.raw || card
+  // 远端 manifest 条目来自 Vue 响应式数组（Proxy），直接经 contextBridge 传给主进程会抛
+  // 「An object could not be cloned」；先深拷贝成纯 JSON 对象再跨进程传递。
+  const meta = JSON.parse(JSON.stringify(card.raw || card))
   const name = meta.name || meta.id
   busyMap.value[meta.id] = 'install'
   actionError.value = ''

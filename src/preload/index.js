@@ -85,7 +85,7 @@ contextBridge.exposeInMainWorld('api', {
   // --- 在线工具（GitLab 886 静态包；下载/校验/安装/卸载/入口 URL 均在主进程执行）---
   fetchToolsManifest: () => ipcRenderer.invoke('tools-fetch-manifest'),
   listInstalledTools: () => ipcRenderer.invoke('tools-list-installed'),
-  installTool: (toolMeta) => ipcRenderer.invoke('tools-install', toolMeta),
+  installTool: (toolMeta) => ipcRenderer.invoke('tools-install', JSON.parse(JSON.stringify(toolMeta))),
   removeTool: (id) => ipcRenderer.invoke('tools-remove', id),
   getToolEntryUrl: (id, entry) => ipcRenderer.invoke('tools-get-entry-url', id, entry),
   onToolProgress: (callback) => {
