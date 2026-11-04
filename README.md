@@ -1,6 +1,6 @@
 # [下载安装包](https://github.com/for-fo-f-zsq/7fa4-chat/releases)
 
-推荐从 **GitHub Releases** 下载（仓库即将公开，**全部历史版本**都会保留）：
+推荐从 **GitHub Releases** 下载（**全部历史版本**都会保留）：
 
 - [GitHub Releases（全部历史版本）](https://github.com/for-fo-f-zsq/7fa4-chat/releases)
 - [GitHub 仓库](https://github.com/for-fo-f-zsq/7fa4-chat)

@@ -15,6 +15,9 @@ name: Build & Publish Tools
 #   - 发布采用整包替换：先校验本地产物（size/sha256），再删除旧 TOOLS 包，然后逐文件上传并匿名校验。
 on:
   push:
+    # 只响应 main 分支：tag 推送（发版）也包含 tools/ 变更，但不应重复发布工具包
+    branches:
+      - main
     paths:
       - 'tools/**'
       - 'tools.vite.config.mjs'
