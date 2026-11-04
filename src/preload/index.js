@@ -64,15 +64,8 @@ contextBridge.exposeInMainWorld('api', {
   fetchChangelog: () => ipcRenderer.invoke('fetch-changelog'),
   // --- 新增功能 IPC ---
   setBadgeCount: (count) => ipcRenderer.invoke('set-badge-count', count),
-  sendFeedback: (data) => ipcRenderer.invoke('send-feedback', data),
+  // 赞助名单：GitLab 公开仓库 assets/sponsors.json（自建后端已全部下线）
   fetchSponsors: () => ipcRenderer.invoke('fetch-sponsors'),
-  // 原题机检索（主进程代取 chat.forfof.cloud，规避渲染层跨源）
-  yuantijiSearch: (payload) => ipcRenderer.invoke('yuantiji-search', payload),
-  fetchDiscoverPeople: (uid, limit) => ipcRenderer.invoke('discover-people', uid, limit),
-  // 海报：开屏随机一张 / 发现页海报墙列表 / 投稿（需服务端审核通过才公开）
-  fetchPosters: () => ipcRenderer.invoke('fetch-posters'),
-  fetchRandomPoster: () => ipcRenderer.invoke('fetch-random-poster'),
-  submitPoster: (payload) => ipcRenderer.invoke('submit-poster', payload),
   exportData: (data) => ipcRenderer.invoke('export-data', data),
   importData: () => ipcRenderer.invoke('import-data'),
   getCacheSize: () => ipcRenderer.invoke('get-cache-size'),
@@ -89,7 +82,6 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('screenshot-captured', handler);
     return () => ipcRenderer.removeListener('screenshot-captured', handler);
   },
-  reportVisit: (info) => ipcRenderer.invoke('report-visit', info),
   clearSessionCookies: () => ipcRenderer.invoke('clear-session-cookies'),
   exportMarkdownPng: (suggestedName, html) => ipcRenderer.invoke('export-markdown-png', suggestedName, html),
   // --- 计时器悬浮窗（独立置顶小窗；状态由本窗口推送，见 main/index.js）---

@@ -1,6 +1,6 @@
 <template>
   <div class="navbar">
-    <div class="nav-logo" title="前往官网 chat.forfof.cloud" @click="openSite">
+    <div class="nav-logo" title="前往项目主页" @click="openSite">
       <img src="../../icon/icon.ico" class="nav-logo-img" />
     </div>
     <div
@@ -12,15 +12,6 @@
       <i class="fas fa-comment-dots"></i>
       <span>消息</span>
       <span v-if="chatUnread" class="nav-badge"></span>
-    </div>
-    <div
-      class="nav-icon"
-      :class="{ active: pageType === 'discover', disabled: isLocked('discover') }"
-      :title="isLocked('discover') ? '登录后可用' : '发现：可能认识的人 / 群，以及全量搜索'"
-      @click="onNavClick('discover')"
-    >
-      <i class="fas fa-compass"></i>
-      <span>发现</span>
     </div>
     <div
       class="nav-icon"
@@ -86,7 +77,6 @@
             @click="onMenuGo('favorites')"
           ><i class="fas fa-star"></i><span>收藏</span></div>
           <div class="nav-user-menu-item" @click="go('update')"><i class="fas fa-cloud-upload-alt"></i><span>版本更新</span><span v-if="store.update.hasUpdate" class="nav-update-tag">有新版本</span></div>
-          <div class="nav-user-menu-item" v-if="isWeb" @click="openDownload"><i class="fas fa-download"></i><span>下载客户端</span></div>
           <div class="nav-user-menu-item" @click="go('donate')"><i class="fas fa-heart"></i><span>赞助</span></div>
           <div class="nav-user-menu-item" @click="go('about')"><i class="fas fa-info-circle"></i><span>关于</span></div>
           <div class="nav-user-menu-item" @click="openAnnouncement"><i class="fas fa-bullhorn"></i><span>版本公告</span></div>
@@ -101,142 +91,13 @@
       </div>
     </div>
   </div>
-  <!-- 意见反馈弹窗 -->
-  <div class="feedback-mask" v-if="feedbackVisible">
-    <div class="feedback-box">
-      <div class="feedback-head"><h3>意见反馈</h3><button class="feedback-close" title="关闭" @click="closeFeedback"><i class="fas fa-times"></i></button></div>
-      <textarea class="feedback-input" v-model="feedbackText" rows="5" maxlength="2000" placeholder="写下你的建议、问题或 Bug 描述…"></textarea>
-      <div class="feedback-pics" v-if="feedbackImage">
-        <div class="feedback-pic-item">
-          <img :src="feedbackImageUrl" class="feedback-pic-img" />
-          <button class="feedback-pic-remove" title="移除图片" @click="feedbackImage = null"><i class="fas fa-times"></i></button>
-        </div>
-      </div>
-      <div class="feedback-tools">
-        <button class="feedback-add-pic" @click="pickFeedbackImage"><i class="fas fa-image"></i> 添加截图（可选）</button>
-      </div>
-      <div class="feedback-client" v-if="feedbackClientText"><i class="fas fa-info-circle"></i> {{ feedbackClientText }}</div>
-      <div class="feedback-status" :class="{ ok: feedbackStatus === 'ok', err: feedbackStatus === 'err' }" v-if="feedbackStatus">{{ feedbackMsg }}</div>
-      <div class="feedback-actions">
-        <button class="feedback-btn" @click="closeFeedback">取消</button>
-        <button class="feedback-btn primary" :disabled="feedbackSending || !feedbackText.trim()" @click="submitFeedback">{{ feedbackSending ? '提交中…' : '提交' }}</button>
-      </div>
-    </div>
-  </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
 import { vClickOutside } from '../composables/vClickOutside.js'
 import { store } from '../store.js'
-import { compressBase64Image, isUserHiddenBySetting, isWebBrowser } from '../utils.js'
-
-// 意见反馈
-const feedbackVisible = ref(false)
-const feedbackText = ref('')
-const feedbackSending = ref(false)
-const feedbackStatus = ref('') // '' | 'ok' | 'err'
-const feedbackMsg = ref('')
-const feedbackImage = ref(null) // 可选截图（base64 JPEG，≤300KB）
-const feedbackImageUrl = ref('')
-const feedbackClientText = ref('')
-
-function openFeedback() {
-  userMenu.value = false
-  feedbackText.value = ''
-  feedbackStatus.value = ''
-  feedbackMsg.value = ''
-  feedbackImage.value = null
-  feedbackImageUrl.value = ''
-  feedbackVisible.value = true
-  // 打开即展示客户端信息（平台/版本/UID）
-  collectClientInfo().catch(() => {})
-}
-
-// 关闭反馈弹窗：已输入内容时二次确认，避免辛苦写的内容被误点丢失。
-// 遮罩点击不再关闭（模板里已移除 @click.self），只有「取消」/「×」会走到这里。
-function closeFeedback() {
-  const hasContent = !!feedbackText.value.trim() || !!feedbackImageUrl.value
-  if (hasContent && !confirm('关闭将丢弃已填写的内容，确定关闭吗？')) return
-  feedbackVisible.value = false
-}
-
-// 客户端信息（随反馈提交，便于定位问题）：平台（Windows/Linux/macOS/Android/Web）+ 版本号 + UID
-async function collectClientInfo() {
-  // 桌面端由主进程按 OS 细分（get-platform → windows/linux/macos）；Android/Web 用平台标记
-  let platform = 'desktop'
-  try {
-    if (window.api && typeof window.api.getPlatform === 'function') {
-      platform = await window.api.getPlatform()
-    } else if (window.__7FA4_PLATFORM__) {
-      platform = window.__7FA4_PLATFORM__
-    }
-  } catch {}
-  let version = ''
-  try { version = await window.api.getVersion() } catch {}
-  const info = {
-    platform,
-    version: version || '',
-    uid: Number(store.self?.uid) || 0,
-    user: store.self?.username || store.self?.nickname || ''
-  }
-  const label = { windows: 'Windows', linux: 'Linux', macos: 'macOS', android: 'Android', web: '网页端', desktop: '桌面端' }[platform] || platform
-  feedbackClientText.value = `${label}${version ? ' v' + version : ''}${info.uid ? ' · UID ' + info.uid : ''}`
-  return info
-}
-
-// 版本公告：通过全局事件通知 App 显示（公告组件由 App 层管理）
-function openAnnouncement() {
-  userMenu.value = false
-  window.dispatchEvent(new CustomEvent('open-announcement'))
-}
-
-async function pickFeedbackImage() {
-  try {
-    const sel = await window.api.selectImage()
-    if (!sel || !sel.success || !sel.data) return
-    let data = sel.data
-    let mime = sel.mime || 'image/jpeg'
-    // 压缩到 ≤100KB（复用 compressBase64Image 的降质循环），控制反馈体积
-    if (!/^image\/gif$/i.test(mime)) {
-      const r = await compressBase64Image(data, mime)
-      if (r) { data = r.data; mime = 'image/jpeg' }
-    }
-    feedbackImage.value = data
-    feedbackImageUrl.value = `data:${mime};base64,${data}`
-  } catch {}
-}
-
-async function submitFeedback() {
-  const content = feedbackText.value.trim()
-  if (!content || feedbackSending.value) return
-  feedbackSending.value = true
-  try {
-    const client = await collectClientInfo()
-    const r = await window.api.sendFeedback({
-      content,
-      user: client.user,
-      uid: client.uid,
-      client: { platform: client.platform, version: client.version },
-      image: feedbackImageUrl.value || '', // data URL（含 mime），服务器直接存储展示
-    })
-    if (r && r.success) {
-      feedbackStatus.value = 'ok'
-      feedbackMsg.value = '反馈已提交，感谢你的支持！'
-      feedbackText.value = ''
-      feedbackImage.value = null
-      feedbackImageUrl.value = ''
-    } else {
-      feedbackStatus.value = 'err'
-      feedbackMsg.value = (r && r.error) || '提交失败，请稍后重试'
-    }
-  } catch (e) {
-    feedbackStatus.value = 'err'
-    feedbackMsg.value = e.message || '提交失败'
-  } finally {
-    feedbackSending.value = false
-  }
-}
+import { isUserHiddenBySetting, isWebBrowser } from '../utils.js'
 
 const props = defineProps({
   pageType: String,
@@ -270,7 +131,7 @@ const userTitle = computed(() => props.loggedIn ? (selfName.value || `UID ${self
 // 未登录（游客）进不去的入口：不隐藏，改为变浅且不可交互。
 // 隐藏会让人以为软件没这个功能；保留可见 + 灰掉 + 悬停提示"登录后可用"，才知道是登录态限制。
 // 与 ChatView.switchPage 的游客拦截同一份清单（那边是兜底，快捷键也走它）。
-const LOGIN_ONLY_PAGES = ['chat', 'discover', 'favorites'];
+const LOGIN_ONLY_PAGES = ['chat', 'favorites'];
 function isLocked(page) { return !props.loggedIn && LOGIN_ONLY_PAGES.includes(page); }
 function onNavClick(page) { if (isLocked(page)) return; emit('switch', page); }
 function onMenuGo(page) { if (isLocked(page)) return; go(page); }
@@ -286,9 +147,21 @@ function go(page) {
   emit('switch', page)
 }
 
-// 左上角标识：点击打开官网
+// 版本公告：通过全局事件通知 App 显示（公告组件由 App 层管理）
+function openAnnouncement() {
+  userMenu.value = false
+  window.dispatchEvent(new CustomEvent('open-announcement'))
+}
+
+// 意见反馈：直接跳转 GitLab Issues（不再走客户端内置表单与截图上传）
+function openFeedback() {
+  userMenu.value = false
+  try { window.api.openExternal('https://jx.7fa4.cn:9080/student-archive/7fa4-chat/-/issues') } catch {}
+}
+
+// 左上角标识：点击打开 GitLab 项目主页
 function openSite() {
-  window.api.openExternal('https://chat.forfof.cloud')
+  try { window.api.openExternal('https://jx.7fa4.cn:9080/projects/886') } catch {}
 }
 
 // 纯网页浏览器端：客户端下载入口（引导下载完整客户端）
@@ -297,6 +170,6 @@ function openSite() {
 const isWeb = isWebBrowser()
 function openDownload() {
   userMenu.value = false
-  try { window.api.openExternal('https://chat.forfof.cloud/#download') } catch {}
+  try { window.api.openExternal('https://jx.7fa4.cn:9080/student-archive/7fa4-chat/-/packages') } catch {}
 }
 </script>

@@ -4,7 +4,6 @@
     <div class="msb-actions">
       <button class="msb-btn" @click="$emit('batchForward')" :disabled="!store.selectedMsgIds.length"><i class="fas fa-share"></i> 批量转发</button>
       <button class="msb-btn" @click="$emit('batchFavorite')" :disabled="!store.selectedMsgIds.length"><i class="fas fa-bookmark"></i> 批量收藏</button>
-      <button class="msb-btn" @click="$emit('batchDelete')" :disabled="!store.selectedMsgIds.length"><i class="fas fa-trash"></i> 批量删除</button>
       <button class="msb-btn" @click="exitMultiSelect"><i class="fas fa-times"></i> 退出多选</button>
     </div>
   </div>
@@ -98,14 +97,12 @@
     :canDownload="msgCtx.canDownload"
     :canCollect="msgCtx.canCollect"
     :canFavorite="msgCtx.canFavorite"
-    :canDelete="msgCtx.canDelete"
     :isOwn="msgCtx.isOwn"
     @copy="copyMsg"
     @forward="startForward"
     @download="downloadMsg"
     @reply="$emit('startReply', store.messages[msgCtx.msgId]); msgCtx.show = false"
     @collect="collectMsg"
-    @delete="deleteMsg"
     @favorite="favoriteMsg"
     @multiselect="enterMultiSelect"
   />
@@ -136,10 +133,8 @@ const emit = defineEmits([
   'startReply',
   'openUserInfo',
   'forward',
-  'delete',
   'favorite',
   'batchForward',
-  'batchDelete',
   'batchFavorite',
   'openPreview',
   'vote'
@@ -446,7 +441,7 @@ function isPatMsg(msg) {
 }
 
 // --- 消息右键菜单 ---
-const msgCtx = reactive({ show: false, x: 0, y: 0, msgId: null, msgContent: '', canDownload: false, canCollect: false, canFavorite: false, canDelete: false, isOwn: false });
+const msgCtx = reactive({ show: false, x: 0, y: 0, msgId: null, msgContent: '', canDownload: false, canCollect: false, canFavorite: false, isOwn: false });
 
 function onMsgMenu(e, msg) {
   e.preventDefault();
@@ -464,7 +459,6 @@ function onMsgMenu(e, msg) {
   msgCtx.canDownload = isFile || isSticker;
   msgCtx.canCollect = isSticker || isImage;
   msgCtx.canFavorite = !!(obj && obj.type !== 'pat');
-  msgCtx.canDelete = true;
   msgCtx.isOwn = isOwn;
   setTimeout(() => msgCtx.show = true, 1);
 }
@@ -531,13 +525,7 @@ function startForward() {
   msgCtx.show = false;
 }
 
-// --- 删除/收藏 ---
-function deleteMsg() {
-  const msgId = msgCtx.msgId;
-  msgCtx.show = false;
-  emit('delete', msgId);
-}
-
+// --- 收藏 ---
 function favoriteMsg() {
   const msgId = msgCtx.msgId;
   const msg = store.messages[msgId];

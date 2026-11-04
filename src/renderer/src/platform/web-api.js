@@ -11,7 +11,11 @@ import { Share } from '@capacitor/share'
 import { LocalNotifications } from '@capacitor/local-notifications'
 
 const IS_NATIVE = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform?.()
-const SITE_BASE = 'https://chat.forfof.cloud'
+// 自建后端已全部下线：更新检查、更新日志、赞助名单都直接读公开的 GitLab 项目 886。
+const GITLAB_WEB_BASE = 'https://jx.7fa4.cn:9080'
+const GITLAB_API = `${GITLAB_WEB_BASE}/api/v4/projects/886`
+const GITLAB_LATEST_PACKAGE = `${GITLAB_API}/packages/generic/7FA4-Chat/latest`
+const GITLAB_SPONSORS_FILE = `${GITLAB_API}/repository/files/assets%2Fsponsors.json/raw?ref=master`
 
 // ---------- 事件注册表（渲染层订阅） ----------
 const listeners = {
@@ -37,33 +41,17 @@ function apiBase() {
   return (loadSettingObj().apiUrl || 'https://jx.7fa4.cn').replace(/^http:\/\//, 'https://').replace(/\/+$/, '')
 }
 
-// ---------- WebCrypto AES-256-GCM（与主进程 crypto 模块同格式：{v:1,iv,tag,data} base64） ----------
+// ---------- WebCrypto AES-256-GCM 解密（与主进程 crypto 模块同格式：{v:1,iv,tag,data} base64） ----------
 async function deriveKey(passphrase) {
   const raw = new TextEncoder().encode(passphrase)
   const digest = await crypto.subtle.digest('SHA-256', raw)
-  return crypto.subtle.importKey('raw', digest, 'AES-GCM', false, ['encrypt', 'decrypt'])
-}
-function b64(buf) {
-  const bytes = new Uint8Array(buf)
-  let s = ''
-  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i])
-  return btoa(s)
+  return crypto.subtle.importKey('raw', digest, 'AES-GCM', false, ['decrypt'])
 }
 function unb64(str) {
   const s = atob(str)
   const out = new Uint8Array(s.length)
   for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i)
   return out
-}
-async function aesEncrypt(passphrase, plain) {
-  const key = await deriveKey(passphrase)
-  const iv = crypto.getRandomValues(new Uint8Array(12))
-  const buf = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plain))
-  // WebCrypto 把 16 字节 authTag 拼在密文尾部，与 Node 的 cipher/final + getAuthTag 需手动拆分
-  const all = new Uint8Array(buf)
-  const data = all.slice(0, all.length - 16)
-  const tag = all.slice(all.length - 16)
-  return { v: 1, iv: b64(iv), tag: b64(tag), data: b64(data) }
 }
 async function aesDecrypt(passphrase, payload) {
   const key = await deriveKey(passphrase)
@@ -150,35 +138,11 @@ window.fetch = (input, init = {}) => {
   return nativeHttp(apiBase() + ':8888' + url, init)
 }
 
-/** 站点 API（feedback/sponsors/上报）：原生直连，浏览器走 fetch（站点已配 CORS 与否视情况） */
-async function siteRequest(path, options = {}) {
-  const full = SITE_BASE + path
-  if (IS_NATIVE) return nativeHttp(full, options)
-  return origFetch(full, options)
+/** GitLab 公开接口（项目 886，匿名可读）：原生层用 CapacitorHttp 直连，浏览器兜底 fetch */
+async function gitlabRequest(url, options = {}) {
+  if (IS_NATIVE) return nativeHttp(url, options)
+  return origFetch(url, options)
 }
-
-// ---------- 海报（与桌面端 main 进程同契约） ----------
-// 投稿载荷：AES-256-GCM + SHA256(passphrase)，与 /info、照片同构（独立密钥）。
-// 公开接口只返回 id / 图片地址 / 尺寸，不含投稿人 uid 与 IP。
-const POSTER_PASSPHRASE = '7fa4-chat::poster::v1'
-const POSTER_ERROR_TEXT = {
-  'bad image': '图片过大或已损坏',
-  'unsupported mime': '不支持的图片格式',
-  'too large': '图片过大',
-  'rate limited': '操作过于频繁，请稍后再试',
-  'bad payload': '提交数据有误',
-  'stale': '提交超时，请重试',
-  'invalid uid': '请先登录',
-  'save failed': '服务器保存失败，请稍后再试'
-}
-// 服务端下发相对路径，渲染层需要可直接 <img src> 的绝对地址
-function absolutizePoster(item) {
-  if (!item || typeof item.url !== 'string' || !item.url) return item
-  if (/^https?:\/\//i.test(item.url)) return item
-  return { ...item, url: SITE_BASE + item.url }
-}
-
-
 
 // ---------- IndexedDB 用户数据存储（对应桌面 storage.js 四表语义） ----------
 const DB_NAME = '7fa4chat'
@@ -514,7 +478,6 @@ const store = {
         favorites: data.favorites || [],
         mutedConvos: data.mutedConvos || {},
         hiddenConvos: data.hiddenConvos || {},
-        deletedMsgIds: data.deletedMsgIds || [],
         stickers: data.stickers || []
       },
       messages: Object.fromEntries(byConvo)
@@ -663,8 +626,8 @@ window.api = {
   // 网页端的 launchCamera 是一次性的文件选择框，没有「等待新图」的概念，无需取消。
   cancelCamera: async () => ({ success: true }),
   downloadFile: (base64Data, suggestedName, mime) => saveAndShare(base64Data, suggestedName, mime),
-  // 按 URL 下载：网页端不提供（这里 fetch 受同源策略约束，且海报站由 nginx 静态规则伺服
-  // 不带 CORS 头）。返回 unsupported 让调用方回落到「取 base64 → downloadFile」的通用路径。
+  // 按 URL 下载：网页端不提供（这里 fetch 受同源策略约束，且远程站点通常不带
+  // 允许跨域的响应头）。返回 unsupported 让调用方回落到「取 base64 → downloadFile」的通用路径。
   // Electron 端的同名能力在主进程实现（Node 无同源限制），见 src/main/index.js。
   downloadUrl: async () => ({ success: false, unsupported: true }),
   // 网页/安卓没有可直写的真实路径（浏览器是下载、安卓是缓存目录 + 分享），
@@ -696,7 +659,7 @@ window.api = {
   // --- 生命周期 ---
   onAppFlushBeforeClose: on('flushBeforeClose'),
   appFlushDone: () => {},
-  // --- 更新（Android 无 electron-updater：版本信息由本地后端 /web/api/version 聚合 GitLab） ---
+  // --- 更新（Android 无 electron-updater：版本信息读 GitLab 项目 886 的最新 release） ---
   checkForUpdate: async () => ({ status: 'not-packaged' }),
   downloadUpdate: async () => ({ status: 'not-packaged' }),
   installUpdate: async () => ({ status: 'not-packaged' }),
@@ -704,142 +667,43 @@ window.api = {
   onUpdateStatus: () => () => {},
   fetchVersionInfo: async () => {
     try {
-      const res = await siteRequest('/web/api/version', { method: 'GET', headers: { 'Accept': 'application/json' } })
+      const res = await gitlabRequest(`${GITLAB_API}/releases?per_page=1`, { method: 'GET', headers: { Accept: 'application/json' } })
       const data = await res.json().catch(() => null)
-      if (res.ok && data && data.success) {
-        return { success: true, latestVersion: data.latestVersion || '', artifacts: data.artifacts || [], publishDate: data.publishDate || '', fetchedAt: data.fetchedAt || 0 }
-      }
-      return { success: false, error: (data && data.error) || `HTTP ${res.status}` }
+      const rel = Array.isArray(data) ? data[0] : null
+      if (!res.ok || !rel) return { success: false, error: (data && data.message) || `HTTP ${res.status}` }
+      const links = (rel.assets && Array.isArray(rel.assets.links)) ? rel.assets.links : []
+      const apk = links.find((l) => /\.apk$/i.test(l.name || '') || /\.apk($|\?)/i.test(l.url || ''))
+      const latestVersion = String(rel.tag_name || '').replace(/^v/i, '')
+      const artifacts = apk ? [{ platform: 'android', url: apk.direct_asset_url || apk.url, size: 0 }] : []
+      return { success: true, latestVersion, artifacts, publishDate: rel.released_at || rel.created_at || '' }
     } catch (e) {
       return { success: false, error: e.message || '网络错误' }
     }
   },
   fetchChangelog: async () => {
-    // 由本地后端 /web/api/version 返回 CHANGELOG（不再客户端直连 GitLab 9080）
+    // 更新日志随包上传在 GitLab 的 latest/CHANGELOG
     try {
-      const res = await siteRequest('/web/api/version', { method: 'GET', headers: { 'Accept': 'application/json' } })
-      const data = await res.json().catch(() => null)
-      if (res.ok && data && data.success && data.changelog && data.changelog.trim()) {
-        return { success: true, html: data.changelog }
-      }
-      return { success: false, error: (data && data.error) || `HTTP ${res.status}` }
+      const res = await gitlabRequest(`${GITLAB_LATEST_PACKAGE}/CHANGELOG`, { method: 'GET' })
+      if (!res.ok) return { success: false, error: `HTTP ${res.status}` }
+      const html = await res.text()
+      if (!html || !html.trim()) return { success: false, error: '更新日志为空' }
+      return { success: true, html }
     } catch (e) {
-      return { success: false, error: e.message || '网络错误' }
+      return { success: false, error: e.message || '获取更新日志失败' }
     }
   },
-  // --- 站点 API ---
+  // --- 站点 API（GitLab 公开仓库） ---
   setBadgeCount: async () => ({ success: true }),
-  sendFeedback: async ({ content, user, uid, client, image } = {}) => {
-    try {
-      const res = await siteRequest('/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: String(content || ''),
-          user: String(user || ''),
-          uid: Number(uid) || 0,
-          client: client && typeof client === 'object' ? client : null,
-          image: String(image || '')
-        })
-      })
-      const data = await res.json().catch(() => null)
-      if (res.ok && data && data.ok) return { success: true, id: data.id }
-      return { success: false, error: (data && data.error) || `HTTP ${res.status}` }
-    } catch (e) {
-      return { success: false, error: e.message || '网络错误' }
-    }
-  },
-  // 海报：开屏随机一张 / 发现页海报墙 / 投稿（需服务端 /dev 审核通过才公开）
-  fetchPosters: async () => {
-    try {
-      const res = await siteRequest('/api/posters', { method: 'GET', headers: { Accept: 'application/json' } })
-      const data = await res.json().catch(() => null)
-      if (res.ok && data && Array.isArray(data.items)) return { success: true, items: data.items.map(absolutizePoster) }
-      return { success: false, items: [], error: (data && data.error) || `HTTP ${res.status}` }
-    } catch (e) {
-      return { success: false, items: [], error: e.message || '网络错误' }
-    }
-  },
-  fetchRandomPoster: async () => {
-    try {
-      const res = await siteRequest('/api/posters?random=1', { method: 'GET', headers: { Accept: 'application/json' } })
-      const data = await res.json().catch(() => null)
-      if (res.ok && data && data.success && data.item) return { success: true, item: absolutizePoster(data.item) }
-      return { success: false, item: null, error: (data && data.error) || `HTTP ${res.status}` }
-    } catch (e) {
-      return { success: false, item: null, error: e.message || '网络错误' }
-    }
-  },
-  submitPoster: async (payload = {}) => {
-    try {
-      const uid = Number(payload.uid)
-      if (!uid || !Number.isInteger(uid) || uid <= 0) return { success: false, error: '请先登录' }
-      const data = String(payload.data || '')
-      if (!data) return { success: false, error: '缺少图片数据' }
-      const body = JSON.stringify(await aesEncrypt(POSTER_PASSPHRASE, JSON.stringify({
-        uid,
-        mime: String(payload.mime || 'image/jpeg'),
-        data,
-        w: Number(payload.w) || 0,
-        h: Number(payload.h) || 0,
-        date: Date.now()
-      })))
-      const res = await siteRequest('/api/posters', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body
-      })
-      const jd = await res.json().catch(() => null)
-      if (res.ok && jd && jd.ok) return { success: true, id: jd.id }
-      const raw = (jd && jd.error) || ''
-      return { success: false, error: POSTER_ERROR_TEXT[raw] || raw || `HTTP ${res.status}` }
-    } catch (e) {
-      return { success: false, error: e.message || '网络错误' }
-    }
-  },
+  // 赞助名单：GitLab 公开仓库 assets/sponsors.json
   fetchSponsors: async () => {
     try {
-      const res = await siteRequest('/api/sponsors', { method: 'GET' })
+      const res = await gitlabRequest(GITLAB_SPONSORS_FILE, { method: 'GET', headers: { Accept: 'application/json' } })
       const data = await res.json().catch(() => null)
-      if (res.ok && data && Array.isArray(data.list)) return { success: true, list: data.list }
+      const list = Array.isArray(data) ? data : (data && Array.isArray(data.list) ? data.list : null)
+      if (res.ok && list) return { success: true, list }
       return { success: false, list: [], error: (data && data.error) || `HTTP ${res.status}` }
     } catch (e) {
       return { success: false, list: [], error: e.message || '网络错误' }
-    }
-  },
-  // 原题机检索：题面交给站点 /web/tools/yuantiji 中转（服务端顺带把结果地址换成 vjudge）
-  yuantijiSearch: async ({ query, k, rewrite, skipShort } = {}) => {
-    try {
-      const res = await siteRequest('/web/tools/yuantiji', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: String(query || ''),
-          k: Math.min(Math.max(Number(k) || 20, 1), 100),
-          rewrite: rewrite !== false,
-          skip_short: skipShort !== false
-        })
-      })
-      const data = await res.json().catch(() => null)
-      if (res.ok && data && data.ok) return { success: true, results: data.results || [], count: data.count || 0, elapsed: data.elapsed_ms || 0 }
-      return { success: false, results: [], error: (data && data.error) || `HTTP ${res.status}` }
-    } catch (e) {
-      return { success: false, results: [], error: e.message || '网络错误' }
-    }
-  },
-  fetchDiscoverPeople: async (uid, limit) => {
-    try {
-      const u = Number(uid)
-      const n = Math.min(Math.max(Number(limit) || 60, 1), 200)
-      if (!u) return { success: false, items: [], error: '缺少 uid' }
-      const res = await siteRequest(`/api/discover/people?uid=${u}&limit=${n}`, { method: 'GET', headers: { Accept: 'application/json' } })
-      const data = await res.json().catch(() => null)
-      if (res.ok && data && Array.isArray(data.items)) {
-        return { success: true, items: data.items, sample: data.sample || 0, updatedAt: data.updatedAt || 0 }
-      }
-      return { success: false, items: [], error: (data && data.error) || `HTTP ${res.status}` }
-    } catch (e) {
-      return { success: false, items: [], error: e.message || '网络错误' }
     }
   },
   exportData: async (data) => saveAndShare(
@@ -890,29 +754,6 @@ window.api = {
       return { success: true, data: JSON.parse(text) }
     } catch (e) {
       return { success: false, error: e.message || '加载用户数据库失败' }
-    }
-  },
-  reportVisit: async (info) => {
-    try {
-      const uid = Number(info && info.uid)
-      if (!uid || !Number.isInteger(uid) || uid <= 0) return { ok: false, error: 'invalid uid' }
-      // 只交 uid + 版本号 + OJ 会话 cookie：个人字段一个都不传，服务端自己带 cookie 去 OJ 取。
-      // 网页版与 API 同源，connect.sid 由浏览器自动带上；安卓从原生 cookie 库取出后显式附带。
-      const payload = { uid, version: String((info && info.version) || '').slice(0, 32), date: Date.now() }
-      if (IS_NATIVE) {
-        const map = await CapacitorCookies.getCookies({ url: apiBase() + ':8888' })
-        const cookie = Object.entries(map || {}).map(([k, v]) => `${k}=${v}`).join('; ')
-        if (cookie) payload.cookie = cookie
-      }
-      const body = JSON.stringify(await aesEncrypt('7fa4-chat::visit::v1', JSON.stringify(payload)))
-      const res = await siteRequest('/info', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body
-      })
-      return { ok: res.ok }
-    } catch (e) {
-      return { ok: false, error: e.message || '上报失败' }
     }
   },
   clearSessionCookies: async () => {

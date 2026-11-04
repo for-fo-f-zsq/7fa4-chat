@@ -1,6 +1,6 @@
 {
   "name": "7fa4-chat",
-  "version": "3.6.1",
+  "version": "3.7.0",
   "description": "7FA4 Chat",
   "main": "./out/main/index.js",
   "desktopName": "7fa4-chat.desktop",
@@ -16,7 +16,7 @@
     "name": "for_fo_f",
     "email": "15982878810@163.com"
   },
-  "homepage": "https://jx.7fa4.cn:9080/student-archive/zsq-7fa4-chat",
+  "homepage": "https://jx.7fa4.cn:9080/projects/886",
   "license": "MIT",
   "devDependencies": {
     "@capacitor/android": "^7.6.8",

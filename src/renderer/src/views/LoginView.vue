@@ -107,6 +107,7 @@ async function doLogin(user, rawPwd, type) {
       case 1002: showError('密码错误'); break;
       case 1003: showError('您尚未设置密码'); break;
       case 1004: showError('您的账号长时间没有登录，已暂停使用。如需继续使用请联系老师。'); break;
+      case 1005: showError('本节课你不该在教室'); break;
       case 1: onSuccess(type); return;
       default: showError('未知错误'); break;
     }

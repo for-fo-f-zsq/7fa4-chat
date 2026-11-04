@@ -93,7 +93,7 @@ const PARSE_CACHE_MAX = 300
 
 // ========== 图片压缩 (Canvas) ==========
 // opts 可选：maxDim 最长边（默认 1920）、maxB64 base64 字符数上限（默认 102200）。
-// 不传时行为与历史完全一致（聊天/表情/反馈沿用默认档）；海报上传使用更大的档位。
+// 不传时行为与历史完全一致（聊天/表情/反馈沿用默认档）。
 // 返回值附加 width/height（压缩后的实际尺寸），供投稿时上报图片规格。
 export function compressImage(file, opts = {}) {
   const maxDim = Number(opts.maxDim) > 0 ? Number(opts.maxDim) : 1920;
@@ -281,7 +281,7 @@ function uidHash(uid) {
 }
 
 /**
- * 远端用户（不在 store.users 中，如发现页推荐）的名字颜色。
+ * 远端用户（不在 store.users 中）的名字颜色。
  * 有年级 → 与好友列表一致的年级色；没有年级 → 按 uid 稳定派生一个协调色（不随刷新跳变）。
  * 注意：getAvatarInitial / getGradeColor 的参数是 uid（内部查 store.users），
  * 对远端对象必须用本函数，不能把对象直接传进去。
@@ -985,68 +985,6 @@ export function displayName(user) {
   return nick
 }
 
-// ========== 访问统计上报（chat.forfof.cloud/info） ==========
-// 上报用户公开信息（ranklist 页公开字段），供服务器按 uid 记录最近访问时间与个人信息，
-// 用于分析使用情况；纯统计用途，失败静默，不影响主流程。
-// 载荷经主进程 AES-256-GCM 加密后发出（密钥不进渲染进程），防止第三方 POST 伪造。
-// 仅当窗口打开且聚焦时上报（最小化/隐藏/失焦时不打扰服务器），恢复可见聚焦时立即补报。
-let _reporting = false
-let _appVersion = null
-async function _getAppVersion() {
-  if (_appVersion !== null) return _appVersion
-  try { _appVersion = (await window.api.getVersion()) || '' } catch { _appVersion = '' }
-  return _appVersion
-}
-function _windowActive() {
-  return document.visibilityState === 'visible' && document.hasFocus()
-}
-async function _reportVisit() {
-  if (_reporting) return
-  // 窗口未打开/未聚焦时不上报（minimize 到托盘时 visibility 变为 hidden，天然跳过）
-  if (!_windowActive()) return
-  const s = store.self
-  if (!s || !s.uid) return
-  _reporting = true
-  try {
-    if (!window.api?.reportVisit) return
-    // 只上报 uid + 版本号：姓名/学号/座位/学校/年级等个人字段客户端一律不收集，
-    // 服务端凭随请求交出的 OJ 会话 cookie 自己去 OJ 取。
-    await window.api.reportVisit({ uid: s.uid, version: await _getAppVersion() })
-  } catch (e) {
-    console.error('[visit] 上报失败:', e)
-  } finally {
-    // ⚠️ busy 复位只写在 finally：上面 `if (!window.api?.reportVisit) return` 是一条
-    //    return 路径，写在 try/catch 之后的话 _reporting 会永久卡在 true ——
-    //    表现为「第一次上报遇到 API 缺失后，之后一辈子不再上报」（2026-10-02 查出）。
-    _reporting = false
-  }
-}
-
-// 独立上报定时器：登录成功后启动（update 中调用），与 ranklist 轮询完全解耦——
-// 即使 ranklist 抓取挂起/失败，访问统计上报也不会漏。
-let _visitTimer = null
-export function startVisitReport() {
-  if (_visitTimer) return
-  _reportVisit() // 立即上报一次（若当前未聚焦则跳过）
-  _visitTimer = setInterval(_reportVisit, 60 * 1000) // 上报频率：1 分钟一次
-  // 窗口重新可见/聚焦时补报一次，弥补最小化期间的漏报
-  document.addEventListener('visibilitychange', _onVisitWindowActive)
-  window.addEventListener('focus', _onVisitWindowActive)
-}
-function _onVisitWindowActive() {
-  if (_windowActive()) _reportVisit()
-}
-
-// 退出登录：停止上报定时器，重新登录后 startVisitReport 可再次启动
-export function stopVisitReport() {
-  if (_visitTimer) {
-    clearInterval(_visitTimer)
-    _visitTimer = null
-  }
-  document.removeEventListener('visibilitychange', _onVisitWindowActive)
-  window.removeEventListener('focus', _onVisitWindowActive)
-}
-
 // ========== 用户信息爬取（ranklist） ==========
 let _ranklistFetching = false
 let _ranklistTimer = null
@@ -1486,8 +1424,7 @@ export function compareVersion(a, b) {
 }
 
 /**
- * 静默检查更新，把结果写进 store.update，供 NavBar 红点、UpdatePanel 与网页端的
- * 「刷新升级」提示（UpdatePrompt）复用。
+ * 静默检查更新，把结果写进 store.update，供 NavBar 红点与 UpdatePanel 复用。
  * 只在「非 Electron」（网页端 / 安卓端）执行 —— 桌面端由 electron-updater 自己查，
  * 且 preload 不提供 fetchVersionInfo。安卓端尤其需要：APK 没有自动更新通道，
  * 不做启动检查用户就永远不会知道有新版本。
@@ -1495,9 +1432,6 @@ export function compareVersion(a, b) {
 export async function checkAppUpdate() {
   if (!window.__7FA4_WEB__) return store.update;
   if (typeof window.api?.fetchVersionInfo !== 'function') return store.update;
-  // 网页端「设置 → 自动检查更新」关闭时不查（纯浏览器没有自动更新通道，只能提示刷新，
-  // 关掉就该彻底安静）。安卓端不读这个开关：它靠 APK 安装包升级，必须能收到提醒。
-  if (isWebBrowser() && store.setting?.autoUpdate === false) return store.update;
   store.update.checking = true;
   try {
     const r = await window.api.fetchVersionInfo();
@@ -1521,19 +1455,6 @@ export async function checkAppUpdate() {
     store.update.checked = true;
   }
   return store.update;
-}
-
-/**
- * 网页端「刷新升级」：整页重载即可切到新构建。
- * 网页端静态资源带内容哈希、index.html 不缓存（见官网 static-server 策略），
- * 所以普通 reload 就能拿到新版，不需要清缓存或退避强刷。
- */
-export function reloadForUpdate() {
-  try {
-    window.location.reload();
-  } catch (e) {
-    console.error('[update] 重载失败:', e);
-  }
 }
 
 // ========== 日期分组 ==========

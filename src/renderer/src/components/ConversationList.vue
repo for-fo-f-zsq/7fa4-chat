@@ -158,12 +158,13 @@ const hiddenNonMutualCount = computed(() =>
 // --- 合并后的会话列表 ---
 const sortedConversations = computed(() => {
   const userItems = Object.values(props.users || {})
-    .filter(u => u.show !== false && !store.hiddenConvos?.[getConvoKey('user', u.uid)])
+    .filter(u => u.show !== false)
     .filter(u => !isUserHiddenBySetting(u))
     .map(u => ({
       type: 'user',
       id: u.uid,
       key: `user_${u.uid}`,
+      hidden: !!store.hiddenConvos?.[getConvoKey('user', u.uid)],
       pinned: u.pinned,
       unread: u.unread,
       message_ids: u.message_ids,
@@ -181,11 +182,11 @@ const sortedConversations = computed(() => {
     }))
 
   const groupItems = Object.values(props.groups || {})
-    .filter(g => !store.hiddenConvos?.[getConvoKey('group', g.gid)])
     .map(g => ({
       type: 'group',
       id: g.gid,
       key: `group_${g.gid}`,
+      hidden: !!store.hiddenConvos?.[getConvoKey('group', g.gid)],
       pinned: g.pinned,
       unread: g.unread,
       message_ids: g.message_ids,
@@ -213,10 +214,12 @@ const sortedConversations = computed(() => {
 })
 
 // --- 搜索过滤 ---
+// 默认列表过滤「不显示」的会话；一旦输入搜索词，隐藏会话也纳入结果（仍按名字/UID 过滤），
+// 便于搜到后右键「取消不显示」。
 const filteredConversations = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   const list = sortedConversations.value
-  if (!q) return list
+  if (!q) return list.filter(item => !item.hidden)
   return list.filter(item => {
     if (item.type === 'user') {
       const u = props.users[item.id]
@@ -262,7 +265,9 @@ function onListClick() {
 function onContextMenu(e, item) {
   if (item.type === 'user') {
     const u = props.users[item.id]
-    if (u && u.watcher) {
+    // 双向好友（watcher）才提供右键资料/免打扰等操作；但被「不显示」的会话即使不是好友，
+    // 在搜索结果里也要能右键把「不显示」取消掉 —— 否则隐藏后无从恢复。
+    if (u && (u.watcher || item.hidden)) {
       emit('Targetmenu', e, 'user', item.id)
     }
   } else {

@@ -3,10 +3,8 @@
     <LoginView v-if="!store.logined && !store.guestMode" @login="onLogin" @guest="onGuest" />
     <ChatView v-else :key="loginSeq" />
   </div>
-  <StartupPoster v-if="showStartupPoster" :duration="STARTUP_POSTER_MS" @close="showStartupPoster = false" />
   <Onboarding v-if="showOnboarding" @close="closeOnboarding" />
   <Announcement v-if="showAnnouncement" @close="closeAnnouncement" />
-  <UpdatePrompt />
   <div v-if="store.initializing && store.logined" class="init-loading">
     <div class="init-spinner"></div>
     <div class="init-text">正在加载消息…</div>
@@ -20,18 +18,8 @@ import { store } from './store.js';
 import LoginView from './views/LoginView.vue';
 import ChatView from './views/ChatView.vue';
 import Announcement from './components/Announcement.vue';
-import UpdatePrompt from './components/UpdatePrompt.vue';
 import Onboarding from './components/Onboarding.vue';
-import StartupPoster from './components/StartupPoster.vue';
 import { loadUsersDb, compareVersion, checkAppUpdate } from './utils.js';
-
-// --- 开屏海报（服务端随机一张已审核通过的海报）---
-// 每次启动尝试展示一次；计时从海报加载完成才开始，未满时长不允许关闭。
-// 取不到海报（离线/超时/尚无已审海报）时直接放行，不展开展示 —— 绝不让启动被网络卡住。
-// 需要关闭该功能时把 STARTUP_POSTER_ENABLED 改成 false。
-const STARTUP_POSTER_ENABLED = true;
-const STARTUP_POSTER_MS = 3000;
-const showStartupPoster = ref(STARTUP_POSTER_ENABLED);
 
 const canvasEl = ref(null)
 let animId = 0
@@ -171,7 +159,7 @@ onMounted(() => {
 
 // 启动检查更新（网页端/安卓端）：放在根组件而不是 ChatView ——
 // 网页版用的是 7fa4-chat-web/src/web/overrides 里的 ChatView，那份没有更新检查代码，
-// 于是网页端 store.update 永远是空的（红点不亮、也不会提示刷新升级）。
+// 于是网页端 store.update 永远是空的（红点不亮，也不会在版本更新页显示新版本）。
 // 先读一次设置，让 checkAppUpdate 能按「自动检查更新」开关决定查不查；登录页与游客同样覆盖。
 async function initUpdateCheck() {
   try {

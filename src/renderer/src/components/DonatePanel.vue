@@ -11,8 +11,9 @@
         <div class="donate-card-title"><i class="fas fa-heart"></i>扫码支持</div>
         <p class="donate-desc">7FA4 Chat 由 for_fo_f 独立开发维护，没有任何商业团队与广告，你的每一份赞赏都是持续更新的动力。</p>
         <div class="donate-qr-wrap">
-          <img :src="DONATE_URL" alt="赞赏码" class="donate-qr-img" @click="donateZoom = true" title="点击放大">
-          <p class="donate-qr-tip">微信扫码赞赏 · 点击可放大</p>
+          <img v-if="!qrError" :src="DONATE_URL" alt="赞赏码" class="donate-qr-img" @click="donateZoom = true" @error="qrError = true" title="点击放大">
+          <p v-if="qrError" class="donate-qr-tip">赞赏码加载失败，请稍后刷新重试</p>
+          <p v-else class="donate-qr-tip">微信扫码赞赏 · 点击可放大</p>
         </div>
       </div>
 
@@ -33,8 +34,8 @@
       </div>
     </div>
 
-    <!-- 赞赏码放大弹层 -->
-    <div v-if="donateZoom" class="donate-zoom-overlay" @click="donateZoom = false">
+    <!-- 赞赏码放大弹层（图片加载失败时不再提供放大） -->
+    <div v-if="donateZoom && !qrError" class="donate-zoom-overlay" @click="donateZoom = false">
       <img :src="DONATE_URL" alt="赞赏码" class="donate-zoom-img">
     </div>
   </div>
@@ -46,9 +47,10 @@ import BackButton from './BackButton.vue'
 
 const emit = defineEmits(['back'])
 
-// 赞赏码（托管在 chat.forfof.cloud/assets/donate-qr.jpg）
-const DONATE_URL = 'https://chat.forfof.cloud/assets/donate-qr.jpg'
+// 赞赏码：托管在 GitLab 仓库（assets/donate-qr.jpg）
+const DONATE_URL = 'https://jx.7fa4.cn:9080/student-archive/7fa4-chat/-/raw/master/assets/donate-qr.jpg'
 const donateZoom = ref(false)
+const qrError = ref(false) // 图片加载失败时优雅降级：隐藏图片与放大层，只留一行提示
 const sponsors = ref([])
 
 async function loadSponsors() {

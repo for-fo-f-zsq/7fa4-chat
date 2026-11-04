@@ -88,9 +88,7 @@
         @startReply="startReply"
         @openUserInfo="openuserinfo"
         @forward="startForward"
-        @delete="deleteMsg"
         @batchForward="batchForward"
-        @batchDelete="batchDelete"
         @batchFavorite="batchFavorite"
         @openPreview="onOpenPreview"
         @vote="onPollVote"
@@ -117,17 +115,6 @@
       @download="onFavDownload"
       @jump="onFavJump"
       @back="backToChatList"
-    />
-    <!-- 发现页：推荐（人/群）+ 聚合搜索 -->
-    <DiscoverView
-      v-if="pageType==='discover'"
-      class="fade-content"
-      :class="{ 'fade-out': contentFading }"
-      @open-user="openuserinfo"
-      @add-friend="addfriend"
-      @open-convo="onSelectConversation"
-      @open-message="onSearchJump"
-      @open-favorite="switchPage('favorites')"
     />
     <!-- 工具入口页（仅列表）；各工具在外层独立渲染：返回时按打开来源回到工具列表或对应会话 -->
     <ToolsView
@@ -181,12 +168,6 @@
       @back="onToolBack"
       @dirty-change="toolsDirty = $event"
     />
-    <YuantijiTool
-      v-else-if="pageType==='tools' && currentTool==='yuantiji'"
-      class="ide-host fade-content"
-      :class="{ 'fade-out': contentFading }"
-      @back="onToolBack"
-    />
     <SettingsPanel
       v-if="pageType==='settings'"
       class="fade-content"
@@ -236,9 +217,8 @@
     @leavegroup="leaveGroupFromMenu"
     @blockgroup="blockGroupFromMenu"
     @unblockgroup="unblockGroupFromMenu"
-    @deletegroup="deleteGroupFromMenu"
     @dissolvegroup="dissolveGroupFromMenu"
-    @deleteconvo="deleteConvo"
+    @togglehidden="toggleHiddenConvo"
     @mute="toggleMute"
     @unmute="toggleMute"
     @markread="toggleRead"
@@ -326,7 +306,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, ingestMessage, clearPendingVotes, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, startVisitReport, stopVisitReport, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys, isUserHiddenBySetting, normalizeFavorites, makeFavorite, makeVoteContent } from '../utils.js';
+import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, ingestMessage, clearPendingVotes, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys, isUserHiddenBySetting, normalizeFavorites, makeFavorite, makeVoteContent } from '../utils.js';
 
 import NavBar from '../components/NavBar.vue';
 import ConversationList from '../components/ConversationList.vue';
@@ -341,7 +321,6 @@ import UpdatePanel from '../components/UpdatePanel.vue';
 import DonatePanel from '../components/DonatePanel.vue';
 import TargetMenu from '../components/TargetMenu.vue';
 import UserInfoModal from '../components/UserInfoModal.vue';
-import DiscoverView from './DiscoverView.vue';
 import GroupModal from '../components/GroupModal.vue';
 import ThemeModal from '../components/ThemeModal.vue';
 import ShortcutModal from '../components/ShortcutModal.vue';
@@ -357,7 +336,6 @@ import GraphTool from './tools/graph/GraphTool.vue';
 import CalculatorTool from './tools/calculator/CalculatorTool.vue';
 import TimerTool from './tools/timer/TimerTool.vue';
 import MathTool from './tools/math/MathTool.vue';
-import YuantijiTool from './tools/yuantiji/YuantijiTool.vue';
 import SaveConfirmModal from '../components/SaveConfirmModal.vue';
 import { useWindowControls } from '../composables/useWindowControls.js';
 import { useMuteConfirm } from '../composables/useMuteConfirm.js';
@@ -379,9 +357,6 @@ import '../css/user-info.css';
 import '../css/addfriend-modal.css';
 import '../css/search-panel.css';
 import '../css/favorites-panel.css';
-import '../css/discover-view.css';
-import '../css/poster-wall.css';
-import '../css/poster-upload-modal.css';
 import '../css/announcement.css';
 
 import 'katex/dist/katex.min.css';
@@ -404,18 +379,18 @@ const isChatPage = computed(() => pageType.value === 'chat' || pageType.value ==
 const navPageType = computed(() => isChatPage.value ? 'chat' : pageType.value);
 // 窄模式导航栏：仅消息对象列表（chat/user/group 且未打开具体详情）与工具列表（未进入工具详情）显示，其余页/详情态隐藏
 // 非窄（桌面宽窗）模式：导航栏恒显示，不因进入会话/工具详情隐藏（窄模式专属行为）
-// 发现页 / 设置页是 TabBar 一级入口（底栏有常驻图标），窄模式同样保留导航栏；既有一级入口即无需返回按钮
+// 设置页是 TabBar 一级入口（底栏有常驻图标），窄模式同样保留导航栏；既有一级入口即无需返回按钮
 const showNavBar = computed(() => {
   if (!isNarrowLayout.value) return true
   if (isChatPage.value && pageId.value) return false
   if (navPageType.value === 'tools') return currentTool.value === 'list'
-  if (navPageType.value === 'discover' || navPageType.value === 'settings') return true
+  if (navPageType.value === 'settings') return true
   return navPageType.value === 'chat'
 })
 
 // 游客模式：聊天/收藏不可用，落到关于页浏览
 watch(() => store.logined, (logged) => {
-  if (!logged && (isChatPage.value || pageType.value === 'favorites' || pageType.value === 'discover')) {
+  if (!logged && (isChatPage.value || pageType.value === 'favorites')) {
     pageType.value = 'about';
     pageId.value = null;
   }
@@ -635,8 +610,8 @@ function startListResize(e) {
 
 // --- 页面导航 ---
 function switchPage(type) {
-  // 游客模式：聊天/收藏/发现不可用，拦截导航
-  if (!store.logined && (type === 'chat' || type === 'favorites' || type === 'discover')) return;
+  // 游客模式：聊天/收藏不可用，拦截导航
+  if (!store.logined && (type === 'chat' || type === 'favorites')) return;
   // 未保存的工具内容（图片/Markdown）：离开工具前先确认（保存/不保存/取消）
   if (toolsDirty.value && pageType.value === 'tools' && currentTool.value !== 'list') {
     pendingSwitch = { type };
@@ -1086,27 +1061,7 @@ async function onPollVote({ poll, pick, custom }) {
   inputFooterRef.value.sending = false;
 }
 
-// --- 消息删除/批量操作 ---
-function deleteMsg(msgId) {
-  const msg = store.messages[msgId];
-  if (!msg) return;
-  delete store.messages[msgId];
-  if (!store.deletedMsgIds) store.deletedMsgIds = [];
-  if (!store.deletedMsgIds.includes(msgId)) store.deletedMsgIds.push(msgId);
-  for (const user of Object.values(store.users)) {
-    if (user.message_ids) {
-      const idx = user.message_ids.indexOf(msgId);
-      if (idx >= 0) user.message_ids.splice(idx, 1);
-    }
-  }
-  for (const group of Object.values(store.groups)) {
-    if (group.message_ids) {
-      const idx = group.message_ids.indexOf(msgId);
-      if (idx >= 0) group.message_ids.splice(idx, 1);
-    }
-  }
-}
-
+// --- 批量操作 ---
 function batchForward() {
   const selectedIds = [...store.selectedMsgIds];
   if (!selectedIds.length) return;
@@ -1134,14 +1089,6 @@ function batchFavorite() {
   messageListRef.value?.exitMultiSelect();
 }
 
-function batchDelete() {
-  if (!confirm(`确定删除 ${store.selectedMsgIds.length} 条消息？`)) return;
-  for (const msgId of [...store.selectedMsgIds]) {
-    deleteMsg(msgId);
-  }
-  messageListRef.value?.exitMultiSelect();
-}
-
 // --- 全部已读 ---
 function markAllRead() {
   for (const user of Object.values(store.users)) { user.unread = 0; }
@@ -1157,26 +1104,16 @@ function updateBadgeCount() {
   if (window.api.setBadgeCount) window.api.setBadgeCount(total);
 }
 
-// --- 删除聊天记录/免打扰 ---
-async function deleteConvo() {
+// --- 不显示 / 免打扰 ---
+// 「不显示」只从会话列表隐藏，聊天数据与消息全部保留；搜索时仍可找到并右键恢复显示。
+function toggleHiddenConvo() {
   const { type, id } = targetMenu;
   targetMenu.show = false;
-  if (!confirm('确定删除此会话？本地聊天记录将被清除。')) return;
-  const item = type === 'user' ? store.users[id] : store.groups[id];
-  if (item?.message_ids) {
-    if (!store.deletedMsgIds) store.deletedMsgIds = [];
-    for (const mid of item.message_ids) {
-      delete store.messages[mid];
-      if (!store.deletedMsgIds.includes(mid)) store.deletedMsgIds.push(mid);
-    }
-  }
-  if (type === 'user') {
-    if (store.users[id]) store.users[id].show = false;
-  } else {
-    delete store.groups[id];
-  }
-  if (pageId.value == id && (pageType.value === type || pageType.value === 'chat')) pageId.value = null;
-  updateBadgeCount();
+  const key = getConvoKey(type, id);
+  if (!store.hiddenConvos) store.hiddenConvos = {};
+  if (store.hiddenConvos[key]) delete store.hiddenConvos[key];
+  else store.hiddenConvos[key] = true;
+  saveAll();
 }
 
 function toggleMute() {
@@ -1410,16 +1347,6 @@ async function unblockGroupFromMenu() {
   group.blocked = false;
 }
 
-async function deleteGroupFromMenu() {
-  const gid = targetMenu.id;
-  targetMenu.show = false;
-  const group = store.groups[gid];
-  if (!group || !group.exited) return;
-  if (group.message_ids) { for (const mid of group.message_ids) delete store.messages[mid]; }
-  delete store.groups[gid];
-  if (pageId.value == gid && (pageType.value === 'group' || pageType.value === 'chat')) pageId.value = null;
-}
-
 async function dissolveGroupFromMenu() {
   targetMenu.show = false;
   if (!store.groups[targetMenu.id]) return;
@@ -1531,8 +1458,8 @@ async function addfriend(q) {
 }
 
 // --- 快捷键 ---
-// 编号严格跟随 NavBar 主导航顺序：消息 / 发现 / 工具 / 设置；收藏与关于排在其后
-const DEFAULT_SHORTCUTS = { sendMessage: 'enter', search: 'ctrl+f', switchToChat: 'ctrl+1', switchToDiscover: 'ctrl+2', switchToTools: 'ctrl+3', switchToSettings: 'ctrl+4', switchToFavorites: 'ctrl+5', switchToAbout: 'ctrl+6', newConversation: 'ctrl+n' };
+// 编号严格跟随 NavBar 主导航顺序：消息 / 工具 / 设置；收藏与关于排在其后
+const DEFAULT_SHORTCUTS = { sendMessage: 'enter', search: 'ctrl+f', switchToChat: 'ctrl+1', switchToTools: 'ctrl+2', switchToSettings: 'ctrl+3', switchToFavorites: 'ctrl+4', switchToAbout: 'ctrl+5', newConversation: 'ctrl+n' };
 function getShortcutValue(action) { return setting.value?.shortcuts?.[action] || DEFAULT_SHORTCUTS[action]; }
 function parseShortcut(shortcut) {
   const parts = shortcut.toLowerCase().split('+');
@@ -1570,7 +1497,6 @@ function handleGlobalShortcuts(e) {
     return true;
   }
   if (matchShortcut(e, getShortcutValue('switchToChat'))) { e.preventDefault(); switchPage('chat'); return true; }
-  if (matchShortcut(e, getShortcutValue('switchToDiscover'))) { e.preventDefault(); switchPage('discover'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToTools'))) { e.preventDefault(); switchPage('tools'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToSettings'))) { e.preventDefault(); switchPage('settings'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToFavorites'))) { e.preventDefault(); switchPage('favorites'); return true; }
@@ -1603,7 +1529,6 @@ async function clearCacheAndReload() {
     store.favorites = [];
     store.mutedConvos = {};
     store.hiddenConvos = {};
-    store.deletedMsgIds = [];
     // 从服务器重新拉取（爬取模式：拉取 100 条 + 继续翻页取尽历史）
     const result = await (await safeFetch('/chat/info')).json();
     if (result.success) await update(result);
@@ -1638,7 +1563,7 @@ async function update(result) {
   if (!infoLoopRunning) return;
   // token 限制（滑动窗口恢复周期/容量）：/chat/info limit { time_limit, count_limit, ... }
   if (result.limit && typeof result.limit === 'object') store.tokenLimit = result.limit;
-  // 完整承载 OJ 档案（发现页与访问上报需要 grade_class / graduate_year / school_short 等）；
+  // 完整承载 OJ 档案（含 grade_class / graduate_year / school_short 等字段）；
   // 先展开再覆盖，保持既有键语义：uid = 内部数字 id，username = 登录名。
   // 注意 OJ 的字段命名陷阱：user.username 是【学号】，user.uid 才是登录名 —— 别被名字带偏。
   Object.assign(store.self, {
@@ -1660,7 +1585,6 @@ async function update(result) {
   const hiddenUsers = Object.fromEntries(Object.entries(store.users).filter(([, u]) => u.show === false && !friendsMap[u.uid]));
   store.users = { ...friendsMap, ...hiddenUsers };
   startRanklistFetch();
-  startVisitReport(); // 独立访问统计上报定时器（与 ranklist 解耦，防漏报）
   const newGroupIds = new Set(result.groups.map(g => g.id));
   const newGroups = Object.fromEntries(result.groups.map(g => {
     const old = store.groups[g.id];
@@ -1691,12 +1615,12 @@ async function fetchMessages(type, end, take = 10, allowPage = false) {
       // 放在 fetchMessages 而不是只依赖 onSelectConversation，是为了覆盖「点通知直接跳进来」
       // 这类不经过选择事件的进入路径 —— 否则头部会一直挂着 [有人@你]，得退出重进才消。
       if (isCurrentPage) { t.unread = 0; if (type === 'group') t.mentioned = false; }
-      if (t.message_ids.includes(c.id) || (store.deletedMsgIds && store.deletedMsgIds.includes(c.id))) {
+      if (t.message_ids.includes(c.id)) {
         // 旧消息：不重复处理，仅跳过
         // 自愈：id 已在会话消息列表、但内容缺失（本地未及落库 / 历史持久化丢失），
         // 从服务器返回补回内容，否则该消息重启后永远无法显示；由快照统一落库
         // ⚠️ 走入库闸门：message_ids 里若残留旧 vote 消息（脏数据/重新拉回），也必须合并进 poll 而非复活成独立消息
-        if (!store.messages[c.id] && !(store.deletedMsgIds && store.deletedMsgIds.includes(c.id))) {
+        if (!store.messages[c.id]) {
           // 普通消息：补回内容；投票消息：票并进 poll 消息 —— 两者都需落库
           ingestMessage(t, c);
           markMsgDirty(type === 'group' ? 'group' : 'user', type === 'group' ? c.receiver_id : (type === 'send_user' ? c.receiver_id : c.sender_id));
@@ -1812,7 +1736,6 @@ async function saveAll() {
       favorites: store.favorites || [],
       mutedConvos: store.mutedConvos || {},
       hiddenConvos: store.hiddenConvos || {},
-      deletedMsgIds: store.deletedMsgIds || [],
       stickers: store.stickers || []
     }))
     await window.api.storeSaveAll(uid, { convos, messages, prefs })
@@ -1844,11 +1767,10 @@ async function ensureConvoMessages(kind, cid) {
     //    上滑只会增大 visibleCount，不会回查本地库。因此进入会话必须把库里的 id 补回索引。
     //    （用户 2026-10-11 报障：本地存了 2500 条，打开群聊只看得到约 100 条）
     if (firstTime) {
-      const deleted = new Set(store.deletedMsgIds || [])
       let added = 0
       for (const m of r.data) {
         const mid = m && m.id
-        if (mid == null || deleted.has(mid)) continue // 用户手动删过的不复活
+        if (mid == null) continue
         if (target.message_ids.indexOf(mid) === -1) { target.message_ids.push(mid); added++ }
       }
       idsHydrated.add(key)
@@ -1891,7 +1813,6 @@ async function loadData() {
       if (d.drafts) store.drafts = d.drafts
       if (d.mutedConvos) store.mutedConvos = d.mutedConvos
       if (d.hiddenConvos) store.hiddenConvos = d.hiddenConvos
-      if (d.deletedMsgIds) store.deletedMsgIds = d.deletedMsgIds
       if (d.stickers) store.stickers = d.stickers
     }
   } catch {}
@@ -1925,7 +1846,6 @@ async function logout(toLogin = false, clearCred = false) {
   if (pollTimer) clearInterval(pollTimer);
   if (autoSaveTimer) clearInterval(autoSaveTimer);
   stopRanklistFetch(); // 停止 ranklist 轮询（退登结束，重新登录后自动重启）
-  stopVisitReport();   // 停止访问统计上报定时器
   // 等待可能正在执行的异步操作完成
   await new Promise(r => setTimeout(r, 100));
   // 退出前先保存当前数据（立即落盘，不等节流）

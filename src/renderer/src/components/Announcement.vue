@@ -7,19 +7,19 @@
           <img src="/icon.png" alt="7FA4 Chat" class="announcement-logo-img" />
         </div>
         <p class="announcement-sub">全新版本发布</p>
-        <h1>V3.6.1</h1>
+        <h1>V3.7.0</h1>
         <div class="announcement-decor"></div>
       </div>
       <!-- 页 2：本次更新 -->
       <div v-else-if="page === 1" class="announcement-page">
         <h2><i class="fas fa-star"></i> 本次更新</h2>
         <ul class="announcement-list">
-          <li>工具新增「原题机」：粘贴题面即可找到原题与相似题目，结果直达 vjudge</li>
-          <li>计算器新增分数模式、mex 与位运算等函数，模数运算支持常用预设</li>
-          <li>计时器支持悬浮窗，可置顶显示并记忆位置，切走也不会中断</li>
-          <li>投票新增开放题与「最多选几项」限制，选项可悬浮查看得票数并标出无效投票</li>
-          <li>网页端发现新版本时在顶部提示，可一键升级</li>
-          <li>修复更新后仍显示旧版本、图片无法保存到本机、安卓端被系统栏遮挡的问题</li>
+          <li>移除「发现」页：推荐、海报墙与开屏海报等配套功能一并下线</li>
+          <li>移除「原题机」工具入口，工具箱更精简</li>
+          <li>会话右键新增「不显示 / 取消不显示」：隐藏后不在列表显示，搜索时仍可找到并恢复</li>
+          <li>移除「删除聊天记录」以及单条消息删除、批量删除功能</li>
+          <li>「意见反馈」改为直接跳转 GitLab Issues，链接与下载地址统一切换到项目仓库</li>
+          <li>登录新增错误码 1005 的友好提示，并修复若干已知问题</li>
         </ul>
       </div>
       <!-- 页 3：更新日志 -->
@@ -36,8 +36,9 @@
       <div v-else-if="page === 3" class="announcement-page announcement-thanks">
         <h2><i class="fas fa-heart"></i> 喜欢这个应用吗？</h2>
         <p>由 for_fo_f 独立开发维护，你的每一份赞赏都是持续更新的动力</p>
-        <img :src="DONATE_URL" alt="赞赏码" class="announcement-donate" @click="donateZoom = true" />
-        <p class="announcement-donate-tip">点击二维码可放大</p>
+        <img v-if="!qrError" :src="DONATE_URL" alt="赞赏码" class="announcement-donate" @error="qrError = true" @click="donateZoom = true" />
+        <p v-else class="announcement-donate-tip">赞赏码加载失败，请稍后刷新重试</p>
+        <p v-if="!qrError" class="announcement-donate-tip">点击二维码可放大</p>
         <!-- #18 赞助者列表（表格） -->
         <div class="announcement-sponsors" v-if="sponsorList.length">
           <div class="announcement-sponsor-title">感谢以下赞助者</div>
@@ -68,7 +69,7 @@
     </div>
 
     <!-- 二维码放大 -->
-    <div v-if="donateZoom" class="announcement-zoom-overlay" @click="donateZoom = false">
+    <div v-if="donateZoom && !qrError" class="announcement-zoom-overlay" @click="donateZoom = false">
       <img :src="DONATE_URL" alt="赞赏码" class="announcement-zoom-img" />
     </div>
   </div>
@@ -77,9 +78,10 @@
 <script setup>
 import { ref, watch } from 'vue'
 
-const DONATE_URL = 'https://chat.forfof.cloud/assets/donate-qr.jpg'
+const DONATE_URL = 'https://jx.7fa4.cn:9080/student-archive/7fa4-chat/-/raw/master/assets/donate-qr.jpg'
 const page = ref(0)
 const donateZoom = ref(false)
+const qrError = ref(false)
 const changelogLoading = ref(false)
 const changelogError = ref('')
 const changelogHtml = ref('')

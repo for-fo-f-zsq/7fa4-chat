@@ -61,9 +61,9 @@ const props = defineProps({
   text: String,
   rawContent: { type: String, default: '' },
   showActions: { type: Boolean, default: false },
-  // 「用图片编辑器打开」按钮：聊天里的图片可跳图片工具，海报墙等只读场景传 false 隐藏
+  // 「用图片编辑器打开」按钮：聊天里的图片可跳图片工具，只读预览场景传 false 隐藏
   showEdit: { type: Boolean, default: true },
-  // 远程图片地址（如海报 /api/posters/5.jpg）：src 可能是远程 URL、也可能被外部改成 base64，
+  // 远程图片地址（如聊天里收到的远程图 URL）：src 可能是远程 URL、也可能被外部改成 base64，
   // 单独传一份原始地址供「下载」使用。父级若自行监听 @download，则不会走到内置兜底分支。
   remoteSrc: { type: String, default: '' },
   // 下载文件名提示（不含扩展名也可，会按 mime 补全）
@@ -75,7 +75,7 @@ const emit = defineEmits(['close', 'copy', 'forward', 'download', 'edit'])
 const attrs = useAttrs()
 
 const canDownload = computed(() => {
-  // 远程图片（海报墙等只读场景）：没有 rawContent，但有可下载的地址
+  // 远程图片（只读预览场景）：没有 rawContent，但有可下载的地址
   if (props.type === 'image' && (props.remoteSrc || props.src)) return true
   if (!props.showActions || !props.rawContent) return false
   const obj = parseMsgContent(props.rawContent)
@@ -107,11 +107,11 @@ async function fetchAsBase64(url) {
 
 /**
  * 下载远程图片。优先走主进程（Electron）：
- *   渲染进程源是本地服务端口，与图片站 https://chat.forfof.cloud 不同源，
- *   而海报由 nginx 静态规则伺服、响应**不带 access-control-allow-origin**，
+ *   渲染进程源是本地服务端口，与图片所在站点不同源，
+ *   而部分静态图片由服务器 nginx 静态规则伺服、响应**不带 access-control-allow-origin**，
  *   所以 renderer 里 fetch 必被 CORS 拦（表现为「下载失败: Failed to fetch」）；
  *   `<img>` 不受同源策略限制，因此图能正常显示却下不下来。主进程是 Node，无同源限制。
- * 无主进程时（网页端，站点与接口同为 chat.forfof.cloud 属同源）回落到 renderer fetch。
+ * 无主进程时（网页端，站点与接口同源）回落到 renderer fetch。
  */
 async function fallbackDownload() {
   const url = props.remoteSrc || props.src
@@ -166,7 +166,7 @@ async function fallbackDownload() {
 }
 
 // 父级若自行监听 @download（聊天里需带原始 base64 等特殊处理），由父级全权接管；
-// 没人监听时（海报墙/开屏海报这类只读预览）走内置的远程取图兜底。
+// 没人监听时（只读预览这类场景）走内置的远程取图兜底。
 function onDownloadClick() {
   if (typeof attrs.onDownload === 'function') emit('download')
   else fallbackDownload()

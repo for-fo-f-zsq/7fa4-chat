@@ -9,8 +9,7 @@ export const store = reactive({
   drafts: {},           // 草稿 { 'user_123': 'text', 'group_456': 'text' }
   favorites: [],        // 收藏的消息 [{ id, content, sender, send_time, fromType, fromId, savedAt }]
   mutedConvos: {},      // 免打扰会话 { 'user_123': true }
-  hiddenConvos: {},     // 隐藏的会话 { 'user_123': true }
-  deletedMsgIds: [],    // 已删除的消息ID列表，防止轮询重新拉回
+  hiddenConvos: {},     // 隐藏（不显示）的会话：默认列表过滤，搜索时仍可搜到 { 'user_123': true }
   pageType: null,
   pageId: null,
   currentGroupId: null,

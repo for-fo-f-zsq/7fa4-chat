@@ -233,7 +233,6 @@ class UserStore {
    * messages 传 { 'user:cid'|'group:cid': [msgs] }，仅包含有变化的会话（脏区）。
    * 消息按 mid 增量合并（INSERT OR REPLACE，不做会话级 DELETE）：
    * 渲染层内存仅为懒加载的部分历史时，也绝不会把库中已保存的完整历史覆盖清空。
-   * （历史消息的"删除"由 deletedMsgIds persisted 在 prefs 中承担，不需要物理删行。）
    */
   saveAll(uid, { convos, prefs, messages }) {
     if (!this.db) return { success: false, error: 'db not ready' }

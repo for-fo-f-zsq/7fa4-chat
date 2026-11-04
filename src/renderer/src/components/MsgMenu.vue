@@ -20,11 +20,10 @@ const props = defineProps({
   canDownload: Boolean,
   canCollect: Boolean,
   canFavorite: { type: Boolean, default: false },
-  canDelete: { type: Boolean, default: false },
   isOwn: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['copy', 'forward', 'download', 'reply', 'collect', 'close', 'delete', 'multiselect', 'favorite'])
+const emit = defineEmits(['copy', 'forward', 'download', 'reply', 'collect', 'close', 'multiselect', 'favorite'])
 
 const show = computed(() => true)
 
@@ -44,9 +43,6 @@ const menuItems = computed(() => {
     items.push({ value: 'download', label: '下载', icon: 'fas fa-download' })
   }
   items.push({ value: 'multiselect', label: '多选', icon: 'fas fa-check-double' })
-  if (props.canDelete) {
-    items.push({ value: 'delete', label: '删除', icon: 'fas fa-trash' })
-  }
   return items
 })
 

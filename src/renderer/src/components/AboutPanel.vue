@@ -34,8 +34,7 @@
       </div>
       <div class="about-links">
         <button class="about-link-btn" @click="openLink('https://github.com/for-fo-f-zsq/7fa4-chat')"><i class="fab fa-github"></i> GitHub</button>
-        <button class="about-link-btn" @click="openLink('https://jx.7fa4.cn:9080/student-archive/zsq-7fa4-chat')"><i class="fab fa-gitlab"></i> GitLab</button>
-        <button class="about-link-btn" @click="openLink('https://chat.forfof.cloud')"><i class="fas fa-globe"></i> 官网</button>
+        <button class="about-link-btn" @click="openLink('https://jx.7fa4.cn:9080/projects/886')"><i class="fab fa-gitlab"></i> GitLab</button>
       </div>
     </div>
 
@@ -75,7 +74,7 @@
           <div class="about-feat-icon"><i class="fas fa-shield-alt"></i></div>
           <div class="about-feat-body">
             <div class="about-feat-name">数据与隐私</div>
-            <div class="about-feat-desc">聊天数据本地 SQLite + AES-256 加密存储，删除即彻底删除，无遥测、无广告。</div>
+            <div class="about-feat-desc">聊天数据本地 SQLite + AES-256 加密存储，无遥测、无广告。</div>
           </div>
         </div>
         <div class="about-feat">
@@ -95,7 +94,6 @@
         <span class="tech-tag">Vue 3</span>
         <span class="tech-tag">Electron</span>
         <span class="tech-tag">Node.js</span>
-        <span class="tech-tag">Express</span>
         <span class="tech-tag">SQLite</span>
         <span class="tech-tag">Markdown</span>
         <span class="tech-tag">KaTeX</span>
@@ -104,7 +102,7 @@
         <span class="tech-tag">Font Awesome</span>
       </div>
       <div class="about-footer">
-        © 2026 for_fo_f 独立开发维护 · 反馈请到头像菜单「意见反馈」
+        © 2026 for_fo_f 独立开发维护 · 问题反馈请到 GitLab Issues
         <button class="about-guide-link" @click="openGuide"><i class="fas fa-book-open"></i> 重新查看新手指引</button>
       </div>
     </div>

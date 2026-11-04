@@ -34,7 +34,7 @@
         </div>
         <div class="update-actions">
           <button v-if="updateStatus === 'available'" class="update-btn" @click="downloadUpdate">
-            <i class="fas fa-download"></i> {{ isMobileWeb ? (apkUrl ? '下载新版 APK' + apkSizeText : '前往官网下载') : '下载更新' }}
+            <i class="fas fa-download"></i> {{ isMobileWeb ? (apkUrl ? '下载新版 APK' + apkSizeText : '前往 GitLab 下载页') : '下载更新' }}
           </button>
           <button v-if="updateStatus === 'downloaded'" class="update-btn update-btn-install" @click="installUpdate">
             <i class="fas fa-sync-alt"></i> 安装并重启
@@ -95,7 +95,7 @@ const updateStatusText = computed(() => {
   switch (updateStatus.value) {
     case 'idle': return '未检查'
     case 'checking': return '正在检查...'
-    case 'available': return `发现新版本 v${updateInfo.value?.version || ''}`
+    case 'available': return `检测到新版本 v${updateInfo.value?.version || ''}`
     case 'not-available': return showLatest ? `已是最新版本（v${latestVersion.value}）` : '已是最新版本'
     case 'downloading': return `正在下载 ${downloadProgress.value.toFixed(1)}%`
     case 'downloaded': return `v${updateInfo.value?.version || ''} 已就绪`
@@ -125,8 +125,8 @@ function handleUpdateStatus(data) {
 
 // 版本号比较：compareVersion 统一在 utils.js（原来这里/App.vue 各有一份副本）
 
-// 非桌面端（网页端 + Android）：没有 electron-updater，latest 来自后端 /web/api/version，
-// 「更新」动作改为跳官网下载页 —— 安卓端也需要这个分支，所以这里就该读 __7FA4_WEB__（非 Electron），
+// 非桌面端（网页端 + Android）：没有 electron-updater，版本信息来自 GitLab 仓库发布的版本文件，
+// 「更新」动作改为跳 GitLab 包下载页 —— 安卓端也需要这个分支，所以这里就该读 __7FA4_WEB__（非 Electron），
 // **不要**改成 isWebBrowser()。
 const isMobileWeb = !!(window.__7FA4_WEB__)
 // 安卓 APK：没有自动更新通道，能拿到 APK 直链时直接下安装包，比让用户自己去下载页找快得多
@@ -137,9 +137,9 @@ const apkSizeText = computed(() => {
   return b ? `（${(b / 1024 / 1024).toFixed(1)}MB）` : ''
 })
 
-// 非桌面端：跳转官网下载页（含 Android/桌面各平台安装包）
+// 非桌面端：跳转 GitLab 包下载页（含 Android/桌面各平台安装包）
 function gotoDownloadPage() {
-  window.api.openExternal?.('https://chat.forfof.cloud')
+  window.api.openExternal?.('https://jx.7fa4.cn:9080/student-archive/7fa4-chat/-/packages')
 }
 
 // 非桌面端：优先直接下 APK，拿不到直链才退回下载页

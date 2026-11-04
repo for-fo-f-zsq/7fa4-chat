@@ -5,8 +5,6 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
-const https = require('https');
-const http = require('http');
 const { pathToFileURL } = require('url');
 let autoUpdater;
 try { ({ autoUpdater } = require('electron-updater')); } catch { autoUpdater = null; }
@@ -1402,20 +1400,27 @@ ipcMain.handle('store-import-all', async (event, uid, data) => {
     return importLegacyData(userStore, Number(uid), data);
 });
 
+// ========== GitLab 静态资源（项目 886） ==========
+// 自建后端已全部下线：客户端更新、更新日志、赞助名单全部改读公开的 GitLab 项目 886
+// （发布包只保留 latest/，赞助名单放在仓库 assets/sponsors.json）。
+const GITLAB_WEB_BASE = 'https://jx.7fa4.cn:9080';
+const GITLAB_API = `${GITLAB_WEB_BASE}/api/v4/projects/886`;
+const GITLAB_LATEST_PACKAGE = `${GITLAB_API}/packages/generic/7FA4-Chat/latest`;
+// 赞助名单：公开仓库的 assets/sponsors.json，匿名 raw 即可读取
+const SPONSORS_FILE_URL = `${GITLAB_API}/repository/files/assets%2Fsponsors.json/raw?ref=master`;
+
 // ========== 自动更新 ==========
 let updateDownloaded = false;
 let autoUpdateEnabled = false;
 let updateCheckTimer = null;
 let isDownloading = false;
 
-// 根据当前"API网址"动态设置 electron-updater 的更新源。
-// 这样外网用户把 API 网址设为 jx.7fa4.cn 后，自动更新也走公网，
-// 而不是打包时写死的旧地址（避免内网域名 in.7fa4.cn 在外网 502）。
+// electron-updater 的更新源固定指向 GitLab 项目 886 的 latest/ 包目录。
+// GitLab 侧每次发版只保留最新一版包（见 .github/workflows/release.yml）。
 function applyUpdateFeedUrl() {
     if (!autoUpdater) return;
-    const feedUrl = `${currentApiUrl}:9080/api/v4/projects/886/packages/generic/7FA4-Chat/latest`;
-    autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl });
-    console.log('[Updater] 更新源已设为:', feedUrl);
+    autoUpdater.setFeedURL({ provider: 'generic', url: GITLAB_LATEST_PACKAGE });
+    console.log('[Updater] 更新源已设为:', GITLAB_LATEST_PACKAGE);
 }
 
 function initAutoUpdater() {
@@ -1591,28 +1596,12 @@ ipcMain.handle('install-update', () => {
     }
 });
 
-// ========== 获取远程 CHANGELOG ==========
+// ========== 获取远程 CHANGELOG（GitLab latest/CHANGELOG，发版时随包上传） ==========
 ipcMain.handle('fetch-changelog', async () => {
     try {
-        const changelogUrl = `${currentApiUrl}:9080/api/v4/projects/886/packages/generic/7FA4-Chat/latest/CHANGELOG`;
-        const html = await new Promise((resolve, reject) => {
-            const reqMod = changelogUrl.startsWith('https:') ? https : http;
-            reqMod.get(changelogUrl, { timeout: 10000 }, res => {
-                if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                    const redirectUrl = new URL(res.headers.location);
-                    const reqMod = redirectUrl.protocol === 'https:' ? https : http;
-                    reqMod.get(res.headers.location, { timeout: 10000 }, r => {
-                        const chunks = [];
-                        r.on('data', chunk => chunks.push(chunk));
-                        r.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-                    }).on('error', reject);
-                } else {
-                    const chunks = [];
-                    res.on('data', chunk => chunks.push(chunk));
-                    res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-                }
-            }).on('error', reject);
-        });
+        const res = await net.fetch(`${GITLAB_LATEST_PACKAGE}/CHANGELOG`, { signal: AbortSignal.timeout(15000) });
+        if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
+        const html = await res.text();
         if (!html || html.trim().length === 0) {
             return { success: false, error: '更新日志为空' };
         }
@@ -1622,83 +1611,18 @@ ipcMain.handle('fetch-changelog', async () => {
     }
 });
 
-// ========== 新增功能 IPC ==========
-
-// 通用：向官网 website-api 发起 HTTPS 请求（feedback/sponsors）
-function httpsApiJson(path, method = 'GET', bodyObj, timeoutMs = 10000) {
-  return new Promise((resolve) => {
-    const url = new URL('https://chat.forfof.cloud' + path);
-    const body = bodyObj ? JSON.stringify(bodyObj) : null;
-    const headers = { 'Accept': 'application/json' };
-    if (body) { headers['Content-Type'] = 'application/json'; headers['Content-Length'] = Buffer.byteLength(body); }
-    const req = https.request(url, { method, timeout: timeoutMs, headers }, (res) => {
-      const chunks = [];
-      res.on('data', (c) => chunks.push(c));
-      res.on('end', () => {
-        let data = null;
-        try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch {}
-        resolve({ status: res.statusCode, data });
-      });
-    });
-    req.on('error', (e) => resolve({ status: 0, data: null, error: e.message || '网络错误' }));
-    req.on('timeout', () => { req.destroy(new Error('timeout')); });
-    if (body) req.write(body);
-    req.end();
-  });
-}
-
-// #6 提交反馈（含客户端信息与可选截图；截图已在渲染进程压缩到 ≤100KB）
-ipcMain.handle('send-feedback', async (event, { content, user, uid, client, image } = {}) => {
-    const body = {
-        content: String(content || ''),
-        user: String(user || ''),
-        uid: Number(uid) || 0,
-        client: client && typeof client === 'object' ? client : null,
-        image: String(image || ''),
-    };
-    // 图片 base64 可能较大：放宽超时到 30s
-    const r = await httpsApiJson('/api/feedback', 'POST', body, 30000);
-    if (r.status >= 200 && r.status < 300 && r.data && r.data.ok) {
-        return { success: true, id: r.data.id };
-    }
-    return { success: false, error: (r.data && r.data.error) || (r.error) || ('HTTP ' + r.status) };
-});
-
-// #18 赞助列表
+// ========== 赞助列表（GitLab 公开仓库 assets/sponsors.json） ==========
 ipcMain.handle('fetch-sponsors', async () => {
-    const r = await httpsApiJson('/api/sponsors', 'GET');
-    if (r.status >= 200 && r.status < 300 && r.data && Array.isArray(r.data.list)) {
-        return { success: true, list: r.data.list };
+    try {
+        const res = await net.fetch(SPONSORS_FILE_URL, { signal: AbortSignal.timeout(10000) });
+        if (!res.ok) return { success: false, list: [], error: `HTTP ${res.status}` };
+        const data = await res.json().catch(() => null);
+        const list = Array.isArray(data) ? data : (data && Array.isArray(data.list) ? data.list : null);
+        if (list) return { success: true, list };
+        return { success: false, list: [], error: '赞助名单格式异常' };
+    } catch (e) {
+        return { success: false, list: [], error: e.message || '网络错误' };
     }
-    return { success: false, list: [], error: (r.data && r.data.error) || r.error || ('HTTP ' + r.status) };
-});
-
-// 原题机：粘贴题面检索相似/原题。渲染进程与 chat.forfof.cloud 不同源（webSecurity: true），
-// 只能由主进程代取；服务端那次转发顺带把结果地址换成 vjudge。上游一次检索十余秒，超时给足。
-ipcMain.handle('yuantiji-search', async (event, { query, k, rewrite, skipShort } = {}) => {
-    const body = {
-        query: String(query || ''),
-        k: Math.min(Math.max(Number(k) || 20, 1), 100),
-        rewrite: rewrite !== false,
-        skip_short: skipShort !== false,
-    };
-    const r = await httpsApiJson('/web/tools/yuantiji', 'POST', body, 150000);
-    if (r.status >= 200 && r.status < 300 && r.data && r.data.ok) {
-        return { success: true, results: r.data.results || [], count: r.data.count || 0, elapsed: r.data.elapsed_ms || 0 };
-    }
-    return { success: false, results: [], error: (r.data && r.data.error) || r.error || ('HTTP ' + r.status) };
-});
-
-// 发现页：可能认识的人（服务端基于上报档案聚合）
-ipcMain.handle('discover-people', async (event, uid, limit) => {
-    const u = Number(uid);
-    const n = Math.min(Math.max(Number(limit) || 60, 1), 200);
-    if (!u) return { success: false, items: [], error: '缺少 uid' };
-    const r = await httpsApiJson(`/api/discover/people?uid=${u}&limit=${n}`, 'GET');
-    if (r.status >= 200 && r.status < 300 && r.data && Array.isArray(r.data.items)) {
-        return { success: true, items: r.data.items, sample: r.data.sample || 0, updatedAt: r.data.updatedAt || 0 };
-    }
-    return { success: false, items: [], error: (r.data && r.data.error) || r.error || ('HTTP ' + r.status) };
 });
 
 // 任务栏图标未读数
@@ -1790,25 +1714,7 @@ ipcMain.handle('load-users-db', async () => {
     }
 });
 
-// ========== 访问统计上报（AES-256-GCM 加密，防第三方 POST 伪造） ==========
-// 载荷在**主进程**加密并直接 POST（密钥不进渲染进程）；服务器端用同密钥解密。
-// 密钥随客户端分发属混淆级防护，配合服务器端时间窗口防重放 + 限频，足以阻止简单伪造。
-const VISIT_PASSPHRASE = '7fa4-chat::visit::v1';
-const VISIT_ENDPOINT = 'https://chat.forfof.cloud/info';
-
-function encryptVisitPayload(info) {
-    const key = crypto.createHash('sha256').update(VISIT_PASSPHRASE).digest();
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-    const data = Buffer.concat([cipher.update(JSON.stringify(info), 'utf8'), cipher.final()]);
-    return JSON.stringify({
-        v: 1,
-        iv: iv.toString('base64'),
-        tag: cipher.getAuthTag().toString('base64'),
-        data: data.toString('base64')
-    });
-}
-
+// ========== 退出登录 ==========
 // 退出登录：清除会话 cookie（含 HttpOnly），渲染进程 document.cookie 无法删除 HttpOnly cookie
 ipcMain.handle('clear-session-cookies', async () => {
     try {
@@ -1821,142 +1727,4 @@ ipcMain.handle('clear-session-cookies', async () => {
     } catch (e) { return { success: false, error: e.message || '清除失败' }; }
 });
 
-ipcMain.handle('report-visit', async (event, info) => {
-    try {
-        const uid = Number(info && info.uid);
-        if (!uid || !Number.isInteger(uid) || uid <= 0) return { ok: false, error: 'invalid uid' };
-        // 只交 OJ 会话 cookie + 版本号：姓名/学号/座位/学校/年级等个人字段一律不上传，
-        // 服务端自己带 cookie 去 OJ 取档案与头像。date 由主进程补（防重放时间窗口）。
-        const payload = {
-            uid,
-            version: String((info && info.version) || '').slice(0, 32),
-            cookie: await ojCookieHeader(),
-            date: Date.now()
-        };
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 5000);
-        let ok = false;
-        try {
-            const res = await fetch(VISIT_ENDPOINT, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: encryptVisitPayload(payload),
-                signal: ctrl.signal
-            });
-            ok = res.ok;
-            return { ok, status: res.status };
-        } finally {
-            clearTimeout(timer);
-        }
-    } catch (e) {
-        return { ok: false, error: e.message || '网络错误' };
-    }
-});
 
-// OJ 会话 cookie（上报时交给官网，由官网自己带它去 OJ 取档案与头像）
-// 存在渲染层页面的 origin 下（dev 是 vite 端口、生产是本地代理端口），逐个查后按 name 去重
-async function ojCookieHeader() {
-    const seen = new Map();
-    const origins = [];
-    if (serverPort > 0) origins.push(`http://127.0.0.1:${serverPort}`, `http://localhost:${serverPort}`);
-    if (devOriginPort) origins.push(`http://127.0.0.1:${devOriginPort}`, `http://localhost:${devOriginPort}`);
-    for (const url of origins) {
-        try {
-            for (const c of await session.defaultSession.cookies.get({ url })) {
-                if (!seen.has(c.name)) seen.set(c.name, c.value);
-            }
-        } catch { /* 单个 origin 没 cookie 就跳过 */ }
-    }
-    return [...seen].map(([name, value]) => `${name}=${value}`).join('; ');
-}
-
-// ========== 海报（客户端投稿 → 服务端 /dev 审核 → 公开） ==========
-// 开屏随机展示一张、发现页「海报墙」列举、任何登录用户可上传；
-// 上传内容落盘为待审，必须在服务端 /dev 页审核通过后才对外公开。
-// 载荷与 /info、照片同构：AES-256-GCM + SHA256(passphrase)，密钥独立、随客户端分发（混淆级防护）。
-// 公开接口只返回 id / 图片地址 / 尺寸，不含投稿人 uid 与 IP。
-const POSTER_ENDPOINT_BASE = 'https://chat.forfof.cloud';
-const POSTER_PASSPHRASE = '7fa4-chat::poster::v1';
-
-function encryptPosterPayload(info) {
-    const key = crypto.createHash('sha256').update(POSTER_PASSPHRASE).digest();
-    const iv = crypto.randomBytes(12);
-    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-    const data = Buffer.concat([cipher.update(JSON.stringify(info), 'utf8'), cipher.final()]);
-    return JSON.stringify({
-        v: 1,
-        iv: iv.toString('base64'),
-        tag: cipher.getAuthTag().toString('base64'),
-        data: data.toString('base64')
-    });
-}
-
-// 服务端下发相对路径（/api/posters/<id>.<ext>），渲染进程需要可直接 <img src> 的绝对地址
-function absolutizePoster(item) {
-    if (!item || typeof item.url !== 'string' || !item.url) return item;
-    if (/^https?:\/\//i.test(item.url)) return item;
-    return { ...item, url: POSTER_ENDPOINT_BASE + item.url };
-}
-
-// 投稿失败的服务端错误码 → 用户可读文案
-const POSTER_ERROR_TEXT = {
-    'bad image': '图片过大或已损坏',
-    'unsupported mime': '不支持的图片格式',
-    'too large': '图片过大',
-    'rate limited': '操作过于频繁，请稍后再试',
-    'bad payload': '提交数据有误',
-    'stale': '提交超时，请重试',
-    'invalid uid': '请先登录',
-    'save failed': '服务器保存失败，请稍后再试'
-};
-
-// 海报列表（发现页海报墙；服务端只返回已通过审核的）
-ipcMain.handle('fetch-posters', async () => {
-    const r = await httpsApiJson('/api/posters', 'GET', undefined, 10000);
-    if (r.status >= 200 && r.status < 300 && r.data && Array.isArray(r.data.items)) {
-        return { success: true, items: r.data.items.map(absolutizePoster) };
-    }
-    return { success: false, items: [], error: (r.data && r.data.error) || r.error || ('HTTP ' + r.status) };
-});
-
-// 开屏随机一张：硬超时 3s —— 取不到就干脆不展开展示，绝不能卡住启动
-ipcMain.handle('fetch-random-poster', async () => {
-    const r = await httpsApiJson('/api/posters?random=1', 'GET', undefined, 3000);
-    if (r.status >= 200 && r.status < 300 && r.data && r.data.success && r.data.item) {
-        return { success: true, item: absolutizePoster(r.data.item) };
-    }
-    return { success: false, item: null, error: (r.data && r.data.error) || r.error || ('HTTP ' + r.status) };
-});
-
-// 投稿：图片已在渲染进程压缩为 base64；主进程加密后 POST（密钥不进渲染进程）
-ipcMain.handle('submit-poster', async (event, payload = {}) => {
-    try {
-        const uid = Number(payload.uid);
-        if (!uid || !Number.isInteger(uid) || uid <= 0) return { success: false, error: '请先登录' };
-        const data = String(payload.data || '');
-        if (!data) return { success: false, error: '缺少图片数据' };
-        const body = encryptPosterPayload({
-            uid,
-            mime: String(payload.mime || 'image/jpeg'),
-            data,
-            w: Number(payload.w) || 0,
-            h: Number(payload.h) || 0,
-            date: Date.now()
-        });
-        // 载荷是「图片 base64 → 整体加密后再 base64」两层，体积放大 ≈1.78 倍；
-        // 服务端 nginx 上限 4m、后端图片上限 2MB，故这里把超时放宽到 30s 以容忍慢网络。
-        const res = await net.fetch(`${POSTER_ENDPOINT_BASE}/api/posters`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body,
-            signal: AbortSignal.timeout(30000)
-        });
-        const jd = await res.json().catch(() => null);
-        if (res.ok && jd && jd.ok) return { success: true, id: jd.id };
-        const raw = (jd && jd.error) || '';
-        return { success: false, error: POSTER_ERROR_TEXT[raw] || raw || ('HTTP ' + res.status) };
-    } catch (e) {
-        const msg = /timeout|abort/i.test(e.message || '') ? '提交超时，请检查网络后重试' : (e.message || '网络错误');
-        return { success: false, error: msg };
-    }
-});
