@@ -261,6 +261,37 @@ if (cachedManifest) {
   updatedAt.value = cachedManifest.updatedAt || ''
 }
 
+// 清单自动重拉：进页面时拉一次；之后页面重新可见 / 窗口聚焦时后台刷新（30s 内不重复），
+// 并每 10 分钟定时刷新；拉取失败 60s 后自动重试。这样发了新工具版本不用手动点「刷新」。
+const MANIFEST_AUTO_REFRESH_MS = 10 * 60 * 1000
+const MANIFEST_MIN_REFRESH_GAP_MS = 30 * 1000
+const MANIFEST_RETRY_MS = 60 * 1000
+let manifestTimer = null
+let manifestRetryTimer = null
+let lastManifestAt = 0
+
+function pageVisible() {
+  return typeof document === 'undefined' || document.visibilityState === 'visible'
+}
+
+function refreshManifestInBackground() {
+  if (!pageVisible()) return
+  if (Date.now() - lastManifestAt < MANIFEST_MIN_REFRESH_GAP_MS) return
+  load({ silent: true })
+}
+
+function onVisibilityChange() {
+  if (pageVisible()) refreshManifestInBackground()
+}
+
+function scheduleAutoRetry() {
+  if (manifestRetryTimer || !pageVisible()) return
+  manifestRetryTimer = setTimeout(() => {
+    manifestRetryTimer = null
+    load({ silent: true })
+  }, MANIFEST_RETRY_MS)
+}
+
 const errorText = computed(() => loadError.value || actionError.value)
 const canRetry = computed(() => !!loadError.value)
 
@@ -383,10 +414,13 @@ function handleProgress(evt) {
   }
 }
 
-async function load() {
-  loading.value = true
-  loadError.value = ''
-  actionError.value = ''
+async function load(options = {}) {
+  const silent = options.silent === true
+  if (!silent) {
+    loading.value = true
+    loadError.value = ''
+    actionError.value = ''
+  }
   const api = window.api || {}
   const errors = []
 
@@ -441,8 +475,22 @@ async function load() {
     errors.push(`获取已安装工具失败：${formatError(installedResult.reason)}`)
   }
 
+  lastManifestAt = Date.now()
+  if (silent) {
+    // 后台自动重拉失败不打扰用户：保留当前列表和旧提示，只记日志；
+    // 仍然安排下一次重试（离线时每 60s 一次，恢复网络后自动出现新清单）。
+    if (errors.length) {
+      console.warn('[tools-view] 自动刷新工具清单失败:', errors.join('；'))
+      scheduleAutoRetry()
+    } else {
+      loadError.value = ''
+    }
+    return
+  }
   loadError.value = errors.join('；')
   loading.value = false
+  // 失败后 60s 自动重试一次，避免必须手动点「刷新」
+  if (errors.length) scheduleAutoRetry()
 }
 
 async function refreshInstalled() {
@@ -545,9 +593,25 @@ onMounted(() => {
     }
   }
   load()
+  // 定时重拉 + 页面重新可见/窗口聚焦时后台刷新（发了新工具版本会自动出现）
+  manifestTimer = setInterval(() => {
+    if (pageVisible()) load({ silent: true })
+  }, MANIFEST_AUTO_REFRESH_MS)
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener('focus', refreshManifestInBackground)
 })
 
 onBeforeUnmount(() => {
+  if (manifestTimer) {
+    clearInterval(manifestTimer)
+    manifestTimer = null
+  }
+  if (manifestRetryTimer) {
+    clearTimeout(manifestRetryTimer)
+    manifestRetryTimer = null
+  }
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener('focus', refreshManifestInBackground)
   if (typeof unsubscribeProgress === 'function') {
     try {
       unsubscribeProgress()
