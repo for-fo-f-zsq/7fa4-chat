@@ -10,6 +10,13 @@ import '../../shared/bridge-client.js'
 import '../../shared/tool-base.css'
 
 import { createApp } from 'vue'
+import { applyUsersSnapshot } from '../../../src/renderer/src/utils.js'
 import TimerTool from '../../../src/renderer/src/views/tools/timer/TimerTool.vue'
+
+// 计时器需要用宿主用户名单选人：iframe 里没有主进程，向宿主要一份快照填进本地 store。
+const bridge = window.__toolBridge
+if (bridge && typeof bridge.getUsers === 'function') {
+  bridge.getUsers().then((snapshot) => applyUsersSnapshot(snapshot)).catch(() => {})
+}
 
 createApp(TimerTool).mount('#app')

@@ -388,6 +388,15 @@ async function installTool(toolMeta) {
   const count = meta.files.length
   let received = 0
   try {
+    // 清理上次中断留下的临时目录（与桌面端行为一致）
+    try {
+      const stale = await Filesystem.readdir({ path: idDir, directory: Directory.Data })
+      for (const entry of Array.isArray(stale.files) ? stale.files : []) {
+        if (entry.type === 'directory' && String(entry.name).startsWith('.staging-')) {
+          await fsRemoveDir(`${idDir}/${entry.name}`)
+        }
+      }
+    } catch { /* 首次安装：目录还不存在 */ }
     await fsMkdir(stagingDir)
     for (let i = 0; i < count; i++) {
       const file = meta.files[i]
@@ -421,6 +430,15 @@ async function installTool(toolMeta) {
       files: meta.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 }))
     }
     await fsWriteText(toolInstalledPath(meta.id), JSON.stringify(installed, null, 2))
+    // 更新成功后清理旧版本目录（与桌面端一致），清理失败不影响安装结果
+    try {
+      const entries = await Filesystem.readdir({ path: idDir, directory: Directory.Data })
+      for (const entry of Array.isArray(entries.files) ? entries.files : []) {
+        if (entry.type === 'directory' && entry.name !== meta.version) {
+          await fsRemoveDir(`${idDir}/${entry.name}`)
+        }
+      }
+    } catch { /* 清理失败不影响安装 */ }
     return { success: true }
   } catch (e) {
     // 失败清理半成品；不动旧版本目录与旧 installed.json
@@ -465,11 +483,11 @@ async function removeTool(id) {
 
 // 入口 URL：Android 用 convertFileSrc(file://...) 映射为 WebView 可加载地址；
 // 纯网页端没有可用的本地文件加载通道（convertFileSrc 在 Web 上是恒等映射），返回 unsupported。
-async function getToolEntryUrl(id) {
+async function getToolEntryUrl(id, entry) {
   if (!TOOL_ID_RE.test(String(id))) return { success: false, error: '工具 ID 无效' }
   const installed = await readInstalledMeta(String(id))
   if (!installed) return { success: false, error: '工具未安装' }
-  const entryPath = pickToolEntry(installed)
+  const entryPath = pickToolEntry(installed, entry)
   if (!entryPath) return { success: false, error: '工具入口文件缺失' }
   if (!IS_NATIVE) return { success: false, error: '网页端不支持打开本地工具' }
   try {

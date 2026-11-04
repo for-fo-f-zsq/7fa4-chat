@@ -33,6 +33,23 @@ export async function loadUsersDb() {
   }
 }
 
+// 独立页面（工具 iframe）里没有主进程，由宿主通过桥接把用户快照注入进来；
+// 主窗口不调用，行为保持不变。
+export function applyUsersSnapshot(snapshot) {
+  const users = snapshot && snapshot.users
+  const names = snapshot && snapshot.usersJson
+  const order = snapshot && snapshot.ranklistOrder
+  if (users && typeof users === 'object') {
+    if (!store.users || typeof store.users !== 'object') store.users = {}
+    Object.assign(store.users, users)
+  }
+  if (names && typeof names === 'object') Object.assign(usersJson, names)
+  if (Array.isArray(order)) {
+    ranklistOrder.length = 0
+    ranklistOrder.push(...order)
+  }
+}
+
 // ========== 年级颜色系统 ==========
 const COLOR_KEYS = ['x4', 'x5', 'x6', 'c1', 'c2', 'c3', 'g1', 'g2', 'g3', 'd1', 'd2', 'd3', 'd4', 'by', 'jl', 'uk']
 
