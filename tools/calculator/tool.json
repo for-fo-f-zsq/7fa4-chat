@@ -1,0 +1,9 @@
+{
+  "id": "calculator",
+  "name": "计算器",
+  "desc": "科学计算器：表达式求值、阶乘、快速幂、对数、组合排列、gcd/lcm、质因数分解、模逆元",
+  "version": "1.0.0",
+  "minAppVersion": "3.7.0",
+  "entry": "index.html",
+  "icon": "fas fa-calculator"
+}

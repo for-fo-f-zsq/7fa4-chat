@@ -42,13 +42,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { gitlabRawUrl } from '../utils.js'
 import BackButton from './BackButton.vue'
 
 const emit = defineEmits(['back'])
 
 // 赞赏码：托管在 GitLab 仓库（assets/donate-qr.jpg）
-const DONATE_URL = 'https://jx.7fa4.cn:9080/student-archive/7fa4-chat/-/raw/master/assets/donate-qr.jpg'
+const DONATE_URL = computed(() => gitlabRawUrl('assets/donate-qr.jpg'))
 const donateZoom = ref(false)
 const qrError = ref(false) // 图片加载失败时优雅降级：隐藏图片与放大层，只留一行提示
 const sponsors = ref([])

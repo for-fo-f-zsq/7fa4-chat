@@ -66,7 +66,7 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue'
 import BackButton from './BackButton.vue'
-import { compareVersion, checkAppUpdate } from '../utils.js'
+import { compareVersion, checkAppUpdate, gitlabPackagesUrl } from '../utils.js'
 import { store } from '../store.js'
 import { renderChangelogMarkdown } from '../changelog-md.js'
 
@@ -140,7 +140,7 @@ const apkSizeText = computed(() => {
 
 // 非桌面端：跳转 GitLab 包下载页（含 Android/桌面各平台安装包）
 function gotoDownloadPage() {
-  window.api.openExternal?.('https://jx.7fa4.cn:9080/student-archive/7fa4-chat/-/packages')
+  window.api.openExternal?.(gitlabPackagesUrl())
 }
 
 // 非桌面端：优先直接下 APK，拿不到直链才退回下载页

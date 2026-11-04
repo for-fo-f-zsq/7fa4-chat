@@ -64,10 +64,13 @@
 - 字体大小调节，数据缓存管理
 - 聊天记录备份/恢复（导出/导入到文件）
 - 深色模式跟随系统
-- 内置「工具」模块：Markdown 编辑器（实时预览/导出图片）、图片编辑、交互式图编辑器、科学计算器、四宫格计时器、GeoGebra 绘图
+- 工具中心：Markdown 编辑器（实时预览/导出图片）、图片编辑、交互式图编辑器、科学计算器、四宫格计时器、GeoGebra 绘图；6 个工具均为独立静态包，可在应用内按需下载/更新/卸载，逐文件 sha256 校验，下载后可离线使用
 - ……
 
-赞助名单与赞赏码由 GitLab 仓库提供，可在应用内「赞助」面板查看。
+工具包发布在 GitLab 独立软件包 `TOOLS` 中（仅保留最新版，下载地址
+`https://jx.7fa4.cn:9080/api/v4/projects/886/packages/generic/TOOLS/latest/tools.json`）。
+
+赞助名单与赞赏码由 GitLab 仓库提供（本仓库 `assets/sponsors.json`、`assets/donate-qr.jpg` 为同一份备份），可在应用内「赞助」面板查看。
 
 如果你有什么好的建议，请前往[议题/issues](https://jx.7fa4.cn:9080/student-archive/7fa4-chat/-/issues)提交。
 
@@ -80,6 +83,11 @@ npm install
 npm run dev      # 开发调试（electron-vite）
 npm run build    # 构建渲染层与主进程
 npm run dist     # 打包当前平台的安装包（输出到 build/）
+
+# 工具中心（独立工具包，发布到 GitLab 的 TOOLS 软件包）
+npm run build:tools    # 构建到 dist-tools/（不入库）
+npm run publish:tools                     # 发布预演（dry-run，不写远端）
+npm run publish:tools -- --apply          # 真正发布（先删旧 TOOLS 包再整包上传，需环境变量 GITLAB_TOKEN）
 ```
 
 Android 端基于 Capacitor，复用同一套渲染层：

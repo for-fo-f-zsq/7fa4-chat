@@ -1,0 +1,273 @@
+/* ==========================================================================
+   聊天代码块（洛谷 Markdown 代码块）—— 统一重写
+   --------------------------------------------------------------------------
+   DOM 由 markdown/vendor/luogu-parser.js renderCodeBlock 产出（不可改）：
+
+     .luogu-code-block-wrapper[data-lang]
+       .luogu-code-header
+         .luogu-code-lang                     语言标签（已大写）
+         .luogu-code-actions > .luogu-code-copy-btn
+           svg.copy-icon + span.copy-text      复制 / 已复制（JS 控制）
+       pre.luogu-code-pre[.has-line-numbers]
+         code.language-*
+           .code-line[.code-line-highlighted]
+             .code-line-number[data-line]?    行号（可选）
+             .code-line-text                  代码文本 / 高亮 token
+
+   另外中和 MessageList.vue injectCodeCopyButtons() 注入的
+   .code-block-wrap / .code-copy-btn：洛谷块自带顶栏复制按钮，注入的那个是重复的，
+   这里只隐藏、不改 JS。
+
+   设计目标：干净、现代、轻量。
+   - 整块一个圆角外框（10px）+ 1px 主题边线，无阴影、无框套框；
+   - 头部与代码区同底色，只留一条极淡分隔线；语言标签小号大写 + 字距；
+   - 复制按钮常态低对比，hover / 键盘焦点才明显；触屏（安卓）常显；
+   - 代码区等宽字体、1.6 行高、不换行、整块横向滚动（细滚动条）；
+   - 底色 = --bg-app 叠加 --bg-code-block 半透明 tint，并只保留 75% 不透明度：
+     在自消息的彩色气泡上会自然染上一点气泡色，不再像贴上去的灰卡片；
+     在纯 --bg-app 背景（预览面板、输入预览等）上合成结果与不透明几乎一致。
+     明暗主题都只依赖主题变量。
+   ========================================================================== */
+
+.luogu-code-block-wrapper {
+  --cb-font-mono: "Cascadia Code", "Fira Code", "JetBrains Mono", Consolas, "Courier New", monospace;
+
+  margin: 12px 0;
+  padding: 0;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background-color: color-mix(in srgb, var(--bg-app) 75%, transparent);
+  background-image: linear-gradient(var(--bg-code-block), var(--bg-code-block));
+  color: var(--text-primary);
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* 独立代码块外面还套了一层 .luogu-code-block-wrap（段落容器），去掉它在首尾
+   多出来的 12px 外边距，气泡/预览顶部不会顶出一块空白。 */
+.luogu-code-block-wrap > .luogu-code-block-wrapper:first-child {
+  margin-top: 0;
+}
+
+.luogu-code-block-wrap > .luogu-code-block-wrapper:last-child {
+  margin-bottom: 0;
+}
+
+/* ---- 头部：与代码区同底色，只有一条极淡分隔线 ---- */
+
+.luogu-code-block-wrapper .luogu-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  padding: 3px 6px 3px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-light) 60%, transparent);
+  background: transparent;
+  font-size: 11px;
+  line-height: 1;
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.luogu-code-block-wrapper .luogu-code-lang {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-family: var(--cb-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  opacity: 0.7;
+}
+
+.luogu-code-block-wrapper .luogu-code-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ---- 复制按钮：常态低对比，hover / 焦点变明显，copied 态给绿色反馈 ---- */
+
+.luogu-code-block-wrapper .luogu-code-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.luogu-code-block-wrapper .luogu-code-copy-btn:hover {
+  opacity: 1;
+  color: var(--text-primary);
+  background-color: color-mix(in srgb, var(--text-primary) 8%, transparent);
+}
+
+.luogu-code-block-wrapper .luogu-code-copy-btn:active {
+  background-color: color-mix(in srgb, var(--text-primary) 14%, transparent);
+}
+
+.luogu-code-block-wrapper .luogu-code-copy-btn:focus-visible {
+  opacity: 1;
+  color: var(--text-primary);
+  outline: 2px solid var(--accent-outline);
+  outline-offset: 1px;
+}
+
+.luogu-code-block-wrapper .luogu-code-copy-btn .copy-icon {
+  display: block;
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.luogu-code-block-wrapper .luogu-code-copy-btn .copy-text {
+  display: inline-block;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* copied 放最后：与 :hover/:active 同分，靠顺序保证「已复制」态不被覆盖 */
+.luogu-code-block-wrapper .luogu-code-copy-btn.copied {
+  opacity: 1;
+  color: var(--success);
+  background-color: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+/* 触屏 / 安卓 Capacitor：没有 hover，复制按钮必须常显 */
+@media (hover: none), (pointer: coarse) {
+  .luogu-code-block-wrapper .luogu-code-copy-btn {
+    opacity: 0.85;
+  }
+}
+
+/* Capacitor / 浏览器模式（main.js 给 body 加 .web）：同样按触屏处理 */
+body.web .luogu-code-block-wrapper .luogu-code-copy-btn {
+  opacity: 0.85;
+}
+
+/* ---- 代码区：整块横向滚动，不换行 ---- */
+
+.luogu-code-block-wrapper .luogu-code-pre {
+  display: block;
+  margin: 0;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font-family: var(--cb-font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  font-variant-ligatures: none;
+  tab-size: 4;
+  -moz-tab-size: 4;
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  box-sizing: border-box;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 内层 code 只负责「撑到最长行」并接管滚动，自身不画任何底色/内边距。
+   容器里的 .bubble-content code / .preview-html code 等行内代码规则会漏进来，
+   这里用 code[class*="language-"] 提高特异性压过它们。 */
+.luogu-code-block-wrapper .luogu-code-pre code,
+.luogu-code-block-wrapper .luogu-code-pre code[class*="language-"] {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+  box-sizing: border-box;
+}
+
+/* ---- 行 / 行号 / 高亮行 ---- */
+
+.luogu-code-block-wrapper .code-line {
+  display: block;
+  white-space: pre;
+}
+
+.luogu-code-block-wrapper .code-line-text {
+  white-space: pre;
+}
+
+/* 行号：等宽固定槽位保证各行代码起点对齐。代码块底色是半透明的，行号不再做
+   sticky（否则横向滚动时下层代码会从半透明槽位里透出来），随代码一起横向滚动。 */
+.luogu-code-block-wrapper .code-line-number {
+  display: inline-block;
+  width: 2.5em;
+  padding-right: 0.75em;
+  text-align: right;
+  color: var(--text-placeholder);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 高亮行：低饱和主题色 tint，不打断代码配色 */
+.luogu-code-block-wrapper .code-line-highlighted {
+  background-color: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+/* ---- 中和旧路径注入的重复复制按钮（DOM 由 MessageList.vue 注入，不改 JS）---- */
+
+.luogu-code-block-wrapper .code-block-wrap {
+  display: contents;
+}
+
+.luogu-code-block-wrapper .code-copy-btn {
+  display: none;
+}
+
+/* ---- 窄屏：略收字号与内边距，保证一行能多放几个字符 ---- */
+
+@media (max-width: 480px) {
+  .luogu-code-block-wrapper .luogu-code-pre {
+    padding: 10px 12px;
+    font-size: 12.5px;
+  }
+
+  .luogu-code-block-wrapper .luogu-code-header {
+    padding-left: 10px;
+  }
+}

@@ -68,7 +68,10 @@ import { store } from '../store.js'
 import { getGradeColor, getGradeLabel, getAvatarInitial, GRADE_LABELS, ranklistOrder, usersJson } from '../utils.js'
 
 const props = defineProps({
-  visible: Boolean
+  visible: Boolean,
+  // 预填搜索词：新手引导「打开与我的对话」目标用户还不是好友时传入 UID，
+  // visible 变 true 时写入输入框并聚焦，用户点「直接添加」即可。
+  initialQuery: { type: String, default: '' }
 })
 
 const emit = defineEmits(['update:visible', 'confirm', 'viewUser'])
@@ -81,7 +84,8 @@ const gradeOptions = Object.entries(GRADE_LABELS).map(([key, label]) => ({ key, 
 
 watch(() => props.visible, async (newVal) => {
   if (newVal) {
-    query.value = ''
+    // 先赋值再 nextTick focus：输入框在 v-if 打开时才挂载，顺序反了会聚焦到空输入框
+    query.value = props.initialQuery || ''
     gradeFilter.value = ''
     await nextTick()
     searchRef.value?.focus()

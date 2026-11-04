@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GeoGebra</title>
+    <style>
+      /* GeoGebra 是整页应用：直接铺满 iframe，不需要工具页自身的外壳样式 */
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: var(--bg-app, #fff);
+      }
+      #ggb {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      GeoGebra 官方计算器整页嵌入。geogebra/ 目录由 scripts/build-tools.mjs 从
+      resources/geogebra/ 原样复制到构建输出（不经过 Vite 打包），因此这里用相对路径引用。
+    -->
+    <iframe
+      id="ggb"
+      src="./geogebra/calculator.html"
+      title="GeoGebra 图形计算器"
+      allow="fullscreen"
+    ></iframe>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

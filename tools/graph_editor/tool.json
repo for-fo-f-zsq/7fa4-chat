@@ -1,0 +1,9 @@
+{
+  "id": "graph_editor",
+  "name": "Graph Editor",
+  "desc": "交互式图编辑器：点击建点、拖拽连边、力导向布局、连通分量/桥/MST/二分图高亮",
+  "version": "1.0.0",
+  "minAppVersion": "3.7.0",
+  "entry": "index.html",
+  "icon": "fas fa-diagram-project"
+}

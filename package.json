@@ -10,7 +10,9 @@
     "test:md": "node scripts/test-markdown.mjs && node scripts/test-typora-input.mjs && node scripts/test-input-footer.mjs && node scripts/test-markdown-tool.mjs && node scripts/test-msg-fmt.mjs",
     "sync:luogu": "node scripts/sync-luogu.mjs",
     "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "build:tools": "node scripts/build-tools.mjs",
+    "publish:tools": "node scripts/publish-tools.mjs"
   },
   "author": {
     "name": "for_fo_f",

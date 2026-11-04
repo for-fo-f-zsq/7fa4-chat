@@ -1,0 +1,491 @@
+/**
+ * 工具中心（远端工具）样式
+ *
+ * 仅在 ToolsView / ToolHost 使用；全部颜色、圆角、字号取自主题 CSS 变量，
+ * 不写死色值，保证 22 套主题 + 自定义主题下都跟随换肤。
+ * 本文件在 ChatView 的 CSS import 块中晚于 ide-tool.css 加载，
+ * 因此这里的 .tools-page / .tool-card 规则会覆盖旧工具页样式（旧组件仅保留兜底）。
+ */
+
+/* ---------------------------- 工具中心页面 ---------------------------- */
+
+.tools-page {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: linear-gradient(160deg, var(--bg-app), var(--bg-gradient-end));
+}
+
+.tools-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.tools-header h2 {
+  margin: 0;
+  font-size: var(--font-size-large);
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tools-header h2 i {
+  color: var(--accent);
+}
+
+.tools-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tools-header-meta .tools-updated {
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* 刷新按钮（复用 .tool-btn 的次要样式，只补尺寸） */
+.tools-refresh {
+  flex-shrink: 0;
+}
+
+.tools-refresh i {
+  font-size: 12px;
+}
+
+/* 错误条：加载 manifest/installed 失败时显示，不阻塞内置工具 */
+.tools-error-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 24px 0;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+  flex-shrink: 0;
+}
+
+.tools-error-bar > i {
+  color: var(--danger);
+}
+
+.tools-error-text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.tools-error-retry {
+  flex-shrink: 0;
+}
+
+/* 首次加载占位 */
+.tools-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 24px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+}
+
+/* ---------------------------- 卡片网格 ---------------------------- */
+
+.tools-grid {
+  padding: 20px 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+  overflow-y: auto;
+  align-content: start;
+}
+
+.tool-card {
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--bg-app);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
+  min-width: 0;
+}
+
+.tool-card:hover {
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+  border-color: var(--accent);
+}
+
+.tool-card.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.tool-card.is-disabled:hover {
+  box-shadow: var(--shadow-card);
+  transform: none;
+  border-color: var(--border-light);
+}
+
+.tool-card > i {
+  font-size: 28px;
+  color: var(--accent);
+}
+
+.tool-card-name {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-card-desc {
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  /* 描述最多两行，保持卡片高度一致 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: calc(1.6em * 2);
+  word-break: break-word;
+}
+
+.tool-card-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+}
+
+.tool-card-meta .tool-meta-item {
+  white-space: nowrap;
+}
+
+.tool-card-footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tool-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 状态徽标 */
+.tool-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 18px;
+  white-space: nowrap;
+  background: var(--bg-input);
+  color: var(--text-secondary);
+}
+
+.tool-badge-builtin {
+  color: var(--accent);
+  border: 1px solid var(--accent-outline);
+  background: var(--accent-light);
+}
+
+.tool-badge-update {
+  color: var(--warning);
+  border: 1px solid var(--warning);
+  background: transparent;
+}
+
+/* ---------------------------- 按钮 ---------------------------- */
+
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-light);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+  line-height: 18px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+
+.tool-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tool-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  border-color: var(--border-light);
+  color: var(--text-secondary);
+}
+
+.tool-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-on-accent, #fff);
+}
+
+.tool-btn-primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--text-on-accent, #fff);
+}
+
+.tool-btn-danger {
+  color: var(--danger);
+  border-color: transparent;
+  background: transparent;
+}
+
+.tool-btn-danger:hover {
+  color: var(--text-on-accent, #fff);
+  background: var(--danger);
+  border-color: var(--danger);
+}
+
+.tool-btn:disabled:hover {
+  background: var(--bg-input);
+  border-color: var(--border-light);
+  color: var(--text-secondary);
+}
+
+/* 进度条：下载中显示 */
+.tool-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.tool-progress-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-input);
+  overflow: hidden;
+}
+
+.tool-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+
+.tool-progress-text {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* minAppVersion 不满足时的提示 */
+.tool-blocked-hint {
+  font-size: var(--font-size-small);
+  line-height: 1.5;
+  color: var(--warning);
+}
+
+/* 内置工具占位提示 */
+.tools-builtin-hint {
+  padding: 0 24px 20px;
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+}
+
+/* 空状态 */
+.tools-empty {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+}
+
+/* ---------------------------- 工具宿主（iframe） ---------------------------- */
+
+.tool-host {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+  background: var(--bg-app);
+}
+
+.tool-host-frame {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--bg-app);
+  color-scheme: normal;
+}
+
+/* 悬浮返回按钮：不遮挡工具内容，半透明悬浮在左上角 */
+.tool-host-back {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-light);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+  line-height: 18px;
+  cursor: pointer;
+  box-shadow: var(--shadow-dropdown);
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+  opacity: 0.85;
+}
+
+.tool-host-back:hover {
+  opacity: 1;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.tool-host-back i {
+  font-size: 12px;
+}
+
+/* 加载 / 错误浮层 */
+.tool-host-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  background: var(--bg-app);
+  color: var(--text-secondary);
+  font-size: var(--font-size-small);
+  text-align: center;
+}
+
+.tool-host-overlay > i {
+  font-size: 28px;
+  color: var(--accent);
+}
+
+.tool-host-error > i {
+  color: var(--warning);
+}
+
+.tool-host-error-msg {
+  margin: 0;
+  max-width: 420px;
+  color: var(--text-primary);
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.tool-host-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--text-on-accent, #fff);
+  font-size: var(--font-size-small);
+  cursor: pointer;
+}
+
+.tool-host-retry:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+/* ---------------------------- 窄屏 ---------------------------- */
+
+@media (max-width: 600px) {
+  .tools-header {
+    padding: 14px 16px;
+  }
+
+  .tools-header-meta .tools-updated {
+    display: none;
+  }
+
+  .tools-grid {
+    padding: 14px 16px;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .tool-card {
+    padding: 16px;
+  }
+
+  .tool-card-desc {
+    min-height: 0;
+  }
+
+  .tools-error-bar {
+    margin: 10px 16px 0;
+  }
+
+  .tools-builtin-hint,
+  .tools-empty {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .tool-host-back {
+    top: 10px;
+    left: 10px;
+    padding: 6px 12px;
+  }
+}

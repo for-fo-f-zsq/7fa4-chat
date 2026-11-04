@@ -406,122 +406,9 @@
   outline-offset: 1px;
 }
 
-/* Luogu Code Blocks - with Auto-Wrapping in Preview */
-.luogu-code-block-wrapper {
-  margin: 1.2em 0;
-  border-radius: var(--lg-radius-md);
-  border: 1px solid var(--lg-border-color);
-  background: #282c34;
-  color: #abb2bf;
-  box-shadow: var(--lg-shadow-sm);
-  overflow: hidden;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.luogu-code-pre,
-.luogu-code-pre code,
-.luogu-code-pre code[class*="language-"],
-.luogu-code-pre pre[class*="language-"],
-pre[class*="language-"],
-code[class*="language-"] {
-  white-space: pre-wrap !important;
-  word-break: break-all !important;
-  word-wrap: break-word !important;
-  overflow-wrap: anywhere !important;
-}
-
-.luogu-code-pre code,
-.luogu-code-pre code[class*="language-"] {
-  display: block !important;
-  /* Grow to the widest line rather than to the visible width, so that when the
-     block is scrolled right the highlight backgrounds keep covering the row
-     instead of ending at the original fold. min-width keeps short blocks full
-     width so a highlight still spans the pane. */
-  width: max-content !important;
-  min-width: 100% !important;
-  box-sizing: border-box !important;
-}
-
-.luogu-code-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 14px;
-  background: #21252b;
-  border-bottom: 1px solid #181a1f;
-  font-size: 11px;
-  font-weight: 600;
-  user-select: none;
-  gap: 8px;
-}
-
-.luogu-code-lang {
-  color: #61afef;
-  letter-spacing: 0.5px;
-  flex-shrink: 0;
-}
-
-.luogu-code-actions {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  white-space: nowrap !important;
-}
-
-.luogu-code-copy-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 3px 10px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--lg-radius-sm);
-  color: #abb2bf;
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.15s;
-  white-space: nowrap !important;
-  flex-shrink: 0 !important;
-  min-width: 64px;
-  height: 24px;
-  line-height: 1;
-}
-
-.luogu-code-copy-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
-}
-
-.luogu-code-copy-btn .copy-text {
-  white-space: nowrap !important;
-  display: inline-block;
-}
-
-.luogu-code-copy-btn .copy-icon {
-  width: 12px;
-  height: 12px;
-  flex-shrink: 0;
-  display: inline-block;
-}
-
-.luogu-code-pre {
-  margin: 0;
-  padding: 12px 0;
-  font-family: var(--lg-font-mono);
-  font-size: 13px;
-  line-height: 1.6;
-  /* The whole block scrolls horizontally, so a single scrollbar sits at the very
-     bottom of the code block. Scrolling per line instead gave every overflowing
-     line its own scrollbar, wedged between that line and the next — it ate into
-     the line's height and covered the line below it. The gutter numbers stay put
-     because they are position:sticky against this scroll container. */
-  overflow-x: auto !important;
-  width: 100%;
-  box-sizing: border-box;
-  display: block !important;
-}
+/* 代码块样式已统一重写到 src/renderer/src/css/code-block.css（由 main.js 引入）。
+   上游这段旧规则整体删除：它用 !important 强制 pre-wrap（无法横向滚动）、写死
+   One Dark 底色（浅色主题下一块深底），且与顶栏/复制按钮的新设计冲突。 */
 
 /* Tables & Merged Cells */
 .luogu-table-wrapper {
@@ -1112,45 +999,7 @@ code[class*="language-"] {
   background: var(--lg-surface);
   color: var(--text-primary);
 }
-/* ---- 补丁：上游代码块外壳把 One Dark 底色写死了，浅色主题下会顶着一块深底 ----
-   另外 --lg-code-bg（= --bg-code-block）是半透明 tint，直接当底色用会让**下层容器**的
-   颜色透上来：自己的气泡（浅色主题是浅蓝 #C0E0FF）会把整个代码区染成蓝灰，token 对比度
-   跟着掉到 1.3:1。这里用「tint 叠在 --bg-app 上」把 alpha 拍平 —— 代码块恒为不透明表面，
-   既保留主题自定义的 tint，又不再受气泡/卡片底色影响。 */
-.luogu-code-block-wrapper {
-  background-color: var(--bg-app);
-  background-image: linear-gradient(var(--lg-code-bg), var(--lg-code-bg));
-  color: var(--lg-code-fg);
-}
-/* 通用容器的 .bubble-content code / .input-preview-content code 规则会漏进洛谷代码块：
-   给内层 <code> 再套一层行内底色、圆角，并把字号按 0.9em 压小（13px → 11.7px）。
-   这里把内层还原成纯文本，代码块只保留外壳一层。 */
-.luogu-md .luogu-code-block-wrapper .luogu-code-pre code {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-}
-.luogu-code-header {
-  background: color-mix(in srgb, var(--lg-code-bg) 88%, var(--text-primary));
-  border-bottom-color: var(--lg-border-color);
-}
-.luogu-code-lang {
-  color: var(--lg-token-function);
-}
-.luogu-code-copy-btn {
-  background: var(--bg-conversation-hover);
-  border-color: var(--lg-border-color);
-  color: var(--lg-code-fg);
-}
-/* 上游 hover 与常态同色（只换字色），按下去没有反馈；这里给一个真正的加深态 */
-.luogu-code-copy-btn:hover {
-  background: color-mix(in srgb, var(--bg-conversation-hover) 88%, var(--text-primary));
-  color: var(--text-primary);
-}
+/* 代码块外壳 / 顶栏 / 复制按钮的主题补丁也一并删除，统一由 code-block.css 负责。 */
 
 .typora-block-input {
   background: var(--lg-surface);

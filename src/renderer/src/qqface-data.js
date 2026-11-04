@@ -404,4 +404,3 @@ export function qqfaceShortCode(f) {
   return cands[0].s
 }
 
-export const QUANCODE_PATTERN = /\/[a-zA-Z\u4e00-\u9fa5]{1,12}/g

@@ -9,11 +9,15 @@ const { pathToFileURL } = require('url');
 let autoUpdater;
 try { ({ autoUpdater } = require('electron-updater')); } catch { autoUpdater = null; }
 
-// —— GeoGebra 本地资源协议（geo://）——
-// 必须在 app ready 之前注册 scheme 特权
+// —— 本地资源特权协议（geo:// GeoGebra 资源、tool:// 已安装的在线工具）——
+// 必须在 app ready 之前注册 scheme 特权；两者都按标准安全源处理，iframe/fetch 才能正常加载。
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'geo',
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
+  },
+  {
+    scheme: 'tool',
     privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
   }
 ]);
@@ -445,6 +449,39 @@ if (!gotTheLock) {
                         return new Response('Forbidden', { status: 403 });
                     }
                     return net.fetch(pathToFileURL(resolved).toString());
+                } catch (err) {
+                    return new Response('Not Found', { status: 404 });
+                }
+            });
+            // 注册 tool:// 协议：tool://<id>/<relpath> → userData/tools/<id>/<当前版本>/<relpath>
+            // 版本号以 installed.json 为准（版本目录不可变，升级只改 installed.json 指向）；防路径穿越同 geo://
+            protocol.handle('tool', async (request) => {
+                try {
+                    const url = new URL(request.url);
+                    // tool:// 是标准 scheme：id 落在 hostname（会被小写化，安装时已限制小写），其余在 pathname
+                    const id = url.hostname;
+                    const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+                    const installed = await readInstalledMeta(id);
+                    if (!installed) return new Response('Not Found', { status: 404 });
+                    const entry = rel || pickToolEntry(installed);
+                    if (!entry) return new Response('Not Found', { status: 404 });
+                    const root = toolVersionDir(id, installed.version);
+                    const resolved = path.resolve(root, entry);
+                    if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+                        return new Response('Forbidden', { status: 403 });
+                    }
+                    const response = await net.fetch(pathToFileURL(resolved).toString());
+                    if (!response.ok) return response;
+                    // file:// 的 Response 可能不带 Content-Type，而 ES module / CSS 对 MIME 有强校验：
+                    // Vite 产物都是 <script type="module">，这里按扩展名补齐，避免模块加载被拒。
+                    const headers = new Headers(response.headers);
+                    const mime = toolMimeType(resolved);
+                    if (mime) headers.set('Content-Type', mime);
+                    return new Response(response.body, {
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers
+                    });
                 } catch (err) {
                     return new Response('Not Found', { status: 404 });
                 }
@@ -1035,9 +1072,9 @@ ipcMain.handle('download-file', async (event, base64Data, suggestedName, mime) =
 });
 
 // 从 URL 下载（主进程侧抓取后再落盘）。
-// ⚠️ 必须放在主进程：渲染层 fetch 远程图片会被 CORS 拦（渲染进程源是本地服务端口，而海报由
-// nginx 静态规则伺服、**不带 access-control-allow-origin**），表现为「Failed to fetch」；
-// 而 <img> 加载不受同源策略限制，所以图能显示却下不下来。Node 侧没有同源策略，抓取稳定。
+// ⚠️ 必须放在主进程：渲染层 fetch 远程资源会被 CORS 拦（渲染进程源是本地服务端口，远程站点
+// 通常不带 access-control-allow-origin），表现为「Failed to fetch」；而 <img> 加载不受同源
+// 策略限制，所以图能显示却下不下来。Node 侧没有同源策略，抓取稳定。
 ipcMain.handle('download-url', async (event, url, suggestedName) => {
     try {
         if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return { success: false, error: '地址无效' };
@@ -1226,12 +1263,6 @@ ipcMain.handle('store-load-messages', async (event, uid, kind, cid, limit, befor
     return userStore.loadMessages(Number(uid), kind, Number(cid), limit, before);
 });
 
-// 全量消息检索（逐条解密匹配；只回命中片段）
-ipcMain.handle('store-search-messages', async (event, uid, opts) => {
-    if (!storeReady()) return { success: false, error: '存储未初始化' };
-    return userStore.searchMessages(Number(uid), opts || {});
-});
-
 // 每个会话最新一条消息（会话列表预览/排序）
 ipcMain.handle('store-load-last-messages', async (event, uid) => {
     if (!storeReady()) return { success: false, error: '存储未初始化' };
@@ -1259,11 +1290,325 @@ ipcMain.handle('store-import-all', async (event, uid, data) => {
 // ========== GitLab 静态资源（项目 886） ==========
 // 自建后端已全部下线：客户端更新、更新日志、赞助名单全部改读公开的 GitLab 项目 886
 // （发布包只保留 latest/，赞助名单放在仓库 assets/sponsors.json）。
-const GITLAB_WEB_BASE = 'https://jx.7fa4.cn:9080';
-const GITLAB_API = `${GITLAB_WEB_BASE}/api/v4/projects/886`;
-const GITLAB_LATEST_PACKAGE = `${GITLAB_API}/packages/generic/7FA4-Chat/latest`;
+// 9080 站点必须与「API 网址」设置一致：选 jx 就访问 jx.7fa4.cn:9080，选 in 就访问 in.7fa4.cn:9080，
+// 两套地址是分开的镜像，不能交叉混用。
+function gitlabWebBase() {
+    return `${currentApiUrl.replace(/\/+$/, '')}:9080`;
+}
+function gitlabApiBase() {
+    return `${gitlabWebBase()}/api/v4/projects/886`;
+}
+function gitlabLatestPackage() {
+    return `${gitlabApiBase()}/packages/generic/7FA4-Chat/latest`;
+}
 // 赞助名单：公开仓库的 assets/sponsors.json，匿名 raw 即可读取
-const SPONSORS_FILE_URL = `${GITLAB_API}/repository/files/assets%2Fsponsors.json/raw?ref=master`;
+function gitlabSponsorsFile() {
+    return `${gitlabApiBase()}/repository/files/assets%2Fsponsors.json/raw?ref=master`;
+}
+
+// ========== 在线工具（tools）：GitLab 静态包下载 / 本地安装 / tool:// 入口 ==========
+// GitLab 仓库 886 的 tools/ 目录：tools/tools.json 是清单，tools/<id>/<version>/ 是不可变静态包。
+// 本地布局（spec §3）：userData/tools/<id>/<version>/... + userData/tools/<id>/installed.json，
+// installed.json = { version, installedAt, size, files:[{path,size,sha256}] }，记录当前生效版本。
+const TOOL_ID_RE = /^[a-z0-9][a-z0-9_-]*$/;       // tool:// 的 hostname 会被小写化，工具 id 统一限制为小写
+const TOOL_VERSION_RE = /^[0-9A-Za-z][0-9A-Za-z._-]*$/;
+const TOOL_SHA256_RE = /^[0-9a-f]{64}$/;
+const TOOL_ICON_RE = /^[a-z0-9][a-z0-9 _-]{0,63}$/i; // 展示用 Font Awesome class（如 "fas fa-calculator"）
+const TOOL_MANIFEST_TIMEOUT = 20000;              // 清单拉取超时 20s（spec §4）
+const TOOL_FILE_TIMEOUT = 60000;                  // 单个文件下载超时 60s
+
+// 工具包基址：generic package「TOOLS」的最新版目录
+//   https://<api-host>:9080/api/v4/projects/886/packages/generic/TOOLS/latest
+// 跟随「API 网址」设置（jx / in 两套镜像），复用上面的 gitlabWebBase()；
+// 包内布局与 dist-tools 一致：tools.json + <id>/<version>/...（发布时整包替换，不保留旧版本）。
+function toolsRawBase() {
+    return `${gitlabWebBase()}/api/v4/projects/886/packages/generic/TOOLS/latest`;
+}
+function toolsRoot() {
+    return path.join(app.getPath('userData'), 'tools');
+}
+function toolVersionDir(id, version) {
+    return path.join(toolsRoot(), String(id), String(version));
+}
+function toolInstalledFile(id) {
+    return path.join(toolsRoot(), String(id), 'installed.json');
+}
+
+// tool:// 响应的 MIME 表：file:// 的 Response 可能不带 Content-Type，
+// 而 <script type="module"> / CSS 对 MIME 有强校验（工具包是 Vite 产物，入口与资源都是 module）。
+const TOOL_MIME_TYPES = {
+    '.html': 'text/html; charset=utf-8',
+    '.htm': 'text/html; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.mjs': 'text/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.map': 'application/json; charset=utf-8',
+    '.txt': 'text/plain; charset=utf-8',
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.ico': 'image/x-icon',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+    '.ttf': 'font/ttf',
+    '.otf': 'font/otf',
+    '.wasm': 'application/wasm',
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.ogg': 'audio/ogg',
+    '.mp4': 'video/mp4',
+    '.webm': 'video/webm'
+};
+function toolMimeType(file) {
+    return TOOL_MIME_TYPES[path.extname(file).toLowerCase()] || '';
+}
+
+// 包内相对路径校验：拒绝绝对路径、盘符、空段、. 与 .. 段（防路径穿越第一道）
+function isSafeToolRelPath(p) {
+    if (typeof p !== 'string' || !p || p.includes('\0')) return false;
+    if (p.startsWith('/') || p.startsWith('\\')) return false;
+    if (/^[A-Za-z]:/.test(p)) return false;
+    const segs = p.split(/[\\/]+/);
+    return segs.every((s) => s && s !== '.' && s !== '..');
+}
+
+// 清单条目归一化：非法条目返回 null（整份清单里其它工具仍可用）；size 以 files 之和为准
+function normalizeToolMeta(tool) {
+    if (!tool || typeof tool !== 'object') return null;
+    const id = String(tool.id || '');
+    const version = String(tool.version || '');
+    if (!TOOL_ID_RE.test(id) || !TOOL_VERSION_RE.test(version)) return null;
+    const dir = `${id}/${version}`;
+    // dir 必须与 id/version 一致，避免清单把下载指向任意目录
+    if (tool.dir !== undefined && String(tool.dir) !== dir) return null;
+    const entry = tool.entry === undefined ? 'index.html' : String(tool.entry);
+    if (!isSafeToolRelPath(entry)) return null;
+    if (!Array.isArray(tool.files) || tool.files.length === 0) return null;
+    const seen = new Set();
+    const files = [];
+    for (const f of tool.files) {
+        if (!f || typeof f !== 'object') return null;
+        const rel = String(f.path || '');
+        if (!isSafeToolRelPath(rel) || seen.has(rel)) return null;
+        seen.add(rel);
+        const size = Number(f.size);
+        const sha256 = String(f.sha256 || '').toLowerCase();
+        if (!Number.isInteger(size) || size < 0) return null;
+        if (!TOOL_SHA256_RE.test(sha256)) return null;
+        files.push({ path: rel, size, sha256 });
+    }
+    if (!seen.has(entry)) return null; // 入口必须是包内文件
+    // 图标只是展示用的 Font Awesome class：只接受安全的 class 字符集，非法时回落到占位图标
+    const rawIcon = typeof tool.icon === 'string' ? tool.icon.trim() : '';
+    const icon = TOOL_ICON_RE.test(rawIcon) ? rawIcon : 'fas fa-puzzle-piece';
+    return {
+        id,
+        name: String(tool.name || id),
+        desc: String(tool.desc || ''),
+        icon,
+        version,
+        dir,
+        entry,
+        size: files.reduce((n, f) => n + f.size, 0),
+        minAppVersion: String(tool.minAppVersion || ''),
+        files
+    };
+}
+
+// 语义化版本比较（与 renderer utils.js 的 compareVersion 同逻辑）：返回 1 / 0 / -1
+function compareToolVersion(a, b) {
+    const pa = String(a || '').split('.').map(Number);
+    const pb = String(b || '').split('.').map(Number);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const x = pa[i] || 0;
+        const y = pb[i] || 0;
+        if (x !== y) return x > y ? 1 : -1;
+    }
+    return 0;
+}
+
+// installed.json 读取：不存在 / 损坏 / 版本号非法均视为未安装
+async function readInstalledMeta(id) {
+    if (!TOOL_ID_RE.test(String(id))) return null;
+    try {
+        const meta = JSON.parse(await fs.readFile(toolInstalledFile(id), 'utf8'));
+        if (!meta || typeof meta !== 'object') return null;
+        if (!TOOL_VERSION_RE.test(String(meta.version || ''))) return null;
+        return meta;
+    } catch {
+        return null;
+    }
+}
+
+// 入口推断：installed.json（spec 形状）不含 entry，优先 index.html，否则取第一个 html
+function pickToolEntry(installed, preferred) {
+    const files = Array.isArray(installed && installed.files)
+        ? installed.files.map((f) => String(f.path || ''))
+        : [];
+    if (preferred && isSafeToolRelPath(String(preferred)) && files.includes(String(preferred))) {
+        return String(preferred);
+    }
+    if (files.includes('index.html')) return 'index.html';
+    const html = files.find((p) => /\.html?$/i.test(p));
+    return html || null;
+}
+
+// 原子写：同目录临时文件 + rename，避免半截 installed.json 被读到
+async function writeFileAtomic(file, data) {
+    const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
+    await fs.writeFile(tmp, data, 'utf8');
+    try {
+        await fs.rename(tmp, file);
+    } catch (e) {
+        await fs.rm(tmp, { force: true }).catch(() => {});
+        throw e;
+    }
+}
+
+// 拉取并校验远端工具清单（tools/tools.json）
+async function fetchToolsManifest() {
+    try {
+        const res = await net.fetch(`${toolsRawBase()}/tools.json`, {
+            signal: AbortSignal.timeout(TOOL_MANIFEST_TIMEOUT)
+        });
+        if (!res.ok) return { success: false, tools: [], error: `HTTP ${res.status}` };
+        const data = await res.json().catch(() => null);
+        if (!data || typeof data !== 'object' || !Array.isArray(data.tools)) {
+            return { success: false, tools: [], error: '工具清单格式异常' };
+        }
+        const tools = [];
+        for (const item of data.tools) {
+            const meta = normalizeToolMeta(item);
+            if (meta) tools.push(meta);
+            else console.warn('[Tools] 忽略无效的清单条目:', item && item.id);
+        }
+        return { success: true, tools, updatedAt: String(data.updatedAt || '') };
+    } catch (e) {
+        return { success: false, tools: [], error: e.message || '获取工具清单失败' };
+    }
+}
+
+// 安装 / 更新：逐文件下载并校验 size+sha256 → 全部落临时目录 → 原子替换版本目录 → 原子写 installed.json
+// 进度：{ id, phase:'download', index, count, path, received, total }（received 为累计字节数）
+async function installTool(sender, toolMeta) {
+    const meta = normalizeToolMeta(toolMeta);
+    if (!meta) return { success: false, error: '工具信息无效' };
+    // 防御：应用版本低于 minAppVersion 时服务端也不放行（UI 层已禁用按钮）
+    if (meta.minAppVersion && compareToolVersion(app.getVersion(), meta.minAppVersion) < 0) {
+        return { success: false, error: `请先更新应用（需要 v${meta.minAppVersion} 及以上）` };
+    }
+    const idDir = path.join(toolsRoot(), meta.id);
+    const targetDir = toolVersionDir(meta.id, meta.version);
+    const stagingDir = path.join(idDir, `.staging-${meta.version}-${process.pid}-${Date.now()}`);
+    const sendProgress = (payload) => {
+        try {
+            if (sender && !sender.isDestroyed()) sender.send('tools-progress', payload);
+        } catch { /* 窗口已关闭：下载继续但不再推进度 */ }
+    };
+    const count = meta.files.length;
+    let received = 0;
+    try {
+        await fs.mkdir(stagingDir, { recursive: true });
+        for (let i = 0; i < count; i++) {
+            const file = meta.files[i];
+            // 该实例的 generic 包不支持嵌套路径（file_name 不能含 `/`），
+            // 所以包内文件名是把「dir/file.path」里的 `/` 全部换成 `__` 的扁平名，
+            // 与 scripts/publish-tools.mjs 的映射规则必须保持一致。
+            const flatName = `${meta.dir}/${file.path}`.replaceAll('/', '__');
+            const fileUrl = `${toolsRawBase()}/${encodeURIComponent(flatName)}`;
+            const res = await net.fetch(fileUrl, { signal: AbortSignal.timeout(TOOL_FILE_TIMEOUT) });
+            if (!res.ok) throw new Error(`下载 ${file.path} 失败（HTTP ${res.status}）`);
+            const buf = Buffer.from(await res.arrayBuffer());
+            if (buf.length !== file.size) throw new Error(`文件大小校验失败：${file.path}`);
+            const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
+            if (sha256 !== file.sha256) throw new Error(`SHA-256 校验失败：${file.path}`);
+            const dest = path.resolve(stagingDir, ...file.path.split('/'));
+            // 第二道防线：拼接后的落点必须仍在临时目录内
+            if (!dest.startsWith(stagingDir + path.sep)) throw new Error(`文件路径非法：${file.path}`);
+            await fs.mkdir(path.dirname(dest), { recursive: true });
+            await fs.writeFile(dest, buf);
+            received += buf.length;
+            sendProgress({
+                id: meta.id,
+                phase: 'download',
+                index: i + 1,
+                count,
+                path: file.path,
+                received,
+                total: meta.size
+            });
+        }
+        // 临时目录 → 版本目录；installed.json 最后原子写入（写成功才算安装完成）
+        await fs.rm(targetDir, { recursive: true, force: true });
+        await fs.rename(stagingDir, targetDir);
+        const installed = {
+            version: meta.version,
+            installedAt: new Date().toISOString(),
+            size: meta.size,
+            files: meta.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 }))
+        };
+        await writeFileAtomic(toolInstalledFile(meta.id), JSON.stringify(installed, null, 2));
+        return { success: true };
+    } catch (e) {
+        // 失败清理半成品；不动旧版本目录与旧 installed.json
+        await fs.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
+        return { success: false, error: e.message || '安装工具失败' };
+    }
+}
+
+// 已安装列表：{ [id]: { version, installedAt, size } }
+async function listInstalledTools() {
+    const installed = {};
+    let entries = [];
+    try {
+        entries = await fs.readdir(toolsRoot(), { withFileTypes: true });
+    } catch {
+        entries = []; // 首次使用：目录还不存在
+    }
+    for (const entry of entries) {
+        if (!entry.isDirectory() || !TOOL_ID_RE.test(entry.name)) continue;
+        const meta = await readInstalledMeta(entry.name);
+        if (!meta) continue;
+        installed[entry.name] = {
+            version: String(meta.version),
+            installedAt: String(meta.installedAt || ''),
+            size: Number(meta.size) || 0
+        };
+    }
+    return { success: true, installed };
+}
+
+async function removeTool(id) {
+    if (!TOOL_ID_RE.test(String(id))) return { success: false, error: '工具 ID 无效' };
+    try {
+        await fs.rm(path.join(toolsRoot(), String(id)), { recursive: true, force: true });
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e.message || '卸载工具失败' };
+    }
+}
+
+// 入口 URL：tool://<id>/<entry>，由 tool:// 协议映射到当前已安装版本目录
+async function getToolEntryUrl(id, entry) {
+    if (!TOOL_ID_RE.test(String(id))) return { success: false, error: '工具 ID 无效' };
+    const installed = await readInstalledMeta(String(id));
+    if (!installed) return { success: false, error: '工具未安装' };
+    const entryPath = pickToolEntry(installed, entry);
+    if (!entryPath) return { success: false, error: '工具入口文件缺失' };
+    const encoded = entryPath.split('/').map(encodeURIComponent).join('/');
+    return { success: true, url: `tool://${String(id)}/${encoded}` };
+}
+
+// ========== 在线工具 IPC ==========
+ipcMain.handle('tools-fetch-manifest', () => fetchToolsManifest());
+ipcMain.handle('tools-install', (event, toolMeta) => installTool(event.sender, toolMeta));
+ipcMain.handle('tools-list-installed', () => listInstalledTools());
+ipcMain.handle('tools-remove', (event, id) => removeTool(id));
+ipcMain.handle('tools-get-entry-url', (event, id, entry) => getToolEntryUrl(id, entry));
 
 // ========== 自动更新 ==========
 let updateDownloaded = false;
@@ -1275,8 +1620,9 @@ let isDownloading = false;
 // GitLab 侧每次发版只保留最新一版包（见 .github/workflows/release.yml）。
 function applyUpdateFeedUrl() {
     if (!autoUpdater) return;
-    autoUpdater.setFeedURL({ provider: 'generic', url: GITLAB_LATEST_PACKAGE });
-    console.log('[Updater] 更新源已设为:', GITLAB_LATEST_PACKAGE);
+    const feedUrl = gitlabLatestPackage();
+    autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl });
+    console.log('[Updater] 更新源已设为:', feedUrl);
 }
 
 function initAutoUpdater() {
@@ -1455,7 +1801,7 @@ ipcMain.handle('install-update', () => {
 // ========== 获取远程 CHANGELOG（GitLab latest/CHANGELOG，Markdown，渲染层自行渲染） ==========
 ipcMain.handle('fetch-changelog', async () => {
     try {
-        const res = await net.fetch(`${GITLAB_LATEST_PACKAGE}/CHANGELOG`, { signal: AbortSignal.timeout(15000) });
+        const res = await net.fetch(`${gitlabLatestPackage()}/CHANGELOG`, { signal: AbortSignal.timeout(15000) });
         if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
         const markdown = await res.text();
         if (!markdown || markdown.trim().length === 0) {
@@ -1470,7 +1816,7 @@ ipcMain.handle('fetch-changelog', async () => {
 // ========== 赞助列表（GitLab 公开仓库 assets/sponsors.json） ==========
 ipcMain.handle('fetch-sponsors', async () => {
     try {
-        const res = await net.fetch(SPONSORS_FILE_URL, { signal: AbortSignal.timeout(10000) });
+        const res = await net.fetch(gitlabSponsorsFile(), { signal: AbortSignal.timeout(10000) });
         if (!res.ok) return { success: false, list: [], error: `HTTP ${res.status}` };
         const data = await res.json().catch(() => null);
         const list = Array.isArray(data) ? data : (data && Array.isArray(data.list) ? data.list : null);

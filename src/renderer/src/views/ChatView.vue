@@ -50,6 +50,7 @@
     />
     <AddFriendModal
       v-model:visible="showAddFriendModal"
+      :initial-query="addFriendInitialQuery"
       @confirm="addfriend"
       @viewUser="openuserinfo"
     />
@@ -109,6 +110,14 @@
       class="fade-content"
       :class="{ 'fade-out': contentFading }"
       @open-tool="onOpenTool"
+    />
+    <!-- 远端工具：manifest 驱动的工具经 iframe 嵌入；返回按钮 / 工具内 closeTool 都回到工具列表 -->
+    <ToolHost
+      v-else-if="pageType==='tools' && currentTool && currentTool.remote"
+      :tool="currentTool"
+      class="ide-host fade-content"
+      :class="{ 'fade-out': contentFading }"
+      @back="onToolBack"
     />
     <MarkdownTool
       v-else-if="pageType==='tools' && currentTool==='markdown'"
@@ -316,6 +325,7 @@ import AddFriendModal from '../components/AddFriendModal.vue';
 import GroupActionMenu from '../components/GroupActionMenu.vue';
 import SearchPanel from '../components/SearchPanel.vue';
 import ToolsView from './ToolsView.vue';
+import ToolHost from '../components/ToolHost.vue';
 import MarkdownTool from './tools/MarkdownTool.vue';
 import ImageTool from './tools/ImageTool.vue';
 import GraphTool from './tools/graph/GraphTool.vue';
@@ -332,6 +342,7 @@ import '../css/base.css';
 import '../css/nav-bar.css';
 import '../css/conversation-list.css';
 import '../css/chat-view.css';
+import '../css/tools.css';
 import '../css/settings-panel.css';
 import '../css/about-panel.css';
 import '../css/context-menu.css';
@@ -466,6 +477,10 @@ const setting = ref({});
 const version = ref('');
 const showCreateGroupModal = ref(false);
 const showAddFriendModal = ref(false);
+// 添加好友弹窗的预填词：仅「新手引导 → 打开与我的对话」目标用户还不是好友时写入 UID，
+// 弹窗关闭后清空，避免下次手动点「+」时被上一次的引导值带偏。
+const addFriendInitialQuery = ref('');
+watch(showAddFriendModal, (v) => { if (!v) addFriendInitialQuery.value = ''; });
 const allThemes = ['default', 'wechat', 'aurora', 'abyss', 'rose', 'lavender', 'mint', 'peach', 'amber', 'coral', 'sage', 'slate', 'obsidian', 'crimson', 'emerald', 'carbon', 'plasma', 'nord', 'dracula', 'monokai', 'cyberpunk', 'solarized'];
 const lastMouseX = ref(0);
 const lastMouseY = ref(0);
@@ -1874,15 +1889,28 @@ function onWindowFocus() {
 }
 
 // --- 新用户引导：引导层派发的动作（打开会话 / 切换页面） ---
+// Onboarding.vue 的 ask() 在 window 上 dispatchEvent，这里必须监听 window：
+// window 是 document 的父级，事件不会向子节点传播，监听 document 收不到（此前 4 个按钮全部失效的原因）。
 function onOnboardingAction(e) {
   const d = e.detail || {}
-  if (d.action === 'openUser' && d.id) onSelectConversation({ type: 'user', id: Number(d.id) })
+  if (d.action === 'openUser' && d.id) openUserFromOnboarding(Number(d.id))
   else if (d.action === 'switch' && d.page) switchPage(d.page)
+}
+
+// 「打开与我的对话」兜底：目标用户（DEV_UID=991）不在会话列表里、或游客态时不能点了没反应。
+function openUserFromOnboarding(uid) {
+  // 游客/未登录：聊天不可用，直接引导去登录（与顶部「去登录」横幅同一入口，不新增依赖）
+  if (!store.logined) { gotoLogin(); return }
+  // 已是好友（在会话列表里）：照常打开会话
+  if (store.users?.[uid]) { onSelectConversation({ type: 'user', id: uid }); return }
+  // 已登录但还没加好友：打开「添加好友」弹窗并预填 UID，用户点「直接添加」即可关注
+  addFriendInitialQuery.value = String(uid);
+  showAddFriendModal.value = true;
 }
 
 // --- 生命周期 ---
 onMounted(async () => {
-  document.addEventListener('onboarding-action', onOnboardingAction);
+  window.addEventListener('onboarding-action', onOnboardingAction);
   store.initializing = true;
   setting.value = await window.api.loadSetting();
   store.setting = setting.value;
@@ -1949,7 +1977,7 @@ onUnmounted(() => {
   if (downTicker) clearInterval(downTicker);
   document.removeEventListener('keydown', onDocKeydown);
   document.removeEventListener('click', onDocClick);
-  document.removeEventListener('onboarding-action', onOnboardingAction);
+  window.removeEventListener('onboarding-action', onOnboardingAction);
   window.removeEventListener('online', onOnline);
   window.removeEventListener('offline', onOffline);
   window.removeEventListener('focus', onWindowFocus);

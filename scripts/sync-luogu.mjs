@@ -2,15 +2,24 @@
 /**
  * 从上游 luogu-markdown-editor 同步 vendor 模块与样式表。
  *
- *   node scripts/sync-luogu.mjs [upstreamDir]
+ *   node scripts/sync-luogu.mjs [upstreamDir] [--out <css>] [--skip-vendor]
  *
  * upstreamDir 默认取 <repo>/../_ref/luogu-markdown-editor（参考检出目录，不在版本库内）。
+ * --out <css>    把生成的 CSS 写到指定路径（默认 src/renderer/src/markdown/luogu-theme.css）。
+ *                配合 tmp/ 下的最小上游 fixture 可验证抽取/过滤逻辑，而不改动 src 生成物。
+ * --skip-vendor  只生成 CSS，不复制 vendor/*.js（验证时避免改 src）。
  *
  * 做两件事：
  *   1. vendor/*.js —— 逐字节复制上游 5 个模块，本地不做任何改写；
  *   2. luogu-theme.css —— 从上游 styles.css 抽取 .luogu-* / .typora-* 规则，
  *      把上游主题变量（--bg-secondary、--text-primary 等）重命名为 --lg-*，
  *      并重新映射到 7fa4-chat 的主题变量，避免跟项目自己的 :root 变量撞名。
+ *
+ * 聊天代码块外观不在此文件生成：task-6 已把外框/头部/语言标签/复制按钮/代码区
+ * 换行与滚动统一重写到 src/renderer/src/css/code-block.css。本脚本在抽取阶段过滤掉
+ * 上游的 .luogu-code-* 规则与全局 pre/code[class*="language-"] 的强制换行规则
+ * （pre-wrap / break-all / overflow-wrap），避免重跑同步时把删掉的旧样式写回、
+ * 覆盖 code-block.css 的「不换行 + 横向滚动」。token 配色（--lg-token-*）保留。
  *
  * 重跑本脚本即可整体升级上游；生成物不要手工编辑。
  */
@@ -20,10 +29,32 @@ import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const upstreamArg = process.argv[2]
+
+// CLI 参数：可选 upstreamDir + --out <css> / --skip-vendor（后者用于 tmp fixture 验证，
+// 只生成 CSS、不复制 vendor，避免改动 src 生成物）。
+const cliArgs = process.argv.slice(2)
+let upstreamArg = null
+let outArg = null
+let skipVendor = false
+for (let i = 0; i < cliArgs.length; i++) {
+  const arg = cliArgs[i]
+  if (arg === '--skip-vendor') {
+    skipVendor = true
+  } else if (arg === '--out') {
+    outArg = cliArgs[++i]
+    if (!outArg) fail('--out 需要跟一个输出路径')
+  } else if (arg.startsWith('--')) {
+    fail(`未知参数：${arg}`)
+  } else {
+    upstreamArg = arg
+  }
+}
+
 const UPSTREAM = path.resolve(upstreamArg || path.join(ROOT, '..', '_ref', 'luogu-markdown-editor'))
 const VENDOR_DIR = path.join(ROOT, 'src', 'renderer', 'src', 'markdown', 'vendor')
-const OUT_CSS = path.join(ROOT, 'src', 'renderer', 'src', 'markdown', 'luogu-theme.css')
+const OUT_CSS = outArg
+  ? path.resolve(outArg)
+  : path.join(ROOT, 'src', 'renderer', 'src', 'markdown', 'luogu-theme.css')
 const THEMES_DIR = path.join(ROOT, 'src', 'renderer', 'css', 'themes')
 
 const VENDOR_FILES = [
@@ -129,6 +160,56 @@ function selectorOf(block) {
   return idx === -1 ? '' : block.slice(0, idx).trim()
 }
 
+// ---- 代码块规则过滤 -------------------------------------------------------
+// 聊天代码块外观已由 src/renderer/src/css/code-block.css 统一接管（task-6 完全重写）：
+// 外框、头部、语言标签、复制按钮、代码区换行与滚动、行号/高亮都不再从这里生成。
+// 上游 styles.css 里的旧 .luogu-code-* 规则与全局 pre/code[class*="language-"] 的
+// 强制换行规则（pre-wrap / break-all / overflow-wrap / word-wrap）如果继续输出，
+// 重跑同步时会把删掉的旧样式写回并覆盖 code-block.css，因此在这里按选择器剔除。
+// token 配色（.token.* → --lg-token-*，由 footer 生成）不受影响，保留。
+const CODE_BLOCK_CLASS_RE = /\.luogu-code-/
+const LANGUAGE_PRE_CODE_RE = /(?:^|[\s>+~])(?:pre|code)\[class\*=["']?language-/
+const WRAP_PROPS_RE = /(?:white-space|word-break|overflow-wrap|word-wrap)\s*:/
+
+/** 按顶层逗号切分选择器列表（忽略 [] / () / 引号内的逗号）。 */
+function splitSelectorList(sel) {
+  const parts = []
+  let depth = 0
+  let quote = ''
+  let start = 0
+  for (let i = 0; i < sel.length; i++) {
+    const c = sel[i]
+    if (quote) {
+      if (c === '\\') i++
+      else if (c === quote) quote = ''
+      continue
+    }
+    if (c === '"' || c === "'") {
+      quote = c
+    } else if (c === '(' || c === '[') {
+      depth++
+    } else if (c === ')' || c === ']') {
+      depth--
+    } else if (c === ',' && depth === 0) {
+      parts.push(sel.slice(start, i).trim())
+      start = i + 1
+    }
+  }
+  parts.push(sel.slice(start).trim())
+  return parts.filter(Boolean)
+}
+
+/** 该选择器（列表中的一项）是否属于代码块外观，应交给 code-block.css。 */
+function isCodeBlockSelector(part, body) {
+  // :not(.luogu-code-*) 只是「排除」代码块，不是代码块自身规则；属性选择器里的
+  // 字符串（[class*="language-"] 等）也不算类名，先剔除再判断 .luogu-code-*。
+  const stripped = part.replace(/:not\([^)]*\)/g, '').replace(/\[[^\]]*\]/g, '')
+  if (CODE_BLOCK_CLASS_RE.test(stripped)) return true
+  // 全局 pre/code[class*="language-"]：上游用它们强制 pre-wrap / break-all，
+  // 正是「不换行 + 横向滚动」的直接阻碍；只剔除带换行/断词属性的这类规则。
+  return LANGUAGE_PRE_CODE_RE.test(part) && WRAP_PROPS_RE.test(body)
+}
+
 /** 规则块里引用的上游变量，按 --lg-* 改名。 */
 function renameVars(text) {
   return text.replace(/var\(\s*(--[a-zA-Z0-9_-]+)/g, (m, name) =>
@@ -179,13 +260,13 @@ if (!fs.existsSync(UPSTREAM)) {
 const upstreamPkg = JSON.parse(fs.readFileSync(path.join(UPSTREAM, 'package.json'), 'utf8'))
 const upstreamCss = fs.readFileSync(path.join(UPSTREAM, 'src', 'styles.css'), 'utf8')
 
-// 1) vendor 复制
-fs.mkdirSync(VENDOR_DIR, { recursive: true })
+// 1) vendor 复制（--skip-vendor 时只校验存在性，用于 fixture 验证不改 src）
+if (!skipVendor) fs.mkdirSync(VENDOR_DIR, { recursive: true })
 const copied = []
 for (const name of VENDOR_FILES) {
   const src = path.join(UPSTREAM, 'src', name)
   if (!fs.existsSync(src)) fail(`上游缺少 ${name}`)
-  fs.copyFileSync(src, path.join(VENDOR_DIR, name))
+  if (!skipVendor) fs.copyFileSync(src, path.join(VENDOR_DIR, name))
   copied.push({
     name,
     sha: createHash('sha256').update(fs.readFileSync(src)).digest('hex').slice(0, 12),
@@ -196,6 +277,8 @@ for (const name of VENDOR_FILES) {
 const blocks = splitTopLevel(upstreamCss)
 const picked = []
 const darkOverrides = []
+let filteredSelectors = 0
+let filteredBlocks = 0
 for (const block of blocks) {
   const sel = selectorOf(block)
   if (!sel || sel.startsWith('@')) continue
@@ -207,10 +290,20 @@ for (const block of blocks) {
   const body = block.slice(block.indexOf('{'))
   // 外壳布局：上游用它把预览列居中并留出 45vh 底部点击区，对消息气泡与输入框都不适用。
   if (sel.startsWith('.mode-typora ')) continue
+  // 代码块外观交给 code-block.css：剔除上游 .luogu-code-* 规则与全局
+  // pre/code[class*="language-"] 的强制换行规则；混合选择器里只删代码块那部分。
+  const selectorParts = splitSelectorList(sel)
+  const keptParts = selectorParts.filter((part) => !isCodeBlockSelector(part, body))
+  filteredSelectors += selectorParts.length - keptParts.length
+  if (!keptParts.length) {
+    filteredBlocks++
+    continue
+  }
+  const keptSel = keptParts.join(', ')
   // 内容规则：以 .preview-content 为根，或直接是 .luogu-* / .typora-* 组件类。
-  const isContentRoot = sel.includes(ROOT_CLASS_FROM)
-  if (!KEEP_SELECTOR.test(sel) && !isContentRoot) continue
-  const renamedSel = sel.split(ROOT_CLASS_FROM).join(ROOT_CLASS_TO)
+  const isContentRoot = keptSel.includes(ROOT_CLASS_FROM)
+  if (!KEEP_SELECTOR.test(keptSel) && !isContentRoot) continue
+  const renamedSel = keptSel.split(ROOT_CLASS_FROM).join(ROOT_CLASS_TO)
   picked.push(replaceBrandColors(renameVars(renamedSel + ' ' + body)))
 }
 
@@ -315,7 +408,8 @@ const header = `/*
  * https://github.com/wudream813/luogu-markdown-editor
  *
  * 本文件只含上游 styles.css 中 .luogu-* / .typora-* / .preview-content 相关规则
- * （共 ${picked.length} 条）。上游的 :root 主题变量不在此处引入，改为下面的 --lg-* 映射层，
+ * （共 ${picked.length} 条；聊天代码块外观已过滤，见 css/code-block.css）。
+ * 上游的 :root 主题变量不在此处引入，改为下面的 --lg-* 映射层，
  * 取值全部落到 7fa4-chat 自己的主题变量上，因此自动跟随 21 套主题（含暗色）切换。
  */
 
@@ -355,45 +449,11 @@ const footer = `
   background: var(--lg-surface);
   color: var(--text-primary);
 }
-/* ---- 补丁：上游代码块外壳把 One Dark 底色写死了，浅色主题下会顶着一块深底 ----
-   另外 --lg-code-bg（= --bg-code-block）是半透明 tint，直接当底色用会让**下层容器**的
-   颜色透上来：自己的气泡（浅色主题是浅蓝 #C0E0FF）会把整个代码区染成蓝灰，token 对比度
-   跟着掉到 1.3:1。这里用「tint 叠在 --bg-app 上」把 alpha 拍平 —— 代码块恒为不透明表面，
-   既保留主题自定义的 tint，又不再受气泡/卡片底色影响。 */
-.luogu-code-block-wrapper {
-  background-color: var(--bg-app);
-  background-image: linear-gradient(var(--lg-code-bg), var(--lg-code-bg));
-  color: var(--lg-code-fg);
-}
-/* 通用容器的 .bubble-content code / .input-preview-content code 规则会漏进洛谷代码块：
-   给内层 <code> 再套一层行内底色、圆角，并把字号按 0.9em 压小（13px → 11.7px）。
-   这里把内层还原成纯文本，代码块只保留外壳一层。 */
-.luogu-md .luogu-code-block-wrapper .luogu-code-pre code {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-}
-.luogu-code-header {
-  background: color-mix(in srgb, var(--lg-code-bg) 88%, var(--text-primary));
-  border-bottom-color: var(--lg-border-color);
-}
-.luogu-code-lang {
-  color: var(--lg-token-function);
-}
-.luogu-code-copy-btn {
-  background: var(--bg-conversation-hover);
-  border-color: var(--lg-border-color);
-  color: var(--lg-code-fg);
-}
-/* 上游 hover 与常态同色（只换字色），按下去没有反馈；这里给一个真正的加深态 */
-.luogu-code-copy-btn:hover {
-  background: color-mix(in srgb, var(--bg-conversation-hover) 88%, var(--text-primary));
-  color: var(--text-primary);
-}
+/* ---- 代码块外观不在此文件 ----
+   聊天代码块的外框、头部、语言标签、复制按钮、代码区换行/滚动、行号与高亮，
+   统一由 src/renderer/src/css/code-block.css 提供（task-6 完全重写）。
+   上游对应的 .luogu-code-* 规则和全局 pre/code[class*="language-"] 的强制换行规则
+   已在抽取阶段过滤掉，避免重跑同步时把旧样式写回并覆盖新样式。 */
 
 .typora-block-input {
   background: var(--lg-surface);
@@ -451,6 +511,12 @@ if (depth !== 0) fail(`生成结果花括号不配平（depth=${depth}）`)
 fs.writeFileSync(OUT_CSS, output, 'utf8')
 
 console.log(`[sync-luogu] 上游版本 v${upstreamPkg.version}`)
+if (skipVendor) console.log('  --skip-vendor：未复制 vendor/*.js')
 for (const c of copied) console.log(`  vendor/${c.name}  sha256:${c.sha}`)
 console.log(`  抽取规则 ${picked.length} 条 → ${path.relative(ROOT, OUT_CSS)}`)
+if (filteredSelectors || filteredBlocks) {
+  console.log(
+    `  过滤代码块规则：${filteredSelectors} 条选择器（${filteredBlocks} 个整块）交给 css/code-block.css`
+  )
+}
 console.log(`  判定暗色主题 ${dark.length} 套`)

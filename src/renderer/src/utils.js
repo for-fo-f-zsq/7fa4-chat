@@ -234,12 +234,6 @@ function coachOverrides(uid, remoteGrade) {
   return !remote || remote === '毕业'
 }
 
-/** 展示用年级文本：把远端年级按上述优先级消解（无信息返回 ''） */
-export function preferredGradeText(uid, remoteGrade) {
-  if (coachOverrides(uid, remoteGrade)) return '教练'
-  return String(remoteGrade == null ? '' : remoteGrade).trim()
-}
-
 function colorKeyOf(uid) {
   const localKey = usersJson?.[uid]?.colorKey || ''
   const g = store.users?.[uid]?.grade
@@ -262,50 +256,6 @@ function paletteColor(colorKey) {
 
 export function getGradeColor(uid) {
   return paletteColor(colorKeyOf(uid))
-}
-
-// 无年级信息时的兜底分组键：只用色相差异大、亮度足够的键
-// （避免落到 #284DB2 / #0B8379 这类深色上，小字号下看起来像没上色）
-const FALLBACK_COLOR_KEYS = ['d1', 'g1', 'c1', 'x4', 'jl', 'x5']
-
-/**
- * 轻量字符串哈希。
- * 注意：不能用 `uid % n` —— OJ 的 uid 存在等差规律（实测 1637 / 1013 / 1069 都 ≡ 5 mod 8），
- * 取模会让一大批用户撞进同一个键（当时全都变成 d3 深蓝，视觉上像"名字没颜色"）。
- */
-function uidHash(uid) {
-  const s = String(uid == null ? '' : uid)
-  let h = 0
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 1000003
-  return h
-}
-
-/**
- * 远端用户（不在 store.users 中）的名字颜色。
- * 有年级 → 与好友列表一致的年级色；没有年级 → 按 uid 稳定派生一个协调色（不随刷新跳变）。
- * 注意：getAvatarInitial / getGradeColor 的参数是 uid（内部查 store.users），
- * 对远端对象必须用本函数，不能把对象直接传进去。
- */
-export function getNameColorFor(uid, grade) {
-  // 与 colorKeyOf 同一优先级规则：本地已标记为教练时，远端的默认「毕业」不覆盖身份
-  if (coachOverrides(uid, grade)) return paletteColor('jl')
-  const byGrade = gradeToColorKey(grade || '')
-  if (byGrade) return paletteColor(byGrade)
-  return paletteColor(FALLBACK_COLOR_KEYS[uidHash(uid) % FALLBACK_COLOR_KEYS.length])
-}
-
-/**
- * 头像首字：基于对象自身的字段（远端对象不在 store.users 里，不能用 getAvatarInitial）。
- * 优先级与 getAvatarInitial 保持一致：真名 > 昵称 > 用户名 > uid。
- */
-export function getInitialOfUser(u) {
-  if (!u) return '?'
-  // 逐个候选取首个非空白字符：空字符串 / 纯空白的字段要跳过，而不是原地失败
-  for (const c of [u.realname, u.nickname, u.username, u.uid]) {
-    const ch = String(c == null ? '' : c).trim().charAt(0)
-    if (ch) return ch
-  }
-  return '?'
 }
 
 export function getGradeLabel(uid) {
@@ -580,11 +530,6 @@ export function mergeVoteIntoPoll(pollContent, pollId, voteObj, sender) {
     maxSelect: def.maxSelect, allowCustom: def.allowCustom,
     votes, custom: customMap, voteMeta: obj.voteMeta, invalid: obj.invalid,
   })
-}
-
-/** 判断一条消息是否是投票发起（需要合法 poll 定义） */
-export function isPollMsg(content) {
-  return !!parsePoll(parseMsgContent(content))
 }
 
 /** 构造 vote 消息内容（唯一入口）。custom 为开放题的自拟文本，仅非空时写入。 */
@@ -1387,6 +1332,39 @@ export function isWebBrowser() {
   return window.__7FA4_PLATFORM__ !== 'android'; // 兜底：老版本注入的标记
 }
 
+// ========== GitLab 站点地址（跟随「API 网址」设置） ==========
+// 9080 站点必须与 API 地址一致：jx / in 是两套分开的地址，不能交叉混用。
+const DEFAULT_API_URL = 'https://jx.7fa4.cn';
+const GITLAB_PROJECT_PATH = 'student-archive/7fa4-chat';
+
+/** 当前选择的 API 源站（含协议，去掉末尾斜杠） */
+function currentApiOrigin() {
+  return String(store.setting?.apiUrl || DEFAULT_API_URL)
+    .replace(/^http:\/\//, 'https://')
+    .replace(/\/+$/, '');
+}
+
+/** GitLab 网页基址（与 API 同一台，端口 9080） */
+export function gitlabWebBase() {
+  return `${currentApiOrigin()}:9080`;
+}
+/** GitLab 项目主页（/projects/886 会跳转到实际项目路径） */
+export function gitlabProjectUrl() {
+  return `${gitlabWebBase()}/projects/886`;
+}
+/** GitLab Issues（意见反馈入口） */
+export function gitlabIssuesUrl() {
+  return `${gitlabWebBase()}/${GITLAB_PROJECT_PATH}/-/issues`;
+}
+/** GitLab 包下载页 */
+export function gitlabPackagesUrl() {
+  return `${gitlabWebBase()}/${GITLAB_PROJECT_PATH}/-/packages`;
+}
+/** GitLab 仓库 raw 文件（如 assets/donate-qr.jpg） */
+export function gitlabRawUrl(path) {
+  return `${gitlabWebBase()}/${GITLAB_PROJECT_PATH}/-/raw/master/${String(path).replace(/^\/+/, '')}`;
+}
+
 /**
  * 「隐藏非双向好友」设置：单向关注（仅我关注 TA，或仅 TA 关注我）的好友被隐藏。
  * 只影响列表/未读展示，store 中的数据与消息历史完整保留，关掉开关即恢复。
@@ -1486,28 +1464,6 @@ export function highlightKeyword(text, keyword) {
   const escaped = esc(text);
   const re = new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
   return escaped.replace(re, '<mark class="search-highlight">$1</mark>');
-}
-
-// ========== 全量消息检索（三端统一入口） ==========
-// Electron: preload → 主进程 storage.searchMessages（逐条解密）
-// 网页/安卓: platform/web-api.js 的同名实现（IndexedDB）
-// senders：按发送者命中 —— 搜「某人」时带出他发出的消息（微信式搜索）
-export async function searchAllMessages({ q, senders, kind, cid, after, before, limit = 50, offset = 0, scanCap } = {}) {
-  const keyword = String(q || '').trim()
-  const senderList = Array.isArray(senders)
-    ? senders.map(Number).filter((n) => Number.isFinite(n) && n > 0)
-    : []
-  // 关键词与发送者至少要有一个，否则等同于全量扫描
-  if (!keyword && !senderList.length) return { success: true, total: 0, scanned: 0, truncated: false, data: [] }
-  const uid = store.self?.uid
-  if (!uid) return { success: false, error: '未登录' }
-  const fn = window.api?.storeSearchMessages
-  if (typeof fn !== 'function') return { success: false, error: '当前平台不支持全量检索' }
-  try {
-    return await fn(uid, { q: keyword, senders: senderList, kind, cid, after, before, limit, offset, scanCap })
-  } catch (e) {
-    return { success: false, error: e.message || '检索失败' }
-  }
 }
 
 // ========== 通知声音 ==========

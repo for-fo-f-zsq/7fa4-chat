@@ -475,27 +475,8 @@
   margin: 0 12px;
 }
 
-/* 代码块复制按钮 */
-.code-block-wrap {
-  position: relative;
-}
-.code-copy-btn {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  padding: 2px 8px;
-  font-size: var(--font-size-small);
-  background: var(--bg-input);
-  border: 1px solid var(--border-light);
-  border-radius: 3px;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.2s;
-  color: var(--text-secondary);
-}
-.code-block-wrap:hover .code-copy-btn {
-  opacity: 1;
-}
+/* 代码块复制按钮样式已统一到 css/code-block.css（洛谷代码块自带顶栏按钮，
+   injectCodeCopyButtons() 注入的重复按钮在新样式里被隐藏）。 */
 
 /* 加载动画 */
 .load-more-spinner {

@@ -32,4 +32,7 @@ website-dev/
 # Linux AppImage 本地打包产物（Docker 构建输出，体积大）
 /artifacts/
 
+# 工具包构建产物（由 scripts/build-tools.mjs 生成，发布到 GitLab 包仓库，不入库）
+/dist-tools/
+
 

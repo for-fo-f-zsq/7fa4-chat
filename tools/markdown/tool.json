@@ -1,0 +1,9 @@
+{
+  "id": "markdown",
+  "name": "Markdown 编辑",
+  "desc": "Markdown 编写与预览；打开文件 / 新建 / 保存到文件 / 导出为图片",
+  "version": "1.0.0",
+  "minAppVersion": "3.7.0",
+  "entry": "index.html",
+  "icon": "fas fa-file-lines"
+}

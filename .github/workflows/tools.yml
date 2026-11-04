@@ -1,0 +1,81 @@
+name: Build & Publish Tools
+
+# 触发方式：
+#   1. tools/ 下的工具源码、构建/发布脚本或本工作流自身变化 -> 自动构建并发布到 GitLab Generic Package
+#   2. 手动触发 (workflow_dispatch) -> 同样构建 + 发布，便于重跑或补发
+#
+# 与 release.yml 相互独立：
+#   - 本工作流只产出 dist-tools/（工具包静态资源），不打安装包、不创建 GitHub Release；
+#   - 发布目标是 GitLab 项目 886 的 Generic Package，固定包名/版本段：
+#       https://jx.7fa4.cn:9080/api/v4/projects/886/packages/generic/TOOLS/latest
+#     客户端匿名拉取 `…/TOOLS/latest/tools.json` 与包内文件。
+#   - 该 GitLab 实例的 Generic Package 不支持嵌套路径文件名（file_name 含 '/' 会被 400 拒绝），
+#     所以包内文件是扁平名：相对路径中的 '/' 替换为 '__'（如 calculator__1.0.0__index.html）；
+#     发布脚本与客户端（src/main/index.js、src/renderer/src/platform/web-api.js）使用同一映射规则。
+#   - 发布采用整包替换：先校验本地产物（size/sha256），再删除旧 TOOLS 包，然后逐文件上传并匿名校验。
+on:
+  push:
+    paths:
+      - 'tools/**'
+      - 'tools.vite.config.mjs'
+      - 'scripts/build-tools.mjs'
+      - 'scripts/publish-tools.mjs'
+      - '.github/workflows/tools.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 整包替换（删除旧包 → 上传新包）必须串行，避免两个 run 的删除/上传互相干扰；
+# 新 run 排队而不是打断正在进行的发布
+concurrency:
+  group: tools-publish
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # 工具包构建只用 vite/vue，不需要 Electron 二进制；跳过下载可省 100MB+ 与若干分钟
+      - name: Install dependencies
+        run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+      - name: Build tool packages
+        run: node scripts/build-tools.mjs
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      # 构建产物留档：发布失败时可下载下来人工排查 / 手工补发
+      - name: Upload dist-tools artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-tools
+          if-no-files-found: error
+          retention-days: 7
+          path: dist-tools/
+
+      # 发布到 GitLab Generic Package TOOLS/latest：先校验本地 dist-tools（size/sha256），
+      # 再删除旧 TOOLS 包，逐文件上传（扁平文件名），最后匿名下载 tools.json 与抽样文件校验 size/sha256。
+      # 删除旧包到上传完成前客户端会短暂拿不到工具包（预期行为，与 release.yml 整包替换一致）。
+      # 需要 secret GITLAB_TOKEN（api scope，项目 886 的 Maintainer/Owner 权限）
+      - name: Publish to GitLab Generic Package
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GITLAB_TOKEN:-}" ]; then
+            echo "::error::缺少 secret GITLAB_TOKEN，请在仓库 Settings→Secrets→Actions 添加后重试"
+            exit 1
+          fi
+          node scripts/publish-tools.mjs --apply

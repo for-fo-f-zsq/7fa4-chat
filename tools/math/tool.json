@@ -1,0 +1,9 @@
+{
+  "id": "math",
+  "name": "GeoGebra",
+  "desc": "GeoGebra 图形计算器（官方 calculator.html 全屏嵌入，支持函数绘图与交互式几何）",
+  "version": "1.0.0",
+  "minAppVersion": "3.7.0",
+  "entry": "index.html",
+  "icon": "fas fa-square-root-variable"
+}

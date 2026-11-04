@@ -1,5 +1,14 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// 在线工具安装进度：主进程 webContents.send('tools-progress', payload) → 本文件统一收集后派发给订阅者。
+// onToolProgress 返回退订函数，offToolProgress 支持按回调取消（两种用法都兼容）。
+const toolProgressListeners = new Set();
+ipcRenderer.on('tools-progress', (event, payload) => {
+  for (const cb of toolProgressListeners) {
+    try { cb(payload) } catch { /* 单个订阅者异常不影响其它订阅者 */ }
+  }
+});
+
 contextBridge.exposeInMainWorld('api', {
   getVersion: () => ipcRenderer.invoke('get-version'),
   getPlatform: () => ipcRenderer.invoke('get-platform'),
@@ -45,7 +54,6 @@ contextBridge.exposeInMainWorld('api', {
   storeLoadConvos: (uid) => ipcRenderer.invoke('store-load-convos', uid),
   storeLoadLastMessages: (uid) => ipcRenderer.invoke('store-load-last-messages', uid),
   storeLoadMessages: (uid, kind, cid, limit, before) => ipcRenderer.invoke('store-load-messages', uid, kind, cid, limit, before),
-  storeSearchMessages: (uid, opts) => ipcRenderer.invoke('store-search-messages', uid, opts),
   storeSaveAll: (uid, data) => ipcRenderer.invoke('store-save-all', uid, data),
   storeLoadPrefs: (uid) => ipcRenderer.invoke('store-load-prefs', uid),
   storeExportAll: (uid) => ipcRenderer.invoke('store-export-all', uid),
@@ -74,6 +82,18 @@ contextBridge.exposeInMainWorld('api', {
   loadUsersDb: () => ipcRenderer.invoke('load-users-db'),
   clearSessionCookies: () => ipcRenderer.invoke('clear-session-cookies'),
   exportMarkdownPng: (suggestedName, html) => ipcRenderer.invoke('export-markdown-png', suggestedName, html),
+  // --- 在线工具（GitLab 886 静态包；下载/校验/安装/卸载/入口 URL 均在主进程执行）---
+  fetchToolsManifest: () => ipcRenderer.invoke('tools-fetch-manifest'),
+  listInstalledTools: () => ipcRenderer.invoke('tools-list-installed'),
+  installTool: (toolMeta) => ipcRenderer.invoke('tools-install', toolMeta),
+  removeTool: (id) => ipcRenderer.invoke('tools-remove', id),
+  getToolEntryUrl: (id, entry) => ipcRenderer.invoke('tools-get-entry-url', id, entry),
+  onToolProgress: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    toolProgressListeners.add(callback);
+    return () => { toolProgressListeners.delete(callback); };
+  },
+  offToolProgress: (callback) => { toolProgressListeners.delete(callback); },
   // --- 计时器悬浮窗（独立置顶小窗；状态由本窗口推送，见 main/index.js）---
   openTimerFloat: (cfg) => ipcRenderer.invoke('timer-float-open', cfg),
   closeTimerFloat: () => ipcRenderer.invoke('timer-float-close'),

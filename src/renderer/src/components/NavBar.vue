@@ -91,7 +91,7 @@
 import { ref, computed } from 'vue'
 import { vClickOutside } from '../composables/vClickOutside.js'
 import { store } from '../store.js'
-import { isUserHiddenBySetting, isWebBrowser } from '../utils.js'
+import { isUserHiddenBySetting, isWebBrowser, gitlabProjectUrl, gitlabIssuesUrl, gitlabPackagesUrl } from '../utils.js'
 
 const props = defineProps({
   pageType: String,
@@ -150,12 +150,12 @@ function openAnnouncement() {
 // 意见反馈：直接跳转 GitLab Issues（不再走客户端内置表单）
 function openFeedback() {
   userMenu.value = false
-  try { window.api.openExternal('https://jx.7fa4.cn:9080/student-archive/7fa4-chat/-/issues') } catch {}
+  try { window.api.openExternal(gitlabIssuesUrl()) } catch {}
 }
 
 // 左上角标识：点击打开 GitLab 项目主页
 function openSite() {
-  try { window.api.openExternal('https://jx.7fa4.cn:9080/projects/886') } catch {}
+  try { window.api.openExternal(gitlabProjectUrl()) } catch {}
 }
 
 // 纯网页浏览器端：客户端下载入口（引导下载完整客户端）
@@ -164,6 +164,6 @@ function openSite() {
 const isWeb = isWebBrowser()
 function openDownload() {
   userMenu.value = false
-  try { window.api.openExternal('https://jx.7fa4.cn:9080/student-archive/7fa4-chat/-/packages') } catch {}
+  try { window.api.openExternal(gitlabPackagesUrl()) } catch {}
 }
 </script>

@@ -1,5 +1,7 @@
 import { createApp, nextTick } from 'vue';
 import App from './App.vue';
+// 代码块统一样式：放在 App 之后引入，确保级联顺序上压过各容器/组件里的旧规则。
+import './css/code-block.css';
 
 // 非 Electron 环境（Capacitor Android / 浏览器）：先安装 window.api 适配层再挂载。
 // 动态 import 保证桌面端（已有 preload 注入的 window.api）不会打包该 chunk。

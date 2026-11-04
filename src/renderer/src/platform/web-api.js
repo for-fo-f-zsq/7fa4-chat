@@ -12,24 +12,38 @@ import { LocalNotifications } from '@capacitor/local-notifications'
 
 const IS_NATIVE = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform?.()
 // 自建后端已全部下线：更新检查、更新日志、赞助名单都直接读公开的 GitLab 项目 886。
-const GITLAB_WEB_BASE = 'https://jx.7fa4.cn:9080'
-const GITLAB_API = `${GITLAB_WEB_BASE}/api/v4/projects/886`
-const GITLAB_LATEST_PACKAGE = `${GITLAB_API}/packages/generic/7FA4-Chat/latest`
-const GITLAB_SPONSORS_FILE = `${GITLAB_API}/repository/files/assets%2Fsponsors.json/raw?ref=master`
+// 9080 站点必须与「API 网址」设置一致：jx / in 是两套分开的镜像，不能交叉混用。
+function gitlabWebBase() {
+  return `${apiBase()}:9080`
+}
+function gitlabApiBase() {
+  return `${gitlabWebBase()}/api/v4/projects/886`
+}
+function gitlabLatestPackage() {
+  return `${gitlabApiBase()}/packages/generic/7FA4-Chat/latest`
+}
+function gitlabSponsorsFile() {
+  return `${gitlabApiBase()}/repository/files/assets%2Fsponsors.json/raw?ref=master`
+}
 
 // ---------- 事件注册表（渲染层订阅） ----------
 const listeners = {
   notifClick: [],
   nativeTheme: [],
   flushBeforeClose: [],
-  androidBack: []
+  androidBack: [],
+  toolProgress: []
 }
 function emit(name, data) { for (const cb of listeners[name]) { try { cb(data) } catch {} } }
 function on(name) {
   return (cb) => {
     listeners[name].push(cb)
-    return () => { const i = listeners[name].indexOf(cb); if (i >= 0) listeners[name].splice(i, 1) }
+    return () => off(name, cb)
   }
+}
+function off(name, cb) {
+  const i = listeners[name].indexOf(cb)
+  if (i >= 0) listeners[name].splice(i, 1)
 }
 
 // ---------- 设置（对应桌面 setting.7c → localStorage） ----------
@@ -144,6 +158,331 @@ async function gitlabRequest(url, options = {}) {
   return origFetch(url, options)
 }
 
+// ---------- 在线工具（GitLab 886 静态包，安装到 Filesystem Directory.Data） ----------
+// 布局与桌面一致（spec §3）：tools/<id>/<version>/... + tools/<id>/installed.json。
+// 桌面用 tool:// 特权协议打开；这里用 Filesystem.getUri() + Capacitor.convertFileSrc()
+// 得到 WebView 可加载的入口 URL。全程只用浏览器/Capacitor API，不 import Node。
+const TOOL_ID_RE = /^[a-z0-9][a-z0-9_-]*$/
+const TOOL_VERSION_RE = /^[0-9A-Za-z][0-9A-Za-z._-]*$/
+const TOOL_SHA256_RE = /^[0-9a-f]{64}$/
+const TOOL_ICON_RE = /^[a-z0-9][a-z0-9 _-]{0,63}$/i // 展示用 Font Awesome class
+const TOOLS_DIR = 'tools'
+const TOOL_MANIFEST_TIMEOUT = 20000
+const TOOL_FILE_TIMEOUT = 60000
+
+// 工具包基址：generic package「TOOLS」的最新版目录
+//   https://<api-host>:9080/api/v4/projects/886/packages/generic/TOOLS/latest
+// 跟随「API 网址」设置（jx / in 两套镜像）；包内布局 tools.json + <id>/<version>/...
+function toolsRawBase() {
+  return `${gitlabWebBase()}/api/v4/projects/886/packages/generic/TOOLS/latest`
+}
+function toolVersionPath(id, version) {
+  return `${TOOLS_DIR}/${id}/${version}`
+}
+function toolInstalledPath(id) {
+  return `${TOOLS_DIR}/${id}/installed.json`
+}
+
+function appVersion() {
+  return typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0'
+}
+
+// 语义化版本比较（与 utils.js 的 compareVersion 同逻辑）：返回 1 / 0 / -1
+function compareToolVersion(a, b) {
+  const pa = String(a || '').split('.').map(Number)
+  const pb = String(b || '').split('.').map(Number)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0
+    const y = pb[i] || 0
+    if (x !== y) return x > y ? 1 : -1
+  }
+  return 0
+}
+
+// 包内相对路径校验：拒绝绝对路径、盘符、空段、. 与 .. 段（防路径穿越第一道）
+function isSafeToolRelPath(p) {
+  if (typeof p !== 'string' || !p || p.includes('\0')) return false
+  if (p.startsWith('/') || p.startsWith('\\')) return false
+  if (/^[A-Za-z]:/.test(p)) return false
+  const segs = p.split(/[\\/]+/)
+  return segs.every((s) => s && s !== '.' && s !== '..')
+}
+
+// 清单条目归一化（与桌面主进程同规则）：非法条目返回 null，size 以 files 之和为准
+function normalizeToolMeta(tool) {
+  if (!tool || typeof tool !== 'object') return null
+  const id = String(tool.id || '')
+  const version = String(tool.version || '')
+  if (!TOOL_ID_RE.test(id) || !TOOL_VERSION_RE.test(version)) return null
+  const dir = `${id}/${version}`
+  if (tool.dir !== undefined && String(tool.dir) !== dir) return null
+  const entry = tool.entry === undefined ? 'index.html' : String(tool.entry)
+  if (!isSafeToolRelPath(entry)) return null
+  if (!Array.isArray(tool.files) || tool.files.length === 0) return null
+  const seen = new Set()
+  const files = []
+  for (const f of tool.files) {
+    if (!f || typeof f !== 'object') return null
+    const rel = String(f.path || '')
+    if (!isSafeToolRelPath(rel) || seen.has(rel)) return null
+    seen.add(rel)
+    const size = Number(f.size)
+    const sha256 = String(f.sha256 || '').toLowerCase()
+    if (!Number.isInteger(size) || size < 0) return null
+    if (!TOOL_SHA256_RE.test(sha256)) return null
+    files.push({ path: rel, size, sha256 })
+  }
+  if (!seen.has(entry)) return null // 入口必须是包内文件
+  const rawIcon = typeof tool.icon === 'string' ? tool.icon.trim() : ''
+  return {
+    id,
+    name: String(tool.name || id),
+    desc: String(tool.desc || ''),
+    icon: TOOL_ICON_RE.test(rawIcon) ? rawIcon : 'fas fa-puzzle-piece',
+    version,
+    dir,
+    entry,
+    size: files.reduce((n, f) => n + f.size, 0),
+    minAppVersion: String(tool.minAppVersion || ''),
+    files
+  }
+}
+
+// ---------- base64 / sha256 工具（crypto.subtle，无 Node 依赖） ----------
+function b64ToBytes(b64) {
+  const s = atob(b64)
+  const out = new Uint8Array(s.length)
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i)
+  return out
+}
+function bytesToB64(bytes) {
+  let bin = ''
+  const chunk = 0x8000 // 分块避免 String.fromCharCode 参数过多
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk))
+  }
+  return btoa(bin)
+}
+async function sha256Hex(bytes) {
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+// 下载单个工具文件：原生层 CapacitorHttp(arraybuffer → base64)，浏览器层 fetch(arrayBuffer)
+async function fetchToolFile(url) {
+  if (IS_NATIVE) {
+    const res = await CapacitorHttp.request({
+      url,
+      method: 'GET',
+      responseType: 'arraybuffer', // Android 原生层返回 base64 字符串
+      connectTimeout: 15000,
+      readTimeout: TOOL_FILE_TIMEOUT
+    })
+    if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}`)
+    if (typeof res.data === 'string' && res.data) {
+      const bytes = b64ToBytes(res.data)
+      return { base64: res.data, bytes }
+    }
+    if (res.data instanceof ArrayBuffer) {
+      const bytes = new Uint8Array(res.data)
+      return { base64: bytesToB64(bytes), bytes }
+    }
+    throw new Error('下载内容为空')
+  }
+  const r = await origFetch(url, { signal: AbortSignal.timeout(TOOL_FILE_TIMEOUT) })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  const bytes = new Uint8Array(await r.arrayBuffer())
+  return { base64: bytesToB64(bytes), bytes }
+}
+
+// ---------- Filesystem 封装（Directory.Data 下的相对路径） ----------
+async function fsMkdir(path) {
+  try {
+    await Filesystem.mkdir({ path, directory: Directory.Data, recursive: true })
+  } catch { /* 已存在（Web 实现会抛错）忽略 */ }
+}
+async function fsWriteBase64(path, base64) {
+  // 不传 encoding：data 按 base64 解码后写入二进制文件
+  await Filesystem.writeFile({ path, data: base64, directory: Directory.Data, recursive: true })
+}
+async function fsWriteText(path, text) {
+  await Filesystem.writeFile({ path, data: text, directory: Directory.Data, recursive: true, encoding: Encoding.UTF8 })
+}
+async function fsRemoveDir(path) {
+  try {
+    await Filesystem.rmdir({ path, directory: Directory.Data, recursive: true })
+  } catch { /* 不存在即视为已清理 */ }
+}
+async function fsRename(from, to) {
+  await Filesystem.rename({ from, to, directory: Directory.Data, toDirectory: Directory.Data })
+}
+
+// installed.json 读取：不存在 / 损坏 / 版本号非法均视为未安装
+async function readInstalledMeta(id) {
+  if (!TOOL_ID_RE.test(String(id))) return null
+  try {
+    const res = await Filesystem.readFile({
+      path: toolInstalledPath(id),
+      directory: Directory.Data,
+      encoding: Encoding.UTF8
+    })
+    const text = typeof res.data === 'string' ? res.data : ''
+    const meta = JSON.parse(text)
+    if (!meta || typeof meta !== 'object') return null
+    if (!TOOL_VERSION_RE.test(String(meta.version || ''))) return null
+    return meta
+  } catch {
+    return null
+  }
+}
+
+// 入口推断：installed.json（spec 形状）不含 entry，优先 index.html，否则取第一个 html
+function pickToolEntry(installed, preferred) {
+  const files = Array.isArray(installed && installed.files)
+    ? installed.files.map((f) => String(f.path || ''))
+    : []
+  if (preferred && isSafeToolRelPath(String(preferred)) && files.includes(String(preferred))) {
+    return String(preferred)
+  }
+  if (files.includes('index.html')) return 'index.html'
+  const html = files.find((p) => /\.html?$/i.test(p))
+  return html || null
+}
+
+// 拉取并校验远端工具清单（tools/tools.json）
+async function fetchToolsManifest() {
+  try {
+    const res = await gitlabRequest(`${toolsRawBase()}/tools.json`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(TOOL_MANIFEST_TIMEOUT)
+    })
+    if (!res.ok) return { success: false, tools: [], error: `HTTP ${res.status}` }
+    const data = await res.json().catch(() => null)
+    if (!data || typeof data !== 'object' || !Array.isArray(data.tools)) {
+      return { success: false, tools: [], error: '工具清单格式异常' }
+    }
+    const tools = []
+    for (const item of data.tools) {
+      const meta = normalizeToolMeta(item)
+      if (meta) tools.push(meta)
+      else console.warn('[Tools] 忽略无效的清单条目:', item && item.id)
+    }
+    return { success: true, tools, updatedAt: String(data.updatedAt || '') }
+  } catch (e) {
+    return { success: false, tools: [], error: e.message || '获取工具清单失败' }
+  }
+}
+
+// 安装 / 更新：逐文件下载并校验 size+sha256 → 全部落临时目录 → 原子替换版本目录 → 写 installed.json
+// 进度：{ id, phase:'download', index, count, path, received, total }（received 为累计字节数）
+async function installTool(toolMeta) {
+  const meta = normalizeToolMeta(toolMeta)
+  if (!meta) return { success: false, error: '工具信息无效' }
+  if (meta.minAppVersion && compareToolVersion(appVersion(), meta.minAppVersion) < 0) {
+    return { success: false, error: `请先更新应用（需要 v${meta.minAppVersion} 及以上）` }
+  }
+  const idDir = `${TOOLS_DIR}/${meta.id}`
+  const targetDir = toolVersionPath(meta.id, meta.version)
+  const stagingDir = `${idDir}/.staging-${meta.version}-${Date.now()}`
+  const count = meta.files.length
+  let received = 0
+  try {
+    await fsMkdir(stagingDir)
+    for (let i = 0; i < count; i++) {
+      const file = meta.files[i]
+      // 该实例的 generic 包不支持嵌套路径（file_name 不能含 `/`）：
+      // 包内文件名 = 「dir/file.path」把 `/` 全部换成 `__`，须与 scripts/publish-tools.mjs 一致
+      const flatName = `${meta.dir}/${file.path}`.replaceAll('/', '__')
+      const url = `${toolsRawBase()}/${encodeURIComponent(flatName)}`
+      const { base64, bytes } = await fetchToolFile(url)
+      if (bytes.length !== file.size) throw new Error(`文件大小校验失败：${file.path}`)
+      const sha256 = await sha256Hex(bytes)
+      if (sha256 !== file.sha256) throw new Error(`SHA-256 校验失败：${file.path}`)
+      await fsWriteBase64(`${stagingDir}/${file.path}`, base64)
+      received += bytes.length
+      emit('toolProgress', {
+        id: meta.id,
+        phase: 'download',
+        index: i + 1,
+        count,
+        path: file.path,
+        received,
+        total: meta.size
+      })
+    }
+    // 临时目录 → 版本目录；installed.json 最后写入（写成功才算安装完成）
+    await fsRemoveDir(targetDir)
+    await fsRename(stagingDir, targetDir)
+    const installed = {
+      version: meta.version,
+      installedAt: new Date().toISOString(),
+      size: meta.size,
+      files: meta.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 }))
+    }
+    await fsWriteText(toolInstalledPath(meta.id), JSON.stringify(installed, null, 2))
+    return { success: true }
+  } catch (e) {
+    // 失败清理半成品；不动旧版本目录与旧 installed.json
+    await fsRemoveDir(stagingDir)
+    return { success: false, error: e.message || '安装工具失败' }
+  }
+}
+
+// 已安装列表：{ [id]: { version, installedAt, size } }
+async function listInstalledTools() {
+  const installed = {}
+  let entries = []
+  try {
+    const res = await Filesystem.readdir({ path: TOOLS_DIR, directory: Directory.Data })
+    entries = Array.isArray(res.files) ? res.files : []
+  } catch {
+    entries = [] // 首次使用：目录还不存在
+  }
+  for (const entry of entries) {
+    if (entry.type !== 'directory' || !TOOL_ID_RE.test(entry.name)) continue
+    const meta = await readInstalledMeta(entry.name)
+    if (!meta) continue
+    installed[entry.name] = {
+      version: String(meta.version),
+      installedAt: String(meta.installedAt || ''),
+      size: Number(meta.size) || 0
+    }
+  }
+  return { success: true, installed }
+}
+
+async function removeTool(id) {
+  if (!TOOL_ID_RE.test(String(id))) return { success: false, error: '工具 ID 无效' }
+  try {
+    await Filesystem.rmdir({ path: `${TOOLS_DIR}/${id}`, directory: Directory.Data, recursive: true })
+    return { success: true }
+  } catch (e) {
+    // 目录本就不存在也视为卸载成功
+    return { success: true, warning: e.message }
+  }
+}
+
+// 入口 URL：Android 用 convertFileSrc(file://...) 映射为 WebView 可加载地址；
+// 纯网页端没有可用的本地文件加载通道（convertFileSrc 在 Web 上是恒等映射），返回 unsupported。
+async function getToolEntryUrl(id) {
+  if (!TOOL_ID_RE.test(String(id))) return { success: false, error: '工具 ID 无效' }
+  const installed = await readInstalledMeta(String(id))
+  if (!installed) return { success: false, error: '工具未安装' }
+  const entryPath = pickToolEntry(installed)
+  if (!entryPath) return { success: false, error: '工具入口文件缺失' }
+  if (!IS_NATIVE) return { success: false, error: '网页端不支持打开本地工具' }
+  try {
+    const file = await Filesystem.getUri({
+      path: `${toolVersionPath(id, installed.version)}/${entryPath}`,
+      directory: Directory.Data
+    })
+    return { success: true, url: Capacitor.convertFileSrc(file.uri) }
+  } catch (e) {
+    return { success: false, error: e.message || '获取工具入口失败' }
+  }
+}
+
 // ---------- IndexedDB 用户数据存储（对应桌面 storage.js 四表语义） ----------
 const DB_NAME = '7fa4chat'
 const DB_VERSION = 1
@@ -220,33 +559,6 @@ function reqAsPromise(r) {
 function storeAll(request) {
   return reqAsPromise(request)
 }
-function storePut(store, value) {
-  store.put(value)
-}
-
-// ---------- 检索辅助（与 main/storage.js 同逻辑；web 端 content 为对象而非密文） ----------
-function webSearchableText(content) {
-  if (!content) return ''
-  if (typeof content === 'string') {
-    try { return webSearchableText(JSON.parse(content)) } catch { return content }
-  }
-  if (typeof content !== 'object') return ''
-  if (content.type === 'text') return String(content.content || '')
-  if (content.type === 'file') return String(content.name || '')
-  if (content.type === 'emoji') return String(content.content || '')
-  if (content.type === 'sticker') return String(content.name || '')
-  return typeof content.content === 'string' ? content.content : ''
-}
-
-function webMakeSnippet(text, ql) {
-  if (!ql) return text.slice(0, 80)
-  const i = text.toLowerCase().indexOf(ql)
-  if (i < 0) return text.slice(0, 80)
-  const start = Math.max(0, i - 30)
-  const end = Math.min(text.length, i + ql.length + 30)
-  return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '')
-}
-
 const store = {
   async init() {
     await openDB()
@@ -318,61 +630,6 @@ const store = {
       .slice(0, Number(limit))
       .map((r) => r.content)
     return { success: true, data: list }
-  },
-  /**
-   * 全量消息检索（与 Electron 侧 window.api.storeSearchMessages 同契约）
-   * 只回命中片段（snippet），不回全文。
-   */
-  async searchMessages(uid, opts = {}) {
-    const q = String(opts.q || '').trim()
-    // senders：按发送者命中（搜「某人」时带出其发出的消息）。允许 q 为空、仅凭 senders 检索。
-    // 用 Set：senders 可能上百个，逐条 indexOf 是 O(n×m)。
-    const senderSet = new Set(
-      Array.isArray(opts.senders) ? opts.senders.map(Number).filter((n) => Number.isFinite(n) && n > 0) : []
-    )
-    if (!q && !senderSet.size) return { success: true, total: 0, scanned: 0, truncated: false, data: [] }
-    const ql = q.toLowerCase()
-    const limit = Math.min(Math.max(Number(opts.limit) || 50, 1), 200)
-    const offset = Math.max(Number(opts.offset) || 0, 0)
-    const scanCap = Math.min(Math.max(Number(opts.scanCap) || 20000, 1), 200000)
-
-    let rows
-    if (opts.kind && opts.cid != null) {
-      rows = await tx(['messages'], 'readonly', (t, out) => {
-        out.value = storeAll(t.objectStore('messages').index('byConvo').getAll(IDBKeyRange.only([Number(uid), opts.kind, Number(opts.cid)])))
-      })
-    } else {
-      rows = await tx(['messages'], 'readonly', (t, out) => {
-        out.value = storeAll(t.objectStore('messages').index('byUid').getAll(IDBKeyRange.only(Number(uid))))
-      })
-    }
-
-    const list = (rows || [])
-      .filter((r) => {
-        if (opts.kind && r.kind !== opts.kind) return false
-        if (opts.cid != null && Number(r.cid) !== Number(opts.cid)) return false
-        if (opts.after && r.send_time < Number(opts.after)) return false
-        if (opts.before && r.send_time > Number(opts.before)) return false
-        return true
-      })
-      .sort((a, b) => b.send_time - a.send_time || b.mid - a.mid)
-
-    let scanned = 0
-    let total = 0
-    let truncated = false
-    const data = []
-    for (const r of list) {
-      if (scanned >= scanCap) { truncated = true; break }
-      scanned++
-      const text = webSearchableText(r.content)
-      const bySender = senderSet.size > 0 && senderSet.has(Number((r.content || {}).sender))
-      const byText = !!ql && text.toLowerCase().indexOf(ql) !== -1
-      if (!byText && !bySender) continue
-      total++
-      if (total <= offset || data.length >= limit) continue
-      data.push({ id: r.mid, kind: r.kind, cid: r.cid, sender: (r.content || {}).sender, send_time: r.send_time, snippet: webMakeSnippet(text, ql), bySender })
-    }
-    return { success: true, total, scanned, truncated, data }
   },
   async loadLastMessages(uid) {
     const rows = await tx(['messages'], 'readonly', (t, out) => {
@@ -650,7 +907,6 @@ window.api = {
   storeLoadConvos: (uid) => store.loadConvos(uid),
   storeLoadLastMessages: (uid) => store.loadLastMessages(uid),
   storeLoadMessages: (uid, kind, cid, limit, before) => store.loadMessages(uid, kind, cid, limit, before),
-  storeSearchMessages: (uid, opts) => store.searchMessages(uid, opts),
   storeSaveAll: (uid, data) => store.saveAll(uid, data),
   storeLoadPrefs: (uid) => store.loadPrefs(uid),
   storeExportAll: (uid) => store.exportAll(uid),
@@ -666,7 +922,7 @@ window.api = {
   onUpdateStatus: () => () => {},
   fetchVersionInfo: async () => {
     try {
-      const res = await gitlabRequest(`${GITLAB_API}/releases?per_page=1`, { method: 'GET', headers: { Accept: 'application/json' } })
+      const res = await gitlabRequest(`${gitlabApiBase()}/releases?per_page=1`, { method: 'GET', headers: { Accept: 'application/json' } })
       const data = await res.json().catch(() => null)
       const rel = Array.isArray(data) ? data[0] : null
       if (!res.ok || !rel) return { success: false, error: (data && data.message) || `HTTP ${res.status}` }
@@ -682,7 +938,7 @@ window.api = {
   fetchChangelog: async () => {
     // 更新日志随包上传在 GitLab 的 latest/CHANGELOG（Markdown，渲染层自行渲染）
     try {
-      const res = await gitlabRequest(`${GITLAB_LATEST_PACKAGE}/CHANGELOG`, { method: 'GET' })
+      const res = await gitlabRequest(`${gitlabLatestPackage()}/CHANGELOG`, { method: 'GET' })
       if (!res.ok) return { success: false, error: `HTTP ${res.status}` }
       const markdown = await res.text()
       if (!markdown || !markdown.trim()) return { success: false, error: '更新日志为空' }
@@ -696,7 +952,7 @@ window.api = {
   // 赞助名单：GitLab 公开仓库 assets/sponsors.json
   fetchSponsors: async () => {
     try {
-      const res = await gitlabRequest(GITLAB_SPONSORS_FILE, { method: 'GET', headers: { Accept: 'application/json' } })
+      const res = await gitlabRequest(gitlabSponsorsFile(), { method: 'GET', headers: { Accept: 'application/json' } })
       const data = await res.json().catch(() => null)
       const list = Array.isArray(data) ? data : (data && Array.isArray(data.list) ? data.list : null)
       if (res.ok && list) return { success: true, list }
@@ -779,6 +1035,14 @@ window.api = {
       return { success: false, error: e.message || '导出失败' }
     }
   },
+  // --- 在线工具（GitLab 886 静态包；契约与桌面 preload 完全一致）---
+  fetchToolsManifest: () => fetchToolsManifest(),
+  listInstalledTools: () => listInstalledTools(),
+  installTool: (toolMeta) => installTool(toolMeta),
+  removeTool: (id) => removeTool(id),
+  getToolEntryUrl: (id, entry) => getToolEntryUrl(id, entry),
+  onToolProgress: on('toolProgress'),
+  offToolProgress: (cb) => off('toolProgress', cb),
   // --- Android 专属（Electron 下不存在，调用处需用可选链） ---
   onAndroidBack: on('androidBack'),
   androidExit: () => { if (IS_NATIVE) CapApp.exitApp() }

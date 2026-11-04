@@ -1,0 +1,33 @@
+/*
+ * tools/shared/tool-base.css
+ *
+ * 工具包基础样式：与宿主主窗口一致的全局 reset、CSS 主题变量、Font Awesome 图标字体。
+ *
+ * 为什么工具包要自带这些（而不是纯靠宿主下发）：
+ *   1. base.css 里的 `* { box-sizing: border-box; margin: 0; padding: 0 }` 与全局字体是现有
+ *      6 个工具组件布局的隐含前提，缺了会明显错位；
+ *   2. theme.css 提供 21 套主题的默认变量；宿主经桥接下发的 tokens 会写到 :root 行内样式，
+ *      优先级更高，因此「宿主主题」仍然压过这里的默认值；
+ *   3. 工具组件模板大量使用 `<i class="fas fa-...">`，Font Awesome 的 webfonts 由 Vite
+ *      作为普通资源一并产出（assetsInlineLimit: 0，字体不会被内联成 data URL）。
+ *
+ * 注意：@import 必须位于所有规则之前（CSS 规范要求）。
+ */
+
+@import url('../../src/renderer/src/css/base.css');
+@import url('../../src/renderer/css/font-awesome/css/all.min.css');
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 工具页面只有一个根容器；现有工具组件根节点多为 flex:1，需由 #app 提供纵向 flex 上下文 */
+#app {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

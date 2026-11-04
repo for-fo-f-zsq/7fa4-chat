@@ -7,7 +7,7 @@
           <img src="/icon.png" alt="7FA4 Chat" class="announcement-logo-img" />
         </div>
         <p class="announcement-sub">全新版本发布</p>
-        <h1>V3.7.0</h1>
+        <h1>{{ appVersion ? 'V' + appVersion : '' }}</h1>
         <div class="announcement-decor"></div>
       </div>
       <!-- 页 2：本次更新 -->
@@ -78,10 +78,18 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import { gitlabRawUrl } from '../utils.js'
 import { renderChangelogMarkdown } from '../changelog-md.js'
 
-const DONATE_URL = 'https://jx.7fa4.cn:9080/student-archive/7fa4-chat/-/raw/master/assets/donate-qr.jpg'
+const DONATE_URL = computed(() => gitlabRawUrl('assets/donate-qr.jpg'))
+const appVersion = ref('')
+onMounted(async () => {
+  try {
+    const v = await window.api?.getVersion?.()
+    if (v) appVersion.value = String(v).replace(/^v/i, '')
+  } catch {}
+})
 const page = ref(0)
 const donateZoom = ref(false)
 const qrError = ref(false)

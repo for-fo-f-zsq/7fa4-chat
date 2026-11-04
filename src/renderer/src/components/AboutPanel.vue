@@ -34,7 +34,7 @@
       </div>
       <div class="about-links">
         <button class="about-link-btn" @click="openLink('https://github.com/for-fo-f-zsq/7fa4-chat')"><i class="fab fa-github"></i> GitHub</button>
-        <button class="about-link-btn" @click="openLink('https://jx.7fa4.cn:9080/projects/886')"><i class="fab fa-gitlab"></i> GitLab</button>
+        <button class="about-link-btn" @click="openLink(gitlabProjectUrl())"><i class="fab fa-gitlab"></i> GitLab</button>
       </div>
     </div>
 
@@ -112,6 +112,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import BackButton from './BackButton.vue'
+import { gitlabProjectUrl } from '../utils.js'
 
 const props = defineProps({ version: { type: String, default: '' } })
 const emit = defineEmits(['back'])

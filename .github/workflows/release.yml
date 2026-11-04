@@ -41,7 +41,7 @@ jobs:
           node-version: '22'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build renderer & main (electron-vite)
         run: npm run build
@@ -121,7 +121,7 @@ jobs:
           echo "--- build-tools ---"; ls "$ANDROID_HOME/build-tools" || true
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build web assets (renderer + GeoGebra)
         run: node scripts/build-web.mjs
