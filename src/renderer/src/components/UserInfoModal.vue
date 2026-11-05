@@ -81,7 +81,7 @@
 <script setup>
 import { computed, ref, onMounted, nextTick } from 'vue'
 import { store } from '../store.js'
-import { displayName, getGradeColor, getGradeLabel, usersJson } from '../utils.js'
+import { displayName, getGradeColor, getGradeLabel, usersJson, localGradeColorKey } from '../utils.js'
 
 const props = defineProps({
   uid: Number
@@ -99,7 +99,7 @@ const realName = computed(() => {
 })
 
 const gradeLabel = computed(() => {
-  const colorKey = usersJson?.[props.uid]?.colorKey
+  const colorKey = localGradeColorKey(props.uid)
   if (!colorKey || colorKey === 'uk') return ''
   return getGradeLabel(props.uid)
 })

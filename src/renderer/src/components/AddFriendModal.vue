@@ -65,7 +65,7 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { store } from '../store.js'
-import { getGradeColor, getGradeLabel, getAvatarInitial, GRADE_LABELS, ranklistOrder, usersJson } from '../utils.js'
+import { getGradeColor, getGradeLabel, getAvatarInitial, GRADE_LABELS, ranklistOrder, usersJson, localGradeColorKey } from '../utils.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -107,7 +107,7 @@ const filteredUsers = computed(() => {
     const isFriend = user?.watchee === true // 是否已关注（watchee）
 
     if (gf) {
-      const colorKey = jsonInfo?.colorKey || ''
+      const colorKey = localGradeColorKey(uid)
       if (colorKey !== gf) return
     }
 

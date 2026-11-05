@@ -223,8 +223,9 @@ export function getAvatarInitial(uid) {
   return String(uid).charAt(0)
 }
 
-// 年级文本（ranklist 同步）→ colorKey（年级分组键）。users.7c 的 colorKey 仅作兜底，
-// 年级信息以 ranklist 实时同步为准（getGradeColor / getGradeLabel 优先使用）。
+// 年级文本（ranklist 同步）→ colorKey（年级分组键）。本地姓名库不再存 colorKey，
+// 改存 graduateYear（高中毕业年份），由下方 graduateYearToColorKey 实时推算；
+// 年级信息仍以 ranklist 实时同步为准（getGradeColor / getGradeLabel 优先使用）。
 function gradeToColorKey(grade) {
   const map = {
     '小四': 'x4', '小五': 'x5', '小六': 'x6',
@@ -236,13 +237,48 @@ function gradeToColorKey(grade) {
   return map[String(grade == null ? '' : grade).trim()] || ''
 }
 
+// ========== 本地姓名库的年级：graduateYear（高中毕业年份）模型 ==========
+// 学年在 9 月 1 日切换；colorKey = 学段进度[当前学年 + 9 - 毕业年份]，
+// 因此同一份库每年自动升一级，无需重建（与 Asterveil src/shared/user-grade-year.ts 一致）。
+const USER_GRADE_PROGRESSION = ['x4', 'x5', 'x6', 'c1', 'c2', 'c3', 'g1', 'g2', 'g3', 'd1', 'd2', 'd3', 'd4', 'by']
+const FIRST_GRADE_ACADEMIC_YEAR = 2025
+const GRADE_STATUS_MAP = { '教练': 'jl', '毕业': 'by', '其他': 'uk' }
+
+export function currentGradeAcademicYear() {
+  const now = new Date()
+  return Math.max(FIRST_GRADE_ACADEMIC_YEAR, now.getMonth() >= 8 ? now.getFullYear() : now.getFullYear() - 1)
+}
+
+export function graduateYearToColorKey(graduateYear) {
+  const year = Number(graduateYear)
+  if (!Number.isSafeInteger(year) || year < 1900 || year > 2100) return ''
+  const index = currentGradeAcademicYear() + 9 - year
+  if (index < 0) return ''
+  return USER_GRADE_PROGRESSION[Math.min(index, USER_GRADE_PROGRESSION.length - 1)] || ''
+}
+
+/** 年级 colorKey → 毕业年份（仅学段年级；毕业/教练/其他返回 undefined，用于旧库迁移） */
+export function colorKeyToGraduateYear(colorKey) {
+  const index = USER_GRADE_PROGRESSION.indexOf(colorKey)
+  if (index < 0 || index >= USER_GRADE_PROGRESSION.length - 1) return undefined
+  return currentGradeAcademicYear() + 9 - index
+}
+
+/** 本地姓名库对应的年级分组键；兼容旧库的 colorKey 与教练/毕业身份 */
+export function localGradeColorKey(uid) {
+  const info = usersJson?.[uid]
+  if (!info) return ''
+  return info.colorKey || graduateYearToColorKey(info.graduateYear) || GRADE_STATUS_MAP[info.status] || ''
+}
+
 // ========== 年级优先级：身份（教练）> 年级 ==========
 // 「教练」是身份而非年级：本地用户库（users.7c）标记为教练的人已不是学生，
 // ranklist / 推荐接口的年级列对他们只会回落到默认值「毕业」。
 // 若让「毕业」覆盖「教练」，同一个人会出现「好友列表显示教练、年级色却是毕业灰」的矛盾。
 // 规则：本地为教练时，远端年级**缺失**或为「毕业」→ 保留教练；远端有更具体的年级 → 远端胜出。
 export function isLocalCoach(uid) {
-  return usersJson?.[uid]?.colorKey === 'jl'
+  const info = usersJson?.[uid]
+  return !!info && (info.status === '教练' || info.colorKey === 'jl')
 }
 
 function coachOverrides(uid, remoteGrade) {
@@ -252,7 +288,7 @@ function coachOverrides(uid, remoteGrade) {
 }
 
 function colorKeyOf(uid) {
-  const localKey = usersJson?.[uid]?.colorKey || ''
+  const localKey = localGradeColorKey(uid)
   const g = store.users?.[uid]?.grade
   // 教练身份优先于 ranklist 的默认「毕业」
   if (coachOverrides(uid, g)) return 'jl'
