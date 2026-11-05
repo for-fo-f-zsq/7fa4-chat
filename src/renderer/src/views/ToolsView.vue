@@ -3,7 +3,18 @@
     <div class="tools-header">
       <h2 class="page-title"><i class="fas fa-toolbox"></i> 工具</h2>
       <div class="tools-header-meta">
-        <span v-if="updatedAtText" class="tools-updated">工具列表更新于 {{ updatedAtText }}</span>
+        <span v-if="updatedAtText" class="tools-updated" :title="manifestBuiltAtText ? '远端清单构建于 ' + manifestBuiltAtText : ''">工具列表更新于 {{ updatedAtText }}</span>
+        <button
+          v-if="batchRunning || batchActionable"
+          class="tool-btn tools-batch"
+          type="button"
+          :disabled="batchRunning || loading"
+          :title="batchTitle"
+          @click="batchInstall"
+        >
+          <i class="fas" :class="batchRunning ? 'fa-spinner fa-spin' : 'fa-download'"></i>
+          <span>{{ batchLabel }}</span>
+        </button>
         <button
           class="tool-btn tools-refresh"
           type="button"
@@ -228,7 +239,11 @@ const remoteTools = ref([])
 const installedMap = ref({})
 const progressMap = ref({})
 const busyMap = ref({})
+// updatedAt 记录「上次成功获取清单的时间」（本地时钟），而不是清单里的构建时间：
+// 这样即使远端没有新版本，点一次刷新时间也会变，用户能确认刷新真的生效了。
 const updatedAt = ref('')
+// manifestBuiltAt 是远端 tools.json 里的 updatedAt（工具包构建时间），只作调试信息。
+const manifestBuiltAt = ref('')
 const appVersion = ref('')
 
 // 远端清单缓存：已安装的工具即使断网/接口挂了也要能打开，
@@ -247,9 +262,12 @@ function readManifestCache() {
   }
 }
 
-function writeManifestCache(tools, at) {
+function writeManifestCache(tools, at, builtAt) {
   try {
-    localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify({ updatedAt: at || '', tools }))
+    localStorage.setItem(
+      MANIFEST_CACHE_KEY,
+      JSON.stringify({ updatedAt: at || '', manifestBuiltAt: builtAt || '', tools })
+    )
   } catch {
     /* 配额不足只影响离线兜底，不影响在线使用 */
   }
@@ -259,6 +277,7 @@ const cachedManifest = readManifestCache()
 if (cachedManifest) {
   remoteTools.value = cachedManifest.tools
   updatedAt.value = cachedManifest.updatedAt || ''
+  manifestBuiltAt.value = cachedManifest.manifestBuiltAt || ''
 }
 
 // 清单自动重拉：进页面时拉一次；之后页面重新可见 / 窗口聚焦时后台刷新（30s 内不重复），
@@ -324,14 +343,18 @@ const remoteCards = computed(() =>
   }),
 )
 
-const updatedAtText = computed(() => {
-  const raw = updatedAt.value
+function formatDateTime(raw) {
   if (!raw) return ''
   const date = new Date(raw)
   if (Number.isNaN(date.getTime())) return String(raw)
   const pad = (n) => String(n).padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
-})
+}
+
+// 「工具列表更新于」展示本地成功获取时间，刷新即变，便于确认刷新生效。
+const updatedAtText = computed(() => formatDateTime(updatedAt.value))
+// 远端清单构建时间放在 title 里，用于排查发布是否已生效。
+const manifestBuiltAtText = computed(() => formatDateTime(manifestBuiltAt.value))
 
 let unsubscribeProgress = null
 
@@ -444,12 +467,15 @@ async function load(options = {}) {
     const res = manifestResult.value || {}
     if (res.success) {
       remoteTools.value = Array.isArray(res.tools) ? res.tools : []
-      updatedAt.value = res.updatedAt || ''
-      writeManifestCache(remoteTools.value, updatedAt.value)
+      manifestBuiltAt.value = res.updatedAt || ''
+      // 记录本地获取成功的时间：即使远端没版本变化，刷新后时间也会更新
+      updatedAt.value = new Date().toISOString()
+      writeManifestCache(remoteTools.value, updatedAt.value, manifestBuiltAt.value)
     } else {
       const cache = readManifestCache()
       remoteTools.value = cache ? cache.tools : []
       updatedAt.value = cache ? cache.updatedAt || '' : ''
+      manifestBuiltAt.value = cache ? cache.manifestBuiltAt || '' : ''
       errors.push(
         cache
           ? `获取工具列表失败：${res.error || '未知错误'}（已显示上次缓存的清单，已安装工具仍可打开）`
@@ -460,6 +486,7 @@ async function load(options = {}) {
     const cache = readManifestCache()
     remoteTools.value = cache ? cache.tools : []
     updatedAt.value = cache ? cache.updatedAt || '' : ''
+    manifestBuiltAt.value = cache ? cache.manifestBuiltAt || '' : ''
     errors.push(
       cache
         ? `获取工具列表失败：${formatError(manifestResult.reason)}（已显示上次缓存的清单，已安装工具仍可打开）`
@@ -572,6 +599,60 @@ async function openRemote(card) {
   } finally {
     delete busyMap.value[card.id]
   }
+}
+
+// ---------- 批量下载 / 全部更新 ----------
+// 未安装的卡片 = 可下载；有新版可用的卡片 = 可更新。
+// 两者都有时按钮文案叫「全部更新」，只有可下载的叫「全部下载」——按用户最关心的动作命名。
+const batchRunning = ref(false)
+const batchDone = ref(0)
+const batchTotal = ref(0)
+const batchTargets = computed(() =>
+  remoteCards.value.filter((card) => !card.blocked && (card.state === 'not-installed' || card.state === 'outdated')),
+)
+const batchDownloadCount = computed(() => batchTargets.value.filter((card) => card.state === 'not-installed').length)
+const batchUpdateCount = computed(() => batchTargets.value.filter((card) => card.state === 'outdated').length)
+const batchActionable = computed(() => !batchRunning.value && batchTargets.value.length > 0)
+const batchLabel = computed(() => {
+  if (batchRunning.value) return `处理中 ${batchDone.value}/${batchTotal.value}`
+  return batchUpdateCount.value > 0 ? '全部更新' : '全部下载'
+})
+const batchTitle = computed(() => {
+  const parts = []
+  if (batchUpdateCount.value > 0) parts.push(`${batchUpdateCount.value} 个可更新`)
+  if (batchDownloadCount.value > 0) parts.push(`${batchDownloadCount.value} 个未安装`)
+  return parts.length ? `一次性处理 ${parts.join('、')}` : ''
+})
+
+async function batchInstall() {
+  const api = window.api || {}
+  if (typeof api.installTool !== 'function') {
+    actionError.value = '当前客户端不支持安装远端工具，请更新应用'
+    return
+  }
+  const targets = batchTargets.value.slice()
+  if (!targets.length) return
+  batchRunning.value = true
+  batchDone.value = 0
+  batchTotal.value = targets.length
+  actionError.value = ''
+  const failed = []
+  // 顺序执行：多个工具同时装会互相抢带宽，进度条也会串台
+  for (const card of targets) {
+    try {
+      const meta = JSON.parse(JSON.stringify(card.raw || card))
+      const res = await api.installTool(meta)
+      if (!res || !res.success) throw new Error((res && res.error) || '安装失败')
+    } catch (err) {
+      failed.push(`${card.name || card.id}：${formatError(err)}`)
+    } finally {
+      delete progressMap.value[card.id]
+      batchDone.value += 1
+    }
+  }
+  await refreshInstalled()
+  batchRunning.value = false
+  if (failed.length) actionError.value = `批量处理完成，${failed.length} 个失败 —— ${failed.join('；')}`
 }
 
 function onBuiltinClick(tool) {

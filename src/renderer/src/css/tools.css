@@ -65,6 +65,22 @@
   font-size: 12px;
 }
 
+/* 批量下载 / 全部更新：主色描边，与「刷新」区分开 */
+.tools-batch {
+  flex-shrink: 0;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tools-batch i {
+  font-size: 12px;
+}
+
+.tools-batch:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--text-on-accent, #fff);
+}
+
 /* 错误条：加载 manifest/installed 失败时显示，不阻塞内置工具 */
 .tools-error-bar {
   display: flex;

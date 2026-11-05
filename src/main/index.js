@@ -1470,9 +1470,14 @@ async function writeFileAtomic(file, data) {
 }
 
 // 拉取并校验远端工具清单（tools/tools.json）
+// 注意：GitLab generic package 的 ETag 是固定值（内容变了也不变），配合 must-revalidate
+// 会让 Electron 的 net.fetch 收到 304 后继续用旧缓存 → 必须带时间戳参数绕开缓存。
 async function fetchToolsManifest() {
+    const url = `${toolsRawBase()}/tools.json?t=${Date.now()}`;
     try {
-        const res = await net.fetch(`${toolsRawBase()}/tools.json`, {
+        const res = await net.fetch(url, {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
             signal: AbortSignal.timeout(TOOL_MANIFEST_TIMEOUT)
         });
         if (!res.ok) return { success: false, tools: [], error: `HTTP ${res.status}` };
@@ -1488,6 +1493,7 @@ async function fetchToolsManifest() {
         }
         return { success: true, tools, updatedAt: String(data.updatedAt || '') };
     } catch (e) {
+        console.warn('[tools-manifest] 获取清单失败:', e.message || e);
         return { success: false, tools: [], error: e.message || '获取工具清单失败' };
     }
 }
@@ -1820,7 +1826,12 @@ ipcMain.handle('install-update', () => {
 // ========== 获取远程 CHANGELOG（GitLab latest/CHANGELOG，Markdown，渲染层自行渲染） ==========
 ipcMain.handle('fetch-changelog', async () => {
     try {
-        const res = await net.fetch(`${gitlabLatestPackage()}/CHANGELOG`, { signal: AbortSignal.timeout(15000) });
+        // 同样要绕开缓存：GitLab 包文件的 ETag 不随内容变化
+        const res = await net.fetch(`${gitlabLatestPackage()}/CHANGELOG?t=${Date.now()}`, {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+            signal: AbortSignal.timeout(15000)
+        });
         if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
         const markdown = await res.text();
         if (!markdown || markdown.trim().length === 0) {
@@ -1835,7 +1846,11 @@ ipcMain.handle('fetch-changelog', async () => {
 // ========== 赞助列表（GitLab 公开仓库 assets/sponsors.json） ==========
 ipcMain.handle('fetch-sponsors', async () => {
     try {
-        const res = await net.fetch(gitlabSponsorsFile(), { signal: AbortSignal.timeout(10000) });
+        const res = await net.fetch(`${gitlabSponsorsFile()}&t=${Date.now()}`, {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+            signal: AbortSignal.timeout(10000)
+        });
         if (!res.ok) return { success: false, list: [], error: `HTTP ${res.status}` };
         const data = await res.json().catch(() => null);
         const list = Array.isArray(data) ? data : (data && Array.isArray(data.list) ? data.list : null);

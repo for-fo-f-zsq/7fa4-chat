@@ -350,11 +350,13 @@ function pickToolEntry(installed, preferred) {
 }
 
 // 拉取并校验远端工具清单（tools/tools.json）
+// 时间戳参数用于绕开缓存：GitLab 包文件的 ETag 不随内容变化，配合 must-revalidate
+// 会出现「服务端已是新清单，客户端仍拿旧缓存」的情况。
 async function fetchToolsManifest() {
   try {
-    const res = await gitlabRequest(`${toolsRawBase()}/tools.json`, {
+    const res = await gitlabRequest(`${toolsRawBase()}/tools.json?t=${Date.now()}`, {
       method: 'GET',
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
       signal: AbortSignal.timeout(TOOL_MANIFEST_TIMEOUT)
     })
     if (!res.ok) return { success: false, tools: [], error: `HTTP ${res.status}` }
@@ -955,8 +957,9 @@ window.api = {
   },
   fetchChangelog: async () => {
     // 更新日志随包上传在 GitLab 的 latest/CHANGELOG（Markdown，渲染层自行渲染）
+    // 带时间戳绕开缓存：GitLab 包文件的 ETag 不随内容变化
     try {
-      const res = await gitlabRequest(`${gitlabLatestPackage()}/CHANGELOG`, { method: 'GET' })
+      const res = await gitlabRequest(`${gitlabLatestPackage()}/CHANGELOG?t=${Date.now()}`, { method: 'GET', headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } })
       if (!res.ok) return { success: false, error: `HTTP ${res.status}` }
       const markdown = await res.text()
       if (!markdown || !markdown.trim()) return { success: false, error: '更新日志为空' }
@@ -970,7 +973,7 @@ window.api = {
   // 赞助名单：GitLab 公开仓库 assets/sponsors.json
   fetchSponsors: async () => {
     try {
-      const res = await gitlabRequest(gitlabSponsorsFile(), { method: 'GET', headers: { Accept: 'application/json' } })
+      const res = await gitlabRequest(`${gitlabSponsorsFile()}&t=${Date.now()}`, { method: 'GET', headers: { Accept: 'application/json', 'Cache-Control': 'no-cache', Pragma: 'no-cache' } })
       const data = await res.json().catch(() => null)
       const list = Array.isArray(data) ? data : (data && Array.isArray(data.list) ? data.list : null)
       if (res.ok && list) return { success: true, list }

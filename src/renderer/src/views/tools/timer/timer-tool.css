@@ -3,6 +3,8 @@
    每格强调色由组件以内联 --c 注入（accent / success / warning / notice，均为主题提供的语义色）。 */
 
 .tm-tool {
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     background: var(--bg-app);
