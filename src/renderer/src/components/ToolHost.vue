@@ -1,5 +1,14 @@
 <template>
   <div class="tool-host">
+    <!-- 顶部窄条：返回按钮固定在工具区域左上角，独立占位，绝不遮挡工具自身内容 -->
+    <div class="tool-host-bar">
+      <button class="tool-host-back" type="button" title="返回工具列表" @click="onBackClick">
+        <i class="fas fa-arrow-left"></i>
+        <span>返回</span>
+      </button>
+      <span class="tool-host-name">{{ toolName }}</span>
+    </div>
+
     <iframe
       :key="frameKey"
       ref="iframeRef"
@@ -12,12 +21,6 @@
       @load="onFrameLoad"
       @error="onFrameError"
     ></iframe>
-
-    <!-- 悬浮返回按钮：工具自身也可通过 bridge 的 close 事件返回 -->
-    <button class="tool-host-back" type="button" title="返回工具列表" @click="onBackClick">
-      <i class="fas fa-arrow-left"></i>
-      <span>返回</span>
-    </button>
 
     <div v-if="status === 'loading'" class="tool-host-overlay tool-host-loading">
       <i class="fas fa-spinner fa-spin"></i>

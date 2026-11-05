@@ -359,7 +359,7 @@
   font-size: var(--font-size-small);
 }
 
-/* ---------------------------- 工具宿主（iframe） ---------------------------- */
+/* 工具宿主（iframe） */
 
 .tool-host {
   position: relative;
@@ -367,49 +367,68 @@
   min-width: 0;
   min-height: 0;
   display: flex;
+  flex-direction: column;
   overflow: hidden;
   background: var(--bg-app);
+}
+
+/* 顶部窄条：给返回按钮留位置，工具内容从它下方开始，彻底避免遮挡 */
+.tool-host-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-app);
+}
+
+.tool-host-name {
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tool-host-frame {
   flex: 1;
   width: 100%;
-  height: 100%;
+  min-height: 0;
   border: 0;
   background: var(--bg-app);
   color-scheme: normal;
 }
 
-/* 悬浮返回按钮：不遮挡工具内容，半透明悬浮在左上角 */
+/* 返回按钮：固定在顶部窄条最左侧 */
 .tool-host-back {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  z-index: 10;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 7px 14px;
+  height: 24px;
+  padding: 0 10px;
   border-radius: 999px;
   border: 1px solid var(--border-light);
   background: var(--bg-app);
-  color: var(--text-primary);
+  color: var(--text-secondary);
   font-size: var(--font-size-small);
   line-height: 18px;
+  white-space: nowrap;
   cursor: pointer;
-  box-shadow: var(--shadow-dropdown);
-  transition: color 0.2s, border-color 0.2s, background 0.2s;
-  opacity: 0.85;
+  transition: opacity 0.2s, color 0.2s, border-color 0.2s, background 0.2s;
 }
 
-.tool-host-back:hover {
-  opacity: 1;
+.tool-host-back:hover,
+.tool-host-back:focus-visible {
   color: var(--accent);
   border-color: var(--accent);
 }
 
 .tool-host-back i {
   font-size: 12px;
+  flex-shrink: 0;
 }
 
 /* 加载 / 错误浮层 */
@@ -499,9 +518,13 @@
     padding-right: 16px;
   }
 
+  .tool-host-bar {
+    height: 30px;
+    padding: 0 8px;
+  }
+
   .tool-host-back {
-    top: 10px;
-    left: 10px;
-    padding: 6px 12px;
+    height: 22px;
+    padding: 0 8px;
   }
 }
