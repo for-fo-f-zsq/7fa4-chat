@@ -1,7 +1,6 @@
 <template>
   <div class="tm-tool" :class="{ narrow: isNarrow }">
     <div class="tm-header">
-      <button class="tm-back-btn" title="返回" @click="$emit('back')"><i class="fas fa-arrow-left"></i></button>
       <i class="fas fa-toolbox"></i>
       <span>工具</span>
       <span class="tm-sep">/</span>

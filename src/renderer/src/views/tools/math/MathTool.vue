@@ -1,9 +1,6 @@
 <template>
   <div class="math-official">
     <div class="math-official-header">
-      <button class="math-official-back" title="返回" @click="$emit('back')">
-        <i class="fas fa-arrow-left"></i>
-      </button>
       <span class="math-official-title">
         <i class="fas fa-chart-line"></i> 工具 <span class="math-official-sep">/</span> GeoGebra
       </span>
