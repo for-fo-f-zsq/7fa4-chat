@@ -1,13 +1,5 @@
 <template>
   <div class="graph-tool" :class="{ narrow: isNarrow }">
-    <div class="graph-tool-header">
-      <div class="graph-tool-title">
-        <i class="fas fa-toolbox"></i> 工具
-        <span class="graph-tool-sep">/</span>
-        Graph Editor
-      </div>
-    </div>
-
     <div class="graph-tool-body">
       <!-- 窄模式：侧边把手（抽屉收起时仍可见，点击展开/收起） -->
       <div v-if="isNarrow" class="graph-side-handle" :class="{ open: sideOpen }" @click="sideOpen = !sideOpen" :title="sideOpen ? '收起输入面板' : '展开输入面板'">

@@ -12,46 +12,16 @@
     overflow: hidden;
 }
 
-/* ---------- 头部 ---------- */
+/* ---------- 头部（只剩右侧操作区，标题由宿主窄条显示） ---------- */
 .tm-header {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 16px;
+    padding: 8px 16px;
     border-bottom: 1px solid var(--border-light);
     flex-shrink: 0;
-    font-size: var(--font-size-large);
-    font-weight: 500;
     color: var(--text-primary);
     min-width: 0;
-}
-
-.tm-header > i { color: var(--accent); }
-
-.tm-sep {
-    color: var(--text-secondary);
-    opacity: 0.7;
-}
-
-.tm-back-btn {
-    width: 30px;
-    height: 30px;
-    flex-shrink: 0;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--text-primary);
-    font-size: 14px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 4px;
-}
-
-.tm-back-btn:hover {
-    background: var(--bg-sidebar-hover);
-    color: var(--accent);
 }
 
 .tm-header-right {
@@ -806,7 +776,6 @@
 /* ---------- 窄模式（手机比例）：单列堆叠，格高固定以保证内部等比缩放生效 ---------- */
 .tm-tool.narrow .tm-header {
     flex-wrap: wrap;
-    font-size: var(--font-size-base, 15px);
     padding: 8px 12px;
 }
 

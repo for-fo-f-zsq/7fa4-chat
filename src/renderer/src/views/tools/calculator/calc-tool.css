@@ -6,50 +6,6 @@
     background: var(--bg-app);
 }
 
-.calc-tool-header {
-    display: flex;
-    align-items: center;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--border-light);
-    flex-shrink: 0;
-}
-
-.calc-tool-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: var(--font-size-large);
-    font-weight: 500;
-    color: var(--text-primary);
-}
-
-.calc-tool-title > i { color: var(--accent); }
-
-.calc-tool-sep {
-    color: var(--text-secondary);
-    opacity: 0.7;
-}
-
-.calc-back-btn {
-    width: 30px;
-    height: 30px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--text-primary);
-    font-size: 14px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-right: 4px;
-}
-
-.calc-back-btn:hover {
-    background: var(--bg-sidebar-hover);
-    color: var(--accent);
-}
-
 .calc-body {
     flex: 1;
     min-height: 0;

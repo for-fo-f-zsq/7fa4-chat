@@ -1,13 +1,7 @@
 <template>
   <div class="tool-host">
     <!-- 顶部窄条：返回按钮固定在工具区域左上角，独立占位，绝不遮挡工具自身内容 -->
-    <div class="tool-host-bar">
-      <button class="tool-host-back" type="button" title="返回工具列表" @click="onBackClick">
-        <i class="fas fa-arrow-left"></i>
-        <span>返回</span>
-      </button>
-      <span class="tool-host-name">{{ toolName }}</span>
-    </div>
+    <ToolBar :name="toolName" @back="onBackClick" />
 
     <iframe
       :key="frameKey"
@@ -45,9 +39,10 @@
  * 只负责 DOM / iframe 生命周期与 UI 状态：
  *   - iframe load 后通过 MessageChannel 把 port2 交给工具，并发送 { type:'tool:init', appVersion, platform }
  *   - RPC / 事件逻辑全部在 tools/tool-bridge-host.js，便于复用与单测
- *   - 主题变化、timerFloat 事件转发、悬浮返回按钮、加载 / 错误 / 重试
+ *   - 主题变化、timerFloat 事件转发、顶部窄条（返回按钮 + 工具名）、加载 / 错误 / 重试
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import ToolBar from './ToolBar.vue'
 import { store } from '../store.js'
 import { ranklistOrder, usersJson } from '../utils.js'
 import {

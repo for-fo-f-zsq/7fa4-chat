@@ -372,8 +372,27 @@
   background: var(--bg-app);
 }
 
-/* 顶部窄条：给返回按钮留位置，工具内容从它下方开始，彻底避免遮挡 */
-.tool-host-bar {
+/* 内置工具外壳：窄条 + 工具本体（与远端工具宿主同构，视觉一致） */
+.tool-shell {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-app);
+}
+
+.tool-shell-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+/* 顶部窄条（内置工具与远端工具共用）：给返回按钮留位置，工具内容从它下方开始，彻底避免遮挡 */
+.tool-bar {
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -384,7 +403,7 @@
   background: var(--bg-app);
 }
 
-.tool-host-name {
+.tool-bar-name {
   font-size: var(--font-size-small);
   color: var(--text-secondary);
   overflow: hidden;
@@ -402,7 +421,7 @@
 }
 
 /* 返回按钮：固定在顶部窄条最左侧 */
-.tool-host-back {
+.tool-bar-back {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -420,13 +439,13 @@
   transition: opacity 0.2s, color 0.2s, border-color 0.2s, background 0.2s;
 }
 
-.tool-host-back:hover,
-.tool-host-back:focus-visible {
+.tool-bar-back:hover,
+.tool-bar-back:focus-visible {
   color: var(--accent);
   border-color: var(--accent);
 }
 
-.tool-host-back i {
+.tool-bar-back i {
   font-size: 12px;
   flex-shrink: 0;
 }
@@ -518,12 +537,12 @@
     padding-right: 16px;
   }
 
-  .tool-host-bar {
+  .tool-bar {
     height: 30px;
     padding: 0 8px;
   }
 
-  .tool-host-back {
+  .tool-bar-back {
     height: 22px;
     padding: 0 8px;
   }

@@ -1,11 +1,6 @@
 <template>
   <div class="md-tool" :class="{ narrow: isNarrow }">
     <div class="md-tool-header">
-      <div class="md-tool-title">
-        <i class="fas fa-file-alt"></i> 工具
-        <span class="md-tool-sep">/</span>
-        Markdown 编辑
-      </div>
       <div class="md-workspace-bar">
         <i class="fas fa-file-alt"></i>
         <input
@@ -333,11 +328,6 @@ watch(dirty, (v) => emit('dirty-change', v))
 
 // 状态栏文案：从未保存过 → 未保存（此前误报「已保存」）；保存过且无改动 → 已保存
 const saveState = computed(() => toolSaveState({ hasFile: !!savedName.value, dirty: dirty.value }))
-
-// 返回：直接上报外层，未保存由 ChatView 统一弹确认（工具内不再自带弹窗，避免弹两次）
-function onBack() {
-  emit('back')
-}
 
 // ===== 滚动同步引擎（上游算法，见 scroll-sync.js） =====
 const scrollSyncOn = ref(localStorage.getItem('md_tool_scroll_sync') !== '0')

@@ -119,51 +119,74 @@
       :class="{ 'fade-out': contentFading }"
       @back="onToolBack"
     />
-    <MarkdownTool
+    <!-- 内置工具：统一套 ToolShell（顶部窄条显示工具名 + 返回），工具自身不再重复画标题 -->
+    <ToolShell
       v-else-if="pageType==='tools' && currentTool==='markdown'"
-      ref="markdownToolRef"
+      name="Markdown 编辑"
       class="ide-host fade-content"
       :class="{ 'fade-out': contentFading }"
       @back="onToolBack"
-      @dirty-change="toolsDirty = $event"
-    />
-    <ImageTool
+    >
+      <MarkdownTool
+        ref="markdownToolRef"
+        @dirty-change="toolsDirty = $event"
+      />
+    </ToolShell>
+    <ToolShell
       v-else-if="pageType==='tools' && currentTool==='image'"
-      ref="imageToolRef"
+      name="图片编辑"
       class="ide-host fade-content"
       :class="{ 'fade-out': contentFading }"
       @back="onToolBack"
-      @dirty-change="toolsDirty = $event"
-      @send-image="onImageToolSend"
-    />
-    <GraphTool
+    >
+      <ImageTool
+        ref="imageToolRef"
+        @dirty-change="toolsDirty = $event"
+        @send-image="onImageToolSend"
+      />
+    </ToolShell>
+    <ToolShell
       v-else-if="pageType==='tools' && currentTool==='graph_editor'"
-      ref="graphToolRef"
+      name="Graph Editor"
       class="ide-host fade-content"
       :class="{ 'fade-out': contentFading }"
       @back="onToolBack"
-      @dirty-change="toolsDirty = $event"
-    />
-    <CalculatorTool
+    >
+      <GraphTool
+        ref="graphToolRef"
+        @dirty-change="toolsDirty = $event"
+      />
+    </ToolShell>
+    <ToolShell
       v-else-if="pageType==='tools' && currentTool==='calculator'"
+      name="计算器"
       class="ide-host fade-content"
       :class="{ 'fade-out': contentFading }"
       @back="onToolBack"
-    />
-    <TimerTool
+    >
+      <CalculatorTool />
+    </ToolShell>
+    <ToolShell
       v-else-if="pageType==='tools' && currentTool==='timer'"
+      name="计时器"
       class="ide-host fade-content"
       :class="{ 'fade-out': contentFading }"
       @back="onToolBack"
-    />
-    <MathTool
+    >
+      <TimerTool />
+    </ToolShell>
+    <ToolShell
       v-else-if="pageType==='tools' && currentTool==='math'"
-      ref="mathToolRef"
+      name="GeoGebra"
       class="ide-host fade-content"
       :class="{ 'fade-out': contentFading }"
       @back="onToolBack"
-      @dirty-change="toolsDirty = $event"
-    />
+    >
+      <MathTool
+        ref="mathToolRef"
+        @dirty-change="toolsDirty = $event"
+      />
+    </ToolShell>
     <SettingsPanel
       v-if="pageType==='settings'"
       class="fade-content"
@@ -326,6 +349,7 @@ import GroupActionMenu from '../components/GroupActionMenu.vue';
 import SearchPanel from '../components/SearchPanel.vue';
 import ToolsView from './ToolsView.vue';
 import ToolHost from '../components/ToolHost.vue';
+import ToolShell from '../components/ToolShell.vue';
 import MarkdownTool from './tools/MarkdownTool.vue';
 import ImageTool from './tools/ImageTool.vue';
 import GraphTool from './tools/graph/GraphTool.vue';

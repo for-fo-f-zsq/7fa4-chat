@@ -1,11 +1,6 @@
 <template>
   <div class="md-tool">
     <div class="md-tool-header">
-      <div class="md-tool-title">
-        <i class="fas fa-paint-brush"></i> 工具
-        <span class="md-tool-sep">/</span>
-        图片编辑
-      </div>
       <div class="md-workspace-bar">
         <i class="fas fa-image"></i>
         <span class="md-workspace-path" :title="currentName || '未打开图片'">{{ currentName || '未打开图片' }}</span>
@@ -161,11 +156,6 @@ const saveState = computed(() => toolSaveState({ hasFile: !!savedName.value, dir
 // dirty 变化上报父级（切换页面/离开工具时的未保存拦截由 ChatView 统一负责，
 // 工具内不再自带确认弹窗，避免返回时连续弹出两次）
 watch(dirty, (v) => emit('dirty-change', v))
-
-// 返回：直接上报外层，未保存由外层弹确认
-function onBack() {
-  emit('back')
-}
 
 const canvasReady = computed(() => width.value > 0 && height.value > 0)
 const canvasStyleW = computed(() => Math.round(width.value * zoomScale.value))

@@ -1,13 +1,5 @@
 <template>
   <div class="calc-tool" :class="{ narrow: isNarrow }">
-    <div class="calc-tool-header">
-      <div class="calc-tool-title">
-        <i class="fas fa-toolbox"></i> 工具
-        <span class="calc-tool-sep">/</span>
-        <i class="fas fa-calculator"></i> 计算器
-      </div>
-    </div>
-
     <div class="calc-body">
       <!-- 窄模式：侧边把手（历史抽屉收起时仍可见，点击展开/收起） -->
       <div v-if="isNarrow" class="calc-side-handle" :class="{ open: historyOpen }" @click="historyOpen = !historyOpen" :title="historyOpen ? '收起历史' : '展开历史'">

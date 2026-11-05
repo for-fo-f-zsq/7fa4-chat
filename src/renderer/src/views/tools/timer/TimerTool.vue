@@ -1,12 +1,6 @@
 <template>
   <div class="tm-tool" :class="{ narrow: isNarrow }">
     <div class="tm-header">
-      <i class="fas fa-toolbox"></i>
-      <span>工具</span>
-      <span class="tm-sep">/</span>
-      <i class="fas fa-stopwatch"></i>
-      <span>计时器</span>
-
       <div class="tm-header-right">
         <div class="tm-seg tm-layout-seg" title="显示格数">
           <button v-for="n in LAYOUTS" :key="n" :class="{ on: timer.layout === n }" @click="timer.layout = n">{{ n }} 格</button>

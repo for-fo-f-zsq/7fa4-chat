@@ -1,11 +1,5 @@
 <template>
   <div class="math-official">
-    <div class="math-official-header">
-      <span class="math-official-title">
-        <i class="fas fa-chart-line"></i> 工具 <span class="math-official-sep">/</span> GeoGebra
-      </span>
-      <span class="math-official-note" v-if="!loaded">本地离线版启动中…</span>
-    </div>
     <div class="math-official-body">
       <iframe
         ref="frameRef"
