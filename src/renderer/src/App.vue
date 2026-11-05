@@ -8,6 +8,7 @@
   <div v-if="store.initializing && store.logined" class="init-loading">
     <div class="init-spinner"></div>
     <div class="init-text">正在加载消息…</div>
+    <div class="init-sub">本轮已获取 {{ store.fetchNewCount }} 条新消息</div>
   </div>
   <canvas class="particle-canvas" ref="canvasEl" v-if="showParticles"></canvas>
 </template>
@@ -293,6 +294,12 @@ onUnmounted(() => {
   color: var(--text-primary, #e6e6e6);
   font-size: 14px;
   letter-spacing: 1px;
+}
+.init-sub {
+  margin-top: -10px;
+  color: var(--text-secondary, #8a8f99);
+  font-size: 12px;
+  letter-spacing: 0.5px;
 }
 @keyframes init-spin {
   to { transform: rotate(360deg); }

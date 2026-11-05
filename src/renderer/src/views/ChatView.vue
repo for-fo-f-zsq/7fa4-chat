@@ -1463,6 +1463,7 @@ async function clearCacheAndReload() {
     // 从服务器重新拉取（爬取模式：拉取 100 条 + 继续翻页取尽历史）
     const result = await (await safeFetch('/chat/info')).json();
     if (result.success) await update(result);
+    store.fetchNewCount = 0;
     await updateMessagesData(100, true);
   } catch {} finally {
     store.initializing = false;
@@ -1559,6 +1560,7 @@ async function fetchMessages(type, end, take = 10, allowPage = false) {
         const msgContent = c.content;
         // ⭐ 入库闸门：投票回复合并进 poll 消息、不单独落库（不计未读/不占 20 条）
         const ing = ingestMessage(t, c);
+        if (store.initializing && ing.kind !== 'vote') store.fetchNewCount++;
         const persistKind = type === 'group' ? 'group' : 'user';
         const persistCid = type === 'group' ? c.receiver_id : (type === 'send_user' ? c.receiver_id : c.sender_id);
         markMsgDirty(persistKind, persistCid);
@@ -1818,6 +1820,7 @@ async function startInfoLoop() {
     if (r.success) { await update(r); failCount = 0; store.netError = false; store.online = true; }
     else { failCount++; store.netError = true; }
   } catch { failCount++; store.netError = true; }
+  store.fetchNewCount = 0;
   try { await updateMessagesData(100, true); } catch {}
   // 首次历史爬取（无论成败）结束：隐藏"正在加载消息…"提示，进入常规轮询
   store.initializing = false;
