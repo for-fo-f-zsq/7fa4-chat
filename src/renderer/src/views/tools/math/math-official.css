@@ -1,4 +1,10 @@
-/* 数学画板（GeoGebra 官方版）样式 */
+/**
+ * 数学画板（GeoGebra 官方版，MathTool.vue）自有样式 —— 仅本组件以 `<style scoped src>` 引入
+ *
+ * P2-E：从 script import 全局 CSS 改为 scoped src；配色 / 字号全部走设计令牌。
+ * iframe 内是 GeoGebra 自绘内容，外层背景仅在加载完成前可见，用主题底色避免暗色主题闪白。
+ */
+
 .math-official {
   flex: 1;
   min-width: 0;
@@ -6,7 +12,7 @@
   flex-direction: column;
   width: 100%;
   height: 100%;
-  background: var(--bg-app);
+  background: var(--surface-0);
   overflow: hidden;
 }
 
@@ -22,7 +28,7 @@
   width: 100%;
   height: 100%;
   border: none;
-  background: #fff;
+  background: var(--surface-0);
 }
 
 .math-official-loading {
@@ -33,16 +39,21 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: var(--bg-app);
-  color: var(--text-secondary);
-  font-size: var(--font-size-base);
+  background: var(--surface-0);
+  color: var(--fg-muted);
+  font-size: var(--text-base);
   pointer-events: none;
 }
-.math-official-loading i { color: var(--accent); font-size: 22px; }
+
+.math-official-loading i {
+  color: var(--brand);
+  font-size: var(--text-3xl);
+}
+
 .math-official-loading-sub {
-  font-size: var(--font-size-small);
-  opacity: 0.7;
+  font-size: var(--text-sm);
+  opacity: var(--opacity-muted);
   max-width: 480px;
   text-align: center;
-  line-height: 1.6;
+  line-height: var(--leading-relaxed);
 }

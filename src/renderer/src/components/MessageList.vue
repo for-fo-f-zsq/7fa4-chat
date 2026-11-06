@@ -1,27 +1,30 @@
 <template>
+  <Transition name="fade-down">
   <div class="multi-select-bar" v-if="store.multiSelectMode">
     <span class="msb-info">已选 {{ store.selectedMsgIds.length }} 条</span>
     <div class="msb-actions">
-      <button class="msb-btn" @click="$emit('batchForward')" :disabled="!store.selectedMsgIds.length"><i class="fas fa-share"></i> 批量转发</button>
-      <button class="msb-btn" @click="exitMultiSelect"><i class="fas fa-times"></i> 退出多选</button>
+      <UiButton class="msb-btn" size="sm" variant="secondary" icon="fas fa-share" :disabled="!store.selectedMsgIds.length" @click="$emit('batchForward')">批量转发</UiButton>
+      <UiButton class="msb-btn" size="sm" variant="ghost" icon="fas fa-times" @click="exitMultiSelect">退出多选</UiButton>
     </div>
   </div>
+  </Transition>
+  <div class="message-list-shell">
   <div class="message-area" ref="messageAreaEl" @scroll="onScroll" @click="onMessageAreaClick">
     <div class="load-more-hint-row" v-if="hasOlderMessages && !loadingMore">
       <span class="load-more-hint-text"><i class="fas fa-chevron-up"></i> 向上滚动加载更多</span>
     </div>
-    <div class="load-more-spinner" v-if="loadingMore"><i class="fas fa-spinner"></i> 加载中...</div>
+    <div class="load-more-spinner" v-if="loadingMore"><i class="fas fa-spinner motion-spin"></i> 加载中...</div>
     <template v-if="!visibleMessages.length && !hasOlderMessages">
-      <div class="msg-skeleton"><div class="skeleton-avatar"></div><div class="skeleton-bubble"></div></div>
-      <div class="msg-skeleton right"><div class="skeleton-avatar"></div><div class="skeleton-bubble"></div></div>
-      <div class="msg-skeleton"><div class="skeleton-avatar"></div><div class="skeleton-bubble"></div></div>
+      <div class="msg-skeleton motion-pulse"><UiSkeleton variant="circle" class="skeleton-avatar" :animated="false" /><UiSkeleton variant="rect" class="skeleton-bubble" :animated="false" /></div>
+      <div class="msg-skeleton right motion-pulse"><UiSkeleton variant="circle" class="skeleton-avatar" :animated="false" /><UiSkeleton variant="rect" class="skeleton-bubble" :animated="false" /></div>
+      <div class="msg-skeleton motion-pulse"><UiSkeleton variant="circle" class="skeleton-avatar" :animated="false" /><UiSkeleton variant="rect" class="skeleton-bubble" :animated="false" /></div>
     </template>
     <template v-for="item in messagesWithSeparators" :key="item.type === 'separator' ? 'sep_' + item.timestamp : item.data.id">
       <div v-if="item.type === 'separator'" class="msg-date-separator">{{ item.label }}</div>
       <div
         v-else
         class="msg-row"
-        :class="[item.data.sender == selfUid ? 'right' : 'left', { 'multi-select-active': store.multiSelectMode }]"
+        :class="[item.data.sender == selfUid ? 'right' : 'left', { 'multi-select-active': store.multiSelectMode, 'motion-message-in': item.data.sender == selfUid }]"
         :data-msg-id="item.data.id"
       >
         <div class="msg-checkbox" v-if="store.multiSelectMode && !isPatMsg(item.data)" :class="{ checked: store.selectedMsgIds.includes(item.data.id) }" @click.stop="toggleMsgSelect(item.data.id)">
@@ -32,7 +35,7 @@
             @click.stop="onAvatarSingleClick(item.data.sender)"
             @dblclick="onAvatarDoubleClick(item.data.sender)"
             @contextmenu.prevent="pageType=='group'&&$emit('openGroupActionMenu', $event, item.data.sender)">
-            <div class="avatar-placeholder-sm">{{ getAvatarInitial(item.data.sender) }}</div>
+            <div class="avatar-placeholder-sm" :style="{ background: avatarTint(item.data.sender) }">{{ getAvatarInitial(item.data.sender) }}</div>
           </div>
           <div class="bubble-wrap">
             <div class="bubble-header">
@@ -44,7 +47,7 @@
               @contextmenu.prevent="pageType=='group'&&$emit('openGroupActionMenu', $event, item.data.sender)">{{ displayName(msgSenderUser(item.data)) }}</span>
               <span class="time">{{ gettime2(item.data.send_time) }}</span>
             </div>
-            <div class="bubble" :class="{ collapsed: collapsedMsgs[item.data.id] }"
+            <div class="bubble" :class="{ collapsed: isCollapsed(item.data) }"
               @contextmenu.prevent="onMsgMenu($event, item.data)">
               <!-- 投票：可交互卡片替代气泡 -->
               <PollCard
@@ -58,18 +61,18 @@
               />
               <div v-else class="bubble-content luogu-md" v-html="renderContent(item.data.content, item.data.sender)"></div>
             </div>
-            <div class="expand-btn" v-if="collapsedMsgs[item.data.id]" @click="openMsgPreview(item.data)">查看更多</div>
+            <div class="expand-btn" v-if="isCollapsed(item.data)" @click="openMsgPreview(item.data)">查看更多</div>
           </div>
         </template>
         <template v-else>
           <div class="msg-avatar">
-            <div class="avatar-placeholder-sm">{{ getAvatarInitial(selfUid) }}</div>
+            <div class="avatar-placeholder-sm" :style="{ background: avatarTint(selfUid) }">{{ getAvatarInitial(selfUid) }}</div>
           </div>
           <div class="bubble-wrap bubble-wrap-self">
             <div class="bubble-header">
               <span class="time">{{ gettime2(item.data.send_time) }}</span>
             </div>
-            <div class="bubble" :class="{ collapsed: collapsedMsgs[item.data.id] }"
+            <div class="bubble" :class="{ collapsed: isCollapsed(item.data) }"
               @contextmenu.prevent="onMsgMenu($event, item.data)">
               <PollCard
                 v-if="pollOf(item.data)"
@@ -82,12 +85,15 @@
               />
               <div v-else class="bubble-content luogu-md" v-html="renderContent(item.data.content, item.data.sender)"></div>
             </div>
-            <div class="expand-btn" v-if="collapsedMsgs[item.data.id]" @click="openMsgPreview(item.data)">查看更多</div>
+            <div class="expand-btn" v-if="isCollapsed(item.data)" @click="openMsgPreview(item.data)">查看更多</div>
           </div>
         </template>
       </div>
     </template>
-    <button class="scroll-to-bottom-btn" v-if="!isAtBottom" @click="scrollToBottom" title="滚动到底部"><i class="fas fa-chevron-down"></i></button>
+  </div>
+  <Transition name="fade">
+    <UiIconButton class="scroll-to-bottom-btn" v-if="!isAtBottom" icon="fas fa-chevron-down" aria-label="滚动到底部" title="滚动到底部" round @click="scrollToBottom" />
+  </Transition>
   </div>
   <MsgMenu
     v-if="msgCtx.show"
@@ -106,13 +112,14 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onUpdated, onUnmounted, watch, nextTick } from 'vue';
+import { ref, reactive, computed, onMounted, onUpdated, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown, compressBase64Image, parsePoll, aggregatePoll } from '../utils.js';
+import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown, compressBase64Image, parsePoll, aggregatePoll, avatarTint } from '../utils.js';
 import MsgMenu from './MsgMenu.vue';
 import PollCard from './PollCard.vue';
 import { useCurrentMessages } from '../composables/useCurrentMessages.js';
-import '../css/message-list.css';
+import { scrollToY, waitForMotion, motionDuration } from '../utils/motion.js';
+import { UiButton, UiIconButton, UiSkeleton } from '../ui/index.js';
 
 
 const props = defineProps({
@@ -138,6 +145,8 @@ const emit = defineEmits([
 const messageAreaEl = ref(null);
 const loadingMore = ref(false);
 const isAtBottom = ref(true);
+// 到底判定阈值（唯一来源；原 onScroll 60 / doScrollToBottom 10 两套已统一）
+const AT_BOTTOM_THRESHOLD = 60;
 
 const targetUser = computed(() => store.users?.[props.pageId] || null);
 const targetGroup = computed(() => store.groups?.[props.pageId] || null);
@@ -172,7 +181,7 @@ const messagesWithSeparators = computed(() => {
 function onScroll() {
   const el = messageAreaEl.value;
   if (!el) return;
-  isAtBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  isAtBottom.value = el.scrollHeight - el.scrollTop - el.clientHeight < AT_BOTTOM_THRESHOLD;
   // 向上加载更多：滚动位置修正回顶部附近（scrollTop > 0）后立即隐藏加载指示，避免固定延时闪烁
   if (loadingMore.value && el.scrollTop > 0) {
     loadingMore.value = false;
@@ -261,6 +270,7 @@ function onAvatarDoubleClick(uid) {
 }
 onUnmounted(() => {
   if (avatarClickTimer) clearTimeout(avatarClickTimer);
+  messageAreaEl.value?.removeEventListener('load', onMessageAreaLoad, true);
 });
 
 // 代码块复制按钮注入
@@ -288,55 +298,78 @@ function injectCodeCopyButtons() {
   }
 }
 
-onUpdated(() => {
-  if (!messageAreaEl.value) return;
-  const rows = messageAreaEl.value.querySelectorAll('.msg-row');
+// ===== 长消息折叠 =====
+// 折叠阈值：只认渲染后的实际高度（源码字符数不可信 —— markdown、base64 图片、公式都会改变渲染高度）。
+// 与 .bubble.collapsed 的 max-height 保持一致：只有真正超过 300px 才折叠，不会白切一点。
+const COLLAPSE_MAX_H = 300;
+const measuredMsgIds = new Set();
+
+/** 媒体消息：整条就是图片/表情/文件/投票，自身已限高，不需要「查看更多」 */
+function isMediaRow(row) {
+  return !!row.querySelector(
+    '.chat-image[data-image-msg="1"], .sticker-msg, .emoji-msg, .file-msg, .poll-card, video, iframe'
+  );
+}
+
+/** 是否折叠：只按测量结果，投票卡片恒不折叠 */
+function isCollapsed(msg) {
+  if (!msg || pollOf(msg)) return false;
+  return !!props.collapsedMsgs[msg.id];
+}
+
+let measureRaf = 0;
+function measureCollapseOnce() {
+  measureRaf = 0;
+  const area = messageAreaEl.value;
+  if (!area) return;
+  const rows = area.querySelectorAll('.msg-row');
+  const hits = [];
   for (const row of rows) {
     const id = Number(row.dataset.msgId);
-    if (!id) continue;
-    // 投票卡片默认不折叠（折叠会把「确认投票」藏到「查看更多」后）：主动清除其折叠标记，而非仅跳过
-    if (row.querySelector('.poll-card')) {
-      if (props.collapsedMsgs[id]) delete props.collapsedMsgs[id];
-      continue;
-    }
-    if (props.collapsedMsgs[id]) continue;
+    if (!id || measuredMsgIds.has(id)) continue;
     const bubble = row.querySelector('.bubble');
-    if (bubble && bubble.scrollHeight > 320) {
-      props.collapsedMsgs[id] = true;
-    }
+    if (!bubble) continue;
+    if (isMediaRow(row)) { measuredMsgIds.add(id); continue; }
+    // 图片解码前高度为 0，先不判定，等 load 事件重新调度
+    if (Array.from(row.querySelectorAll('img')).some((img) => !img.complete)) continue;
+    measuredMsgIds.add(id);
+    if (!props.collapsedMsgs[id] && bubble.scrollHeight > COLLAPSE_MAX_H) hits.push(id);
   }
+  for (const id of hits) props.collapsedMsgs[id] = true;
+}
+
+function scheduleMeasureCollapse() {
+  if (measureRaf) return;
+  // rAF 里再 nextTick：确保 DOM 已更新且仍在绘制前，避免「先铺满再收起」的跳动
+  measureRaf = requestAnimationFrame(() => nextTick(measureCollapseOnce));
+}
+
+// 图片解码完成会派发 load（不冒泡，用捕获监听），解码后高度才可信，重新调度一次测量
+function onMessageAreaLoad() {
+  scheduleMeasureCollapse();
+}
+onMounted(() => {
+  scheduleMeasureCollapse();
+  messageAreaEl.value?.addEventListener('load', onMessageAreaLoad, true);
+});
+watch(() => [props.pageType, props.pageId], () => { measuredMsgIds.clear(); });
+
+onUpdated(() => {
+  scheduleMeasureCollapse();
   injectCodeCopyButtons();
 });
 
 let lastMsgCount = 0;
 let lastPageId = null;
 let scrollTimer = null;
-let scrollAnim = null;
-
-function smoothScrollTo(el, targetTop, duration = 600) {
-  if (scrollAnim) cancelAnimationFrame(scrollAnim);
-  const startTop = el.scrollTop;
-  const distance = targetTop - startTop;
-  if (distance <= 0) return;
-  const startTime = performance.now();
-  function step(now) {
-    const elapsed = now - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    // easeOutCubic
-    const ease = 1 - Math.pow(1 - progress, 3);
-    el.scrollTop = startTop + distance * ease;
-    if (progress < 1) {
-      scrollAnim = requestAnimationFrame(step);
-    } else {
-      scrollAnim = null;
-    }
-  }
-  scrollAnim = requestAnimationFrame(step);
+// 统一走 utils/motion.js：默认 slow(260ms)+standard，reduced-motion / fx-lite 瞬时定位
+function smoothScrollTo(el, targetTop, duration) {
+  if (targetTop <= el.scrollTop) return;
+  scrollToY(el, targetTop, { duration: duration ?? motionDuration('slow') });
 }
 
 function doScrollToBottom(pageChanged) {
   if (scrollTimer) clearTimeout(scrollTimer);
-  if (scrollAnim) cancelAnimationFrame(scrollAnim);
   const tryScroll = (attempt) => {
     nextTick(() => {
       if (messageAreaEl.value) {
@@ -346,9 +379,9 @@ function doScrollToBottom(pageChanged) {
           el.scrollTop = el.scrollHeight;
           return;
         }
-        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 10;
+        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < AT_BOTTOM_THRESHOLD;
         if (!atBottom || attempt === 0) {
-          smoothScrollTo(el, el.scrollHeight, 600);
+          smoothScrollTo(el, el.scrollHeight);
         }
         if (attempt < 3 && !atBottom) {
           scrollTimer = setTimeout(() => tryScroll(attempt + 1), 80);
@@ -382,7 +415,7 @@ watch(() => props.pageId, () => {
 function scrollToBottom() {
   nextTick(() => {
     if (messageAreaEl.value) {
-      smoothScrollTo(messageAreaEl.value, messageAreaEl.value.scrollHeight, 600);
+      smoothScrollTo(messageAreaEl.value, messageAreaEl.value.scrollHeight);
     }
   });
 }
@@ -405,9 +438,16 @@ function jumpToMessage(msgId) {
   nextTick(() => {
     const el = messageAreaEl.value?.querySelector(`[data-msg-id="${msgId}"]`);
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('msg-highlight');
-      setTimeout(() => el.classList.remove('msg-highlight'), 1500);
+      const area = messageAreaEl.value;
+      if (area) {
+        const areaRect = area.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        // 居中定位：等价于 scrollIntoView({block:'center'})，但走统一滚动 API
+        const centerTop = elRect.top - areaRect.top + area.scrollTop - area.clientHeight / 2 + elRect.height / 2;
+        scrollToY(area, Math.max(0, centerTop), { duration: motionDuration('slow') });
+      }
+      el.classList.add('motion-highlight');
+      waitForMotion(el, { timeout: motionDuration('hold') + 200 }).then(() => el.classList.remove('motion-highlight'));
     }
   });
 }
@@ -657,3 +697,5 @@ function onMessageAreaClick(e) {
 
 defineExpose({ messageAreaEl, scrollToBottom, scrollToBottomInstant, jumpToMessage, msgCtx, exitMultiSelect });
 </script>
+
+<style scoped src="../css/message-list.css"></style>

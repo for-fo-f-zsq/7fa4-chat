@@ -5,56 +5,96 @@
         <i class="fas fa-image"></i>
         <span class="md-workspace-path" :title="currentName || '未打开图片'">{{ currentName || '未打开图片' }}</span>
         <span class="tool-save-state" :class="saveState.cls" :title="savedPath || (savedName || '尚未保存到文件')">{{ saveState.text }}</span>
-        <button class="md-ws-btn md-ws-btn-icon" title="打开图片" @click="openImage"><i class="fas fa-folder-open"></i></button>
-        <button class="md-ws-btn md-ws-btn-icon" title="新建空白画布" @click="newCanvas"><i class="fas fa-plus-square"></i></button>
-        <button class="md-ws-btn md-ws-btn-icon" title="保存 (Ctrl+S)：首次选位置，之后直接覆盖该文件" :disabled="!canvasReady || saving" @click="save"><i class="fas fa-save"></i></button>
-        <button class="md-ws-btn md-ws-btn-send" title="发送到会话（选择接收方）" :disabled="loading" @click="sendToChat"><i class="fas fa-paper-plane"></i> 发送</button>
+        <UiIconButton size="sm" icon="fas fa-folder-open" title="打开图片" aria-label="打开图片" @click="openImage" />
+        <UiIconButton size="sm" icon="fas fa-plus-square" title="新建空白画布" aria-label="新建空白画布" @click="newCanvas" />
+        <UiIconButton
+          size="sm"
+          icon="fas fa-save"
+          title="保存 (Ctrl+S)：首次选位置，之后直接覆盖该文件"
+          aria-label="保存"
+          :disabled="!canvasReady || saving"
+          @click="save"
+        />
+        <UiButton
+          size="sm"
+          variant="primary"
+          icon="fas fa-paper-plane"
+          title="发送到会话（选择接收方）"
+          :disabled="loading"
+          @click="sendToChat"
+        >
+          发送
+        </UiButton>
       </div>
     </div>
 
     <div class="md-tool-body">
-      <div v-if="!canvasReady" class="img-tool-empty">
-        <i class="fas fa-image" style="font-size: 40px; opacity: 0.4;"></i>
-        <span>打开一张图片进行编辑，或新建空白画布涂鸦</span>
-        <button @click="openImage">打开图片</button>
-      </div>
+      <UiEmptyState
+        v-if="!canvasReady"
+        class="img-tool-empty"
+        icon="fas fa-image"
+        title="打开一张图片进行编辑"
+        description="或新建空白画布涂鸦"
+      >
+        <template #action>
+          <UiButton variant="primary" size="sm" @click="openImage">打开图片</UiButton>
+        </template>
+      </UiEmptyState>
       <div v-else class="img-editor">
         <div class="img-toolbar">
-          <button
+          <UiIconButton
             v-for="t in tools"
             :key="t.id"
-            class="img-tool-btn"
-            :class="{ active: tool === t.id }"
+            size="sm"
+            :icon="t.icon"
+            :active="tool === t.id"
             :title="t.title"
+            :aria-label="t.title"
             @click="tool = t.id"
-          ><i :class="t.icon"></i></button>
+          />
           <div class="img-tool-sep"></div>
           <label class="img-color-label" title="画笔颜色">
-            <input type="color" v-model="color" />
+            <input v-model="color" type="color" />
           </label>
           <div class="img-brush-size" title="画笔粗细">
             <i class="fas fa-circle img-size-icon" :style="{ fontSize: Math.max(6, size) + 'px' }"></i>
-            <input type="range" v-model.number="size" min="1" max="50" step="1" />
+            <input v-model.number="size" type="range" min="1" max="50" step="1" />
             <span class="img-size-val">{{ size }}</span>
           </div>
           <div class="img-tool-sep"></div>
-          <button class="img-tool-btn" title="旋转 90°" @click="rotate90"><i class="fas fa-redo-alt"></i></button>
-          <button class="img-tool-btn" title="撤销 (Ctrl+Z)" :disabled="!canUndo" @click="undo"><i class="fas fa-undo"></i></button>
-          <button class="img-tool-btn" title="清除本次绘制" @click="clearCanvas"><i class="fas fa-trash"></i></button>
+          <UiIconButton size="sm" icon="fas fa-redo-alt" title="旋转 90°" aria-label="旋转 90°" @click="rotate90" />
+          <UiIconButton size="sm" icon="fas fa-undo" title="撤销 (Ctrl+Z)" aria-label="撤销" :disabled="!canUndo" @click="undo" />
+          <UiIconButton size="sm" icon="fas fa-trash" title="清除本次绘制" aria-label="清除本次绘制" @click="clearCanvas" />
           <div class="img-tool-sep"></div>
           <div class="img-resize" title="调整画布尺寸（宽 × 高）">
-            <i class="fas fa-expand-arrows-alt"></i>
-            <input type="number" v-model.number="resizeW" min="1" :max="MAX_EDIT_SIDE" class="img-resize-input" />
+            <i class="fas fa-expand-arrows-alt" aria-hidden="true"></i>
+            <UiInput
+              class="img-resize-input"
+              type="number"
+              size="sm"
+              :model-value="resizeW"
+              @update:model-value="resizeW = Number($event) || 1"
+            />
             <span class="img-resize-x">×</span>
-            <input type="number" v-model.number="resizeH" min="1" :max="MAX_EDIT_SIDE" class="img-resize-input" />
-            <button class="img-resize-btn" title="应用新尺寸（原图内容保留在左上角）" @click="resizeCanvas">应用</button>
+            <UiInput
+              class="img-resize-input"
+              type="number"
+              size="sm"
+              :model-value="resizeH"
+              @update:model-value="resizeH = Number($event) || 1"
+            />
+            <UiButton size="sm" variant="secondary" title="应用新尺寸（原图内容保留在左上角）" @click="resizeCanvas">
+              应用
+            </UiButton>
           </div>
           <div class="img-tool-sep"></div>
           <div class="img-zoom" title="缩放画布（Ctrl+滚轮也可）">
-            <button class="img-zoom-btn" title="缩小" @click="zoomOut"><i class="fas fa-search-minus"></i></button>
-            <button class="img-zoom-pct" title="重置为 100%" @click="zoomReset">{{ Math.round(zoomScale * 100) }}%</button>
-            <button class="img-zoom-btn" title="放大" @click="zoomIn"><i class="fas fa-search-plus"></i></button>
-            <button class="img-zoom-btn" title="适配窗口" @click="zoomFit"><i class="fas fa-expand"></i></button>
+            <UiIconButton size="sm" icon="fas fa-search-minus" title="缩小" aria-label="缩小" @click="zoomOut" />
+            <UiButton size="sm" variant="text" title="重置为 100%" @click="zoomReset">
+              {{ Math.round(zoomScale * 100) }}%
+            </UiButton>
+            <UiIconButton size="sm" icon="fas fa-search-plus" title="放大" aria-label="放大" @click="zoomIn" />
+            <UiIconButton size="sm" icon="fas fa-expand" title="适配窗口" aria-label="适配窗口" @click="zoomFit" />
           </div>
         </div>
         <div ref="wrapEl" class="img-canvas-wrap">
@@ -67,17 +107,27 @@
             @pointerup="onPointerUp"
             @pointercancel="onPointerUp"
           ></canvas>
-          <div v-if="loading" class="img-overlay"><i class="fas fa-spinner fa-spin"></i> 加载中…</div>
-          <div v-if="loadError" class="img-overlay img-overlay-error">
-            <i class="fas fa-exclamation-triangle"></i> {{ loadError }}
+          <div v-if="loading" class="img-overlay">
+            <UiSpinner size="sm" />
+            <span>加载中…</span>
+          </div>
+          <div v-if="loadError" class="img-overlay">
+            <UiBanner variant="danger">{{ loadError }}</UiBanner>
           </div>
           <!-- #8 就地文字编辑（contenteditable，所见即所得；点击处为 editor 左上角） -->
           <div v-if="textDraft" class="img-text-overlay" :style="{ left: textBoxLeft + 'px', top: textBoxTop + 'px' }" @mousedown.stop @pointerdown.stop @click.stop>
             <div class="img-text-toolbar">
-              <input type="number" v-model.number="fontSize" min="10" max="200" step="1" title="字号">
+              <UiInput
+                class="img-text-size"
+                type="number"
+                size="sm"
+                title="字号"
+                :model-value="fontSize"
+                @update:model-value="fontSize = Number($event) || 16"
+              />
               <label title="颜色"><input type="color" v-model="color"></label>
-              <button class="img-text-ok" title="确认应用" @click="commitText"><i class="fas fa-check"></i></button>
-              <button class="img-text-cancel" title="取消" @click="cancelText"><i class="fas fa-times"></i></button>
+              <UiIconButton size="sm" variant="solid" icon="fas fa-check" title="确认应用" aria-label="确认应用" @click="commitText" />
+              <UiIconButton size="sm" icon="fas fa-times" title="取消" aria-label="取消" @click="cancelText" />
             </div>
             <div
               ref="textRef"
@@ -91,7 +141,14 @@
         </div>
         <div class="img-footer">
           <span class="img-meta">{{ currentName || '未命名' }} · {{ width }} × {{ height }}px{{ mime === 'image/jpeg' ? ' · JPEG' : mime === 'image/png' ? '' : ' · 保存时将转为 PNG' }}</span>
-          <button class="md-save-btn md-save-btn-icon" :title="'保存到文件'" :disabled="!!loadError || (!dirty && !!savedPath)" @click="save"><i class="fas fa-save"></i></button>
+          <UiIconButton
+            size="sm"
+            icon="fas fa-save"
+            title="保存到文件"
+            aria-label="保存到文件"
+            :disabled="!!loadError || (!dirty && !!savedPath)"
+            @click="save"
+          />
         </div>
       </div>
     </div>
@@ -100,8 +157,8 @@
 
 <script setup>
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
+import { UiBanner, UiButton, UiEmptyState, UiIconButton, UiInput, UiSpinner } from '@/ui'
 import { saveToolFile, toolSaveState, flashTip } from '../../utils.js'
-import './ide/ide-tool.css'
 
 const emit = defineEmits(['back', 'dirty-change', 'sendImage'])
 
@@ -779,3 +836,5 @@ onUnmounted(() => {
 
 defineExpose({ save, imageOpen })
 </script>
+
+<style scoped src="./ide/ide-tool.css"></style>

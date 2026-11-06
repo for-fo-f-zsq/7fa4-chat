@@ -1,0 +1,136 @@
+/* ========== 主题：暖沙（Sand）==========
+   低饱和暖沙底：米沙色应用底 + 砂杏 accent + 暖深棕文字，接近纸面质感。
+   约定：浅色填充统一配深墨色文字（--text-on-accent），不出现深色实心块。
+   头像色板：--avatar-tint-1..8 为 8 组同调极浅底，--avatar-tint-text 为统一深墨字。 */
+.theme-sand {
+  /* ---------- 背景（暖沙层次） ---------- */
+  --bg-app: #F7F2EA;
+  --bg-sidebar: #F0E9DD;
+  --bg-sidebar-hover: #E8DFD0;
+  --bg-sidebar-active: #DFD4C2;
+  --bg-conversation-hover: #F2EBE0;
+  --bg-conversation-active: #E9DFD0;
+  --bg-conversation-press: #E0D4C3;
+  --bg-input: #F2EBE0;
+  --bg-input-focus: #EFE6D8;
+  --bg-input-footer-focus: #FBF7F1;
+  --bg-code-block: rgba(140, 115, 85, 0.08);
+  --bg-code-inline: rgba(140, 115, 85, 0.10);
+  --bg-code-inline-self: rgba(120, 90, 60, 0.12);
+  --bg-token-badge: #EFE7DA;
+  --bg-token-badge-hover: #E7DDCC;
+  --bg-settings-info: #FBF7F1;
+  --bg-about-content: #FBF7F1;
+  --bg-action-panel: #F3EDE3;
+  --bg-table-header: #F1E9DC;
+  --bg-role-owner: #FBEFE0;
+  --bg-role-admin: #F0E8DD;
+  --bg-role-member: #F4EEE7;
+  --bg-role-owner-hover: #F7E3CB;
+  --bg-role-admin-hover: #E8DDCD;
+  --bg-role-member-hover: #EFE7DB;
+  --bg-modal-overlay: rgba(58, 50, 41, 0.38);
+  --bg-group-detail: #FBF7F1;
+  --bg-gradient-end: #EDE4D6;
+
+  /* ---------- 边框 ---------- */
+  --border-light: #E0D6C6;
+  --border-table: #E2D8C9;
+  --border-row: #EAE2D5;
+  --border-conversation-bottom: rgba(120, 100, 80, 0.06);
+  --border-3d-light: rgba(255, 255, 255, 0.85);
+  --border-3d-dark: rgba(90, 72, 54, 0.10);
+
+  /* ---------- 文字 ---------- */
+  --text-primary: #3A3229;
+  --text-secondary: #6B5D4C;
+  --text-sidebar: #5C4F3F;
+  --text-link: #896942;
+  --text-link-self: #7A5C33;
+  --text-placeholder: #736A5D;
+  --text-error: #A15C56;
+  --text-mute-warning: #A15C56;
+  --text-mute-normal: #A98756;
+  --text-hint: #786E61;
+  --text-self-bubble-time: rgba(58, 44, 30, 0.56);
+  --text-blockquote: #625240;
+  --text-on-accent: #241C12;
+  --text-unread-badge: #9A574F;
+  --text-role-owner: #926531;
+  --text-idle: #7A6C5C;
+
+  /* ---------- 品牌色（低饱和砂杏，浅填充＋深墨字） ---------- */
+  --accent: #C9A87C;
+  --accent-hover: #C09C6C;
+  --accent-active: #B6905E;
+  --accent-light: rgba(201, 168, 124, 0.16);
+  --accent-outline: rgba(201, 168, 124, 0.36);
+  --gradient-accent: rgba(201, 168, 124, 0.26);
+  --gradient-subtle: rgba(201, 168, 124, 0.09);
+
+  /* ---------- 消息气泡 ---------- */
+  --message-self-bg: #E8DCC8;
+  --message-self-text: #2A2118;
+  --message-other-bg: #FCF9F4;
+
+  /* ---------- 头像 ---------- */
+  --avatar-grad-default: #E9DFCE;
+  --avatar-icon-color: #5C4F3F;
+  --avatar-shadow: 0 2px 8px rgba(90, 72, 54, 0.12), 0 1px 3px rgba(90, 72, 54, 0.06);
+  --avatar-msg-shadow: 0 2px 6px rgba(90, 72, 54, 0.10), 0 1px 2px rgba(90, 72, 54, 0.04);
+
+  /* ---------- 头像色板（浅底深字，暖调八色相） ---------- */
+  --avatar-tint-1: #F6E3DC;
+  --avatar-tint-2: #F7E4E4;
+  --avatar-tint-3: #F7F1DC;
+  --avatar-tint-4: #E9EFE1;
+  --avatar-tint-5: #E1EFEC;
+  --avatar-tint-6: #E3E9F2;
+  --avatar-tint-7: #EDE7F4;
+  --avatar-tint-8: #EFE9E1;
+  --avatar-tint-text: #2F261C;
+
+  /* ---------- 阴影 ---------- */
+  --shadow-card: 0 2px 4px rgba(90, 72, 54, 0.08), 0 4px 12px rgba(90, 72, 54, 0.06);
+  --shadow-card-hover: 0 6px 16px rgba(90, 72, 54, 0.14), 0 2px 6px rgba(90, 72, 54, 0.06);
+  --shadow-modal: 0 16px 48px rgba(70, 56, 42, 0.22), 0 6px 16px rgba(70, 56, 42, 0.10);
+  --shadow-btn-hover: 0 8px 20px rgba(201, 168, 124, 0.32), 0 4px 8px rgba(201, 168, 124, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  --shadow-logout-hover: 0 8px 20px rgba(200, 120, 110, 0.30), 0 4px 8px rgba(200, 120, 110, 0.15);
+  --shadow-bubble-hover: 0 6px 16px rgba(90, 72, 54, 0.12), 0 2px 6px rgba(90, 72, 54, 0.05);
+  --shadow-bubble-self: 0 2px 8px rgba(190, 160, 120, 0.20), 0 4px 12px rgba(190, 160, 120, 0.10);
+  --shadow-input-focus: 0 0 0 3px rgba(201, 168, 124, 0.16), 0 4px 12px rgba(190, 160, 120, 0.12), inset 0 1px 2px rgba(90, 72, 54, 0.04);
+
+  /* ---------- 滚动条 ---------- */
+  --scrollbar-thumb: #C9BCA9;
+  --scrollbar-thumb-hover: #B3A491;
+
+  /* ---------- 气泡箭头 ---------- */
+  --arrow-border-left: 6px solid var(--message-other-bg);
+  --arrow-border-right: 6px solid var(--message-self-bg);
+
+  /* ---------- 其他 ---------- */
+  --border-self-bubble: rgba(60, 44, 28, 0.12);
+  --border-self-blockquote: rgba(60, 44, 28, 0.20);
+  --btn-ripple: rgba(255, 255, 255, 0.35);
+  --logout-hover-bg: #C08578;
+
+  /* ---------- 等级色（洛谷，低饱和微调） ---------- */
+  --grade-x4: #C08A5E; --grade-x5: #AD7A4F; --grade-x6: #9A6A42;
+  --grade-c1: #5F9A88; --grade-c2: #508A79; --grade-c3: #427A6B;
+  --grade-g1: #7C9E6E; --grade-g2: #6B8D5E; --grade-g3: #5A7B4F;
+  --grade-d1: #6E8FB8; --grade-d2: #5E80AA; --grade-d3: #4F709C; --grade-d4: #41618D;
+  --grade-by: #9A9384; --grade-jl: #B07C9A; --grade-uk: #8F8A7E;
+
+  /* ---------- 状态色（低饱和暖调） ---------- */
+  --danger: #C9877A;
+  --danger-hover: #BE7A6C;
+  --success: #8EAE8B;
+  --warning: #C9A05E;
+  --notice: #B18FA6;
+
+  /* ---------- 主题色板（计时器/公告等需要多色的场景） ---------- */
+  --palette-1: #8A6A42;
+  --palette-2: #7E9A73;
+  --palette-3: #C9A05E;
+  --palette-4: #A97F96;
+}

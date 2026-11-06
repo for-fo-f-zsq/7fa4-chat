@@ -1,0 +1,232 @@
+/* 版本更新页（D 域：UpdatePanel.vue scoped）
+   - 状态卡/进度/按钮/错误条/空态交给 UiCard / UiProgress / UiButton / UiIconButton / UiBanner / UiEmptyState / UiSpinner。
+   - changelog 由 v-html 注入，内容节点没有 scoped 属性，故对 .changelog-body 内部统一用 :deep()。
+   - 颜色/阴影/圆角/时长全部走 tokens / motion 语义令牌。 */
+
+.update-view {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--gradient-panel);
+  padding: var(--space-5) var(--space-6);
+}
+.update-view-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: var(--border-width) solid var(--line);
+  flex-shrink: 0;
+}
+.update-view-header h2 {
+  margin: 0;
+  color: var(--fg);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-medium);
+}
+.update-view-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- 状态卡（外壳由 UiCard 提供） ---------- */
+.update-status-card {
+  flex-shrink: 0;
+}
+.update-status-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+.update-status-row .label {
+  min-width: 48px;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+.update-status-row .value {
+  color: var(--fg);
+  font-size: var(--text-sm);
+}
+.update-status-text {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  transition: color var(--motion-dur-base) var(--motion-ease-standard);
+}
+.update-status-text.status-idle {
+  color: var(--fg-muted);
+}
+.update-status-text.status-checking {
+  color: var(--fg-muted);
+}
+.update-status-text.status-available {
+  color: var(--status-warning);
+}
+.update-status-text.status-latest {
+  color: var(--status-success);
+}
+.update-status-text.status-downloading {
+  color: var(--brand);
+}
+.update-status-text.status-downloaded {
+  color: var(--status-success);
+}
+.update-status-text.status-error {
+  color: var(--fg-danger);
+}
+.update-refresh-btn {
+  margin-left: var(--space-1);
+}
+
+/* ---------- 进度（UiProgress 轨道 + 右侧百分比） ---------- */
+.update-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+.update-progress-bar {
+  flex: 1;
+  min-width: 0;
+}
+.update-progress-text {
+  flex: none;
+  color: var(--fg);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 操作区 ---------- */
+.update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.update-apk-hint {
+  margin-top: var(--space-2);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+/* ---------- 更新日志容器（唯一滚动区） ---------- */
+.update-log {
+  flex: 1;
+  min-height: 0;
+  margin-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-card);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-3) var(--space-5);
+  box-shadow: var(--elev-1);
+  border: var(--border-width) solid var(--line);
+  transition: background-color var(--motion-dur-emph) var(--motion-ease-standard);
+}
+.update-log .changelog-header {
+  flex-shrink: 0;
+  margin-bottom: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: var(--border-width) solid var(--line);
+  color: var(--fg);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-medium);
+}
+.update-log-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin-top: 2px;
+  padding-right: var(--space-1);
+}
+.update-log-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.update-log-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.update-log-scroll::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+.update-log-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-muted);
+}
+
+/* ---------- 更新日志内容（v-html，需 :deep） ---------- */
+.changelog-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+.changelog-body {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+}
+.changelog-body :deep(h2) {
+  margin: 0 0 6px 0;
+  color: var(--brand);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+.changelog-body :deep(ul) {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 14px 0;
+}
+.changelog-body :deep(li) {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.7;
+}
+.changelog-body :deep(.change-tag) {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 0 6px;
+  margin-top: 1px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  line-height: 18px;
+  white-space: nowrap;
+}
+.changelog-body :deep(.change-tag.new) {
+  background: var(--brand-soft);
+  color: var(--status-success);
+}
+.changelog-body :deep(.change-tag.improve) {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+.changelog-body :deep(.change-tag.fix) {
+  background: var(--brand-soft);
+  color: var(--status-warning);
+}
+.changelog-body :deep(.change-tag.base) {
+  background: var(--surface-hover);
+  color: var(--fg-muted);
+}
+.changelog-body :deep(.change-tag.notice) {
+  background: var(--brand-soft);
+  color: var(--status-notice);
+}
+.changelog-body :deep(li:has(.change-tag.notice)) {
+  background: var(--brand-soft);
+  border-radius: var(--radius-md);
+  padding: 4px var(--space-2);
+  margin: 2px 0;
+}

@@ -4,71 +4,77 @@
       <h2 class="page-title"><i class="fas fa-toolbox"></i> 工具</h2>
       <div class="tools-header-meta">
         <span v-if="updatedAtText" class="tools-updated" :title="manifestBuiltAtText ? '远端清单构建于 ' + manifestBuiltAtText : ''">工具列表更新于 {{ updatedAtText }}</span>
-        <button
+        <UiButton
           v-if="batchRunning || batchActionable"
-          class="tool-btn tools-batch"
-          type="button"
+          variant="secondary"
+          size="sm"
+          :loading="batchRunning"
           :disabled="batchRunning || loading"
           :title="batchTitle"
+          icon="fas fa-download"
           @click="batchInstall"
         >
-          <i class="fas" :class="batchRunning ? 'fa-spinner fa-spin' : 'fa-download'"></i>
-          <span>{{ batchLabel }}</span>
-        </button>
-        <button
-          class="tool-btn tools-refresh"
-          type="button"
+          {{ batchLabel }}
+        </UiButton>
+        <UiButton
+          variant="secondary"
+          size="sm"
+          :loading="loading"
           :disabled="loading"
           title="刷新工具列表"
+          icon="fas fa-rotate-right"
           @click="load"
         >
-          <i class="fas fa-rotate-right" :class="{ 'fa-spin': loading }"></i>
-          <span>{{ loading ? '刷新中' : '刷新' }}</span>
-        </button>
+          {{ loading ? '刷新中' : '刷新' }}
+        </UiButton>
       </div>
     </div>
 
-    <div v-if="errorText" class="tools-error-bar">
-      <i class="fas fa-exclamation-triangle"></i>
-      <span class="tools-error-text">{{ errorText }}</span>
-      <button v-if="canRetry" class="tool-btn tools-error-retry" type="button" @click="load">重试</button>
-      <button v-else class="tool-btn tools-error-retry" type="button" @click="dismissError">关闭</button>
-    </div>
+    <UiBanner v-if="errorText" variant="danger" class="tools-error-bar">
+      <template #default>{{ errorText }}</template>
+      <template #action>
+        <UiButton v-if="canRetry" variant="ghost" size="sm" @click="load">重试</UiButton>
+        <UiButton v-else variant="ghost" size="sm" @click="dismissError">关闭</UiButton>
+      </template>
+    </UiBanner>
 
     <div v-if="loading && remoteCards.length === 0 && !errorText" class="tools-loading">
-      <i class="fas fa-spinner fa-spin"></i>
+      <UiSpinner size="md" />
       <span>正在获取工具列表…</span>
     </div>
 
-    <div v-else class="tools-grid">
+    <TransitionGroup v-else tag="div" name="list" class="tools-grid motion-stagger" appear>
       <!-- 内置工具：manifest 中已提供同名远端工具的会被替换，其余继续走旧入口（过渡期） -->
-      <div
+      <UiCard
         v-for="tool in builtinCards"
         :key="'builtin-' + tool.id"
+        interactive
+        clickable
         class="tool-card"
         @click="onBuiltinClick(tool)"
       >
-        <i :class="tool.icon"></i>
+        <i class="tool-card-icon" :class="tool.icon" aria-hidden="true"></i>
         <div class="tool-card-name">{{ tool.name }}</div>
         <div class="tool-card-desc">{{ tool.desc }}</div>
-        <div class="tool-card-footer">
-          <span class="tool-badge tool-badge-builtin"><i class="fas fa-box"></i> 内置</span>
-          <div class="tool-actions">
-            <button class="tool-btn tool-btn-primary" type="button" @click.stop="onBuiltinClick(tool)">
-              打开
-            </button>
+        <template #footer>
+          <div class="tool-card-footer">
+            <UiBadge variant="brand" size="sm"><i class="fas fa-box" aria-hidden="true"></i> 内置</UiBadge>
+            <div class="tool-actions">
+              <UiButton variant="primary" size="sm" @click.stop="onBuiltinClick(tool)">打开</UiButton>
+            </div>
           </div>
-        </div>
-      </div>
+        </template>
+      </UiCard>
 
       <!-- 远端工具：状态机 未安装→下载 / 已安装→打开+卸载 / 有新版→更新 / 下载中→进度 / 版本不满足→禁用 -->
-      <div
+      <UiCard
         v-for="card in remoteCards"
         :key="'remote-' + card.id"
+        :interactive="!card.blocked"
         class="tool-card"
         :class="{ 'is-disabled': card.blocked }"
       >
-        <i :class="toolIcon(card)"></i>
+        <i class="tool-card-icon" :class="toolIcon(card)" aria-hidden="true"></i>
         <div class="tool-card-name">{{ card.name || card.id }}</div>
         <div class="tool-card-desc">{{ card.desc || '远端工具' }}</div>
         <div class="tool-card-meta">
@@ -79,89 +85,99 @@
           </span>
         </div>
 
-        <div v-if="card.progress" class="tool-progress">
-          <div class="tool-progress-track">
-            <div class="tool-progress-bar" :style="{ width: progressPercent(card) + '%' }"></div>
-          </div>
+        <template v-if="card.progress">
+          <UiProgress
+            class="tool-progress"
+            size="sm"
+            :value="progressPercent(card)"
+            :label="'下载进度 ' + progressPercent(card) + '%'"
+          />
           <div class="tool-progress-text">
             <span>{{ progressFile(card) }}</span>
             <span>{{ progressPercent(card) }}%</span>
           </div>
-        </div>
+        </template>
 
-        <div class="tool-card-footer">
-          <span class="tool-badge" :class="{ 'tool-badge-update': card.outdated && !card.progress }">
-            {{ statusText(card.state) }}
-          </span>
-
-          <div class="tool-actions">
-            <button v-if="card.blocked" class="tool-btn" type="button" disabled>
-              请先更新应用
-            </button>
-
-            <button v-else-if="card.state === 'downloading'" class="tool-btn" type="button" disabled>
-              {{ card.busy === 'install' ? '安装中…' : '下载中…' }}
-            </button>
-
-            <button
-              v-else-if="card.state === 'not-installed'"
-              class="tool-btn tool-btn-primary"
-              type="button"
-              :disabled="!!card.busy"
-              @click="installTool(card)"
+        <template #footer>
+          <div class="tool-card-footer">
+            <UiBadge
+              size="sm"
+              :variant="card.blocked ? 'danger' : card.outdated && !card.progress ? 'warning' : 'neutral'"
             >
-              {{ card.busy === 'install' ? '安装中…' : '下载' }}
-            </button>
+              {{ statusText(card.state) }}
+            </UiBadge>
 
-            <template v-else>
-              <button
-                v-if="card.state === 'outdated'"
-                class="tool-btn tool-btn-primary"
-                type="button"
+            <div class="tool-actions">
+              <UiButton v-if="card.blocked" size="sm" disabled>请先更新应用</UiButton>
+
+              <UiButton v-else-if="card.state === 'downloading'" size="sm" disabled>
+                {{ card.busy === 'install' ? '安装中…' : '下载中…' }}
+              </UiButton>
+
+              <UiButton
+                v-else-if="card.state === 'not-installed'"
+                variant="primary"
+                size="sm"
                 :disabled="!!card.busy"
                 @click="installTool(card)"
               >
-                {{ card.busy === 'install' ? '更新中…' : '更新' }}
-              </button>
-              <button
-                v-else
-                class="tool-btn tool-btn-primary"
-                type="button"
-                :disabled="!!card.busy"
-                @click="openRemote(card)"
-              >
-                {{ card.busy === 'open' ? '打开中…' : '打开' }}
-              </button>
-              <button
-                v-if="card.state === 'outdated'"
-                class="tool-btn"
-                type="button"
-                :disabled="!!card.busy"
-                @click="openRemote(card)"
-              >
-                打开
-              </button>
-              <button
-                class="tool-btn tool-btn-danger"
-                type="button"
-                :disabled="!!card.busy"
-                @click="removeTool(card)"
-              >
-                卸载
-              </button>
-            </template>
+                {{ card.busy === 'install' ? '安装中…' : '下载' }}
+              </UiButton>
+
+              <template v-else>
+                <UiButton
+                  v-if="card.state === 'outdated'"
+                  variant="primary"
+                  size="sm"
+                  :disabled="!!card.busy"
+                  @click="installTool(card)"
+                >
+                  {{ card.busy === 'install' ? '更新中…' : '更新' }}
+                </UiButton>
+                <UiButton
+                  v-else
+                  variant="primary"
+                  size="sm"
+                  :disabled="!!card.busy"
+                  @click="openRemote(card)"
+                >
+                  {{ card.busy === 'open' ? '打开中…' : '打开' }}
+                </UiButton>
+                <UiButton
+                  v-if="card.state === 'outdated'"
+                  variant="secondary"
+                  size="sm"
+                  :disabled="!!card.busy"
+                  @click="openRemote(card)"
+                >
+                  打开
+                </UiButton>
+                <UiButton
+                  variant="danger"
+                  size="sm"
+                  :disabled="!!card.busy"
+                  @click="removeTool(card)"
+                >
+                  卸载
+                </UiButton>
+              </template>
+            </div>
           </div>
-        </div>
+        </template>
 
         <div v-if="card.blocked" class="tool-blocked-hint">
           需要应用版本 ≥ v{{ card.minAppVersion }}，请先更新应用
         </div>
-      </div>
-    </div>
+      </UiCard>
+    </TransitionGroup>
 
-    <div v-if="!loading && remoteCards.length === 0" class="tools-empty">
-      暂无远端工具；当前客户端版本或网络可能暂不支持工具中心。
-    </div>
+    <UiEmptyState
+      v-if="!loading && remoteCards.length === 0"
+      class="tools-empty"
+      icon="fas fa-box-open"
+      title="暂无远端工具"
+      description="当前客户端版本或网络可能暂不支持工具中心。"
+    />
   </div>
 </template>
 
@@ -175,6 +191,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { compareVersion, isWebBrowser } from '../utils.js'
+import { UiBadge, UiBanner, UiButton, UiCard, UiEmptyState, UiProgress, UiSpinner } from '@/ui'
 
 const emit = defineEmits(['openTool'])
 
@@ -712,3 +729,5 @@ onBeforeUnmount(() => {
   }
 })
 </script>
+
+<style scoped src="../css/tools.css"></style>

@@ -22,3 +22,5 @@ defineExpose({
   openFile: () => editorRef.value?.openFile()
 })
 </script>
+
+<style scoped src="./graph-tool.css"></style>

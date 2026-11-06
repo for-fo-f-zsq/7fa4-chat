@@ -1,5 +1,5 @@
 <template>
-  <div class="app">
+  <div class="app motion-fade-in">
     <div class="title-bar">
       <div class="title-bar-drag">
         <span class="title-bar-title">7FA4 Chat</span>
@@ -10,9 +10,33 @@
         <button class="title-btn title-close" @click="windowClose"><i class="fas fa-times"></i></button>
       </div>
     </div>
-    <!-- 网络/登录状态横幅：位于 app-body 外，全宽横条 -->
-    <div class="network-banner" v-if="store.logined && store.netError && !netBannerMuted"><i class="fas fa-wifi"></i> 未连接<template v-if="netDownText">，已断线 {{ netDownText }}</template>，正在尝试重新连接… <button class="banner-login-btn" @click="onUserAction('relogin')">重新登录</button><button class="banner-close" title="本次不再提示（重新连接成功后再次断开会重新出现）" @click="netBannerMuted = true"><i class="fas fa-times"></i></button></div>
-    <div class="network-banner not-logged-in" v-if="!store.logined && !guestBannerMuted"><i class="fas fa-user-lock"></i> 您还未登录，聊天暂不可用。 <button class="banner-login-btn" @click="gotoLogin">去登录</button><button class="banner-close" title="本次不再提示（重新登录或重启后会重新出现）" @click="guestBannerMuted = true"><i class="fas fa-times"></i></button></div>
+    <!-- 网络/登录状态横幅：UiBanner（danger=连接断开 / warning=未登录），位于 app-body 外，全宽横条 -->
+    <UiBanner
+      v-if="store.logined && store.netError && !netBannerMuted"
+      class="network-banner"
+      variant="danger"
+      closable
+      @close="netBannerMuted = true"
+    >
+      <template #icon><i class="fas fa-wifi" aria-hidden="true"></i></template>
+      未连接<template v-if="netDownText">，已断线 {{ netDownText }}</template>，正在尝试重新连接…
+      <template #action>
+        <UiButton class="banner-login-btn" variant="ghost" size="sm" @click="onUserAction('relogin')">重新登录</UiButton>
+      </template>
+    </UiBanner>
+    <UiBanner
+      v-if="!store.logined && !guestBannerMuted"
+      class="network-banner"
+      variant="warning"
+      closable
+      @close="guestBannerMuted = true"
+    >
+      <template #icon><i class="fas fa-user-lock" aria-hidden="true"></i></template>
+      您还未登录，聊天暂不可用。
+      <template #action>
+        <UiButton class="banner-login-btn" variant="ghost" size="sm" @click="gotoLogin">去登录</UiButton>
+      </template>
+    </UiBanner>
     <div class="app-body" :class="{ narrow: isNarrowLayout }">
     <NavBar
       v-if="showNavBar"
@@ -21,16 +45,20 @@
       :groups="store.groups"
       :loggedIn="store.logined"
       :self="store.self"
+      :narrow="isNarrowLayout"
       @switch="switchPage"
       @user-action="onUserAction"
     />
+    <!-- 页级舞台：所有页级分支统一由 motion.css 的 <Transition name="page" mode="out-in">
+         控制进出场（enter 260ms / leave 120ms + 4px 位移，reduced-motion 自动归零），进入/退出成对。
+         key 按「页类别」切分：聊天页内部 user/group 会话切换不重挂载舞台，交内层 chat-main Transition。 -->
+    <Transition name="page" mode="out-in">
+    <div class="page-stage" :key="pageStageKey">
     <ConversationList
       ref="conversationListRef"
       v-if="isChatPage && !(isNarrowLayout && pageId)"
-      class="fade-content"
-      :class="{ 'fade-out': listFading }"
-      :pageType="displayPageType"
-      :pageId="displayPageId"
+      :pageType="pageType"
+      :pageId="pageId"
       :users="store.users"
       :groups="store.groups"
       :messages="store.messages"
@@ -54,7 +82,9 @@
       @confirm="addfriend"
       @viewUser="openuserinfo"
     />
-    <div class="chat-main fade-content" :class="{ 'fade-out': contentFading }" v-if="isChatPage && pageId">
+    <!-- 会话内容：按 pageType:pageId 成对淡入淡出（页类别内切换会话，不重挂载舞台） -->
+    <Transition name="fade" mode="out-in" appear @enter="onChatMainEnter">
+    <div class="chat-main" v-if="isChatPage && pageId" :key="chatKey">
       <ChatHeader
         :pageType="pageType"
         :pageId="pageId"
@@ -66,7 +96,7 @@
         @toggleSearch="toggleSearch"
         @addfriend="addfriend"
       />
-      <div v-if="watchWarnText" class="chat-watch-warn">{{ watchWarnText }}</div>
+      <UiBanner v-if="watchWarnText" class="chat-watch-warn" variant="warning" :description="watchWarnText" />
       <SearchPanel
         ref="searchPanelRef"
         :visible="searchVisible"
@@ -104,27 +134,24 @@
       @openPreview="onOpenPreview"
       />
     </div>
+    </Transition>
     <!-- 工具入口页（仅列表）；各工具在外层独立渲染：返回时按打开来源回到工具列表或对应会话 -->
     <ToolsView
       v-if="pageType==='tools' && currentTool==='list'"
-      class="fade-content"
-      :class="{ 'fade-out': contentFading }"
       @open-tool="onOpenTool"
     />
     <!-- 远端工具：manifest 驱动的工具经 iframe 嵌入；返回按钮 / 工具内 closeTool 都回到工具列表 -->
     <ToolHost
       v-else-if="pageType==='tools' && currentTool && currentTool.remote"
       :tool="currentTool"
-      class="ide-host fade-content"
-      :class="{ 'fade-out': contentFading }"
+      class="ide-host"
       @back="onToolBack"
     />
     <!-- 内置工具：统一套 ToolShell（顶部窄条显示工具名 + 返回），工具自身不再重复画标题 -->
     <ToolShell
       v-else-if="pageType==='tools' && currentTool==='markdown'"
       name="Markdown 编辑"
-      class="ide-host fade-content"
-      :class="{ 'fade-out': contentFading }"
+      class="ide-host"
       @back="onToolBack"
     >
       <MarkdownTool
@@ -135,8 +162,7 @@
     <ToolShell
       v-else-if="pageType==='tools' && currentTool==='image'"
       name="图片编辑"
-      class="ide-host fade-content"
-      :class="{ 'fade-out': contentFading }"
+      class="ide-host"
       @back="onToolBack"
     >
       <ImageTool
@@ -148,8 +174,7 @@
     <ToolShell
       v-else-if="pageType==='tools' && currentTool==='graph_editor'"
       name="Graph Editor"
-      class="ide-host fade-content"
-      :class="{ 'fade-out': contentFading }"
+      class="ide-host"
       @back="onToolBack"
     >
       <GraphTool
@@ -160,8 +185,7 @@
     <ToolShell
       v-else-if="pageType==='tools' && currentTool==='calculator'"
       name="计算器"
-      class="ide-host fade-content"
-      :class="{ 'fade-out': contentFading }"
+      class="ide-host"
       @back="onToolBack"
     >
       <CalculatorTool />
@@ -169,8 +193,7 @@
     <ToolShell
       v-else-if="pageType==='tools' && currentTool==='timer'"
       name="计时器"
-      class="ide-host fade-content"
-      :class="{ 'fade-out': contentFading }"
+      class="ide-host"
       @back="onToolBack"
     >
       <TimerTool />
@@ -178,8 +201,7 @@
     <ToolShell
       v-else-if="pageType==='tools' && currentTool==='math'"
       name="GeoGebra"
-      class="ide-host fade-content"
-      :class="{ 'fade-out': contentFading }"
+      class="ide-host"
       @back="onToolBack"
     >
       <MathTool
@@ -189,8 +211,6 @@
     </ToolShell>
     <SettingsPanel
       v-if="pageType==='settings'"
-      class="fade-content"
-      :class="{ 'fade-out': contentFading }"
       :self="store.self"
       :setting="setting"
       :allThemes="allThemes"
@@ -201,24 +221,20 @@
     />
     <AboutPanel
       v-if="pageType==='about'"
-      class="fade-content"
-      :class="{ 'fade-out': contentFading }"
       :version="version"
       @back="backToChatList"
     />
     <UpdatePanel
       v-if="pageType==='update'"
-      class="fade-content"
-      :class="{ 'fade-out': contentFading }"
       :version="version"
       @back="backToChatList"
     />
     <DonatePanel
       v-if="pageType==='donate'"
-      class="fade-content"
-      :class="{ 'fade-out': contentFading }"
       @back="backToChatList"
     />
+    </div><!-- /.page-stage -->
+    </Transition>
     </div>
   </div>
   <TargetMenu
@@ -322,10 +338,14 @@
   />
 </template>
 
+<style scoped src="../css/chat-view.css"></style>
+
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
 import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, ingestMessage, clearPendingVotes, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys, isUserHiddenBySetting, makeVoteContent } from '../utils.js';
+
+import { UiBanner, UiButton } from '../ui';
 
 import NavBar from '../components/NavBar.vue';
 import ConversationList from '../components/ConversationList.vue';
@@ -360,27 +380,9 @@ import SaveConfirmModal from '../components/SaveConfirmModal.vue';
 import { useWindowControls } from '../composables/useWindowControls.js';
 import { useMuteConfirm } from '../composables/useMuteConfirm.js';
 import { useCurrentMessages } from '../composables/useCurrentMessages.js';
-import { NARROW_ASPECT } from '../composables/constants.js';
+import { NARROW_ASPECT, THEMES } from '../composables/constants.js';
 
-import '../css/base.css';
-import '../css/nav-bar.css';
-import '../css/conversation-list.css';
-import '../css/chat-view.css';
-import '../css/tools.css';
-import '../css/settings-panel.css';
-import '../css/about-panel.css';
-import '../css/context-menu.css';
-import '../css/emoji-picker.css';
-import '../css/group-modal.css';
-import '../css/theme-modal.css';
-import '../css/shortcut-modal.css';
-import '../css/user-info.css';
-import '../css/addfriend-modal.css';
-import '../css/search-panel.css';
-import '../css/announcement.css';
-
-import 'katex/dist/katex.min.css';
-import '../../css/font-awesome/css/all.min.css';
+// 全局样式统一由 src/main.js 引入 ./css/index.css，组件内不再 import 任何全局 css。
 
 // --- 页面状态 ---
 const pageType = ref('chat');
@@ -408,7 +410,20 @@ const showNavBar = computed(() => {
   return navPageType.value === 'chat'
 })
 
-// 游客模式：聊天不可用，落到关于页浏览
+// 页级过渡 key：按「页类别」切分 —— 聊天页（user/group/chat）共用 'chat'，
+// 使会话切换不重挂载 page-stage；工具页再按工具 id 细分，让工具列表↔工具详情也走同一次进出场。
+const pageStageKey = computed(() => {
+  if (isChatPage.value) return 'chat';
+  if (pageType.value === 'tools') {
+    const tool = currentTool.value;
+    if (typeof tool === 'string') return 'tools:' + tool;
+    return 'tools:remote-' + (tool?.id ?? tool?.name ?? 'unknown');
+  }
+  return pageType.value;
+});
+// 会话内容 key：pageType 参与，避免 user/group 同号 pageId 被误判为同一会话。
+const chatKey = computed(() => `${pageType.value}:${pageId.value}`);
+
 watch(() => store.logined, (logged) => {
   if (!logged && isChatPage.value) {
     pageType.value = 'about';
@@ -489,10 +504,6 @@ function updateLayoutMode() {
   lastLayW = nowW
   isNarrowLayout.value = nowH / Math.max(nowW, 1) > NARROW_ASPECT
 }
-const contentFading = ref(false);
-const listFading = ref(false);
-const displayPageType = ref(null);
-const displayPageId = ref(null);
 const searchVisible = ref(false);
 const listWidth = ref(260);
 const collapsedMsgs = reactive({});
@@ -505,7 +516,7 @@ const showAddFriendModal = ref(false);
 // 弹窗关闭后清空，避免下次手动点「+」时被上一次的引导值带偏。
 const addFriendInitialQuery = ref('');
 watch(showAddFriendModal, (v) => { if (!v) addFriendInitialQuery.value = ''; });
-const allThemes = ['default', 'wechat', 'aurora', 'abyss', 'rose', 'lavender', 'mint', 'peach', 'amber', 'coral', 'sage', 'slate', 'obsidian', 'crimson', 'emerald', 'carbon', 'plasma', 'nord', 'dracula', 'monokai', 'cyberpunk', 'solarized'];
+const allThemes = THEMES.map((t) => t.value);
 const lastMouseX = ref(0);
 const lastMouseY = ref(0);
 
@@ -555,58 +566,9 @@ const { isMaximized, windowMinimize, windowMaximize, windowClose } = useWindowCo
 const { muteModalVisible, pendingMuteMemberId, requestMute, onMuteMinutesConfirm } = useMuteConfirm(submitGroupAction);
 
 // --- 页面切换动画 ---
-watch(pageType, (newType, oldType) => {
-  if (!oldType) { displayPageType.value = newType; return; }
-  const fromChat = oldType === 'user' || oldType === 'group' || oldType === 'chat';
-  const toChat = newType === 'user' || newType === 'group' || newType === 'chat';
-  // 聊天页面内部切换（user <-> group <-> chat）不需要列表动画
-  if (fromChat && toChat) {
-    contentFading.value = true;
-    setTimeout(() => {
-      displayPageType.value = newType;
-      displayPageId.value = pageId.value;
-      nextTick(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            contentFading.value = false;
-          });
-        });
-      });
-    }, 300);
-  } else if (fromChat || toChat) {
-    // 聊天页面与其他页面（设置/关于）之间切换
-    listFading.value = true;
-    contentFading.value = true;
-    setTimeout(() => {
-      displayPageType.value = newType;
-      displayPageId.value = pageId.value;
-      nextTick(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            listFading.value = false;
-            contentFading.value = false;
-          });
-        });
-      });
-    }, 300);
-  } else {
-    contentFading.value = true;
-    setTimeout(() => {
-      displayPageType.value = newType;
-      nextTick(() => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            contentFading.value = false;
-          });
-        });
-      });
-    }, 300);
-  }
-}, { immediate: true });
-
-watch(pageId, (newId) => {
-  displayPageId.value = newId;
-}, { immediate: true });
+// 页级切换走 motion.css 的 page 预设（enter 260ms / leave 120ms + 4px，reduced-motion 归零）：page-stage 承担；
+// 会话切换走 fade（enter 180ms / leave 120ms）：chat-main 承担；进出场均成对。
+// JS 不再手写 opacity 状态机 + 定时器；需要等“切换完成后再定位”的场景（搜索跳转）用 @enter 钩子事件驱动。
 
 // 登录后恢复本地数据：uid 就绪即触发 loadData()
 // 根因修复：onMounted 时若 /chat/info 失败（uid 未设置），loadData 会 return 跳过，
@@ -785,16 +747,21 @@ function onSelectConversation({ type, id }) {
     // 懒加载：从 SQLite 补拉该会话的历史消息到内存（缺失内容）
     ensureConvoMessages(type, id);
   };
-  contentFading.value = true;
-  setTimeout(() => {
-    doSwitch();
-    nextTick(() => {
-      messageListRef.value?.scrollToBottomInstant();
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => { contentFading.value = false; });
-      });
-    });
-  }, 300);
+  // 切换动作立即执行：淡出/淡入由 chat-main 的 <Transition name="fade"> leave/enter 成对完成；
+  // 新会话首帧滚动定位在 chat-main 的 @enter 钩子里做（见 onChatMainEnter），JS 不再手写 opacity 定时器。
+  doSwitch();
+}
+
+// chat-main 每次进入（打开会话 / 切换会话 / 从工具返回会话）后定位消息列表：
+// 默认滚到底部；若此次切换来自全局搜索，则改为定位到目标消息（见 onSearchJump 的 pendingJumpMsgId）。
+let pendingJumpMsgId = null;
+function onChatMainEnter() {
+  messageListRef.value?.scrollToBottomInstant();
+  if (pendingJumpMsgId != null) {
+    const msgId = pendingJumpMsgId;
+    pendingJumpMsgId = null;
+    messageListRef.value?.jumpToMessage(msgId);
+  }
 }
 
 function onNewConversationFromList(type) {
@@ -823,13 +790,17 @@ function jumpToMessage(msgId) {
 }
 
 // 全局搜索跳转：支持跨会话跳转
+// 跨会话时页面切换由 <Transition> 的 leave→enter 驱动，定位动作挂到 chat-main 的 @enter 钩子
+// （pendingJumpMsgId），不再用 setTimeout 猜过渡时长；同一会话内跳转直接定位。
 function onSearchJump(data) {
   if (typeof data === 'object' && data.convoType) {
+    if (`${data.convoType}:${data.convoId}` === chatKey.value) {
+      jumpToMessage(data.msgId);
+      return;
+    }
     pageType.value = data.convoType;
     pageId.value = data.convoId;
-    nextTick(() => {
-      setTimeout(() => messageListRef.value?.jumpToMessage(data.msgId), 300);
-    });
+    pendingJumpMsgId = data.msgId;
   } else {
     jumpToMessage(data);
   }
@@ -1232,7 +1203,7 @@ function openGroupActionMenu(event, member) {
   groupaction.mid = member;
   groupaction.x = event.clientX;
   groupaction.y = event.clientY;
-  setTimeout(() => groupaction.show = true, 1);
+  nextTick(() => groupaction.show = true);
 }
 
 // --- 目标菜单 ---
@@ -1246,7 +1217,7 @@ function onTargetMenu(e, type, id) {
   targetMenu.id = id;
   targetMenu.isPinned = item?.pinned || false;
   targetMenu.isUnread = (item?.unread || 0) > 0;
-  setTimeout(() => targetMenu.show = true, 1);
+  nextTick(() => targetMenu.show = true);
 }
 
 async function togglePin() {

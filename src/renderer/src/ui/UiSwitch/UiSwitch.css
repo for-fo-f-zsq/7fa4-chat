@@ -1,0 +1,98 @@
+.ui-switch {
+  --switch-w: var(--switch-w-md);
+  --switch-h: var(--switch-h-md);
+  --switch-knob: var(--switch-knob-md);
+  --switch-pad: calc((var(--switch-h) - var(--switch-knob)) / 2);
+  --switch-travel: calc(var(--switch-w) - var(--switch-knob) - var(--switch-pad) * 2);
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-tight);
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ui-switch--sm {
+  --switch-w: var(--switch-w-sm);
+  --switch-h: var(--switch-h-sm);
+  --switch-knob: var(--switch-knob-sm);
+}
+
+.ui-switch-track {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  width: var(--switch-w);
+  height: var(--switch-h);
+  padding: var(--switch-pad);
+  border-radius: var(--radius-pill);
+  background: var(--line);
+  transition: background var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+.ui-switch-knob {
+  display: block;
+  width: var(--switch-knob);
+  height: var(--switch-knob);
+  border-radius: 50%;
+  background: var(--surface-toggle-knob);
+  box-shadow: var(--elev-1);
+  transform: translateX(0);
+  transition: transform var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+.ui-switch.is-checked .ui-switch-track {
+  background: var(--brand);
+}
+
+.ui-switch.is-checked .ui-switch-knob {
+  transform: translateX(var(--switch-travel));
+}
+
+.ui-switch:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.ui-switch.is-disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.ui-switch-label {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@media (hover: hover) {
+  .ui-switch:hover:not(.is-disabled) .ui-switch-track {
+    background: var(--line-strong);
+  }
+
+  .ui-switch.is-checked:hover:not(.is-disabled) .ui-switch-track {
+    background: var(--brand-hover);
+  }
+}
+
+@media (pointer: coarse) {
+  .ui-switch::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    min-width: var(--control-h-touch);
+    min-height: var(--control-h-touch);
+    transform: translate(-50%, -50%);
+  }
+}

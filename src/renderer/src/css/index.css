@@ -1,0 +1,11 @@
+/* 唯一全局样式入口：主题 → 令牌 → 基础 → 动效 → 工具类 → 迁移期 legacy → 第三方。
+   迁移期规则：各域只允许删除自己那一行 legacy @import，禁止重排顺序。 */
+
+@import url('../../css/theme.css');   /* 1. 23 套主题（必须最先，避免令牌被主题覆盖） */
+@import './tokens.css';               /* 2. 设计令牌（只新增，不重声明主题变量） */
+@import './base.css';                 /* 3. reset / 排版 / 背景 / 滚动条 / #app 平台基础 */
+@import './motion.css';               /* 4. 动效令牌 / 关键帧库 / Transition 类 / reduced-motion */
+@import './utilities.css';            /* 5. 少量全局工具类 */
+
+/* ↓↓↓ 第三方（font-awesome 收尾；katex 由 main.js 引入） ↓↓↓ */
+@import url('../../css/font-awesome/css/all.min.css');

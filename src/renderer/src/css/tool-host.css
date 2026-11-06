@@ -1,0 +1,67 @@
+/**
+ * 远端工具宿主（ToolHost.vue，iframe 容器）样式 —— 仅本组件 scoped 引入
+ *
+ * 结构：顶部窄条（ToolBar）+ iframe + 加载 / 错误浮层。
+ * P2-ADOPT-E：加载态使用 UiSkeleton（骨架）+ UiSpinner，错误态使用 UiEmptyState + UiButton；
+ * 本文件只保留宿主/iframe/浮层定位与骨架布局，已删除自有旋转图标、错误文案与重试按钮样式。
+ */
+
+.tool-host {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-0);
+}
+
+.tool-host-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: var(--surface-0);
+  color-scheme: normal;
+}
+
+/* 加载 / 错误浮层 */
+.tool-host-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  background: var(--surface-0);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+/* 加载骨架：模拟工具页布局，减少等待抖动 */
+.tool-host-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(560px, 100%);
+  max-width: 100%;
+}
+
+.tool-host-loading-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ChatView 以 class="ide-host" 透传到本组件根节点：与工具列表一致的页面背景。
+   与 tool-shell.css 中的同名规则保持一致（两个宿主各持一份 scoped 规则）。 */
+.ide-host {
+  flex: 1;
+  min-height: 0;
+  background: var(--gradient-panel);
+}

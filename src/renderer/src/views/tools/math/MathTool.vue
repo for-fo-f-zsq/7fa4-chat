@@ -10,7 +10,7 @@
         @load="onLoad"
       ></iframe>
       <div v-if="!loaded" class="math-official-loading">
-        <i class="fas fa-spinner fa-spin"></i> 正在启动 GeoGebra 绘图计算器（本地离线版）…
+        <i class="fas fa-spinner motion-spin"></i> 正在启动 GeoGebra 绘图计算器（本地离线版）…
         <div class="math-official-loading-sub">
           支持函数/极坐标/参数/隐式曲线、几何构造、滑动条动画、测量、变换、轨迹、CAS 等全部二维功能，完全离线可用
         </div>
@@ -21,7 +21,6 @@
 
 <script setup>
 import { ref } from 'vue'
-import './math-official.css'
 
 const emit = defineEmits(['back', 'dirty-change'])
 
@@ -44,3 +43,5 @@ async function save() {
 
 defineExpose({ save })
 </script>
+
+<style scoped src="./math-official.css"></style>

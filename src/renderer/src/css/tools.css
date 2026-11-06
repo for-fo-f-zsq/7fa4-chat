@@ -1,10 +1,16 @@
 /**
- * 工具中心（远端工具）样式
+ * 工具中心（卡片列表）样式 —— ToolsView.vue 专用
  *
- * 仅在 ToolsView / ToolHost 使用；全部颜色、圆角、字号取自主题 CSS 变量，
- * 不写死色值，保证 22 套主题 + 自定义主题下都跟随换肤。
- * 本文件在 ChatView 的 CSS import 块中晚于 ide-tool.css 加载，
- * 因此这里的 .tools-page / .tool-card 规则会覆盖旧工具页样式（旧组件仅保留兜底）。
+ * 仅由 `views/ToolsView.vue` 以 `<style scoped src="../css/tools.css">` 引入；
+ * 不再全局加载（index.css 中的 `@import './tools.css'` 由 Lead 统一删除）。
+ *
+ * P2-ADOPT-E：卡片/按钮/徽标/空状态/进度条/错误条已改为 ui/ 原语
+ * （UiCard / UiButton / UiBadge / UiEmptyState / UiProgress / UiBanner / UiSpinner），
+ * 本文件只保留页面布局钩子（class 策略 B）与业务内容排版（策略 D）；
+ * 旧 .tool-btn / .tool-badge / .tool-card 基座 / .tool-progress-track/-bar /
+ * .tools-empty 等重复样式已删除。
+ *
+ * 全部颜色、圆角、字号、动效取自设计令牌，禁止裸色值 / 裸时长 / 裸缓动。
  */
 
 /* ---------------------------- 工具中心页面 ---------------------------- */
@@ -16,97 +22,49 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: linear-gradient(160deg, var(--bg-app), var(--bg-gradient-end));
+  background: var(--gradient-panel);
 }
 
 .tools-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--border-light);
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
 
 .tools-header h2 {
   margin: 0;
-  font-size: var(--font-size-large);
-  font-weight: 600;
-  color: var(--text-primary);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--fg);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .tools-header h2 i {
-  color: var(--accent);
+  color: var(--brand);
 }
 
 .tools-header-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   flex-shrink: 0;
 }
 
 .tools-header-meta .tools-updated {
-  font-size: var(--font-size-small);
-  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
   white-space: nowrap;
 }
 
-/* 刷新按钮（复用 .tool-btn 的次要样式，只补尺寸） */
-.tools-refresh {
-  flex-shrink: 0;
-}
-
-.tools-refresh i {
-  font-size: 12px;
-}
-
-/* 批量下载 / 全部更新：主色描边，与「刷新」区分开 */
-.tools-batch {
-  flex-shrink: 0;
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.tools-batch i {
-  font-size: 12px;
-}
-
-.tools-batch:hover:not(:disabled) {
-  background: var(--accent);
-  color: var(--text-on-accent, #fff);
-}
-
-/* 错误条：加载 manifest/installed 失败时显示，不阻塞内置工具 */
+/* 错误条：UiBanner 负责视觉，这里只保留页面边距 */
 .tools-error-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 12px 24px 0;
-  padding: 10px 14px;
-  border-radius: var(--radius);
-  border: 1px solid var(--danger);
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
-  color: var(--text-primary);
-  font-size: var(--font-size-small);
-  flex-shrink: 0;
-}
-
-.tools-error-bar > i {
-  color: var(--danger);
-}
-
-.tools-error-text {
-  flex: 1;
-  min-width: 0;
-  word-break: break-word;
-}
-
-.tools-error-retry {
+  margin: var(--space-3) var(--space-6) 0;
   flex-shrink: 0;
 }
 
@@ -115,72 +73,51 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 40px 24px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
+  gap: var(--space-2);
+  padding: var(--space-8) var(--space-6);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
 }
 
 /* ---------------------------- 卡片网格 ---------------------------- */
 
 .tools-grid {
-  padding: 20px 24px;
+  padding: var(--space-5) var(--space-6);
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
+  gap: var(--space-4);
   overflow-y: auto;
   align-content: start;
 }
 
+/* 布局钩子：UiCard 基座负责视觉，这里只补网格内约束与禁用态 */
 .tool-card {
-  padding: 20px;
-  border-radius: 12px;
-  background: var(--bg-app);
-  border: 1px solid var(--border-light);
-  box-shadow: var(--shadow-card);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  transition: box-shadow 0.2s, transform 0.2s, border-color 0.2s;
   min-width: 0;
-}
-
-.tool-card:hover {
-  box-shadow: var(--shadow-card-hover);
-  transform: translateY(-2px);
-  border-color: var(--accent);
 }
 
 .tool-card.is-disabled {
   cursor: not-allowed;
-  opacity: 0.72;
+  opacity: var(--opacity-muted);
 }
 
-.tool-card.is-disabled:hover {
-  box-shadow: var(--shadow-card);
-  transform: none;
-  border-color: var(--border-light);
-}
-
-.tool-card > i {
-  font-size: 28px;
-  color: var(--accent);
+.tool-card-icon {
+  font-size: var(--icon-3xl);
+  color: var(--brand);
 }
 
 .tool-card-name {
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--text-primary);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .tool-card-desc {
-  font-size: var(--font-size-small);
-  color: var(--text-secondary);
-  line-height: 1.6;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  line-height: var(--leading-relaxed);
   /* 描述最多两行，保持卡片高度一致 */
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -194,319 +131,57 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  font-size: var(--font-size-small);
-  color: var(--text-secondary);
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
 }
 
 .tool-card-meta .tool-meta-item {
   white-space: nowrap;
 }
 
+/* UiCard 的 footer 插槽：状态徽标 + 操作按钮两端对齐 */
 .tool-card-footer {
-  margin-top: auto;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
 .tool-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
-/* 状态徽标 */
-.tool-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  line-height: 18px;
-  white-space: nowrap;
-  background: var(--bg-input);
-  color: var(--text-secondary);
-}
-
-.tool-badge-builtin {
-  color: var(--accent);
-  border: 1px solid var(--accent-outline);
-  background: var(--accent-light);
-}
-
-.tool-badge-update {
-  color: var(--warning);
-  border: 1px solid var(--warning);
-  background: transparent;
-}
-
-/* ---------------------------- 按钮 ---------------------------- */
-
-.tool-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border-light);
-  background: var(--bg-input);
-  color: var(--text-primary);
-  font-size: var(--font-size-small);
-  line-height: 18px;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
-  white-space: nowrap;
-}
-
-.tool-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.tool-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-  border-color: var(--border-light);
-  color: var(--text-secondary);
-}
-
-.tool-btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--text-on-accent, #fff);
-}
-
-.tool-btn-primary:hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
-  color: var(--text-on-accent, #fff);
-}
-
-.tool-btn-danger {
-  color: var(--danger);
-  border-color: transparent;
-  background: transparent;
-}
-
-.tool-btn-danger:hover {
-  color: var(--text-on-accent, #fff);
-  background: var(--danger);
-  border-color: var(--danger);
-}
-
-.tool-btn:disabled:hover {
-  background: var(--bg-input);
-  border-color: var(--border-light);
-  color: var(--text-secondary);
-}
-
-/* 进度条：下载中显示 */
+/* 进度条：UiProgress 负责轨道/填充，这里只补文案行 */
 .tool-progress {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
   width: 100%;
-}
-
-.tool-progress-track {
-  width: 100%;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--bg-input);
-  overflow: hidden;
-}
-
-.tool-progress-bar {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--accent);
-  transition: width 0.2s;
 }
 
 .tool-progress-text {
-  font-size: 11px;
-  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 /* minAppVersion 不满足时的提示 */
 .tool-blocked-hint {
-  font-size: var(--font-size-small);
-  line-height: 1.5;
-  color: var(--warning);
-}
-
-/* 内置工具占位提示 */
-.tools-builtin-hint {
-  padding: 0 24px 20px;
-  font-size: var(--font-size-small);
-  color: var(--text-secondary);
-}
-
-/* 空状态 */
-.tools-empty {
-  padding: 40px 24px;
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
-}
-
-/* 工具宿主（iframe） */
-
-.tool-host {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--bg-app);
-}
-
-/* 内置工具外壳：窄条 + 工具本体（与远端工具宿主同构，视觉一致） */
-.tool-shell {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--bg-app);
-}
-
-.tool-shell-body {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  overflow: hidden;
-}
-
-/* 顶部窄条（内置工具与远端工具共用）：给返回按钮留位置，工具内容从它下方开始，彻底避免遮挡 */
-.tool-bar {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 34px;
-  padding: 0 10px;
-  border-bottom: 1px solid var(--border-light);
-  background: var(--bg-app);
-}
-
-.tool-bar-name {
-  font-size: var(--font-size-small);
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tool-host-frame {
-  flex: 1;
-  width: 100%;
-  min-height: 0;
-  border: 0;
-  background: var(--bg-app);
-  color-scheme: normal;
-}
-
-/* 返回按钮：固定在顶部窄条最左侧 */
-.tool-bar-back {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border-light);
-  background: var(--bg-app);
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
-  line-height: 18px;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: opacity 0.2s, color 0.2s, border-color 0.2s, background 0.2s;
-}
-
-.tool-bar-back:hover,
-.tool-bar-back:focus-visible {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.tool-bar-back i {
-  font-size: 12px;
-  flex-shrink: 0;
-}
-
-/* 加载 / 错误浮层 */
-.tool-host-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 24px;
-  background: var(--bg-app);
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
-  text-align: center;
-}
-
-.tool-host-overlay > i {
-  font-size: 28px;
-  color: var(--accent);
-}
-
-.tool-host-error > i {
-  color: var(--warning);
-}
-
-.tool-host-error-msg {
-  margin: 0;
-  max-width: 420px;
-  color: var(--text-primary);
-  line-height: 1.6;
-  word-break: break-word;
-}
-
-.tool-host-retry {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 16px;
-  border-radius: var(--radius);
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: var(--text-on-accent, #fff);
-  font-size: var(--font-size-small);
-  cursor: pointer;
-}
-
-.tool-host-retry:hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+  color: var(--status-warning);
 }
 
 /* ---------------------------- 窄屏 ---------------------------- */
 
 @media (max-width: 600px) {
   .tools-header {
-    padding: 14px 16px;
+    padding: var(--space-3) var(--space-4);
   }
 
   .tools-header-meta .tools-updated {
@@ -514,13 +189,9 @@
   }
 
   .tools-grid {
-    padding: 14px 16px;
+    padding: var(--space-3) var(--space-4);
     grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .tool-card {
-    padding: 16px;
+    gap: var(--space-3);
   }
 
   .tool-card-desc {
@@ -528,22 +199,6 @@
   }
 
   .tools-error-bar {
-    margin: 10px 16px 0;
-  }
-
-  .tools-builtin-hint,
-  .tools-empty {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-
-  .tool-bar {
-    height: 30px;
-    padding: 0 8px;
-  }
-
-  .tool-bar-back {
-    height: 22px;
-    padding: 0 8px;
+    margin: var(--space-3) var(--space-4) 0;
   }
 }

@@ -3,13 +3,15 @@
     <div class="md-tool-header">
       <div class="md-workspace-bar">
         <i class="fas fa-file-alt"></i>
-        <input
+        <UiInput
           v-if="editingName"
           ref="nameInputRef"
           v-autofocus
-          v-model="fileNameDraft"
           class="md-name-input"
+          size="sm"
+          :model-value="fileNameDraft"
           spellcheck="false"
+          @update:model-value="fileNameDraft = $event"
           @keydown.enter="commitName"
           @keydown.esc="cancelName"
           @blur="commitName"
@@ -17,11 +19,11 @@
         <span v-else class="md-workspace-path md-name-edit" :title="'点击修改文件名' + (fileName ? '：' + fileName : '')" @click="startEditName">
           {{ fileName || '未命名' }}<i class="fas fa-pencil-alt md-name-edit-icon"></i>
         </span>
-        <button class="md-ws-btn md-ws-btn-icon" title="打开文件" @click="openFile"><i class="fas fa-folder-open"></i></button>
-        <button class="md-ws-btn md-ws-btn-icon" title="新建文件" @click="newFile"><i class="fas fa-file"></i></button>
-        <button class="md-ws-btn md-ws-btn-icon" title="保存 (Ctrl+S)：首次选位置，之后直接覆盖该文件" :disabled="saving" @click="save()"><i class="fas fa-save"></i></button>
-        <button class="md-ws-btn md-ws-btn-icon" title="另存为 (Ctrl+Shift+S)" :disabled="saving" @click="saveAs"><i class="fas fa-file-export"></i></button>
-        <button class="md-ws-btn md-ws-btn-icon" title="导出为图片" :disabled="exporting" @click="exportPng"><i class="fas fa-image"></i></button>
+        <UiIconButton size="sm" icon="fas fa-folder-open" title="打开文件" aria-label="打开文件" @click="openFile" />
+        <UiIconButton size="sm" icon="fas fa-file" title="新建文件" aria-label="新建文件" @click="newFile" />
+        <UiIconButton size="sm" icon="fas fa-save" title="保存 (Ctrl+S)：首次选位置，之后直接覆盖该文件" aria-label="保存" :disabled="saving" @click="save()" />
+        <UiIconButton size="sm" icon="fas fa-file-export" title="另存为 (Ctrl+Shift+S)" aria-label="另存为" :disabled="saving" @click="saveAs" />
+        <UiIconButton size="sm" icon="fas fa-image" title="导出为图片" aria-label="导出为图片" :disabled="exporting" @click="exportPng" />
       </div>
     </div>
 
@@ -31,44 +33,42 @@
         <!-- 工具栏 -->
         <div class="md-toolbar" role="toolbar" aria-label="格式工具栏">
           <div class="md-tb-group">
-            <button class="md-tb-btn" title="撤销 (Ctrl+Z)" :disabled="!canUndo" @click="undo"><i class="fas fa-undo"></i></button>
-            <button class="md-tb-btn" title="重做 (Ctrl+Y)" :disabled="!canRedo" @click="redo"><i class="fas fa-redo"></i></button>
+            <UiIconButton size="sm" icon="fas fa-undo" title="撤销 (Ctrl+Z)" aria-label="撤销" :disabled="!canUndo" @click="undo" />
+            <UiIconButton size="sm" icon="fas fa-redo" title="重做 (Ctrl+Y)" aria-label="重做" :disabled="!canRedo" @click="redo" />
           </div>
           <div class="md-tb-sep"></div>
           <div class="md-tb-group">
-            <button class="md-tb-btn" title="加粗 (Ctrl+B)" @click="insertBold"><i class="fas fa-bold"></i></button>
-            <button class="md-tb-btn" title="斜体 (Ctrl+I)" @click="insertItalic"><i class="fas fa-italic"></i></button>
-            <button class="md-tb-btn" title="删除线 (Ctrl+D)" @click="insertStrikethrough"><i class="fas fa-strikethrough"></i></button>
-            <button class="md-tb-btn" title="行内代码" @click="insertInlineCode"><i class="fas fa-code"></i></button>
-            <button class="md-tb-btn" title="引用 (Ctrl+Shift+Q)" @click="insertQuote"><i class="fas fa-quote-left"></i></button>
+            <UiIconButton size="sm" icon="fas fa-bold" title="加粗 (Ctrl+B)" aria-label="加粗" @click="insertBold" />
+            <UiIconButton size="sm" icon="fas fa-italic" title="斜体 (Ctrl+I)" aria-label="斜体" @click="insertItalic" />
+            <UiIconButton size="sm" icon="fas fa-strikethrough" title="删除线 (Ctrl+D)" aria-label="删除线" @click="insertStrikethrough" />
+            <UiIconButton size="sm" icon="fas fa-code" title="行内代码" aria-label="行内代码" @click="insertInlineCode" />
+            <UiIconButton size="sm" icon="fas fa-quote-left" title="引用 (Ctrl+Shift+Q)" aria-label="引用" @click="insertQuote" />
           </div>
           <div class="md-tb-sep"></div>
           <div class="md-tb-group">
-            <button class="md-tb-btn md-tb-txt" title="一级标题" @click="insertHeading(1)">H1</button>
-            <button class="md-tb-btn md-tb-txt" title="二级标题" @click="insertHeading(2)">H2</button>
-            <button class="md-tb-btn md-tb-txt" title="三级标题" @click="insertHeading(3)">H3</button>
-            <button class="md-tb-btn" title="水平线 (Ctrl+Shift+H)" @click="insertHR"><i class="fas fa-minus"></i></button>
+            <UiButton size="sm" variant="ghost" title="一级标题" @click="insertHeading(1)">H1</UiButton>
+            <UiButton size="sm" variant="ghost" title="二级标题" @click="insertHeading(2)">H2</UiButton>
+            <UiButton size="sm" variant="ghost" title="三级标题" @click="insertHeading(3)">H3</UiButton>
+            <UiIconButton size="sm" icon="fas fa-minus" title="水平线 (Ctrl+Shift+H)" aria-label="水平线" @click="insertHR" />
           </div>
           <div class="md-tb-sep"></div>
           <div class="md-tb-group">
-            <button class="md-tb-btn" title="插入链接 (Ctrl+K)" @click="linkVisible = true"><i class="fas fa-link"></i></button>
-            <button class="md-tb-btn" title="插入图片 (Ctrl+Shift+I)" @click="imageVisible = true"><i class="fas fa-image"></i></button>
-            <button class="md-tb-btn" title="插入代码块 (Ctrl+Shift+1)" @click="codeVisible = true"><i class="fas fa-file-code"></i></button>
-            <button class="md-tb-btn" title="表格生成器 (Ctrl+Shift+2)" @click="openTableBuilder()"><i class="fas fa-table"></i></button>
-            <button class="md-tb-btn" title="插入折叠框" @click="calloutVisible = true"><i class="fas fa-box-archive"></i></button>
-            <button class="md-tb-btn" title="插入引言" @click="epigraphVisible = true"><i class="fas fa-feather"></i></button>
-            <button class="md-tb-btn" title="插入 Bilibili 视频" @click="bilibiliVisible = true"><i class="fas fa-tv"></i></button>
-            <button class="md-tb-btn" title="数学公式面板 (Ctrl+M)" @click="openMathPanel"><i class="fas fa-square-root-variable"></i></button>
+            <UiIconButton size="sm" icon="fas fa-link" title="插入链接 (Ctrl+K)" aria-label="插入链接" @click="linkVisible = true" />
+            <UiIconButton size="sm" icon="fas fa-image" title="插入图片 (Ctrl+Shift+I)" aria-label="插入图片" @click="imageVisible = true" />
+            <UiIconButton size="sm" icon="fas fa-file-code" title="插入代码块 (Ctrl+Shift+1)" aria-label="插入代码块" @click="codeVisible = true" />
+            <UiIconButton size="sm" icon="fas fa-table" title="表格生成器 (Ctrl+Shift+2)" aria-label="表格生成器" @click="openTableBuilder()" />
+            <UiIconButton size="sm" icon="fas fa-box-archive" title="插入折叠框" aria-label="插入折叠框" @click="calloutVisible = true" />
+            <UiIconButton size="sm" icon="fas fa-feather" title="插入引言" aria-label="插入引言" @click="epigraphVisible = true" />
+            <UiIconButton size="sm" icon="fas fa-tv" title="插入 Bilibili 视频" aria-label="插入 Bilibili 视频" @click="bilibiliVisible = true" />
+            <UiIconButton size="sm" icon="fas fa-square-root-variable" title="数学公式面板 (Ctrl+M)" aria-label="数学公式面板" @click="openMathPanel" />
           </div>
           <div class="md-tb-group md-tb-right">
-            <button class="md-tb-btn" :class="{ active: scrollSyncOn }" :title="'滚动同步：' + (scrollSyncOn ? '开' : '关')" @click="toggleScrollSync()">
-              <i class="fas fa-arrows-up-down"></i>
-            </button>
+            <UiIconButton size="sm" icon="fas fa-arrows-up-down" :active="scrollSyncOn" :title="'滚动同步：' + (scrollSyncOn ? '开' : '关')" aria-label="滚动同步" @click="toggleScrollSync()" />
             <div class="md-tb-sep"></div>
-            <button class="md-tb-btn" :class="{ active: viewMode === 'split' }" title="双栏对比" @click="setViewMode('split')"><i class="fas fa-table-columns"></i></button>
-            <button class="md-tb-btn" :class="{ active: viewMode === 'editor-only' }" title="纯编辑" @click="setViewMode('editor-only')"><i class="fas fa-pen"></i></button>
-            <button class="md-tb-btn" :class="{ active: viewMode === 'preview-only' }" title="纯预览" @click="setViewMode('preview-only')"><i class="fas fa-eye"></i></button>
-            <button class="md-tb-btn" :class="{ active: viewMode === 'typora' }" title="所见即所得（点击段落就地编辑）" @click="setViewMode('typora')"><i class="fas fa-i-cursor"></i></button>
+            <UiIconButton size="sm" icon="fas fa-table-columns" :active="viewMode === 'split'" title="双栏对比" aria-label="双栏对比" @click="setViewMode('split')" />
+            <UiIconButton size="sm" icon="fas fa-pen" :active="viewMode === 'editor-only'" title="纯编辑" aria-label="纯编辑" @click="setViewMode('editor-only')" />
+            <UiIconButton size="sm" icon="fas fa-eye" :active="viewMode === 'preview-only'" title="纯预览" aria-label="纯预览" @click="setViewMode('preview-only')" />
+            <UiIconButton size="sm" icon="fas fa-i-cursor" :active="viewMode === 'typora'" title="所见即所得（点击段落就地编辑）" aria-label="所见即所得" @click="setViewMode('typora')" />
           </div>
         </div>
 
@@ -113,35 +113,35 @@
     <!-- ===== 弹窗：链接 / 图片 / 代码块 / 表格 / 折叠框 / 引言 / B站 / 公式面板 ===== -->
     <div v-if="linkVisible" class="mdm-overlay" @click.self="linkVisible = false">
       <div class="mdm-dialog">
-        <div class="mdm-header"><span>插入链接</span><button class="mdm-close" @click="linkVisible = false"><i class="fas fa-times"></i></button></div>
+        <div class="mdm-header"><span>插入链接</span><UiIconButton size="sm" icon="fas fa-times" title="关闭" aria-label="关闭" @click="linkVisible = false" /></div>
         <div class="mdm-body">
           <label class="mdm-field"><span>链接标题</span><input v-model="linkText" placeholder="例如：帮助文档" /></label>
           <label class="mdm-field"><span>链接 URL</span><input v-model="linkUrl" placeholder="https://" /></label>
         </div>
         <div class="mdm-footer">
-          <button class="mdm-btn" @click="linkVisible = false">取消</button>
-          <button class="mdm-btn mdm-btn-primary" @click="confirmLink">插入</button>
+          <UiButton size="sm" variant="secondary" @click="linkVisible = false">取消</UiButton>
+          <UiButton size="sm" variant="primary" @click="confirmLink">插入</UiButton>
         </div>
       </div>
     </div>
 
     <div v-if="imageVisible" class="mdm-overlay" @click.self="imageVisible = false">
       <div class="mdm-dialog">
-        <div class="mdm-header"><span>插入图片</span><button class="mdm-close" @click="imageVisible = false"><i class="fas fa-times"></i></button></div>
+        <div class="mdm-header"><span>插入图片</span><UiIconButton size="sm" icon="fas fa-times" title="关闭" aria-label="关闭" @click="imageVisible = false" /></div>
         <div class="mdm-body">
           <label class="mdm-field"><span>图片描述 (Alt)</span><input v-model="imageAlt" placeholder="例如：架构示意图" /></label>
           <label class="mdm-field"><span>图片 URL</span><input v-model="imageUrl" placeholder="https://" /></label>
         </div>
         <div class="mdm-footer">
-          <button class="mdm-btn" @click="imageVisible = false">取消</button>
-          <button class="mdm-btn mdm-btn-primary" @click="confirmImage">插入</button>
+          <UiButton size="sm" variant="secondary" @click="imageVisible = false">取消</UiButton>
+          <UiButton size="sm" variant="primary" @click="confirmImage">插入</UiButton>
         </div>
       </div>
     </div>
 
     <div v-if="codeVisible" class="mdm-overlay" @click.self="codeVisible = false">
       <div class="mdm-dialog">
-        <div class="mdm-header"><span>插入代码块</span><button class="mdm-close" @click="codeVisible = false"><i class="fas fa-times"></i></button></div>
+        <div class="mdm-header"><span>插入代码块</span><UiIconButton size="sm" icon="fas fa-times" title="关闭" aria-label="关闭" @click="codeVisible = false" /></div>
         <div class="mdm-body">
           <label class="mdm-field"><span>编程语言</span>
             <select v-model="codeLang">
@@ -152,19 +152,19 @@
           <label class="mdm-field"><span>高亮行（可选，如 5-6 或 3,5,8-10）</span><input v-model="codeLines" placeholder="例如：5-6" /></label>
         </div>
         <div class="mdm-footer">
-          <button class="mdm-btn" @click="codeVisible = false">取消</button>
-          <button class="mdm-btn mdm-btn-primary" @click="confirmCode">插入</button>
+          <UiButton size="sm" variant="secondary" @click="codeVisible = false">取消</UiButton>
+          <UiButton size="sm" variant="primary" @click="confirmCode">插入</UiButton>
         </div>
       </div>
     </div>
 
     <div v-if="tableVisible" class="mdm-overlay" @click.self="tableVisible = false">
       <div class="mdm-dialog">
-        <div class="mdm-header"><span>表格生成器</span><button class="mdm-close" @click="tableVisible = false"><i class="fas fa-times"></i></button></div>
+        <div class="mdm-header"><span>表格生成器</span><UiIconButton size="sm" icon="fas fa-times" title="关闭" aria-label="关闭" @click="tableVisible = false" /></div>
         <div class="mdm-body">
           <div class="mdm-table-actions">
-            <button class="mdm-btn" @click="addTableRow"><i class="fas fa-plus"></i> 一行</button>
-            <button class="mdm-btn" @click="addTableCol"><i class="fas fa-plus"></i> 一列</button>
+            <UiButton size="sm" variant="secondary" icon="fas fa-plus" @click="addTableRow">一行</UiButton>
+            <UiButton size="sm" variant="secondary" icon="fas fa-plus" @click="addTableCol">一列</UiButton>
             <label class="mdm-check"><input type="checkbox" v-model="tableTuack" /><span>Tuack 竞赛风格</span></label>
           </div>
           <p class="mdm-hint">单元格填 <code>^</code> 向上合并、<code>&lt;</code> 向左合并。</p>
@@ -186,15 +186,15 @@
           </div>
         </div>
         <div class="mdm-footer">
-          <button class="mdm-btn" @click="tableVisible = false">取消</button>
-          <button class="mdm-btn mdm-btn-primary" @click="confirmTable">生成并插入</button>
+          <UiButton size="sm" variant="secondary" @click="tableVisible = false">取消</UiButton>
+          <UiButton size="sm" variant="primary" @click="confirmTable">生成并插入</UiButton>
         </div>
       </div>
     </div>
 
     <div v-if="calloutVisible" class="mdm-overlay" @click.self="calloutVisible = false">
       <div class="mdm-dialog">
-        <div class="mdm-header"><span>插入折叠框</span><button class="mdm-close" @click="calloutVisible = false"><i class="fas fa-times"></i></button></div>
+        <div class="mdm-header"><span>插入折叠框</span><UiIconButton size="sm" icon="fas fa-times" title="关闭" aria-label="关闭" @click="calloutVisible = false" /></div>
         <div class="mdm-body">
           <label class="mdm-field"><span>类型</span>
             <select v-model="calloutType">
@@ -208,50 +208,52 @@
           <label class="mdm-check"><input type="checkbox" v-model="calloutOpen" /><span>默认展开</span></label>
         </div>
         <div class="mdm-footer">
-          <button class="mdm-btn" @click="calloutVisible = false">取消</button>
-          <button class="mdm-btn mdm-btn-primary" @click="confirmCallout">插入</button>
+          <UiButton size="sm" variant="secondary" @click="calloutVisible = false">取消</UiButton>
+          <UiButton size="sm" variant="primary" @click="confirmCallout">插入</UiButton>
         </div>
       </div>
     </div>
 
     <div v-if="epigraphVisible" class="mdm-overlay" @click.self="epigraphVisible = false">
       <div class="mdm-dialog">
-        <div class="mdm-header"><span>插入引言</span><button class="mdm-close" @click="epigraphVisible = false"><i class="fas fa-times"></i></button></div>
+        <div class="mdm-header"><span>插入引言</span><UiIconButton size="sm" icon="fas fa-times" title="关闭" aria-label="关闭" @click="epigraphVisible = false" /></div>
         <div class="mdm-body">
           <label class="mdm-field"><span>落款 / 作者</span><input v-model="epigraphAuthor" placeholder="例如：高德纳" /></label>
           <label class="mdm-field"><span>引言内容</span><textarea v-model="epigraphContent" rows="3" placeholder="过早的优化是万恶之源。"></textarea></label>
         </div>
         <div class="mdm-footer">
-          <button class="mdm-btn" @click="epigraphVisible = false">取消</button>
-          <button class="mdm-btn mdm-btn-primary" @click="confirmEpigraph">插入</button>
+          <UiButton size="sm" variant="secondary" @click="epigraphVisible = false">取消</UiButton>
+          <UiButton size="sm" variant="primary" @click="confirmEpigraph">插入</UiButton>
         </div>
       </div>
     </div>
 
     <div v-if="bilibiliVisible" class="mdm-overlay" @click.self="bilibiliVisible = false">
       <div class="mdm-dialog">
-        <div class="mdm-header"><span>插入 Bilibili 视频</span><button class="mdm-close" @click="bilibiliVisible = false"><i class="fas fa-times"></i></button></div>
+        <div class="mdm-header"><span>插入 Bilibili 视频</span><UiIconButton size="sm" icon="fas fa-times" title="关闭" aria-label="关闭" @click="bilibiliVisible = false" /></div>
         <div class="mdm-body">
           <label class="mdm-field"><span>BV 号 / AV 号</span><input v-model="bilibiliId" placeholder="例如：BV1GJ411x7h7 或 av53851218" /></label>
           <p class="mdm-hint">支持带参数的链接，如 BV1bv411p7U5?page=4&amp;t=82</p>
         </div>
         <div class="mdm-footer">
-          <button class="mdm-btn" @click="bilibiliVisible = false">取消</button>
-          <button class="mdm-btn mdm-btn-primary" @click="confirmBilibili">插入</button>
+          <UiButton size="sm" variant="secondary" @click="bilibiliVisible = false">取消</UiButton>
+          <UiButton size="sm" variant="primary" @click="confirmBilibili">插入</UiButton>
         </div>
       </div>
     </div>
 
     <div v-if="mathVisible" class="mdm-overlay mdm-overlay-wide" @click.self="mathVisible = false">
       <div class="mdm-dialog mdm-dialog-wide">
-        <div class="mdm-header"><span>数学公式面板</span><button class="mdm-close" @click="mathVisible = false"><i class="fas fa-times"></i></button></div>
+        <div class="mdm-header"><span>数学公式面板</span><UiIconButton size="sm" icon="fas fa-times" title="关闭" aria-label="关闭" @click="mathVisible = false" /></div>
         <div class="mdm-body">
           <div class="mdm-math-tabs">
-            <button
-              v-for="(cat, idx) in mathLibrary" :key="idx"
-              class="mdm-math-tab" :class="{ active: mathActiveTab === idx }"
+            <UiButton
+              v-for="(cat, idx) in mathLibrary"
+              :key="idx"
+              size="sm"
+              :variant="mathActiveTab === idx ? 'primary' : 'secondary'"
               @click="switchMathTab(idx)"
-            >{{ cat.category }}</button>
+            >{{ cat.category }}</UiButton>
           </div>
           <div class="mdm-math-grid" :class="{ wide: mathItems.some((it) => it.wide) }">
             <button
@@ -266,7 +268,7 @@
         </div>
         <div class="mdm-footer">
           <span class="mdm-hint">点击任意公式插入光标处</span>
-          <button class="mdm-btn" @click="mathVisible = false">关闭</button>
+          <UiButton size="sm" variant="secondary" @click="mathVisible = false">关闭</UiButton>
         </div>
       </div>
     </div>
@@ -292,8 +294,7 @@ import { renderDocument } from '../../markdown/index.js'
 import { createScrollSync } from '../../markdown/scroll-sync.js'
 import { useNarrow } from '../../composables/useNarrow.js'
 import { saveToolFile, toolSaveState, flashTip, textToBase64 } from '../../utils.js'
-import './ide/ide-tool.css'
-import './markdown-tool.css'
+import { UiButton, UiIconButton, UiInput } from '@/ui'
 
 const emit = defineEmits(['back', 'dirty-change'])
 const { isNarrow } = useNarrow()
@@ -1180,3 +1181,5 @@ onBeforeUnmount(() => {
   syncEngine.destroy()
 })
 </script>
+
+<style scoped src="./markdown-tool.css"></style>

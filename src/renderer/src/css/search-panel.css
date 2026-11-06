@@ -1,249 +1,223 @@
+/* SearchPanel — 消息搜索面板（C1）；面板进出用 fade-down，下拉用 dropdown，均来自 motion.css。
+   输入类（关键词/发送者搜索/起止日期）外观由 UiSearchInput / UiInput 提供，本文件只做布局与下拉面板。 */
 .search-panel {
-    background: var(--bg-app);
+  background: var(--surface-0);
 }
 
 .search-bar {
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    padding: 8px 16px;
-    background: var(--bg-app);
-    border-bottom: 1px solid var(--border-light);
-    animation: searchSlide 0.2s ease;
-    flex-wrap: wrap;
-    max-width: 100%;
-}
-@keyframes searchSlide {
-    from { opacity: 0; transform: translateY(-8px); }
-    to { opacity: 1; transform: translateY(0); }
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+  max-width: 100%;
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-0);
+  border-bottom: var(--border-width) solid var(--line);
 }
 
 .search-field {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    max-width: 160px;
-    min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 160px;
+  min-width: 0;
 }
 
 .search-label {
-    font-size: var(--font-size-small);
-    color: var(--text-secondary);
-    white-space: nowrap;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
 }
 
+/* 关键词搜索：外观由 UiSearchInput 提供，这里只约束列宽。 */
 .search-input {
-    min-width: 120px;
-    max-width: 160px;
-    padding: 6px 10px;
-    border: 1px solid var(--border-light);
-    border-bottom: 2px solid var(--border-3d-dark);
-    border-radius: var(--radius);
-    background: var(--bg-input);
-    color: var(--text-primary);
-    font-size: var(--font-size-small);
-    outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
-    box-shadow: var(--shadow-input);
+  min-width: 120px;
 }
-.search-input:focus { border-color: var(--accent); border-bottom-color: var(--accent); box-shadow: var(--shadow-input-focus); }
-.search-input::placeholder { color: var(--text-placeholder); }
+
+/* 起止日期：外观由 UiInput 提供，这里只约束列宽。 */
+.search-date {
+  width: 130px;
+}
 
 /* Custom select for search panel */
 .search-panel .custom-select {
-    position: relative;
-    min-width: 100px;
-    max-width: 160px;
+  position: relative;
+  min-width: 100px;
+  max-width: 160px;
 }
+
 .search-panel .custom-select-trigger {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
-    background: var(--bg-input);
-    border: 1px solid var(--border-light);
-    border-bottom: 2px solid var(--border-3d-dark);
-    border-radius: var(--radius);
-    cursor: pointer;
-    font-size: var(--font-size-small);
-    color: var(--text-primary);
-    transition: border-color 0.2s, box-shadow 0.2s;
-    user-select: none;
-    white-space: nowrap;
-    overflow: hidden;
-    box-shadow: var(--shadow-input);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  overflow: hidden;
+  color: var(--fg);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  background: var(--surface-2);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color var(--motion-dur-fast) var(--motion-ease-standard),
+    background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
+
 .search-panel .custom-select-trigger:hover {
-    border-color: var(--accent);
-    border-bottom-color: var(--accent);
+  background: var(--surface-hover);
 }
+
 .search-panel .custom-select.open .custom-select-trigger {
-    border-color: var(--accent);
-    box-shadow: var(--shadow-input-focus);
-    border-radius: var(--radius) var(--radius) 0 0;
+  border-color: var(--brand);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  box-shadow: var(--focus-halo);
 }
+
 .search-panel .custom-select.open.dropup .custom-select-trigger {
-    border-radius: 0 0 var(--radius) var(--radius);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
+
 .search-panel .custom-select-arrow {
-    margin-left: auto;
-    font-size: var(--font-size-small);
-    color: var(--text-secondary);
-    transition: transform 0.25s ease;
-    flex-shrink: 0;
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  transition: transform var(--motion-dur-base) var(--motion-ease-standard);
 }
+
 .search-panel .custom-select.open .custom-select-arrow {
-    transform: rotate(180deg);
+  transform: rotate(180deg);
 }
+
 .search-panel .custom-select-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--bg-input);
-    border: 1px solid var(--accent);
-    border-top: none;
-    border-radius: 0 0 var(--radius) var(--radius);
-    box-shadow: 0 6px 16px var(--shadow-dropdown), inset 0 1px 0 var(--border-3d-light);
-    z-index: 100;
-    overflow: hidden;
-    animation: searchDropdownSlideIn 0.2s ease;
-    max-height: 200px;
-    overflow-y: auto;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  z-index: var(--z-dropdown);
+  max-height: 200px;
+  overflow: hidden auto;
+  background: var(--surface-2);
+  border: var(--border-width) solid var(--brand);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  box-shadow: var(--elev-2);
 }
-@keyframes searchDropdownSlideIn {
-    from { opacity: 0; transform: translateY(-4px); }
-    to { opacity: 1; transform: translateY(0); }
-}
+
 .search-panel .custom-select-option {
-    display: flex;
-    align-items: center;
-    padding: 6px 10px;
-    font-size: var(--font-size-small);
-    color: var(--text-primary);
-    cursor: pointer;
-    transition: background 0.15s;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  overflow: hidden;
+  color: var(--fg);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
+
 .search-panel .custom-select-option:hover {
-    background: var(--accent-light);
+  background: var(--brand-soft);
 }
+
 .search-panel .custom-select-option.active {
-    background: var(--accent-light);
-    font-weight: 500;
+  font-weight: 500;
+  background: var(--brand-soft);
 }
+
 .search-panel .custom-select-dropdown.dropup {
-    top: auto;
-    bottom: 100%;
-    border-top: 1px solid var(--accent);
-    border-bottom: none;
-    border-radius: var(--radius) var(--radius) 0 0;
+  top: auto;
+  bottom: 100%;
+  border-top: var(--border-width) solid var(--brand);
+  border-bottom: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
+
+/* 发送者搜索行：输入框外观由 UiSearchInput 提供，这里只做行分隔。 */
 .search-panel .custom-select-search {
-    padding: 4px 6px;
-    border-bottom: 1px solid var(--border-light);
+  padding: var(--space-1) 6px;
+  border-bottom: var(--border-width) solid var(--line);
 }
-.search-panel .custom-select-search-input {
-    width: 100%;
-    padding: 4px 8px;
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius);
-    background: var(--bg-input);
-    color: var(--text-primary);
-    font-size: var(--font-size-small);
-    outline: none;
-    box-sizing: border-box;
-    transition: border-color 0.2s;
-}
-.search-panel .custom-select-search-input:focus {
-    border-color: var(--accent);
-}
-.search-panel .custom-select-search-input::placeholder {
-    color: var(--text-placeholder);
-}
+
 .search-panel .custom-select-options {
-    max-height: 160px;
-    overflow-y: auto;
+  max-height: 160px;
+  overflow-y: auto;
 }
+
 .search-panel .custom-select-empty {
-    padding: 8px 10px;
-    font-size: var(--font-size-small);
-    color: var(--text-secondary);
-    text-align: center;
+  padding: var(--space-2) 10px;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  text-align: center;
 }
 
-.search-date {
-    padding: 6px 8px;
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius);
-    background: var(--bg-input);
-    color: var(--text-primary);
-    font-size: var(--font-size-small);
-    outline: none;
-    transition: border-color 0.2s;
-    width: 130px;
-}
-.search-date:focus { border-color: var(--accent); }
-
+/* 关闭按钮外观由 UiIconButton 提供，这里只保留对齐。 */
 .search-close-btn {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: var(--font-size-base);
-    padding: 6px 8px;
-    border-radius: var(--radius);
-    transition: color 0.15s, background 0.15s;
-    align-self: flex-end;
+  align-self: flex-end;
 }
-.search-close-btn:hover { color: var(--text-primary); background: var(--bg-conversation-hover); }
 
 .search-results {
-    max-height: 200px;
-    overflow-y: auto;
-    border-bottom: 1px solid var(--border-light);
-    background: var(--bg-app);
-    scrollbar-width: thin;
+  max-height: 200px;
+  overflow-y: auto;
+  background: var(--surface-0);
+  border-bottom: var(--border-width) solid var(--line);
+  scrollbar-width: thin;
 }
+
 .search-results-header {
-    padding: 6px 16px;
-    font-size: var(--font-size-small);
-    color: var(--text-secondary);
-    border-bottom: 1px solid var(--border-light);
+  padding: 6px var(--space-4);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  border-bottom: var(--border-width) solid var(--line);
 }
+
 .search-result-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    cursor: pointer;
-    transition: background 0.15s;
-    border-bottom: 1px solid var(--border-conversation-bottom);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  border-bottom: var(--border-width) solid var(--line-subtle);
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
-.search-result-item:hover { background: var(--bg-conversation-hover); }
-.search-result-item:last-child { border-bottom: none; }
+
+.search-result-item:hover {
+  background: var(--surface-hover);
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
 .search-result-sender {
-    font-size: var(--font-size-small);
-    color: var(--text-link);
-    min-width: 60px;
-    max-width: 80px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    flex-shrink: 0;
+  flex-shrink: 0;
+  min-width: 60px;
+  max-width: 80px;
+  overflow: hidden;
+  color: var(--fg-link);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
+
 .search-result-content {
-    flex: 1;
-    font-size: var(--font-size-small);
-    color: var(--text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  flex: 1;
+  overflow: hidden;
+  color: var(--fg);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
+
 .search-result-time {
-    font-size: var(--font-size-small);
-    color: var(--text-secondary);
-    flex-shrink: 0;
+  flex-shrink: 0;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+/* 「查看更多」外观由 UiButton 提供，这里只保留分隔。 */
+.search-more-btn {
+  margin-top: var(--space-1);
 }

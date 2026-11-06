@@ -1,18 +1,18 @@
 <template>
-  <div v-if="visible" class="inputModal-popup" @click.self="onCancel">
-    <div class="inputModal-popup-inner">
-      <h4>{{ title }}</h4>
-      <div class="saveconfirm-message">{{ message }}</div>
-      <div class="inputModal-popup-btns">
-        <button @click="onSave" class="inputModal-ok">{{ saveText }}</button>
-        <button @click="onDiscard" class="saveconfirm-discard">{{ discardText }}</button>
-        <button @click="onCancel" class="inputModal-cancel">取消</button>
-      </div>
-    </div>
-  </div>
+  <!-- 面板/遮罩/焦点陷阱/滚动锁由 UiModal 承载；按钮由 UiButton 承载 -->
+  <UiModal :open="visible" :title="title" size="sm" :show-close="false" @update:open="onOpenChange">
+    <p class="saveconfirm-message">{{ message }}</p>
+    <template #footer>
+      <UiButton variant="primary" @click="onSave">{{ saveText }}</UiButton>
+      <UiButton variant="ghost" class="saveconfirm-discard" @click="onDiscard">{{ discardText }}</UiButton>
+      <UiButton variant="secondary" @click="onCancel">取消</UiButton>
+    </template>
+  </UiModal>
 </template>
 
 <script setup>
+import { UiButton, UiModal } from '../ui/index.js'
+
 defineProps({
   visible: Boolean,
   title: { type: String, default: '未保存的修改' },
@@ -35,4 +35,11 @@ function onCancel() {
   emit('cancel')
   emit('update:visible', false)
 }
+
+// UiModal 的遮罩点击 / Esc 关闭 → 与旧版 @click.self 一致，走 cancel 语义
+function onOpenChange(open) {
+  if (!open) onCancel()
+}
 </script>
+
+<style scoped src="../css/save-confirm-modal.css"></style>

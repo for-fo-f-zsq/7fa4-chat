@@ -7,7 +7,7 @@
 
     <div class="update-view-body">
       <!-- 检测更新 -->
-      <div class="update-status-card">
+      <UiCard class="update-status-card" size="md">
         <div class="update-status-row">
           <span class="label">当前版本</span>
           <span class="value">{{ version }}</span>
@@ -24,39 +24,43 @@
             <i v-else class="fas fa-question-circle"></i>
             {{ updateStatusText }}
           </span>
-          <button class="update-refresh-btn" @click="checkForUpdate" :disabled="updateStatus === 'checking' || updateStatus === 'downloading'" title="检查更新">
-            <i class="fas fa-sync-alt" :class="{ 'fa-spin': updateStatus === 'checking' }"></i>
-          </button>
+          <UiIconButton
+            class="update-refresh-btn"
+            size="sm"
+            icon="fas fa-sync-alt"
+            aria-label="检查更新"
+            :loading="updateStatus === 'checking'"
+            :disabled="updateStatus === 'downloading'"
+            @click="checkForUpdate"
+          />
         </div>
-        <div v-if="updateStatus === 'downloading'" class="update-progress-bar">
-          <div class="update-progress-fill" :style="{ width: downloadProgress + '%' }"></div>
+        <div v-if="updateStatus === 'downloading'" class="update-progress">
+          <UiProgress class="update-progress-bar" :value="downloadProgress" size="md" label="下载进度" />
           <span class="update-progress-text">{{ downloadProgress.toFixed(1) }}%</span>
         </div>
         <div class="update-actions">
-          <button v-if="updateStatus === 'available'" class="update-btn" @click="downloadUpdate">
-            <i class="fas fa-download"></i> {{ isMobileWeb ? (apkUrl ? '下载新版 APK' + apkSizeText : '前往 GitLab 下载页') : '下载更新' }}
-          </button>
-          <button v-if="updateStatus === 'downloaded'" class="update-btn update-btn-install" @click="installUpdate">
-            <i class="fas fa-sync-alt"></i> 安装并重启
-          </button>
+          <UiButton v-if="updateStatus === 'available'" variant="secondary" size="sm" icon="fas fa-download" @click="downloadUpdate">
+            {{ isMobileWeb ? (apkUrl ? '下载新版 APK' + apkSizeText : '前往 GitLab 下载页') : '下载更新' }}
+          </UiButton>
+          <UiButton v-if="updateStatus === 'downloaded'" variant="primary" size="sm" icon="fas fa-sync-alt" @click="installUpdate">
+            安装并重启
+          </UiButton>
         </div>
         <div v-if="isAndroid && updateStatus === 'available' && apkUrl" class="update-apk-hint">
           将调用系统浏览器下载安装包，下载完成后点击安装即可升级
         </div>
-      </div>
+      </UiCard>
 
       <!-- 更新日志（内部滚动区） -->
       <div class="update-log">
         <div class="changelog-header"><span>更新日志</span></div>
         <div class="update-log-scroll">
           <div v-if="changelogLoading" class="changelog-loading">
-            <i class="fas fa-spinner fa-spin"></i> 加载中...
+            <UiSpinner size="sm" label="加载更新日志中" /> 加载中...
           </div>
-          <div v-else-if="changelogError" class="changelog-error">
-            <i class="fas fa-times-circle"></i> {{ changelogError }}
-          </div>
+          <UiBanner v-else-if="changelogError" variant="danger" :description="changelogError" />
           <div v-else-if="changelogHtml" class="changelog-body" v-html="changelogHtml"></div>
-          <div v-else class="changelog-empty">暂无更新日志</div>
+          <UiEmptyState v-else size="sm" icon="fa-inbox" title="暂无更新日志" />
         </div>
       </div>
     </div>
@@ -64,11 +68,14 @@
 </template>
 
 <script setup>
+// 用法：<UpdatePanel :version="version" @back="view='chat'" />
+
 import { computed, ref, onMounted } from 'vue'
 import BackButton from './BackButton.vue'
 import { compareVersion, checkAppUpdate, gitlabPackagesUrl } from '../utils.js'
 import { store } from '../store.js'
 import { renderChangelogMarkdown } from '../changelog-md.js'
+import { UiBanner, UiButton, UiCard, UiEmptyState, UiIconButton, UiProgress, UiSpinner } from '@/ui'
 
 const props = defineProps({ version: { type: String, default: '' } })
 const emit = defineEmits(['back'])
@@ -221,3 +228,5 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped src="../css/update-panel.css"></style>

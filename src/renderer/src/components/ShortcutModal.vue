@@ -1,47 +1,43 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal-container">
-      <div class="shortcut-modal-card">
-        <div class="shortcut-modal-header">
-          <h3>快捷键设置</h3>
-          <button class="modal-close-btn" @click="$emit('close')"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="shortcut-modal-body">
-          <div class="shortcut-list">
-            <div class="shortcut-row" v-for="item in shortcutItems" :key="item.action">
-              <span class="shortcut-label">{{ item.label }}</span>
-              <div class="shortcut-key-wrap">
-                <button
-                  class="shortcut-key-btn"
-                  :class="{ recording: recordingAction === item.action }"
-                  @click="startRecording(item.action)"
-                >
-                  <template v-if="recordingAction === item.action">
-                    <i class="fas fa-circle fa-beat-fade recording-dot"></i> 按下快捷键...
-                  </template>
-                  <template v-else>
-                    {{ formatShortcut(getShortcutValue(item.action)) }}
-                  </template>
-                </button>
-                <button v-if="getShortcutValue(item.action) !== defaultShortcuts[item.action]" class="shortcut-reset-btn" @click="resetShortcut(item.action)" title="恢复默认">
-                  <i class="fas fa-undo"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-          <div class="shortcut-footer">
-            <button class="shortcut-reset-all-btn" @click="resetAll">
-              <i class="fas fa-undo"></i> 恢复全部默认
-            </button>
-          </div>
+  <UiModal :open="visible" title="快捷键设置" size="sm" @close="close">
+    <div class="shortcut-list">
+      <div v-for="item in shortcutItems" :key="item.action" class="shortcut-row">
+        <span class="shortcut-label">{{ item.label }}</span>
+        <div class="shortcut-key-wrap">
+          <UiButton
+            class="shortcut-key-btn"
+            size="sm"
+            :variant="recordingAction === item.action ? 'primary' : 'secondary'"
+            @click="startRecording(item.action)"
+          >
+            <template v-if="recordingAction === item.action">
+              <i class="fas fa-circle fa-beat-fade recording-dot"></i> 按下快捷键...
+            </template>
+            <template v-else>
+              {{ formatShortcut(getShortcutValue(item.action)) }}
+            </template>
+          </UiButton>
+          <UiIconButton
+            v-if="getShortcutValue(item.action) !== defaultShortcuts[item.action]"
+            size="sm"
+            icon="fas fa-undo"
+            aria-label="恢复默认"
+            @click="resetShortcut(item.action)"
+          />
         </div>
       </div>
     </div>
-  </div>
+    <template #footer>
+      <UiButton size="sm" variant="secondary" icon="fas fa-undo" @click="resetAll">恢复全部默认</UiButton>
+    </template>
+  </UiModal>
 </template>
 
 <script setup>
-import { ref, onUnmounted } from 'vue'
+// 用法：<ShortcutModal v-if="shortcutModal" :setting="setting" @close="shortcutModal=false" @settingChange="save" />
+
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { UiButton, UiIconButton, UiModal } from '@/ui'
 
 const props = defineProps({
   setting: Object
@@ -71,6 +67,18 @@ const shortcutItems = [
 ]
 
 const recordingAction = ref(null)
+const visible = ref(false)
+
+onMounted(async () => {
+  // 等一帧再打开，让 UiModal 的进入动效生效（父级用 v-if 控制挂载）
+  await nextTick()
+  visible.value = true
+})
+
+function close() {
+  visible.value = false
+  emit('close')
+}
 
 function getShortcutValue(action) {
   return props.setting?.shortcuts?.[action] || defaultShortcuts[action]
@@ -153,3 +161,5 @@ onUnmounted(() => {
   document.removeEventListener('keydown', onRecordingKeydown)
 })
 </script>
+
+<style scoped src="../css/shortcut-modal.css"></style>

@@ -7,19 +7,19 @@
 
     <div class="donate-grid">
       <!-- 赞赏码卡片 -->
-      <div class="donate-card donate-qr-card">
-        <div class="donate-card-title"><i class="fas fa-heart"></i>扫码支持</div>
+      <UiCard class="donate-qr-card" size="lg">
+        <template #header><i class="fas fa-heart donate-card-icon" aria-hidden="true"></i>扫码支持</template>
         <p class="donate-desc">7FA4 Chat 由 for_fo_f 独立开发维护，没有任何商业团队与广告，你的每一份赞赏都是持续更新的动力。</p>
         <div class="donate-qr-wrap">
-          <img v-if="!qrError" :src="DONATE_URL" alt="赞赏码" class="donate-qr-img" @click="donateZoom = true" @error="qrError = true" title="点击放大">
+          <img v-if="!qrError" :src="DONATE_URL" alt="赞赏码" class="donate-qr-img" title="点击放大" @click="donateZoom = true" @error="qrError = true">
           <p v-if="qrError" class="donate-qr-tip">赞赏码加载失败，请稍后刷新重试</p>
           <p v-else class="donate-qr-tip">微信扫码赞赏 · 点击可放大</p>
         </div>
-      </div>
+      </UiCard>
 
       <!-- 赞助者列表卡片 -->
-      <div class="donate-card donate-sponsor-card">
-        <div class="donate-card-title"><i class="fas fa-users"></i>赞助者</div>
+      <UiCard class="donate-sponsor-card" size="lg">
+        <template #header><i class="fas fa-users donate-card-icon" aria-hidden="true"></i>赞助者</template>
         <table v-if="sponsors.length" class="sponsor-table">
           <thead><tr><th>#</th><th>昵称</th><th>金额</th></tr></thead>
           <tbody>
@@ -30,21 +30,24 @@
             </tr>
           </tbody>
         </table>
-        <div v-else class="donate-empty">暂无赞助记录，期待你成为第一位支持者</div>
-      </div>
+        <UiEmptyState v-else size="sm" icon="fa-heart" title="暂无赞助记录" description="期待你成为第一位支持者" />
+      </UiCard>
     </div>
 
     <!-- 赞赏码放大弹层（图片加载失败时不再提供放大） -->
-    <div v-if="donateZoom && !qrError" class="donate-zoom-overlay" @click="donateZoom = false">
-      <img :src="DONATE_URL" alt="赞赏码" class="donate-zoom-img">
-    </div>
+    <UiModal :open="donateZoom && !qrError" size="lg" @close="donateZoom = false">
+      <img :src="DONATE_URL" alt="赞赏码" class="donate-zoom-img" @click="donateZoom = false">
+    </UiModal>
   </div>
 </template>
 
 <script setup>
+// 用法：<DonatePanel @back="view='chat'" />
+
 import { ref, computed, onMounted } from 'vue'
 import { gitlabRawUrl } from '../utils.js'
 import BackButton from './BackButton.vue'
+import { UiCard, UiEmptyState, UiModal } from '@/ui'
 
 const emit = defineEmits(['back'])
 
@@ -65,3 +68,5 @@ onMounted(() => {
   loadSponsors()
 })
 </script>
+
+<style scoped src="../css/donate-panel.css"></style>

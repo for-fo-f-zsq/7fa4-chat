@@ -1,0 +1,14 @@
+/**
+ * 「图编辑器」外层宿主（GraphTool.vue 根节点 .graph-tool-host）自有样式
+ *
+ * P2-E：`.graph-tool-host` 原属 graph-editor.css（跨组件规则），现按归属
+ * 迁到本文件，由 GraphTool.vue 以 `<style scoped src>` 引入；
+ * 内层画布/侧栏排版仍归 GraphEditor.vue 的 graph-editor.css。
+ */
+
+.graph-tool-host {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}

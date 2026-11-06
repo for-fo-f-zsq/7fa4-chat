@@ -1,15 +1,33 @@
 <template>
-  <div class="view-fade" :class="{ 'view-fade-out': viewFading }">
-    <LoginView v-if="!store.logined && !store.guestMode" @login="onLogin" @guest="onGuest" />
-    <ChatView v-else :key="loginSeq" />
+  <!-- 视图舞台：ChatView 为多根 Fragment，Transition 子节点必须是单元素，故用 keyed 包装层承载页面切换 -->
+  <div class="app-stage">
+    <Transition name="page" mode="out-in">
+      <div class="app-view" :key="viewKey">
+        <LoginView
+          v-if="!store.logined && !store.guestMode"
+          @login="onLogin"
+          @guest="onGuest"
+        />
+        <ChatView
+          v-else
+          :key="'chat-' + loginSeq"
+        />
+      </div>
+    </Transition>
   </div>
-  <Onboarding v-if="showOnboarding" @close="closeOnboarding" />
-  <Announcement v-if="showAnnouncement" @close="closeAnnouncement" />
-  <div v-if="store.initializing && store.logined" class="init-loading">
-    <div class="init-spinner"></div>
-    <div class="init-text">正在加载消息…</div>
-    <div class="init-sub">本轮已获取 {{ store.fetchNewCount }} 条新消息</div>
-  </div>
+  <Transition name="fade">
+    <Onboarding v-if="showOnboarding" @close="closeOnboarding" />
+  </Transition>
+  <!-- 公告常驻：父级只切 visible，组件内部 overlay Transition 负责进出场（M-1，避免 v-if 卸载导致关闭硬切） -->
+  <Announcement :visible="showAnnouncement" @close="closeAnnouncement" />
+  <Transition name="fade">
+    <div v-if="store.initializing && store.logined" class="init-loading">
+      <div class="init-spinner motion-spin"></div>
+      <div class="init-text">正在加载消息…</div>
+      <div class="init-sub">本轮已获取 {{ store.fetchNewCount }} 条新消息</div>
+    </div>
+  </Transition>
+  <!-- 粒子背景（EXCEPTIONS W1）：仅 fancy 档且未开启「减弱动效」时渲染，隐藏窗口暂停 rAF -->
   <canvas class="particle-canvas" ref="canvasEl" v-if="showParticles"></canvas>
 </template>
 
@@ -21,6 +39,7 @@ import ChatView from './views/ChatView.vue';
 import Announcement from './components/Announcement.vue';
 import Onboarding from './components/Onboarding.vue';
 import { loadUsersDb, compareVersion, checkAppUpdate } from './utils.js';
+import { prefersReducedMotion } from './utils/motion.js';
 
 const canvasEl = ref(null)
 let animId = 0
@@ -28,9 +47,12 @@ let particles = []
 let drawFn = null
 let mouseListener = null
 let resizeListener = null
+let reducedListener = null
 const mousePos = { x: -9999, y: -9999 }
-const viewFading = ref(false)
 const loginSeq = ref(0)
+// 视图身份：登录态 + 序号，登录/游客/重新登录都触发整页过渡
+const viewKey = computed(() => ((store.logined || store.guestMode) ? 'chat' : 'login') + '-' + loginSeq.value)
+const reducedMotion = ref(prefersReducedMotion())
 
 // --- 新用户引导：只在首次启动（本地无标记）时展示一次 ---
 const showOnboarding = ref(false)
@@ -78,30 +100,17 @@ try {
   }
 } catch {}
 
-// 游客模式：未登录直接进入主界面（聊天不可用，工具/设置/关于可浏览）
+// 游客模式 / 登录成功：视图切换由 <Transition name="page" mode="out-in"> 负责进出场，
+// 这里只改状态（登录后立即置 logined，让 ChatView 挂载即走完整登录初始化）
 function onGuest() {
   store.guestMode = true;
   loginSeq.value++;
-  viewFading.value = true;
-  setTimeout(() => {
-    nextTick(() => {
-      requestAnimationFrame(() => { requestAnimationFrame(() => { viewFading.value = false; }); });
-    });
-  }, 500);
 }
 
 function onLogin() {
-  store.guestMode = false; // 登录成功后退出游客模式，状态一致
-  // 立即置 logined：让 ChatView 挂载即走完整登录初始化（onMounted 后续才置 true 会使
-  // 挂载时仍判为游客而提前 return，导致 init-loading 不显示、startInfoLoop 不启动、首次历史不加载）
-  store.logined = true
-  loginSeq.value++
-  viewFading.value = true
-  setTimeout(() => {
-    nextTick(() => {
-      requestAnimationFrame(() => { requestAnimationFrame(() => { viewFading.value = false; }); });
-    })
-  }, 500)
+  store.guestMode = false;
+  store.logined = true;
+  loginSeq.value++;
 }
 
 const effectLevel = computed(() => {
@@ -110,19 +119,24 @@ const effectLevel = computed(() => {
   return 'fancy'
 })
 
-const showParticles = computed(() => effectLevel.value === 'fancy')
-const showMouseGradient = computed(() => effectLevel.value !== 'performance')
+const showParticles = computed(() => effectLevel.value === 'fancy' && !reducedMotion.value)
+// 鼠标光晕（W2）：performance 档或系统减弱动效时关闭
+const showMouseGradient = computed(() => effectLevel.value !== 'performance' && !reducedMotion.value)
 
-watch(showMouseGradient, (show) => {
-  const app = document.querySelector('.app')
-  if (app) {
-    if (show) {
-      app.classList.remove('no-mouse-gradient')
-    } else {
-      app.classList.add('no-mouse-gradient')
-    }
-  }
-})
+// 性能档统一降级：motion.css 的 html.fx-lite 负责关重动效/位移
+watch(effectLevel, (level) => {
+  document.documentElement.classList.toggle('fx-lite', level === 'performance')
+}, { immediate: true })
+
+// 系统「减弱动效」开关变化时同步（W1/W2 门控依据）
+function bindReducedMotionListener() {
+  try {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    reducedListener = (e) => { reducedMotion.value = e.matches }
+    if (mq.addEventListener) mq.addEventListener('change', reducedListener)
+    else if (mq.addListener) mq.addListener(reducedListener)
+  } catch {}
+}
 
 watch(showParticles, (show) => {
   if (show) {
@@ -136,6 +150,7 @@ watch(showParticles, (show) => {
 })
 
 onMounted(() => {
+  bindReducedMotionListener()
   loadUsersDb(); // 加载加密的用户姓名数据库（users.7c）
   initUpdateCheck();
   const onMouseMove = (e) => {
@@ -152,11 +167,21 @@ onMounted(() => {
   }
   mouseListener = onMouseMove
   window.addEventListener('mousemove', mouseListener)
+  // 隐藏窗口时暂停粒子 rAF（W1），避免后台耗电
+  document.addEventListener('visibilitychange', onVisibilityChange)
 
   if (showParticles.value) {
     nextTick(() => initParticles())
   }
 })
+
+function onVisibilityChange() {
+  if (document.hidden) {
+    if (animId) { cancelAnimationFrame(animId); animId = 0 }
+  } else if (showParticles.value && !animId && drawFn) {
+    animId = requestAnimationFrame(drawFn)
+  }
+}
 
 // 启动检查更新（网页端/安卓端）：放在根组件而不是 ChatView ——
 // 网页版用的是 7fa4-chat-web/src/web/overrides 里的 ChatView，那份没有更新检查代码，
@@ -208,6 +233,8 @@ function initParticles() {
       p.y *= scaleY
     }
   }
+  // 重复 init 时先移除旧的 resize 监听，避免累加
+  if (resizeListener) window.removeEventListener('resize', resizeListener)
   resizeListener = resize
   window.addEventListener('resize', resizeListener)
 
@@ -267,41 +294,62 @@ onUnmounted(() => {
   if (animId) cancelAnimationFrame(animId)
   if (mouseListener) window.removeEventListener('mousemove', mouseListener)
   if (resizeListener) window.removeEventListener('resize', resizeListener)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+  try {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    if (reducedListener) {
+      if (mq.removeEventListener) mq.removeEventListener('change', reducedListener)
+      else if (mq.removeListener) mq.removeListener(reducedListener)
+    }
+  } catch {}
 })
 </script>
 
 <style scoped>
+/* 视图舞台：给 page Transition 提供单根父节点，并撑满 #app */
+.app-stage,
+.app-view {
+  width: 100%;
+  height: 100%;
+}
+
+/* 首屏加载层：动效走 .motion-spin（spin 1s linear，reduced-motion 自动停），不再本地定义 keyframes */
 .init-loading {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: var(--z-max);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 18px;
-  background: var(--bg-app, #0f1115);
+  gap: var(--space-3);
+  background: var(--surface-0);
 }
 .init-spinner {
   width: 46px;
   height: 46px;
-  border: 4px solid var(--accent-outline, rgba(128, 128, 128, 0.25));
-  border-top-color: var(--accent, #12b7f5);
-  border-radius: 50%;
-  animation: init-spin 0.9s linear infinite;
+  border: 4px solid var(--brand-soft);
+  border-top-color: var(--brand);
+  border-radius: var(--radius-pill);
 }
 .init-text {
-  color: var(--text-primary, #e6e6e6);
-  font-size: 14px;
+  color: var(--fg);
+  font-size: var(--text-base);
   letter-spacing: 1px;
 }
 .init-sub {
-  margin-top: -10px;
-  color: var(--text-secondary, #8a8f99);
-  font-size: 12px;
+  margin-top: calc(-1 * var(--space-2));
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
   letter-spacing: 0.5px;
 }
-@keyframes init-spin {
-  to { transform: rotate(360deg); }
+/* 粒子背景画布（EXCEPTIONS W1，渲染开关在 JS 按 effectLevel / reduced-motion 门控） */
+.particle-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: var(--z-max);
 }
 </style>

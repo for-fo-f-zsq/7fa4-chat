@@ -111,8 +111,14 @@ await esbuild.build({
   outfile,
   plugins: [vueSfc],
   loader: { '.css': 'empty' },
+  // 与 electron.vite.config 的 '@' → src/renderer/src 保持一致
+  alias: { '@': path.join(ROOT, 'src/renderer/src') },
   define: {
     'process.env.NODE_ENV': '"development"',
+    // 原语里用 import.meta.env.DEV 做开发期告警守卫，临时 harness 需补齐该对象
+    'import.meta.env.DEV': 'true',
+    'import.meta.env.PROD': 'false',
+    'import.meta.env.MODE': '"development"',
     __VUE_OPTIONS_API__: 'true',
     __VUE_PROD_DEVTOOLS__: 'false',
     __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: 'false',
@@ -142,7 +148,7 @@ const pv = host.querySelector('.md-preview')
 chk('挂载：textarea 与预览容器就绪', !!ta && !!pv)
 chk('挂载：预览带 luogu-md 渲染类（主题变量可达）', pv?.classList.contains('luogu-md'))
 chk('挂载：行号 gutter 就绪', !!host.querySelector('.md-gutter'))
-chk('挂载：工具栏存在且含滚动同步按钮', !!host.querySelector('.md-toolbar .md-tb-btn[title^="滚动同步"]'))
+chk('挂载：工具栏存在且含滚动同步按钮', !!host.querySelector('.md-toolbar .ui-icon-btn[title^="滚动同步"]'))
 
 // ---------- 5. 输入 → 预览渲染 ----------
 ta.value = '# 你好\n\n正文段落'
@@ -154,27 +160,27 @@ chk('输入：预览块带 data-src-line 锚点（滚动同步依据）', !!pv.q
 chk('输入：状态栏为未保存', host.querySelector('.md-status-right')?.textContent.includes('未保存'))
 
 // ---------- 6. 工具栏插入 / 撤销 ----------
-const boldBtn = host.querySelector('.md-tb-btn[title^="加粗"]')
+const boldBtn = host.querySelector('.md-toolbar .ui-icon-btn[title^="加粗"]')
 chk('工具栏：加粗按钮存在', !!boldBtn)
 boldBtn.click()
 await nextTick()
 chk('工具栏：加粗插入成功', ta.value.includes('**加粗文本**'), ta.value)
-const undoBtn = host.querySelector('.md-tb-btn[title^="撤销"]')
+const undoBtn = host.querySelector('.md-toolbar .ui-icon-btn[title^="撤销"]')
 undoBtn.click()
 await nextTick()
 chk('工具栏：撤销还原', !ta.value.includes('**加粗文本**'), ta.value)
-const redoBtn = host.querySelector('.md-tb-btn[title^="重做"]')
+const redoBtn = host.querySelector('.md-toolbar .ui-icon-btn[title^="重做"]')
 chk('工具栏：重做可用', !!redoBtn && !redoBtn.disabled)
 redoBtn.click()
 await nextTick()
 chk('工具栏：重做恢复插入', ta.value.includes('**加粗文本**'))
 
 // ---------- 7. 表格生成器弹窗 ----------
-host.querySelector('.md-tb-btn[title^="表格生成器"]').click()
+host.querySelector('.md-toolbar .ui-icon-btn[title^="表格生成器"]').click()
 await nextTick()
 const tableDialog = host.querySelector('.mdm-dialog')
 chk('表格：弹窗打开', !!tableDialog)
-const insertTableBtn = [...host.querySelectorAll('.mdm-btn-primary')].find((b) => b.textContent.includes('生成并插入'))
+const insertTableBtn = [...host.querySelectorAll('.mdm-footer .ui-btn--primary')].find((b) => b.textContent.includes('生成并插入'))
 insertTableBtn.click()
 await sleep(60)
 await nextTick()
@@ -182,11 +188,11 @@ chk('表格：生成的 Markdown 已插入', /\| 标题 1 \| 标题 2 \|/.test(t
 chk('表格：弹窗已关闭', !host.querySelector('.mdm-dialog'))
 
 // ---------- 8. 数学公式面板 ----------
-host.querySelector('.md-tb-btn[title^="数学公式面板"]').click()
+host.querySelector('.md-toolbar .ui-icon-btn[title^="数学公式面板"]').click()
 await nextTick()
-chk('公式：弹窗打开且分类页签渲染', host.querySelectorAll('.mdm-math-tab').length > 0)
+chk('公式：弹窗打开且分类页签渲染', host.querySelectorAll('.mdm-math-tabs .ui-btn').length > 0)
 chk('公式：KaTeX 预览已渲染', host.querySelectorAll('.mdm-math-card .katex').length > 0)
-const closeMath = [...host.querySelectorAll('.mdm-btn')].find((b) => b.textContent.trim() === '关闭')
+const closeMath = [...host.querySelectorAll('.mdm-footer .ui-btn')].find((b) => b.textContent.trim() === '关闭')
 closeMath.click()
 await nextTick()
 
@@ -194,7 +200,7 @@ await nextTick()
 // 语义（3.5.1 起）：首次保存弹「另存为」选真实位置；之后同一文件名静默覆写，不再询问。
 // 不再写入应用内部工作区（用户既不知道存哪、重开也找不回）。
 apiCalls.length = 0
-host.querySelector('.md-ws-btn[title^="保存"]').click()
+host.querySelector('.ui-icon-btn[title^="保存"]').click()
 await sleep(80)
 await nextTick()
 chk('保存：首次保存走另存为对话框', apiCalls.some(([k]) => k === 'saveAs'), JSON.stringify(apiCalls))
@@ -203,7 +209,7 @@ chk('保存：落盘内容包含正文', /你好/.test(savedFiles[firstPath] || 
 chk('保存：状态栏回到已保存', host.querySelector('.md-status-right')?.textContent.includes('已保存'))
 
 apiCalls.length = 0
-host.querySelector('.md-ws-btn[title^="保存"]').click()
+host.querySelector('.ui-icon-btn[title^="保存"]').click()
 await sleep(80)
 await nextTick()
 chk('保存：再次保存静默覆写同一路径（不弹框）',
@@ -226,16 +232,16 @@ await nextTick()
 chk('Ctrl+Shift+S：另存为（重新弹框选位置）', apiCalls.some(([k]) => k === 'saveAs'), JSON.stringify(apiCalls))
 
 // ---------- 10. 视图模式 ----------
-const previewOnlyBtn = host.querySelector('.md-tb-btn[title="纯预览"]')
+const previewOnlyBtn = host.querySelector('.md-toolbar .ui-icon-btn[title="纯预览"]')
 previewOnlyBtn.click()
 await nextTick()
 chk('视图：切到纯预览', host.querySelector('.md-workspace')?.classList.contains('mode-preview-only'))
-const typoraBtn = host.querySelector('.md-tb-btn[title^="所见即所得"]')
+const typoraBtn = host.querySelector('.md-toolbar .ui-icon-btn[title^="所见即所得"]')
 typoraBtn.click()
 await nextTick()
 chk('视图：切到 Typora 模式', host.querySelector('.md-workspace')?.classList.contains('mode-typora'))
 chk('视图：预览容器获得 typora-mode 类', pv.classList.contains('typora-mode'))
-host.querySelector('.md-tb-btn[title="双栏对比"]').click()
+host.querySelector('.md-toolbar .ui-icon-btn[title="双栏对比"]').click()
 await nextTick()
 chk('视图：切回双栏', host.querySelector('.md-workspace')?.classList.contains('mode-split'))
 

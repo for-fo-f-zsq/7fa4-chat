@@ -35,4 +35,8 @@ website-dev/
 # 工具包构建产物（由 scripts/build-tools.mjs 生成，发布到 GitLab 包仓库，不入库）
 /dist-tools/
 
+# 本地环境变量（含 GITLAB_TOKEN 等发布凭据，严禁入库）
+.env
+.env.local
+
 

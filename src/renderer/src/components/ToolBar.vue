@@ -1,9 +1,16 @@
 <template>
   <div class="tool-bar">
-    <button class="tool-bar-back" type="button" :title="backTitle" @click="emit('back')">
-      <i class="fas fa-arrow-left"></i>
-      <span>返回</span>
-    </button>
+    <UiButton
+      variant="ghost"
+      size="sm"
+      pill
+      icon="fas fa-arrow-left"
+      :title="backTitle"
+      :aria-label="backTitle"
+      @click="emit('back')"
+    >
+      返回
+    </UiButton>
     <span class="tool-bar-name">{{ name }}</span>
   </div>
 </template>
@@ -28,5 +35,9 @@ defineProps({
   },
 })
 
+import { UiButton } from '@/ui'
+
 const emit = defineEmits(['back'])
 </script>
+
+<style scoped src="../css/tool-bar.css"></style>

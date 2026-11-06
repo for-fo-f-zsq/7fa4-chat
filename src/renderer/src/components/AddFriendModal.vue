@@ -1,71 +1,72 @@
 <template>
-  <div v-if="visible" class="addfriend-overlay" @click.self="close">
-    <div class="addfriend-modal">
-      <div class="addfriend-header">
-        <h4>添加好友</h4>
-        <button class="addfriend-close" @click="close"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="addfriend-search">
-        <input
+  <UiModal v-model:open="modalOpen" size="sm" title="添加好友" @opened="focusSearch" @closed="finishClose">
+    <div class="addfriend-search">
+      <div class="addfriend-search-field">
+        <UiInput
           ref="searchRef"
-          v-autofocus
           v-model="query"
-          type="text"
           placeholder="搜索用户名 / 昵称 / 真名 / UID"
-          class="addfriend-input"
+          clearable
         />
-        <select v-model="gradeFilter" class="addfriend-grade-select">
-          <option value="">全部年级</option>
-          <option v-for="g in gradeOptions" :key="g.key" :value="g.key">{{ g.label }}</option>
-        </select>
       </div>
-      <div class="addfriend-direct" v-if="query.trim()">
-        <button class="addfriend-direct-btn" @click="onDirectAdd">
-          <i class="fas fa-user-plus"></i>
-          直接添加「{{ query.trim() }}」
-        </button>
-      </div>
-      <div class="addfriend-list" v-if="filteredUsers.length > 0">
-        <div
-          v-for="u in filteredUsers"
-          :key="u.uid"
-          class="addfriend-item"
-          :class="{ 'is-friend': u.isFriend }"
-          @click="onViewUser(u)"
-        >
-          <div class="addfriend-item-avatar">
-            <div class="avatar-placeholder-sm">{{ u.initial }}</div>
-          </div>
-          <div class="addfriend-item-info">
-            <span class="addfriend-item-name" :style="{ color: u.gradeColor }">{{ u.realName }}</span>
-            <span class="addfriend-item-detail">
-              <template v-if="u.uid">{{ u.uid }}</template>
-              <template v-if="u.nickname || u.username"> / </template>
-              <template v-if="u.nickname">{{ u.nickname }}</template>
-              <template v-if="u.nickname && u.username"> / </template>
-              <template v-if="u.username">{{ u.username }}</template>
-            </span>
-          </div>
-          <div class="addfriend-item-action" @click.stop="onAddFriend(u)">
-            <i v-if="u.isFriend" class="fas fa-check"></i>
-            <i v-else class="fas fa-plus"></i>
-          </div>
+      <select v-model="gradeFilter" class="addfriend-grade-select">
+        <option value="">全部年级</option>
+        <option v-for="g in gradeOptions" :key="g.key" :value="g.key">{{ g.label }}</option>
+      </select>
+    </div>
+    <div class="addfriend-direct" v-if="query.trim()">
+      <UiButton variant="secondary" size="sm" block icon="fas fa-user-plus" @click="onDirectAdd">
+        直接添加「{{ query.trim() }}」
+      </UiButton>
+    </div>
+    <div class="addfriend-list" v-if="users.length > 0">
+      <div
+        v-for="u in users"
+        :key="u.uid"
+        class="addfriend-item"
+        :class="{ 'is-friend': u.isFriend }"
+        @click="onViewUser(u)"
+      >
+        <UiAvatar shape="rounded" size="md" :color="avatarTint(u.uid)" :name="u.initial" />
+        <div class="addfriend-item-info">
+          <span class="addfriend-item-name" :style="{ color: u.gradeColor }">{{ u.realName }}</span>
+          <span class="addfriend-item-detail">
+            <template v-if="u.uid">{{ u.uid }}</template>
+            <template v-if="u.nickname || u.username"> / </template>
+            <template v-if="u.nickname">{{ u.nickname }}</template>
+            <template v-if="u.nickname && u.username"> / </template>
+            <template v-if="u.username">{{ u.username }}</template>
+          </span>
         </div>
-      </div>
-      <div class="addfriend-empty" v-else-if="query || gradeFilter">
-        无匹配结果
-      </div>
-      <div class="addfriend-empty" v-else>
-        加载中...
+        <UiIconButton
+          :icon="u.isFriend ? 'fas fa-check' : 'fas fa-plus'"
+          :aria-label="u.isFriend ? '已是好友' : '添加好友'"
+          size="sm"
+          :disabled="u.isFriend"
+          @click.stop="onAddFriend(u)"
+        />
       </div>
     </div>
-  </div>
+    <div class="addfriend-empty" v-else-if="query || gradeFilter">
+      无匹配结果
+    </div>
+    <div class="addfriend-empty" v-else>
+      加载中...
+    </div>
+  </UiModal>
 </template>
 
+<style scoped src="../css/addfriend-modal.css"></style>
+
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { store } from '../store.js'
-import { getGradeColor, getGradeLabel, getAvatarInitial, GRADE_LABELS, ranklistOrder, usersJson, localGradeColorKey } from '../utils.js'
+import { getGradeColor, getGradeLabel, getAvatarInitial, GRADE_LABELS, ranklistOrder, usersJson, localGradeColorKey, avatarTint } from '../utils.js'
+import UiModal from '../ui/UiModal/UiModal.vue'
+import UiAvatar from '../ui/UiAvatar/UiAvatar.vue'
+import UiInput from '../ui/UiInput/UiInput.vue'
+import UiButton from '../ui/UiButton/UiButton.vue'
+import UiIconButton from '../ui/UiIconButton/UiIconButton.vue'
 
 const props = defineProps({
   visible: Boolean,
@@ -79,20 +80,27 @@ const emit = defineEmits(['update:visible', 'confirm', 'viewUser'])
 const query = ref('')
 const gradeFilter = ref('')
 const searchRef = ref(null)
+const modalOpen = ref(false)
 
 const gradeOptions = Object.entries(GRADE_LABELS).map(([key, label]) => ({ key, label }))
 
-watch(() => props.visible, async (newVal) => {
+watch(() => props.visible, (newVal) => {
   if (newVal) {
-    // 先赋值再 nextTick focus：输入框在 v-if 打开时才挂载，顺序反了会聚焦到空输入框
+    // 打开前先落初始搜索词，再交给 UiModal 播进场（autofocus 由 @opened 统一转焦）
     query.value = props.initialQuery || ''
     gradeFilter.value = ''
-    await nextTick()
-    searchRef.value?.focus()
+    modalOpen.value = true
+  } else {
+    modalOpen.value = false
   }
 })
 
-const filteredUsers = computed(() => {
+function focusSearch() {
+  const el = searchRef.value?.$el?.querySelector?.('input')
+  el?.focus({ preventScroll: true })
+}
+
+const users = computed(() => {
   const q = query.value.trim().toLowerCase()
   const gf = gradeFilter.value
 
@@ -162,6 +170,10 @@ function onDirectAdd() {
 }
 
 function close() {
+  modalOpen.value = false
+}
+
+function finishClose() {
   emit('update:visible', false)
 }
 </script>

@@ -16,18 +16,29 @@
       @error="onFrameError"
     ></iframe>
 
-    <div v-if="status === 'loading'" class="tool-host-overlay tool-host-loading">
-      <i class="fas fa-spinner fa-spin"></i>
-      <span>工具加载中…</span>
+    <div v-if="status === 'loading'" class="tool-host-overlay tool-host-loading motion-fade-in">
+      <div class="tool-host-skeleton" aria-hidden="true">
+        <UiSkeleton variant="rect" height="120px" width="100%" />
+        <UiSkeleton variant="text" :lines="3" />
+      </div>
+      <div class="tool-host-loading-line">
+        <UiSpinner size="md" label="工具加载中" />
+        <span>工具加载中…</span>
+      </div>
     </div>
 
-    <div v-else-if="status === 'error'" class="tool-host-overlay tool-host-error">
-      <i class="fas fa-exclamation-triangle"></i>
-      <p class="tool-host-error-msg">{{ errorMessage || '工具加载失败' }}</p>
-      <button class="tool-host-retry" type="button" @click="retry">
-        <i class="fas fa-rotate-right"></i>
-        <span>重试</span>
-      </button>
+    <div v-else-if="status === 'error'" class="tool-host-overlay tool-host-error motion-fade-in">
+      <UiEmptyState
+        icon="fas fa-triangle-exclamation"
+        title="工具加载失败"
+        :description="errorMessage || '工具加载失败'"
+      >
+        <template #action>
+          <UiButton variant="secondary" size="sm" icon="fas fa-rotate-right" @click="retry">
+            重试
+          </UiButton>
+        </template>
+      </UiEmptyState>
     </div>
   </div>
 </template>
@@ -54,6 +65,7 @@ import {
   forwardTimerFloatEvents,
   watchAppTheme,
 } from '../tools/tool-bridge-host.js'
+import { UiButton, UiEmptyState, UiSkeleton, UiSpinner } from '@/ui'
 
 const props = defineProps({
   /** { remote: true, id, url, name, version } */
@@ -268,3 +280,5 @@ onBeforeUnmount(() => {
   disconnectBridge()
 })
 </script>
+
+<style scoped src="../css/tool-host.css"></style>

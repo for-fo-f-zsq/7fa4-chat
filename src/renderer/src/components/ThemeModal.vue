@@ -1,90 +1,78 @@
 <template>
-  <div class="modal-overlay" @click.self="$emit('close')">
-    <div class="modal-container">
-      <div class="theme-modal-card">
-        <div class="theme-modal-header">
-          <h3>主题设置</h3>
-          <button class="modal-close-btn" @click="$emit('close')"><i class="fas fa-times"></i></button>
-        </div>
-
-        <div class="theme-modal-tabs">
-          <div class="tmtab" :class="{ active: tab === 'preset' }" @click="tab = 'preset'">预设主题</div>
-          <div class="tmtab" :class="{ active: tab === 'custom' }" @click="tab = 'custom'">自定义主题</div>
-        </div>
-
-        <div class="theme-modal-body">
-          <div v-if="tab === 'preset'" class="preset-panel">
-            <div class="theme-grid-modal">
-              <div class="theme-item" v-for="t in themes" :key="t.value" :class="{ active: currentTheme === t.value, original: t.original, dark: isDarkTheme(t.value) }" @click.stop="selectTheme(t.value)" @mouseenter="previewTheme(t.value)" @mouseleave="restoreTheme">
-                <!-- 迷你预览：该主题的真实配色（深浅与主色一眼可辨） -->
-                <span class="theme-preview" :style="{ background: previewBg(t.value) }">
-                  <span class="tp-side" :style="{ background: previewSide(t.value) }"></span>
-                  <span class="tp-accent" :style="{ background: previewAccent(t.value) }"></span>
-                  <span class="tp-line" :style="{ background: previewText(t.value) }"></span>
-                </span>
-                <span class="theme-name">{{ t.label }}</span>
-                <span v-if="t.original" class="theme-star">★</span>
-              </div>
-            </div>
+  <UiModal :open="true" title="主题设置" size="xl" scrollable @close="emit('close')">
+    <UiTabs v-model="tab" :items="tabs" variant="pill" size="sm" class="theme-tabs">
+      <div v-if="tab === 'preset'" class="preset-panel">
+        <div class="theme-grid-modal motion-stagger">
+          <div class="theme-item" v-for="t in themes" :key="t.value" :class="{ active: currentTheme === t.value, original: t.original, dark: isDarkTheme(t.value) }" @click.stop="selectTheme(t.value)" @mouseenter="previewTheme(t.value)" @mouseleave="restoreTheme">
+            <!-- 迷你预览：该主题的真实配色（深浅与主色一眼可辨） -->
+            <span class="theme-preview" :style="{ background: previewBg(t.value) }">
+              <span class="tp-side" :style="{ background: previewSide(t.value) }"></span>
+              <span class="tp-accent" :style="{ background: previewAccent(t.value) }"></span>
+              <span class="tp-line" :style="{ background: previewText(t.value) }"></span>
+            </span>
+            <span class="theme-name">{{ t.label }}</span>
+            <span v-if="t.original" class="theme-star">★</span>
           </div>
-
-          <div v-if="tab === 'custom'" class="custom-panel">
-            <div class="tm-actions">
-              <button class="tm-btn" @click="exportTheme"><i class="fas fa-download"></i> 导出主题</button>
-              <button class="tm-btn" @click="triggerImport"><i class="fas fa-upload"></i> 导入主题</button>
-              <input ref="importInput" type="file" accept=".json" style="display:none" @change="importCSS" />
-              <button class="tm-btn" @click="resetCustom"><i class="fas fa-rotate-left"></i> 重置默认</button>
-              <span class="tm-actions-gap"></span>
-              <button class="tm-btn tm-apply" @click="applyCustom"><i class="fas fa-check"></i> 应用</button>
-            </div>
-            <div class="tm-hint">导出 / 导入包含：主题变量（颜色）与年级颜色，文件为 custom-theme.json</div>
-
-            <div class="tm-cols">
-              <!-- 左：主题变量（全展开，分组小标题） -->
-              <div class="tm-pane">
-                <div class="tm-pane-title">主题变量</div>
-                <div class="tm-pane-scroll">
-                  <template v-for="group in varGroups" :key="group.label">
-                    <div class="tm-group-title">{{ group.label }}</div>
-                    <label class="tm-var" v-for="v in group.vars" :key="v.name" :title="v.name">
-                      <span class="tm-dot" :style="{ background: customVars[v.name] || '#888888' }"></span>
-                      <span class="tm-var-name">{{ v.label }}</span>
-                      <input type="color" class="tm-color" v-model="customVars[v.name]" />
-                      <input type="text" class="tm-hex" v-model="customVars[v.name]" :title="customVars[v.name]" spellcheck="false" />
-                    </label>
-                  </template>
-                </div>
-              </div>
-
-              <!-- 右：年级颜色（色卡网格，点色块直接取色） -->
-              <div class="tm-pane">
-                <div class="tm-pane-title"><i class="fas fa-palette"></i>年级颜色</div>
-                <div class="tm-pane-scroll">
-                  <div class="tm-swatches">
-                    <label class="tm-swatch" v-for="k in COLOR_KEYS" :key="k">
-                      <span class="tm-swatch-color" :style="{ background: getGradeColorValue(k) }">
-                        <input type="color" :value="getGradeColorValue(k)" @input="onGradeColorChange(k, $event.target.value)" />
-                      </span>
-                      <span class="tm-swatch-name">{{ GRADE_LABELS[k] || k }}</span>
-                      <input type="text" class="tm-swatch-hex" :value="getGradeColorValue(k)" @change="onGradeColorHexChange(k, $event.target.value)" spellcheck="false" />
-                    </label>
-                  </div>
-                  <button class="tm-btn" style="margin-top:10px;width:100%" @click="resetGradeColors"><i class="fas fa-rotate-left"></i> 重置默认</button>
-                </div>
-              </div>
-            </div>
-          </div>
-
         </div>
       </div>
-    </div>
-  </div>
+
+      <div v-else class="custom-panel">
+        <div class="tm-actions">
+          <UiButton variant="secondary" size="sm" icon="fas fa-download" @click="exportTheme">导出主题</UiButton>
+          <UiButton variant="secondary" size="sm" icon="fas fa-upload" @click="triggerImport">导入主题</UiButton>
+          <input ref="importInput" type="file" accept=".json" style="display:none" @change="importCSS" />
+          <UiButton variant="secondary" size="sm" icon="fas fa-rotate-left" @click="resetCustom">重置默认</UiButton>
+          <span class="tm-actions-gap"></span>
+          <UiButton variant="primary" size="sm" icon="fas fa-check" @click="applyCustom">应用</UiButton>
+        </div>
+        <div class="tm-hint">导出 / 导入包含：主题变量（颜色）与年级颜色，文件为 custom-theme.json</div>
+
+        <div class="tm-cols">
+          <!-- 左：主题变量（全展开，分组小标题） -->
+          <div class="tm-pane">
+            <div class="tm-pane-title">主题变量</div>
+            <div class="tm-pane-scroll">
+              <template v-for="group in varGroups" :key="group.label">
+                <div class="tm-group-title">{{ group.label }}</div>
+                <label class="tm-var" v-for="v in group.vars" :key="v.name" :title="v.name">
+                  <span class="tm-dot" :style="{ background: customVars[v.name] || '#888888' }"></span>
+                  <span class="tm-var-name">{{ v.label }}</span>
+                  <input type="color" class="tm-color" v-model="customVars[v.name]" aria-label="选择颜色" />
+                  <input type="text" class="tm-hex" v-model="customVars[v.name]" :title="customVars[v.name]" spellcheck="false" aria-label="颜色十六进制值" />
+                </label>
+              </template>
+            </div>
+          </div>
+
+          <!-- 右：年级颜色（色卡网格，点色块直接取色） -->
+          <div class="tm-pane">
+            <div class="tm-pane-title"><i class="fas fa-palette"></i>年级颜色</div>
+            <div class="tm-pane-scroll">
+              <div class="tm-swatches">
+                <label class="tm-swatch" v-for="k in COLOR_KEYS" :key="k">
+                  <span class="tm-swatch-color" :style="{ background: getGradeColorValue(k) }">
+                    <input type="color" :value="getGradeColorValue(k)" @input="onGradeColorChange(k, $event.target.value)" aria-label="选择年级颜色" />
+                  </span>
+                  <span class="tm-swatch-name">{{ GRADE_LABELS[k] || k }}</span>
+                  <input type="text" class="tm-swatch-hex" :value="getGradeColorValue(k)" @change="onGradeColorHexChange(k, $event.target.value)" spellcheck="false" aria-label="年级颜色十六进制值" />
+                </label>
+              </div>
+              <UiButton class="tm-reset-grades" variant="secondary" size="sm" icon="fas fa-rotate-left" @click="resetGradeColors">重置默认</UiButton>
+            </div>
+          </div>
+        </div>
+      </div>
+    </UiTabs>
+  </UiModal>
 </template>
 
 <script setup>
+// 用法：<ThemeModal :setting="setting" @close="..." @setting-change="applySetting" />
+
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { THEMES } from '../composables/constants.js'
 import { COLOR_KEYS, GRADE_LABELS, DEFAULT_PALETTE } from '../utils.js'
+import { UiButton, UiModal, UiTabs } from '@/ui'
 
 const props = defineProps({
   setting: Object
@@ -94,6 +82,10 @@ const emit = defineEmits(['close', 'settingChange'])
 
 const tab = ref('preset')
 const importInput = ref(null)
+const tabs = [
+  { key: 'preset', label: '预设主题' },
+  { key: 'custom', label: '自定义主题' }
+]
 
 let previewTimer = null
 let isPreviewing = false
@@ -154,6 +146,23 @@ const RAW_VAR_GROUPS = [
     { name: '--message-self-text', label: '自己气泡文字' },
     { name: '--message-other-bg', label: '他人气泡背景' },
   ]},
+  { label: '头像色板', vars: [
+    { name: '--avatar-tint-1', label: '头像色 1' },
+    { name: '--avatar-tint-2', label: '头像色 2' },
+    { name: '--avatar-tint-3', label: '头像色 3' },
+    { name: '--avatar-tint-4', label: '头像色 4' },
+    { name: '--avatar-tint-5', label: '头像色 5' },
+    { name: '--avatar-tint-6', label: '头像色 6' },
+    { name: '--avatar-tint-7', label: '头像色 7' },
+    { name: '--avatar-tint-8', label: '头像色 8' },
+    { name: '--avatar-tint-text', label: '头像文字色' },
+  ]},
+  { label: '主题色板', vars: [
+    { name: '--palette-1', label: '色板 1' },
+    { name: '--palette-2', label: '色板 2' },
+    { name: '--palette-3', label: '色板 3' },
+    { name: '--palette-4', label: '色板 4' },
+  ]},
   { label: '滚动条', vars: [
     { name: '--scrollbar-thumb', label: '滚动条滑块' },
     { name: '--scrollbar-thumb-hover', label: '滚动条悬停' },
@@ -181,7 +190,7 @@ const customVars = reactive({})
 //
 // ⚠️ 不能用「body 下挂一个 .theme-x 的隐藏 div」的老写法：
 //   default 主题的变量定义在 :root 上（css/themes/default.css 是 `:root { ... }`），
-//   并没有 .theme-default 这条规则。当应用当前处于深色主题时（html 带 theme-obsidian），
+//   并没有 .theme-default 这条规则。当应用当前处于深色主题时（html 带 theme-midnight），
 //   body 下的探针 div 命中不到任何规则，只能**继承** html 的变量 → 读到深色值，
 //   于是「默认主题(QQ)」卡片在深色模式下被画成深色（isDarkTheme 也误判为深色）。
 //   iframe 内部是独立的文档树，:root 即 iframe 的 <html>，把主题类加在它上面
@@ -452,3 +461,5 @@ function resetGradeColors() {
   emit('settingChange', { gradeColors: {} })
 }
 </script>
+
+<style scoped src="../css/theme-modal.css"></style>

@@ -1,0 +1,138 @@
+/* ============================================================================
+   utilities.css — 极少量通用工具类（最后加载，允许被组件类覆盖）
+   原则：只放「跨组件重复到不值得写三遍」的无业务语义类；
+        禁止放任何颜色主题、布局骨架、组件形态（卡片/按钮等一律走原语）。
+   命名：u-<语义>，新增必须先在本文件登记注释。
+   ========================================================================== */
+
+/* 无障碍：视觉隐藏但可被读屏 */
+.u-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 文本截断 */
+.u-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.u-line-clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.u-line-clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+/* 滚动容器 */
+.u-scroll-y {
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+.u-scroll-x {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior: contain;
+}
+.u-no-scrollbar {
+  scrollbar-width: none;
+}
+.u-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* 弹性布局小工具（只覆盖高频三件套，不造原子类体系） */
+.u-fill {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+.u-row {
+  display: flex;
+  align-items: center;
+}
+.u-col {
+  display: flex;
+  flex-direction: column;
+}
+.u-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.u-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.u-gap-1 {
+  gap: var(--space-1);
+}
+.u-gap-2 {
+  gap: var(--space-2);
+}
+.u-gap-3 {
+  gap: var(--space-3);
+}
+.u-gap-4 {
+  gap: var(--space-4);
+}
+
+/* 文本语义（少用，优先原语/组件内令牌） */
+.u-text-muted {
+  color: var(--fg-muted);
+}
+.u-text-subtle {
+  color: var(--fg-subtle);
+}
+.u-text-danger {
+  color: var(--fg-danger);
+}
+.u-mono {
+  font-family: var(--font-mono);
+}
+.u-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 状态/交互 */
+.u-locked {
+  pointer-events: none;
+  opacity: var(--opacity-disabled);
+  filter: grayscale(0.4);
+}
+.u-drag-region {
+  -webkit-app-region: drag;
+}
+.u-no-drag {
+  -webkit-app-region: no-drag;
+}
+.u-drop-target {
+  outline: var(--focus-width) dashed var(--brand);
+  outline-offset: calc(-1 * var(--focus-width));
+  background: var(--brand-soft);
+}
+.u-divider-h {
+  height: 1px;
+  background: var(--line);
+}
+.u-divider-v {
+  width: 1px;
+  background: var(--line);
+}

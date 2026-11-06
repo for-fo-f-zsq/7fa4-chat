@@ -1,0 +1,220 @@
+/* 内容预览弹窗指标 — 由 ContentPreviewModal.vue scoped 引入；文字/HTML/PDF 分支外壳交 UiModal，
+   图片分支保留纯黑媒体层（沉浸式预览），见 .team/refactor/css/C2-adopt.md。 */
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--overlay-media);
+}
+
+.image-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.preview-image-zoom {
+  width: auto;
+  height: auto;
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--elev-overlay);
+  user-select: none;
+  transform-origin: center center;
+  cursor: zoom-in;
+  transition: transform var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+.preview-image-zoom.is-dragging {
+  transition: none;
+}
+
+.image-toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-5);
+  z-index: var(--z-raised);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--scrim-strong);
+  backdrop-filter: blur(var(--overlay-blur));
+  border-radius: var(--radius-xl);
+  box-shadow: var(--elev-3);
+  transform: translateX(-50%);
+}
+
+.image-toolbar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-md);
+  height: var(--control-h-md);
+  padding: 0;
+  color: var(--on-brand);
+  font-size: var(--text-base);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    color var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+.image-toolbar button:hover {
+  background: var(--surface-hover);
+}
+
+.image-toolbar button:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+.image-zoom-label {
+  min-width: 44px;
+  color: var(--on-brand);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  opacity: var(--opacity-muted);
+}
+
+.image-toolbar-sep {
+  width: var(--border-width);
+  height: 18px;
+  margin: 0 var(--space-1);
+  background: var(--line);
+  opacity: 0.6;
+}
+
+.preview-header {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.preview-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.preview-header-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.preview-body {
+  min-width: 0;
+}
+
+.preview-text {
+  margin: 0;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+}
+
+.preview-html {
+  color: var(--fg);
+  font-size: var(--text-base);
+  line-height: var(--leading-relaxed);
+  word-break: break-word;
+  user-select: text;
+}
+
+.preview-html :deep(pre) {
+  margin: var(--space-1) 0;
+  padding: var(--space-2) var(--space-3);
+  overflow-x: auto;
+  background: var(--surface-code);
+  border-radius: var(--radius-base);
+  user-select: text;
+}
+
+.preview-html :deep(code) {
+  padding: 2px var(--space-1);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--surface-code-inline);
+  border-radius: var(--radius-base);
+  user-select: text;
+}
+
+.preview-html :deep(pre code) {
+  padding: 0;
+  background: transparent;
+}
+
+.preview-html :deep(a) {
+  color: var(--fg-link);
+  text-decoration: none;
+}
+
+.preview-html :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.preview-html :deep(img) {
+  max-width: 100%;
+  border-radius: var(--radius-base);
+}
+
+.preview-html :deep(table) {
+  margin: var(--space-1) 0;
+  border-collapse: collapse;
+}
+
+.preview-html :deep(th),
+.preview-html :deep(td) {
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--line-subtle);
+}
+
+.preview-html :deep(blockquote) {
+  margin: var(--space-1) 0;
+  padding-left: var(--space-3);
+  border-left: var(--border-width-3d) solid var(--line-subtle);
+}
+
+.preview-html :deep(ul),
+.preview-html :deep(ol) {
+  margin: var(--space-1) 0;
+  padding-left: var(--space-5);
+}
+
+.preview-pdf {
+  width: 100%;
+  height: 65vh;
+  background: var(--surface-card);
+  border: 0;
+  border-radius: var(--radius-base);
+}
+
+.preview-error {
+  padding: var(--space-10);
+  color: var(--fg-muted);
+  font-size: var(--text-base);
+  text-align: center;
+}

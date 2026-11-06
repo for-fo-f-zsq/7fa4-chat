@@ -2,7 +2,7 @@
   "id": "image",
   "name": "图片编辑",
   "desc": "画笔/橡皮/直线/矩形/椭圆；撤销；新建画布；保存到文件",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "minAppVersion": "3.7.0",
   "entry": "index.html",
   "icon": "fas fa-image"

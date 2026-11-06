@@ -223,6 +223,17 @@ export function getAvatarInitial(uid) {
   return String(uid).charAt(0)
 }
 
+// 头像底色：按任意稳定 key（用户 uid / 会话 key）取主题头像色板 --avatar-tint-1..8；
+// 文字色由 --avatar-tint-text 提供（浅色主题深字、深色主题浅字），同一对象颜色恒定。
+const AVATAR_TINT_FALLBACK = ['#EDF1F9', '#F7EADF', '#EFF2E0', '#E3F0F6', '#F3E8EE', '#E6E9F5', '#F4EEE3', '#E2EFE9']
+export function avatarTint(key) {
+  const s = String(key ?? '')
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  const i = h % AVATAR_TINT_FALLBACK.length
+  return `var(--avatar-tint-${i + 1}, ${AVATAR_TINT_FALLBACK[i]})`
+}
+
 // 年级文本（ranklist 同步）→ colorKey（年级分组键）。本地姓名库不再存 colorKey，
 // 改存 graduateYear（高中毕业年份），由下方 graduateYearToColorKey 实时推算；
 // 年级信息仍以 ranklist 实时同步为准（getGradeColor / getGradeLabel 优先使用）。

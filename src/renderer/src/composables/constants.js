@@ -1,29 +1,14 @@
+// 主题清单：default 为浅蓝（雾蓝）默认主题，其余 5 套由设计子智能体产出；
+// 顺序即主题面板展示顺序，cache 键（html.theme-<value>）不可随意改名。
 export const THEMES = [
-  { value: 'default', label: 'QQ', color: '#3C8CE7', original: true },
-  { value: 'wechat', label: '微信（WeChat）', color: '#07C160', original: true },
-  { value: 'aurora', label: '极光（Aurora）', color: '#50DCB4', original: true },
-  { value: 'abyss', label: '深渊（Abyss）', color: '#00D4FF', original: true },
-  { value: 'rose', label: '玫瑰（Rose）', color: '#DB3858' },
-  { value: 'lavender', label: '薰衣（Lavender）', color: '#7B38A8' },
-  { value: 'mint', label: '薄荷（Mint）', color: '#00A878' },
-  { value: 'peach', label: '蜜桃（Peach）', color: '#E87040' },
-  { value: 'amber', label: '琥珀（Amber）', color: '#F59E0B' },
-  { value: 'coral', label: '珊瑚（Coral）', color: '#FF7F50' },
-  { value: 'sage', label: '鼠尾草（Sage）', color: '#78906C' },
-  { value: 'slate', label: '石板（Slate）', color: '#475569' },
-  { value: 'obsidian', label: '黑曜（Obsidian）', color: '#8B5CF6' },
-  { value: 'crimson', label: '赤焰（Crimson）', color: '#EF4444' },
-  { value: 'emerald', label: '翡翠（Emerald）', color: '#10B981' },
-  { value: 'carbon', label: '碳黑（Carbon）', color: '#A0A0A0' },
-  { value: 'plasma', label: '等离子（Plasma）', color: '#FF00FF' },
-  { value: 'nord', label: '北欧（Nord）', color: '#88C0D0' },
-  { value: 'dracula', label: '德古拉（Dracula）', color: '#BD93F9' },
-  { value: 'monokai', label: '墨凯（Monokai）', color: '#A6E22E' },
-  { value: 'cyberpunk', label: '赛博（Cyberpunk）', color: '#FCEE09' },
-  { value: 'solarized', label: '日晒（Solarized）', color: '#268BD2' }
+  { value: 'default', label: '雾蓝（Default）', color: '#A3BFE3', original: true },
+  { value: 'sand', label: '暖沙（Sand）', color: '#D8C3A5' },
+  { value: 'sage', label: '鼠尾草（Sage）', color: '#A3B79B' },
+  { value: 'midnight', label: '暗夜（Midnight）', color: '#6F86A8' },
+  { value: 'graphite', label: '石墨（Graphite）', color: '#9AA0A6' },
+  { value: 'contrast', label: '高对比（Contrast）', color: '#2F5FA8' }
 ]
 
 // 窄窗口（手机比例）判定阈值：高/宽比超过此值即进入窄（单列）布局。
 // 与 ChatView 的 isNarrowLayout 共用，供各工具独立感知窄模式。
 export const NARROW_ASPECT = 1.4
-

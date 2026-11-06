@@ -1,114 +1,74 @@
-/* 新用户引导：聚光灯（spotlight）任务引导 —— 全屏遮罩挖洞高亮真实界面元素，
-   洞内可正常交互，气泡提示贴在洞旁边，完成动作后自动进入下一步 */
+/* 新用户引导（D 域：Onboarding.vue scoped）
+   - 气泡外壳交给 UiCard，步数交给 UiBadge，操作按钮交给 UiButton；本文件只留定位与描边。
+   - 原 ob-pulse @keyframes 已删除，呼吸光圈映射 motion.css 的 glowPulse + --motion-loop-pulse；
+     .ob-hole 带 data-ambient，html.fx-lite 与 reduced-motion 下由 motion.css 暂停。
+   - reduced-motion 由 motion.css 全局压制。
+   - 颜色/阴影/圆角/时长全部走 tokens / motion 语义令牌；ob-dragging 由 JS 只在拖拽时短暂添加。 */
 
 .ob-layer {
-  position: fixed;
-  inset: 0;
-  z-index: 10000;
-  pointer-events: none;
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-max);
+    pointer-events: none;
 }
-
-/* 引导全程不遮挡：只有高亮描边 + 气泡，界面照常可点 */
-
 .ob-hole {
-  position: fixed;
-  border: 2px solid var(--accent, #12b7f5);
-  border-radius: 10px;
-  box-shadow: 0 0 0 1px var(--border-light, rgba(128, 128, 128, 0.25)), 0 0 18px 2px var(--accent-outline, rgba(18, 183, 245, 0.35));
-  pointer-events: none;
-  animation: ob-pulse 1.6s ease-in-out infinite;
-  transition: left 0.18s ease, top 0.18s ease, width 0.18s ease, height 0.18s ease;
+    position: fixed;
+    border: 2px solid var(--brand);
+    border-radius: var(--radius-md);
+    box-shadow: 0 0 0 1px var(--line-strong),
+                0 0 18px 2px color-mix(in srgb, var(--brand) 35%, transparent);
+    pointer-events: none;
+    animation: glowPulse var(--motion-loop-pulse) var(--motion-ease-standard) infinite;
+    transition: left var(--motion-dur-base) var(--motion-ease-standard),
+                top var(--motion-dur-base) var(--motion-ease-standard),
+                width var(--motion-dur-base) var(--motion-ease-standard),
+                height var(--motion-dur-base) var(--motion-ease-standard);
 }
-@keyframes ob-pulse {
-  0%, 100% { box-shadow: 0 0 0 1px var(--border-light, rgba(128, 128, 128, 0.25)), 0 0 14px 1px var(--accent-outline, rgba(18, 183, 245, 0.3)); }
-  50%      { box-shadow: 0 0 0 1px var(--border-light, rgba(128, 128, 128, 0.35)), 0 0 22px 4px var(--accent-outline, rgba(18, 183, 245, 0.5)); }
-}
-
+/* 气泡：外壳视觉由 UiCard 提供，这里只管浮层定位与抬升层级 */
 .ob-tip {
-  position: fixed;
-  width: 330px;
-  padding: 14px 16px 13px;
-  background: var(--bg-app, #fff);
-  border: 1px solid var(--border-light, rgba(128, 128, 128, 0.25));
-  border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
-  pointer-events: auto;
-  transition: left 0.18s ease, top 0.18s ease;
+    position: fixed;
+    width: 330px;
+    box-shadow: var(--elev-3);
+    pointer-events: auto;
+    transition: left var(--motion-dur-base) var(--motion-ease-standard),
+                top var(--motion-dur-base) var(--motion-ease-standard);
 }
-
-.ob-tip-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  cursor: move;
-  user-select: none;
-}
-/* 拖动中关掉 left/top 过渡，跟手 */
 .ob-tip.ob-dragging {
-  transition: none;
+    transition: none;
 }
-.ob-step {
-  font-size: 12px;
-  color: var(--text-secondary, #888);
-  letter-spacing: 0.5px;
+.ob-tip-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: move;
+    user-select: none;
 }
-.ob-skip {
-  border: none;
-  background: none;
-  color: var(--text-placeholder, #999);
-  font-size: 12px;
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 4px;
-}
-.ob-skip:hover { color: var(--text-primary); background: var(--bg-conversation-hover, rgba(128,128,128,0.12)); }
-
 .ob-tip-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary, #e6e6e6);
-  margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+    color: var(--fg);
 }
-.ob-tip-title i { color: var(--accent, #12b7f5); }
-
+.ob-tip-title i {
+    color: var(--brand);
+}
 .ob-tip-text {
-  font-size: 13px;
-  line-height: 1.65;
-  color: var(--text-secondary, #aaa);
-  margin-bottom: 12px;
+    font-size: var(--text-md);
+    line-height: 1.65;
+    color: var(--fg-muted);
 }
-/* 没有直达按钮的步骤（纯等待用户操作）不该留出按钮区的空白 */
-.ob-tip-text:last-child { margin-bottom: 0; }
-
+.ob-tip-text:last-child {
+    margin-bottom: 0;
+}
 .ob-tip-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
 }
-/* 参观型步骤的静态说明（不自动消失、不闪）：与正文同色系，靠透明度压低存在感 */
 .ob-tip-hint {
-  margin-top: 10px;
-  font-size: 12px;
-  color: var(--text-secondary, #aaa);
-  opacity: 0.7;
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
+    opacity: var(--opacity-muted);
 }
-.ob-btn {
-  padding: 6px 14px;
-  font-size: 13px;
-  border-radius: 8px;
-  border: 1px solid var(--border-light, rgba(128, 128, 128, 0.3));
-  background: transparent;
-  color: var(--text-secondary, #aaa);
-  cursor: pointer;
-}
-.ob-btn:hover { border-color: var(--accent, #12b7f5); color: var(--accent, #12b7f5); }
-.ob-btn.primary {
-  background: var(--accent, #12b7f5);
-  border-color: var(--accent, #12b7f5);
-  color: var(--text-on-accent, #fff);
-}
-.ob-btn.primary:hover { filter: brightness(1.08); color: var(--text-on-accent, #fff); }

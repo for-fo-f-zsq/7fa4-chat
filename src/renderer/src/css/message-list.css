@@ -1,151 +1,138 @@
-.avatar-img.img-error {
-    display: none !important;
+/* MessageList — 消息列表（C1）；进入/循环动效走 motion.css 工具类与品牌预设。 */
+/* 消息区外框：消息滚动与悬浮按钮的定位参照，自身不参与滚动 */
+.message-list-shell {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
 }
 
 .message-area {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    scrollbar-width: thin;
-    background: linear-gradient(180deg, var(--bg-app), var(--bg-gradient-end));
-    position: relative;
-    z-index: 1;
+  position: relative;
+  z-index: var(--z-base);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  overflow-y: auto;
+  overflow-x: hidden; /* 横向兜底：任何气泡内容都不得撑出消息区横向滚动条 */
+  background: linear-gradient(180deg, var(--surface-0), var(--bg-gradient-end));
+  scrollbar-width: thin;
 }
 
+/* 滚动到底部按钮：绝对定位浮层，不参与消息区布局（避免高度突变导致的回弹闪烁）。 */
 .scroll-to-bottom-btn {
-    position: sticky;
-    bottom: 12px;
-    align-self: flex-end;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 1px solid var(--border-3d-dark);
-    background: var(--bg-app);
-    color: var(--text-secondary);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: var(--font-size-small);
-    box-shadow: var(--shadow-scroll-btn), inset 0 1px 0 var(--border-3d-light);
-    opacity: 1;
-    transition: color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s;
-    z-index: 2;
-    flex-shrink: 0;
-}
-.scroll-to-bottom-btn:hover {
-    color: var(--accent);
-    background: var(--accent-light);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12), inset 0 1px 0 var(--border-3d-light);
+  position: absolute;
+  right: var(--space-5);
+  bottom: var(--space-4);
+  z-index: var(--z-raised);
+  box-shadow: var(--elev-scroll-btn);
 }
 
 .msg-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    max-width: 85%;
-}
-.msg-row.multi-select-active {
-    max-width: 93%;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: 85%;
 }
 
-.msg-row.left { align-self: flex-start; }
-.msg-row.right {
-    align-self: flex-end;
-    flex-direction: row-reverse;
-    animation: messageSend var(--duration-normal) cubic-bezier(0.4, 0, 0.2, 1);
+.msg-row.multi-select-active {
+  max-width: 93%;
 }
-@keyframes messageSend {
-    0% { opacity: 0; transform: translateX(20px) scale(0.9); }
-    100% { opacity: 1; transform: translateX(0) scale(1); }
+
+.msg-row.left {
+  align-self: flex-start;
+}
+
+.msg-row.right {
+  flex-direction: row-reverse;
+  align-self: flex-end;
 }
 
 .msg-row .nav-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: var(--radius);
-    background: var(--avatar-grad-default);
-    color: var(--avatar-icon-color);
-    font-size: var(--font-size-base);
-    flex-shrink: 0;
-    box-shadow: var(--avatar-msg-shadow);
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  color: var(--avatar-icon-color);
+  font-size: var(--text-base);
+  background: var(--avatar-grad-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--avatar-msg-shadow);
 }
 
 .msg-avatar {
-    position: relative;
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    border-radius: 40%;
-    overflow: hidden;
-    flex-shrink: 0;
-    box-shadow: var(--avatar-msg-shadow);
+  position: relative;
+  flex-shrink: 0;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  overflow: hidden;
+  border-radius: 40%;
+  box-shadow: var(--avatar-msg-shadow);
 }
-.msg-avatar .avatar-img {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    object-fit: cover;
-    border-radius: 40%;
-    z-index: 1;
-}
+
 .msg-avatar .avatar-placeholder-sm {
-    width: 100%; height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--avatar-icon-color);
-    font-size: var(--font-size-base);
-    font-weight: 600;
-    border-radius: 40%;
-    background: var(--avatar-grad-default);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--avatar-tint-text, var(--avatar-icon-color));
+  font-size: var(--text-base);
+  font-weight: 600;
+  background: var(--avatar-grad-default);
+  border-radius: 40%;
 }
 
 .bubble-wrap {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bubble-wrap-self {
+  align-items: flex-end;
 }
 
 .bubble {
-    background: var(--message-other-bg);
-    border-radius: var(--radius);
-    padding: 10px 14px;
-    word-break: break-word;
-    position: relative;
-    font-size: var(--font-size-base, 14px);
-    line-height: 1.5;
-    transition: transform var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
-    max-width: 100%;
-    overflow-wrap: break-word;
-    box-shadow: var(--shadow-bubble), inset 0 1px 0 var(--border-3d-light);
-    border: 1px solid var(--border-3d-dark);
-    /* 宽度跟随内容，避免短消息被拉伸到与上方名字/时间同宽 */
-    align-self: flex-start;
-    width: fit-content;
-}
-.right .bubble {
-    align-self: flex-end;
-}
-.msg-row:has(.pat-msg) .bubble {
-    align-self: center;
-}
-.bubble:hover {
-    box-shadow: var(--shadow-bubble-hover), inset 0 1px 0 var(--border-3d-light);
-    transform: translateY(-2px);
+  position: relative;
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  padding: 10px 14px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  background: var(--message-other-bg);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elev-bubble);
+  transition: transform var(--motion-dur-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-dur-fast) var(--motion-ease-standard);
 }
 
 .right .bubble {
-    background: var(--message-self-bg);
-    border-bottom-right-radius: 4px;
-    box-shadow: var(--shadow-bubble-self), inset 0 1px 0 var(--border-3d-light);
-    border: 1px solid var(--border-self-bubble);
+  align-self: flex-end;
+  background: var(--message-self-bg);
+  border: var(--border-width) solid var(--border-self-bubble);
+  border-bottom-right-radius: var(--radius-xs);
+  box-shadow: var(--elev-bubble-self);
 }
-.left .bubble { border-bottom-left-radius: 4px; }
+
+.msg-row:has(.pat-msg) .bubble {
+  align-self: center;
+}
+
+.bubble:hover {
+  box-shadow: var(--shadow-bubble-hover);
+  transform: translateY(-2px);
+}
+
+.left .bubble {
+  border-bottom-left-radius: var(--radius-xs);
+}
 
 /* 图片/表情/文件消息不显示气泡框（微信风格：内容直接展示）
    chat-image 只有带 data-image-msg 标记（整条就是图片的「图片消息」）才生效 ——
@@ -154,11 +141,12 @@
 .msg-row:has(.sticker-msg):not(:has(.file-text-content)) .bubble,
 .msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble,
 .msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble {
-    background: transparent;
-    border: none;
-    box-shadow: none;
-    padding: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
+
 .msg-row:has(.chat-image[data-image-msg="1"]) .bubble::before,
 .msg-row:has(.chat-image[data-image-msg="1"]) .bubble::after,
 .msg-row:has(.sticker-msg):not(:has(.file-text-content)) .bubble::before,
@@ -167,293 +155,461 @@
 .msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble::after,
 .msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble::before,
 .msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble::after {
-    display: none;
+  display: none;
 }
+
 .msg-row:has(.chat-image[data-image-msg="1"]) .bubble:hover,
 .msg-row:has(.sticker-msg):not(:has(.file-text-content)) .bubble:hover,
 .msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble:hover,
 .msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble:hover {
-    transform: none;
-    box-shadow: none;
+  box-shadow: none;
+  transform: none;
 }
+
 /* 去框后消除行高带来的底部空隙 */
 .msg-row:has(.chat-image[data-image-msg="1"]) .bubble-content,
 .msg-row:has(.sticker-msg):not(:has(.file-text-content)) .bubble-content,
 .msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble-content,
 .msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content {
-    line-height: 0;
-    font-size: 0;
+  font-size: 0;
+  line-height: 0;
 }
-.msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble-content .emoji-msg {
-    font-size: 64px;
-    line-height: 1.2;
+
+.msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble-content :deep(.emoji-msg) {
+  font-size: 64px;
+  line-height: 1.2;
 }
-.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content .file-msg {
-    font-size: var(--font-size-base, 14px);
-    line-height: 1.4;
+
+.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content :deep(.file-msg) {
+  font-size: var(--text-base);
+  line-height: 1.4;
 }
-.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content .file-msg-name {
-    font-size: var(--font-size-base, 14px);
+
+.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content :deep(.file-msg-name) {
+  font-size: var(--text-base);
 }
-.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content .file-msg-size {
-    font-size: var(--font-size-small);
+
+.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content :deep(.file-msg-size) {
+  font-size: var(--text-sm);
 }
 
 .left .bubble::before {
-    content: '';
-    position: absolute;
-    left: -6px;
-    top: 12px;
-    width: 0;
-    height: 0;
-    border-top: var(--arrow-border);
-    border-bottom: var(--arrow-border);
-    border-right: var(--arrow-border-left);
+  content: '';
+  position: absolute;
+  top: 12px;
+  left: -6px;
+  width: 0;
+  height: 0;
+  border-top: var(--arrow-border);
+  border-right: var(--arrow-border-left);
+  border-bottom: var(--arrow-border);
 }
+
 .right .bubble::after {
-    content: '';
-    position: absolute;
-    right: -6px;
-    top: 12px;
-    width: 0;
-    height: 0;
-    border-top: var(--arrow-border);
-    border-bottom: var(--arrow-border);
-    border-left: var(--arrow-border-right);
+  content: '';
+  position: absolute;
+  top: 12px;
+  right: -6px;
+  width: 0;
+  height: 0;
+  border-top: var(--arrow-border);
+  border-bottom: var(--arrow-border);
+  border-left: var(--arrow-border-right);
 }
 
 .bubble-header {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-    margin-bottom: 4px;
-    font-size: var(--font-size-small);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+  font-size: var(--text-sm);
 }
-.left .bubble-header .name { font-weight: 400; font-size: var(--font-size-small); color: var(--text-link); min-width: 36px; }
-.left .bubble-header .name:hover { color: var(--accent); }
-.bubble-header .time { font-size: var(--font-size-small); color: var(--text-secondary); }
-.right .bubble-header .time { color: var(--text-self-bubble-time); }
 
-.bubble-content { font-size: var(--font-size-base, 14px); line-height: 1.6; color: var(--text-primary); word-break: break-word; }
-.right .bubble-content { color: var(--message-self-text); }
+.left .bubble-header .name {
+  min-width: 36px;
+  color: var(--fg-link);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+
+.left .bubble-header .name:hover {
+  color: var(--brand);
+}
+
+.bubble-header .time {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+.right .bubble-header .time {
+  color: var(--fg-self-time);
+}
+
+.bubble-content {
+  color: var(--fg);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.right .bubble-content {
+  color: var(--message-self-text);
+}
 
 /* 仅作用于「普通的裸 pre」。洛谷渲染器产出的 .luogu-code-pre 自带外壳
    （.luogu-code-block-wrapper：底色 + 边框 + 圆角 + 顶栏），再套这层会变成
    "框里套框"：多出 4px 外边距、10px 圆角、又叠一层底色。 */
-.bubble-content pre:not(.luogu-code-pre) { background: var(--bg-code-block); padding: 8px 12px; border-radius: var(--radius); overflow-x: auto; margin: 4px 0; }
-.bubble-content code { background: var(--bg-code-inline); padding: 2px 6px; border-radius: var(--radius); font-family: 'Consolas', 'Monaco', monospace; font-size: 0.9em; }
-.bubble-content pre code { background: transparent; padding: 0; }
-.right .bubble-content code { background: var(--bg-code-inline-self); }
-.bubble-content a { color: var(--text-link); text-decoration: none; }
-.bubble-content a:hover { text-decoration: underline; }
-.right .bubble-content a { color: var(--text-link-self); }
-.bubble-content table { border-collapse: collapse; margin: 4px 0; }
-.bubble-content th, .bubble-content td { border: 1px solid var(--border-row); padding: 4px 8px; }
-.right .bubble-content th, .right .bubble-content td { border-color: var(--border-self-bubble); }
-.bubble-content blockquote { border-left: 3px solid var(--border-row); padding-left: 10px; margin: 4px 0; color: var(--text-blockquote); }
-.right .bubble-content blockquote { border-left-color: var(--border-self-blockquote); }
-.bubble-content img { max-width: 100%; border-radius: var(--radius); }
-.bubble-content ul, .bubble-content ol { padding-left: 20px; margin: 4px 0; }
+.bubble-content :deep(pre:not(.luogu-code-pre)) {
+  padding: var(--space-2) var(--space-3);
+  margin: var(--space-1) 0;
+  overflow-x: auto;
+  background: var(--surface-code);
+  border-radius: var(--radius-md);
+}
+
+.bubble-content :deep(code) {
+  padding: 2px 6px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.9em;
+  background: var(--surface-code-inline);
+  border-radius: var(--radius-md);
+}
+
+.bubble-content :deep(pre code) {
+  padding: 0;
+  background: transparent;
+}
+
+.right .bubble-content :deep(code) {
+  background: var(--surface-code-inline-self);
+}
+
+.bubble-content :deep(a) {
+  color: var(--fg-link);
+  text-decoration: none;
+}
+
+.bubble-content :deep(a:hover) {
+  text-decoration: underline;
+}
+
+.right .bubble-content :deep(a) {
+  color: var(--text-link-self);
+}
+
+.bubble-content :deep(table) {
+  margin: var(--space-1) 0;
+  border-collapse: collapse;
+}
+
+.bubble-content :deep(th),
+.bubble-content :deep(td) {
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--border-row);
+}
+
+.right .bubble-content :deep(th),
+.right .bubble-content :deep(td) {
+  border-color: var(--border-self-bubble);
+}
+
+.bubble-content :deep(blockquote) {
+  padding-left: 10px;
+  margin: var(--space-1) 0;
+  color: var(--fg-blockquote);
+  border-left: var(--border-width-3d) solid var(--border-row);
+}
+
+.right .bubble-content :deep(blockquote) {
+  border-left-color: var(--border-self-blockquote);
+}
+
+.bubble-content :deep(img) {
+  max-width: 100%;
+  border-radius: var(--radius-md);
+}
+
+.bubble-content :deep(ul),
+.bubble-content :deep(ol) {
+  padding-left: 20px;
+  margin: var(--space-1) 0;
+}
 
 .bubble.collapsed {
-    max-height: 300px;
-    overflow: hidden;
+  max-height: 300px;
+  overflow: hidden;
 }
+
 .bubble.collapsed::after {
-    content: '···';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 60px;
-    background: linear-gradient(transparent, var(--message-other-bg));
-    pointer-events: none;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    padding-bottom: 4px;
-    font-size: var(--font-size-base);
-    letter-spacing: 2px;
-    color: var(--text-secondary);
+  content: '···';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 60px;
+  padding-bottom: var(--space-1);
+  color: var(--fg-muted);
+  font-size: var(--text-base);
+  letter-spacing: 2px;
+  background: linear-gradient(transparent, var(--message-other-bg));
+  pointer-events: none;
 }
+
 .right .bubble.collapsed::after {
-    background: linear-gradient(transparent, var(--message-self-bg));
+  background: linear-gradient(transparent, var(--message-self-bg));
 }
 
 .expand-btn {
-    font-size: var(--font-size-small);
-    color: var(--accent);
-    cursor: pointer;
-    padding: 4px 0;
-    transition: color 0.2s;
+  padding: var(--space-1) 0;
+  color: var(--brand);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: color var(--motion-dur-fast) var(--motion-ease-standard);
 }
-.expand-btn:hover { color: var(--accent-hover); }
+
+.expand-btn:hover {
+  color: var(--brand-hover);
+}
 
 .load-more-hint-row {
-    text-align: center;
-    padding: 8px;
+  padding: var(--space-2);
+  text-align: center;
 }
 
 .load-more-hint-text {
-    font-size: var(--font-size-small);
-    color: var(--text-secondary);
-    opacity: 0.6;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  opacity: 0.6;
 }
 
 .load-more-hint-text i {
-    margin-right: 4px;
+  margin-right: var(--space-1);
 }
 
-.file-msg {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 180px;
-    max-width: 100%;
-    padding: 10px 14px;
-    background: var(--bg-conversation-hover);
-    border-radius: var(--radius);
-    cursor: pointer;
-    border: 1px solid var(--border-3d-dark);
-    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
-    box-shadow: var(--shadow-input);
+.bubble-content :deep(.file-msg) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: min(180px, 100%);
+  max-width: 100%;
+  padding: 10px 14px;
+  background: var(--surface-hover);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    border-color var(--motion-dur-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-dur-fast) var(--motion-ease-standard);
 }
-.file-msg:hover { background: var(--bg-conversation-active); border-color: var(--accent); box-shadow: 0 3px 10px var(--gradient-accent), inset 0 1px 0 var(--border-3d-light); }
-.file-msg-icon {
-    flex-shrink: 0;
-    width: 44px;
-    height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 30px;
-    border-radius: 8px;
-    background: var(--bg-app);
-    border: 1px solid var(--border-light);
+
+.bubble-content :deep(.file-msg:hover) {
+  background: var(--surface-active);
+  border-color: var(--brand);
+  box-shadow: var(--elev-brand);
 }
-.file-msg-info {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+
+.bubble-content :deep(.file-msg-icon) {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  font-size: 30px;
+  background: var(--surface-0);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
 }
-.file-msg-name {
-    font-size: var(--font-size-base, 14px);
-    color: var(--text-primary);
-    word-break: break-all;
-    line-height: 1.4;
+
+.bubble-content :deep(.file-msg-info) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
-.file-msg-size { font-size: var(--font-size-small); color: var(--text-secondary); }
-.right .file-msg-name { color: var(--message-self-text); }
-.file-text-content {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border-light);
-  font-size: var(--font-size-base, 14px);
+
+.bubble-content :deep(.file-msg-name) {
+  color: var(--fg);
+  font-size: var(--text-base);
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.bubble-content :deep(.file-msg-size) {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+.right .bubble-content :deep(.file-msg-name) {
+  color: var(--message-self-text);
+}
+
+.bubble-content :deep(.file-text-content) {
+  padding-top: var(--space-2);
+  margin-top: var(--space-2);
+  color: var(--fg);
+  font-size: var(--text-base);
   line-height: 1.6;
-  color: var(--text-primary);
   word-break: break-word;
+  border-top: var(--border-width) solid var(--line);
 }
-.file-text-content pre:not(.luogu-code-pre) { background: var(--bg-code-block); padding: 8px 12px; border-radius: var(--radius); overflow-x: auto; margin: 4px 0; }
-.file-text-content code { background: var(--bg-code-inline); padding: 2px 6px; border-radius: var(--radius); font-family: 'Consolas', 'Monaco', monospace; font-size: 0.9em; }
-.file-text-content pre code { background: transparent; padding: 0; }
-.right .file-text-content { color: var(--message-self-text); }
-.right .file-text-content code { background: var(--bg-code-inline-self); }
-.chat-image { max-width: 240px; max-height: 320px; width: auto; height: auto; cursor: pointer; border-radius: 6px; }
-.emoji-msg { font-size: 72px; line-height: 1.2; display: inline-block; }
-.sticker-msg { display: inline-block; line-height: 1.2; }
-.sticker-msg img { height: 100px; max-width: 100%; object-fit: contain; vertical-align: middle; }
-.pat-msg {
-    font-size: var(--font-size-small);
-    color: var(--text-secondary);
-    display: inline-block;
-    text-align: center;
-    animation: patShake 0.4s ease;
+
+.bubble-content :deep(.file-text-content pre:not(.luogu-code-pre)) {
+  padding: var(--space-2) var(--space-3);
+  margin: var(--space-1) 0;
+  overflow-x: auto;
+  background: var(--surface-code);
+  border-radius: var(--radius-md);
 }
-.pat-user {
-    color: var(--accent);
-    cursor: pointer;
-    font-weight: 600;
+
+.bubble-content :deep(.file-text-content code) {
+  padding: 2px 6px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.9em;
+  background: var(--surface-code-inline);
+  border-radius: var(--radius-md);
 }
-.pat-user:hover {
-    text-decoration: underline;
-    color: var(--accent-hover);
+
+.bubble-content :deep(.file-text-content pre code) {
+  padding: 0;
+  background: transparent;
 }
-.msg-row:has(.pat-msg) {
-    justify-content: center;
-    align-self: center !important;
-    max-width: 100% !important;
-    flex-direction: row !important;
+
+.right .bubble-content :deep(.file-text-content) {
+  color: var(--message-self-text);
 }
+
+.right .bubble-content :deep(.file-text-content code) {
+  background: var(--surface-code-inline-self);
+}
+
+.bubble-content :deep(.chat-image) {
+  width: auto;
+  max-width: min(240px, 100%);
+  height: auto;
+  max-height: 320px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.bubble-content :deep(.emoji-msg) {
+  display: inline-block;
+  font-size: 72px;
+  line-height: 1.2;
+}
+
+.bubble-content :deep(.sticker-msg) {
+  display: inline-block;
+  line-height: 1.2;
+}
+
+.bubble-content :deep(.sticker-msg img) {
+  max-width: 100%;
+  height: 100px;
+  object-fit: contain;
+  vertical-align: middle;
+}
+
+/* 拍一拍抖动：品牌例外 W4，关键帧在 motion.css（patShake），此处只引用不定义 */
+.bubble-content :deep(.pat-msg) {
+  display: inline-block;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+  animation: patShake var(--motion-dur-emph) var(--motion-ease-standard) both;
+}
+
+.bubble-content :deep(.pat-user) {
+  color: var(--brand);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bubble-content :deep(.pat-user:hover) {
+  color: var(--brand-hover);
+  text-decoration: underline;
+}
+
+.message-area .msg-row:has(.pat-msg) {
+  flex-direction: row;
+  align-self: center;
+  justify-content: center;
+  max-width: 100%;
+}
+
 .msg-row:has(.pat-msg) .nav-icon,
 .msg-row:has(.pat-msg) .msg-avatar,
 .msg-row:has(.pat-msg) .bubble-header {
-    display: none;
+  display: none;
 }
-.msg-row:has(.pat-msg) .bubble {
-    background: transparent !important;
-    box-shadow: none !important;
-    border: none !important;
-    padding: 0;
+
+.message-area .msg-row:has(.pat-msg) .bubble {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
+
+.message-area .msg-row:has(.pat-msg) .bubble:hover {
+  box-shadow: none;
+  transform: none;
+}
+
 .msg-row:has(.pat-msg) .bubble::before,
 .msg-row:has(.pat-msg) .bubble::after {
-    display: none;
-}
-.msg-row:has(.pat-msg) .bubble:hover {
-    box-shadow: none !important;
-    transform: none;
-}
-@keyframes patShake {
-    0%, 100% { transform: translateX(0); }
-    20% { transform: translateX(-4px) rotate(-2deg); }
-    40% { transform: translateX(4px) rotate(2deg); }
-    60% { transform: translateX(-3px) rotate(-1deg); }
-    80% { transform: translateX(2px) rotate(1deg); }
+  display: none;
 }
 
-/* 纯文本消息（fmt: txt）：原样显示，保留换行，不做任何 Markdown / 表情渲染 */
-.plain-msg {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.reply-quote {
+.bubble-content :deep(.reply-quote) {
   display: flex;
   align-items: flex-start;
   gap: 6px;
+  max-width: 100%;
   padding: 6px 10px;
   margin-bottom: 6px;
-  background: var(--bg-conversation-hover);
-  border-left: 3px solid var(--accent);
-  border-radius: 0 var(--radius) var(--radius) 0;
-  font-size: var(--font-size-small);
-  color: var(--text-secondary);
-  cursor: pointer;
-  max-width: 100%;
   overflow: hidden;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.04), inset 0 1px 2px rgba(0, 0, 0, 0.02);
-}
-.reply-quote:hover { background: var(--accent-light); box-shadow: inset 0 2px 6px rgba(60, 140, 231, 0.08), inset 0 1px 2px rgba(0, 0, 0, 0.03); }
-.reply-quote-icon { color: var(--accent); font-size: var(--font-size-small); margin-top: 2px; flex-shrink: 0; }
-.reply-quote-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.mention-tag {
-  color: var(--accent);
-  font-weight: 500;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  background: var(--surface-hover);
+  border-left: var(--border-width-3d) solid var(--brand);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
   cursor: pointer;
-  border-radius: 3px;
-  padding: 0 2px;
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
-.mention-tag:hover { background: var(--accent-light); text-decoration: underline; }
 
-.msg-highlight {
-  animation: msgHighlight 1.5s ease;
+.bubble-content :deep(.reply-quote:hover) {
+  background: var(--brand-soft);
 }
-@keyframes msgHighlight {
-  0%, 100% { box-shadow: none; }
-  30% { box-shadow: 0 0 0 3px var(--accent-outline), 0 0 12px var(--accent-light); }
+
+.bubble-content :deep(.reply-quote-icon) {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--brand);
+  font-size: var(--text-sm);
+}
+
+.bubble-content :deep(.reply-quote-text) {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bubble-content :deep(.mention-tag) {
+  padding: 0 2px;
+  color: var(--brand);
+  font-weight: 500;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+.bubble-content :deep(.mention-tag:hover) {
+  background: var(--brand-soft);
+  text-decoration: underline;
 }
 
 /* 日期分组线 */
@@ -461,151 +617,128 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 12px 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
+  margin: var(--space-3) 0;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
   user-select: none;
 }
+
 .msg-date-separator::before,
 .msg-date-separator::after {
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--border-light);
-  margin: 0 12px;
+  margin: 0 var(--space-3);
+  background: var(--line);
 }
 
-/* 代码块复制按钮样式已统一到 css/code-block.css（洛谷代码块自带顶栏按钮，
-   injectCodeCopyButtons() 注入的重复按钮在新样式里被隐藏）。 */
-
-/* 加载动画 */
+/* 加载动画（循环类由 motion.css 提供：motion-spin / motion-pulse） */
 .load-more-spinner {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
+  padding: var(--space-2);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
 }
+
 .load-more-spinner i {
   margin-right: 6px;
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 /* 消息加载骨架屏 */
 .msg-skeleton {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 4px 0;
-  animation: skeletonPulse 1.5s ease-in-out infinite;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
 }
+
 .msg-skeleton.right {
   flex-direction: row-reverse;
 }
-.skeleton-avatar {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  border-radius: 40%;
-  background: var(--bg-conversation-hover);
+
+/* 骨架屏尺寸：外观/动画由 UiSkeleton 提供，本文件只给尺寸。 */
+.msg-skeleton .skeleton-avatar {
+  --sk-w: 36px;
+  --sk-h: 36px;
 }
-.skeleton-bubble {
-  height: 48px;
-  width: 180px;
-  border-radius: var(--radius);
-  background: var(--bg-conversation-hover);
+
+.msg-skeleton .skeleton-bubble {
+  --sk-w: 180px;
+  --sk-h: 48px;
 }
+
 .msg-skeleton.right .skeleton-bubble {
-  width: 140px;
-}
-@keyframes skeletonPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  --sk-w: 140px;
 }
 
 /* 多选模式 */
 .msg-checkbox {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid var(--border-3d-dark);
   display: flex;
+  flex-shrink: 0;
+  align-self: center;
   align-items: center;
   justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin: 0 var(--space-2);
+  background: var(--surface-0);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-pill);
   cursor: pointer;
-  margin: 0 8px;
-  flex-shrink: 0;
-  transition: all 0.2s;
-  align-self: center;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    border-color var(--motion-dur-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-dur-fast) var(--motion-ease-standard);
 }
+
 .msg-checkbox.checked {
-  background: var(--accent);
-  border-color: var(--accent);
-  box-shadow: 0 2px 6px rgba(60, 140, 231, 0.35), inset 0 1px 0 var(--border-3d-light);
+  background: var(--brand);
+  border-color: var(--brand);
+  box-shadow: var(--elev-brand);
 }
+
 .msg-checkbox.checked i {
-  color: var(--text-on-accent);
-  font-size: var(--font-size-small);
+  color: var(--on-brand);
+  font-size: var(--text-sm);
 }
+
 .multi-select-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
-  background: var(--bg-app);
-  border-bottom: 1px solid var(--border-light);
-}
-.multi-select-bar .msb-info {
-  font-size: var(--font-size-small);
-  color: var(--text-secondary);
-}
-.multi-select-bar .msb-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.multi-select-bar .msb-btn {
-  padding: 4px 12px;
-  border: 1px solid var(--border-light);
-  border-radius: 4px;
-  background: transparent;
-  cursor: pointer;
-  font-size: var(--font-size-small);
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.multi-select-bar .msb-btn:hover {
-  background: var(--bg-conversation-hover);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-0);
+  border-bottom: var(--border-width) solid var(--line);
 }
 
-/* 发送状态图标 */
-.msg-status-icon {
-  font-size: var(--font-size-small);
-  color: var(--text-secondary);
-  margin-left: 4px;
+.multi-select-bar .msb-info {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
 }
-.msg-status-icon.failed {
-  color: var(--danger);
-  cursor: pointer;
+
+.multi-select-bar .msb-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* 多选条按钮外观由 UiButton 提供，这里只保留间距。 */
+.multi-select-bar .msb-btn {
+  flex: none;
 }
 
 /* ===== QQ 表情（/xx 快捷码渲染）===== */
-.qqface {
-    width: 22px;
-    height: 22px;
-    vertical-align: -5px;
-    display: inline-block;
-    pointer-events: none;
+.bubble-content :deep(.qqface) {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  vertical-align: -5px;
+  pointer-events: none;
 }
-.emoji-msg img.qqface {
-    width: 72px;
-    height: 72px;
-    vertical-align: middle;
+
+.bubble-content :deep(.emoji-msg img.qqface) {
+  width: 72px;
+  height: 72px;
+  vertical-align: middle;
 }

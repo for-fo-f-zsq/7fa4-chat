@@ -1,0 +1,38 @@
+/* 转发消息弹窗内容 — 由 ForwardModal.vue scoped 引入；外壳（遮罩/面板/焦点锁/关闭按钮）与发送按钮由 UiModal/UiButton 承载。 */
+.forward-search {
+  margin-bottom: var(--space-2);
+}
+
+.forward-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.forward-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  color: var(--fg);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-base);
+  cursor: pointer;
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    color var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+.forward-item:hover {
+  background: var(--surface-hover);
+}
+
+.forward-item.active {
+  color: var(--brand);
+  background: var(--surface-active);
+}
+
+.forward-empty {
+  padding: var(--space-3) var(--space-4);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  text-align: center;
+}

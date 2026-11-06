@@ -1,0 +1,7 @@
+/* GroupActionMenu — 群成员操作菜单（C2）；锚点点位由 0 尺寸锚元素提供，菜单视觉由 UiMenu 原语提供。 */
+.group-action-menu__anchor {
+  position: fixed;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}

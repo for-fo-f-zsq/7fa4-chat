@@ -1,0 +1,130 @@
+/* UiTabs — 标签页样式；只消费 tokens/motion 语义令牌。 */
+.ui-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  color: var(--fg);
+  font-size: var(--text-base);
+}
+
+.ui-tabs__list {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-1);
+  flex: none;
+  user-select: none;
+}
+
+.ui-tabs--line .ui-tabs__list {
+  border-bottom: var(--border-width) solid var(--line);
+}
+
+.ui-tabs--pill .ui-tabs__list {
+  width: fit-content;
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+}
+
+.ui-tabs__ink {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: var(--border-width-thick);
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+  pointer-events: none;
+  transition: transform var(--motion-dur-base) var(--motion-ease-standard),
+    width var(--motion-dur-base) var(--motion-ease-standard),
+    height var(--motion-dur-base) var(--motion-ease-standard);
+}
+
+.ui-tabs--pill .ui-tabs__ink {
+  top: 0;
+  bottom: auto;
+  background: var(--surface-raised);
+  box-shadow: var(--elev-1);
+}
+
+.ui-tabs__tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  flex: none;
+  height: var(--control-h-md);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: var(--text-base);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+.ui-tabs--sm .ui-tabs__tab {
+  height: var(--control-h-sm);
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.ui-tabs--lg .ui-tabs__tab {
+  height: var(--control-h-lg);
+}
+
+@media (hover: hover) {
+  .ui-tabs__tab:hover {
+    color: var(--fg);
+  }
+}
+
+.ui-tabs__tab.is-active {
+  color: var(--fg);
+  font-weight: var(--weight-semibold);
+}
+
+.ui-tabs__tab.is-disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.ui-tabs__tab:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: calc(var(--focus-offset) * -1);
+}
+
+.ui-tabs__icon {
+  flex: none;
+  color: currentColor;
+}
+
+.ui-tabs__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-tabs__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--icon-md);
+  height: var(--icon-md);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-medium);
+}
+
+.ui-tabs__panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  outline: none;
+}

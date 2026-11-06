@@ -1,0 +1,366 @@
+/* ==========================================================================
+   motion.css —— 动效唯一来源（token + keyframes 库 + Vue Transition 类 + 工具类）
+   加载位置：css/index.css 的 @import './motion.css'（theme → tokens → base → motion → utilities 顺序固定）
+   红线：组件 CSS 内禁止裸时长/裸缓动/@keyframes；进入与退出必须成对；本文件是唯一允许 @keyframes 的地方
+   ========================================================================== */
+
+/* ---------- 1. 令牌：全站唯一数字来源（tokens.css 不要重复定义 --motion-*） ---------- */
+:root {
+  --motion-dur-fast: 120ms;
+  --motion-dur-base: 180ms;
+  --motion-dur-slow: 260ms;
+  --motion-dur-emph: 400ms;
+  --motion-dur-exit: 120ms;
+  --motion-dur-scroll: 260ms;
+  --motion-spring-dur: 400ms;
+  --motion-hold-highlight: 1500ms;
+  --motion-highlight-hold: 600ms; /* reduced-motion 下静态高亮的保留时长（不闪、不位移） */
+  --motion-stagger: 40ms;
+  --motion-stagger-max: 8;
+
+  --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --motion-ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --motion-ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --motion-ease-linear: linear;
+  --motion-ease-steps: steps(1, end);
+
+  --motion-loop-spin: 1s;
+  --motion-loop-shimmer: 1.6s;
+  --motion-loop-pulse: 2s;
+  --motion-loop-breathe: 3s;
+  --motion-loop-drift: 6s;
+  --motion-loop-blink: 1s;
+}
+
+/* ---------- 2. @keyframes 库（组件内禁止再写关键帧） ---------- */
+
+/* 2.1 进入：淡入族（8px 位移） */
+@keyframes fadeIn {
+  0% { opacity: 0 }
+  100% { opacity: 1 }
+}
+@keyframes fadeInUp {
+  0% { opacity: 0; transform: translateY(8px) }
+  100% { opacity: 1; transform: translateY(0) }
+}
+@keyframes fadeInDown {
+  0% { opacity: 0; transform: translateY(-8px) }
+  100% { opacity: 1; transform: translateY(0) }
+}
+@keyframes fadeInLeft {
+  0% { opacity: 0; transform: translateX(-8px) }
+  100% { opacity: 1; transform: translateX(0) }
+}
+@keyframes fadeInRight {
+  0% { opacity: 0; transform: translateX(8px) }
+  100% { opacity: 1; transform: translateX(0) }
+}
+
+/* 2.2 进入：缩放/弹出 */
+@keyframes scaleIn {
+  0% { opacity: 0; transform: scale(0.98) }
+  100% { opacity: 1; transform: scale(1) }
+}
+@keyframes popIn {
+  0% { opacity: 0; transform: scale(0.96) }
+  70% { opacity: 1; transform: scale(1.01) }
+  100% { opacity: 1; transform: scale(1) }
+}
+
+/* 2.3 进入：滑入族（24px，面板/抽屉） */
+@keyframes slideInUp {
+  0% { opacity: 0; transform: translateY(24px) }
+  100% { opacity: 1; transform: translateY(0) }
+}
+@keyframes slideInDown {
+  0% { opacity: 0; transform: translateY(-24px) }
+  100% { opacity: 1; transform: translateY(0) }
+}
+@keyframes slideInLeft {
+  0% { opacity: 0; transform: translateX(-24px) }
+  100% { opacity: 1; transform: translateX(0) }
+}
+@keyframes slideInRight {
+  0% { opacity: 0; transform: translateX(24px) }
+  100% { opacity: 1; transform: translateX(0) }
+}
+
+/* 2.4 进入：浮层/弹窗/下拉/列表项 */
+@keyframes overlayIn {
+  0% { opacity: 0 }
+  60% { opacity: 0.85 }
+  100% { opacity: 1 }
+}
+@keyframes modalIn {
+  0% { opacity: 0; transform: translateY(8px) scale(0.98) }
+  100% { opacity: 1; transform: translateY(0) scale(1) }
+}
+@keyframes dropdownIn {
+  0% { opacity: 0; transform: translateY(-4px) scale(0.98) }
+  100% { opacity: 1; transform: translateY(0) scale(1) }
+}
+@keyframes listItemIn {
+  0% { opacity: 0; transform: translateY(6px) }
+  100% { opacity: 1; transform: translateY(0) }
+}
+
+/* 2.5 循环：加载/骨架/氛围光（品牌白名单，见 EXCEPTIONS.md W6） */
+@keyframes spin {
+  100% { transform: rotate(360deg) }
+}
+@keyframes shimmer {
+  0%, 100% { opacity: 0.45 }
+  50% { opacity: 0.9 }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1) }
+  50% { opacity: 0.75; transform: scale(0.96) }
+}
+@keyframes breathe {
+  0%, 100% { opacity: 0.55 }
+  50% { opacity: 1 }
+}
+@keyframes drift {
+  0%, 100% { transform: translateY(0) }
+  50% { transform: translateY(-4px) }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1 }
+  50% { opacity: 0.3 }
+}
+
+/* 2.6 反馈：抖动/高亮/消息（品牌白名单 W3/W4/W5） */
+@keyframes shake {
+  0%, 100% { transform: translateX(0) }
+  20% { transform: translateX(-4px) }
+  40% { transform: translateX(4px) }
+  60% { transform: translateX(-3px) }
+  80% { transform: translateX(2px) }
+}
+@keyframes patShake {
+  0%, 100% { transform: translateX(0) }
+  25% { transform: translateX(-5px) }
+  75% { transform: translateX(5px) }
+}
+@keyframes messageIn {
+  0% { opacity: 0; transform: translateY(6px) scale(0.98) }
+  100% { opacity: 1; transform: translateY(0) scale(1) }
+}
+@keyframes highlightFlash {
+  0% { background-color: var(--accent-light) }
+  70% { background-color: var(--accent-light) }
+  100% { background-color: transparent }
+}
+
+/* 2.7 品牌预设：登录/公告/导航/背景氛围（收敛旧 boxSlideIn/inputSlide/titleFade/ambientPulse 等） */
+@keyframes brandRise {
+  0% { opacity: 0; transform: translateY(12px) }
+  100% { opacity: 1; transform: translateY(0) }
+}
+@keyframes brandFade {
+  0% { opacity: 0; transform: translateY(4px) }
+  100% { opacity: 1; transform: translateY(0) }
+}
+@keyframes ambientDrift {
+  0%, 100% { transform: translate3d(0, 0, 0) }
+  50% { transform: translate3d(0, -8px, 0) }
+}
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.6 }
+  50% { opacity: 1 }
+}
+
+/* 2.8 迁移期兼容：legacy 代码引用了从未定义的旧名（原来是静默硬切），Phase 2 删除引用后删掉本块 */
+@keyframes ctxFade {
+  0% { opacity: 0; transform: scale(0.99) }
+  100% { opacity: 1; transform: scale(1) }
+}
+
+/* ---------- 3. Vue <Transition> 类组：每组都有 enter + leave 六态 ---------- */
+/* 3.1 fade —— 纯透明度（提示条/内容替换） */
+.fade-enter-active { transition: opacity var(--motion-dur-base) var(--motion-ease-enter); }
+.fade-leave-active { transition: opacity var(--motion-dur-exit) var(--motion-ease-exit); }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+.fade-enter-to, .fade-leave-from { opacity: 1; }
+
+/* 3.2 fade-up / fade-down / fade-left / fade-right —— 透明度 + 8px 位移 */
+.fade-up-enter-active { transition: opacity var(--motion-dur-base) var(--motion-ease-enter), transform var(--motion-dur-base) var(--motion-ease-enter); }
+.fade-up-leave-active { transition: opacity var(--motion-dur-exit) var(--motion-ease-exit), transform var(--motion-dur-exit) var(--motion-ease-exit); }
+.fade-up-enter-from, .fade-up-leave-to { opacity: 0; transform: translateY(8px); }
+.fade-up-enter-to, .fade-up-leave-from { opacity: 1; transform: translateY(0); }
+
+.fade-down-enter-active { transition: opacity var(--motion-dur-base) var(--motion-ease-enter), transform var(--motion-dur-base) var(--motion-ease-enter); }
+.fade-down-leave-active { transition: opacity var(--motion-dur-exit) var(--motion-ease-exit), transform var(--motion-dur-exit) var(--motion-ease-exit); }
+.fade-down-enter-from, .fade-down-leave-to { opacity: 0; transform: translateY(-8px); }
+.fade-down-enter-to, .fade-down-leave-from { opacity: 1; transform: translateY(0); }
+
+.fade-left-enter-active { transition: opacity var(--motion-dur-base) var(--motion-ease-enter), transform var(--motion-dur-base) var(--motion-ease-enter); }
+.fade-left-leave-active { transition: opacity var(--motion-dur-exit) var(--motion-ease-exit), transform var(--motion-dur-exit) var(--motion-ease-exit); }
+.fade-left-enter-from, .fade-left-leave-to { opacity: 0; transform: translateX(-8px); }
+.fade-left-enter-to, .fade-left-leave-from { opacity: 1; transform: translateX(0); }
+
+.fade-right-enter-active { transition: opacity var(--motion-dur-base) var(--motion-ease-enter), transform var(--motion-dur-base) var(--motion-ease-enter); }
+.fade-right-leave-active { transition: opacity var(--motion-dur-exit) var(--motion-ease-exit), transform var(--motion-dur-exit) var(--motion-ease-exit); }
+.fade-right-enter-from, .fade-right-leave-to { opacity: 0; transform: translateX(8px); }
+.fade-right-enter-to, .fade-right-leave-from { opacity: 1; transform: translateX(0); }
+
+/* 3.3 scale —— 透明度 + scale(0.98)（内容区整体替换） */
+.scale-enter-active { transition: opacity var(--motion-dur-base) var(--motion-ease-enter), transform var(--motion-dur-base) var(--motion-ease-enter); }
+.scale-leave-active { transition: opacity var(--motion-dur-exit) var(--motion-ease-exit), transform var(--motion-dur-exit) var(--motion-ease-exit); }
+.scale-enter-from, .scale-leave-to { opacity: 0; transform: scale(0.98); }
+.scale-enter-to, .scale-leave-from { opacity: 1; transform: scale(1); }
+
+/* 3.4 pop —— 小浮层弹出（菜单/表情/徽标），允许 spring */
+.pop-enter-active { transition: opacity var(--motion-dur-base) var(--motion-ease-spring), transform var(--motion-dur-base) var(--motion-ease-spring); }
+.pop-leave-active { transition: opacity var(--motion-dur-fast) var(--motion-ease-exit), transform var(--motion-dur-fast) var(--motion-ease-exit); }
+.pop-enter-from, .pop-leave-to { opacity: 0; transform: scale(0.96); }
+.pop-enter-to, .pop-leave-from { opacity: 1; transform: scale(1); }
+
+/* 3.5 slide / slide-up / slide-left —— 面板切换/抽屉/底部弹层（24px 位移） */
+.slide-enter-active { transition: opacity var(--motion-dur-base) var(--motion-ease-enter), transform var(--motion-dur-base) var(--motion-ease-enter); }
+.slide-leave-active { transition: opacity var(--motion-dur-exit) var(--motion-ease-exit), transform var(--motion-dur-exit) var(--motion-ease-exit); }
+.slide-enter-from, .slide-leave-to { opacity: 0; transform: translateY(16px); }
+.slide-enter-to, .slide-leave-from { opacity: 1; transform: translateY(0); }
+
+.slide-up-enter-active { transition: opacity var(--motion-dur-slow) var(--motion-ease-enter), transform var(--motion-dur-slow) var(--motion-ease-enter); }
+.slide-up-leave-active { transition: opacity var(--motion-dur-base) var(--motion-ease-exit), transform var(--motion-dur-base) var(--motion-ease-exit); }
+.slide-up-enter-from, .slide-up-leave-to { opacity: 0; transform: translateY(24px); }
+.slide-up-enter-to, .slide-up-leave-from { opacity: 1; transform: translateY(0); }
+
+.slide-left-enter-active { transition: opacity var(--motion-dur-slow) var(--motion-ease-enter), transform var(--motion-dur-slow) var(--motion-ease-enter); }
+.slide-left-leave-active { transition: opacity var(--motion-dur-base) var(--motion-ease-exit), transform var(--motion-dur-base) var(--motion-ease-exit); }
+.slide-left-enter-from, .slide-left-leave-to { opacity: 0; transform: translateX(24px); }
+.slide-left-enter-to, .slide-left-leave-from { opacity: 1; transform: translateX(0); }
+
+/* 3.6 list —— <TransitionGroup> 列表项（stagger 由 --i 驱动，封顶 8） */
+.list-enter-active { transition: opacity var(--motion-dur-base) var(--motion-ease-enter), transform var(--motion-dur-base) var(--motion-ease-enter); transition-delay: calc(min(var(--i, 0), var(--motion-stagger-max)) * var(--motion-stagger)); }
+.list-leave-active { transition: opacity var(--motion-dur-exit) var(--motion-ease-exit), transform var(--motion-dur-exit) var(--motion-ease-exit); }
+.list-enter-from, .list-leave-to { opacity: 0; transform: translateY(6px); }
+.list-enter-to, .list-leave-from { opacity: 1; transform: translateY(0); }
+.list-move { transition: transform var(--motion-dur-base) var(--motion-ease-standard); }
+
+/* 3.7 page —— 路由/视图级切换，配合 mode="out-in"（页面级用 slow） */
+.page-enter-active { transition: opacity var(--motion-dur-slow) var(--motion-ease-enter), transform var(--motion-dur-slow) var(--motion-ease-enter); }
+.page-leave-active { transition: opacity var(--motion-dur-exit) var(--motion-ease-exit), transform var(--motion-dur-exit) var(--motion-ease-exit); }
+.page-enter-from, .page-leave-to { opacity: 0; transform: translateY(4px); }
+.page-enter-to, .page-leave-from { opacity: 1; transform: translateY(0); }
+
+/* 3.8 overlay —— 遮罩层（快速、只做透明度） */
+.overlay-enter-active, .overlay-leave-active { transition: opacity var(--motion-dur-fast) var(--motion-ease-standard); }
+.overlay-enter-from, .overlay-leave-to { opacity: 0; }
+.overlay-enter-to, .overlay-leave-from { opacity: 1; }
+
+/* 3.9 modal —— 弹窗主体（spring 进入、exit 加速退出） */
+.modal-enter-active { transition: opacity var(--motion-spring-dur) var(--motion-ease-spring), transform var(--motion-spring-dur) var(--motion-ease-spring); }
+.modal-leave-active { transition: opacity var(--motion-dur-base) var(--motion-ease-exit), transform var(--motion-dur-base) var(--motion-ease-exit); }
+.modal-enter-from, .modal-leave-to { opacity: 0; transform: translateY(8px) scale(0.98); }
+.modal-enter-to, .modal-leave-from { opacity: 1; transform: translateY(0) scale(1); }
+
+/* 3.10 dropdown —— 下拉/气泡菜单（从上方展开） */
+.dropdown-enter-active { transition: opacity var(--motion-dur-base) var(--motion-ease-spring), transform var(--motion-dur-base) var(--motion-ease-spring); }
+.dropdown-leave-active { transition: opacity var(--motion-dur-fast) var(--motion-ease-exit), transform var(--motion-dur-fast) var(--motion-ease-exit); }
+.dropdown-enter-from, .dropdown-leave-to { opacity: 0; transform: translateY(-4px) scale(0.98); }
+.dropdown-enter-to, .dropdown-leave-from { opacity: 1; transform: translateY(0) scale(1); }
+
+/* ---------- 4. 动效工具类（只用于无法用 <Transition> 的场景，如循环指示/一次性反馈） ---------- */
+.motion-scroll-smooth { scroll-behavior: smooth; }
+
+.motion-stagger > :nth-child(1) { --i: 0; }
+.motion-stagger > :nth-child(2) { --i: 1; }
+.motion-stagger > :nth-child(3) { --i: 2; }
+.motion-stagger > :nth-child(4) { --i: 3; }
+.motion-stagger > :nth-child(5) { --i: 4; }
+.motion-stagger > :nth-child(6) { --i: 5; }
+.motion-stagger > :nth-child(7) { --i: 6; }
+.motion-stagger > :nth-child(8) { --i: 7; }
+.motion-stagger > :nth-child(n + 9) { --i: 8; }
+
+.motion-ambient { animation: ambientDrift var(--motion-loop-drift) var(--motion-ease-standard) infinite alternate; }
+.motion-glow { animation: glowPulse var(--motion-loop-breathe) var(--motion-ease-standard) infinite; }
+.motion-spin { animation: spin var(--motion-loop-spin) var(--motion-ease-linear) infinite; }
+.motion-shimmer { animation: shimmer var(--motion-loop-shimmer) var(--motion-ease-standard) infinite; }
+.motion-pulse { animation: pulse var(--motion-loop-pulse) var(--motion-ease-standard) infinite; }
+.motion-breathe { animation: breathe var(--motion-loop-breathe) var(--motion-ease-standard) infinite; }
+.motion-blink { animation: blink var(--motion-loop-blink) var(--motion-ease-steps) infinite; }
+
+.motion-fade-in { animation: fadeIn var(--motion-dur-base) var(--motion-ease-enter) both; }
+.motion-fade-up-in { animation: fadeInUp var(--motion-dur-base) var(--motion-ease-enter) both; }
+.motion-fade-down-in { animation: fadeInDown var(--motion-dur-base) var(--motion-ease-enter) both; }
+.motion-pop-in { animation: popIn var(--motion-dur-base) var(--motion-ease-spring) both; }
+.motion-overlay-in { animation: overlayIn var(--motion-dur-fast) var(--motion-ease-standard) both; }
+.motion-modal-in { animation: modalIn var(--motion-spring-dur) var(--motion-ease-spring) both; }
+.motion-dropdown-in { animation: dropdownIn var(--motion-dur-base) var(--motion-ease-spring) both; }
+.motion-slide-up-in { animation: slideInUp var(--motion-dur-slow) var(--motion-ease-enter) both; }
+.motion-slide-left-in { animation: slideInLeft var(--motion-dur-slow) var(--motion-ease-enter) both; }
+.motion-list-item-in { animation: listItemIn var(--motion-dur-base) var(--motion-ease-enter) both; }
+.motion-brand-rise { animation: brandRise var(--motion-dur-slow) var(--motion-ease-enter) both; animation-delay: calc(min(var(--i, 0), var(--motion-stagger-max)) * var(--motion-stagger)); }
+.motion-brand-fade { animation: brandFade var(--motion-dur-slow) var(--motion-ease-enter) both; }
+.motion-message-in { animation: messageIn var(--motion-dur-slow) var(--motion-ease-spring) both; }
+.motion-shake { animation: shake var(--motion-dur-emph) var(--motion-ease-standard) both; }
+.motion-pat-shake { animation: patShake var(--motion-dur-emph) var(--motion-ease-standard) both; }
+.motion-highlight { animation: highlightFlash var(--motion-hold-highlight) var(--motion-ease-standard) both; }
+
+/* ---------- 5. 性能档：effectLevel=performance 时 App.vue 在 <html> 挂 fx-lite（替代旧 .no-mouse-gradient） ---------- */
+html.fx-lite { --motion-stagger: 0ms; }
+html.fx-lite .motion-scroll-smooth { scroll-behavior: auto; }
+html.fx-lite .motion-ambient,
+html.fx-lite [data-ambient],
+html.fx-lite .motion-glow { animation-play-state: paused !important; }
+html.fx-lite .fade-up-enter-from, html.fx-lite .fade-up-leave-to,
+html.fx-lite .fade-down-enter-from, html.fx-lite .fade-down-leave-to,
+html.fx-lite .fade-left-enter-from, html.fx-lite .fade-left-leave-to,
+html.fx-lite .fade-right-enter-from, html.fx-lite .fade-right-leave-to,
+html.fx-lite .scale-enter-from, html.fx-lite .scale-leave-to,
+html.fx-lite .pop-enter-from, html.fx-lite .pop-leave-to,
+html.fx-lite .slide-enter-from, html.fx-lite .slide-leave-to,
+html.fx-lite .slide-up-enter-from, html.fx-lite .slide-up-leave-to,
+html.fx-lite .slide-left-enter-from, html.fx-lite .slide-left-leave-to,
+html.fx-lite .page-enter-from, html.fx-lite .page-leave-to,
+html.fx-lite .list-enter-from, html.fx-lite .list-leave-to,
+html.fx-lite .modal-enter-from, html.fx-lite .modal-leave-to,
+html.fx-lite .dropdown-enter-from, html.fx-lite .dropdown-leave-to { transform: none !important; }
+
+/* ---------- 6. 无障碍：减少动态（唯一允许 !important 的地方；不能 animation:none，JS 还要等 animationend） ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* 位移/缩放全部关闭，仅保留透明度 */
+  .fade-up-enter-from, .fade-up-leave-to,
+  .fade-down-enter-from, .fade-down-leave-to,
+  .fade-left-enter-from, .fade-left-leave-to,
+  .fade-right-enter-from, .fade-right-leave-to,
+  .scale-enter-from, .scale-leave-to,
+  .pop-enter-from, .pop-leave-to,
+  .slide-enter-from, .slide-leave-to,
+  .slide-up-enter-from, .slide-up-leave-to,
+  .slide-left-enter-from, .slide-left-leave-to,
+  .page-enter-from, .page-leave-to,
+  .list-enter-from, .list-leave-to,
+  .modal-enter-from, .modal-leave-to,
+  .dropdown-enter-from, .dropdown-leave-to { transform: none !important; }
+
+  /* 纯装饰的循环氛围光直接停住（无 JS 依赖 animationend） */
+  .motion-ambient,
+  [data-ambient],
+  .motion-glow { animation-play-state: paused !important; }
+
+  /* 定位高亮静态降级：reduced 下 highlightFlash 被压到 0.01ms 且 fill:both 会立即落到透明，
+     且 MessageList 的 waitForMotion 在 reduced 下立即 resolve、类随即被移除 → 高亮完全不可见，
+     用户失去「跳到哪条消息」的唯一视觉提示。这里改为静态底色，并把底色过渡留在消息行自身，
+     类移除后颜色再淡出 --motion-highlight-hold（纯颜色、无位移/无闪烁）。 */
+  .motion-highlight {
+    animation: none !important;
+    background-color: var(--accent-light, var(--brand-soft)) !important;
+  }
+  [data-msg-id] { transition: background-color var(--motion-highlight-hold) linear !important; }
+}

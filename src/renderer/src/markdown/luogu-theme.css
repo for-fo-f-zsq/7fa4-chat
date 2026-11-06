@@ -1007,203 +1007,50 @@
   border-color: var(--border-light);
 }
 
-/* ---- 暗色主题覆盖（主题清单由 --bg-app 亮度自动判定）---- */
-.theme-abyss /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
-   instead of the hardcoded light blue. */
-[data-theme="dark"] .luogu-tuack-table,
-.theme-aurora /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
-   instead of the hardcoded light blue. */
-[data-theme="dark"] .luogu-tuack-table,
-.theme-carbon /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
-   instead of the hardcoded light blue. */
-[data-theme="dark"] .luogu-tuack-table,
-.theme-crimson /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
-   instead of the hardcoded light blue. */
-[data-theme="dark"] .luogu-tuack-table,
-.theme-cyberpunk /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
-   instead of the hardcoded light blue. */
-[data-theme="dark"] .luogu-tuack-table,
-.theme-dracula /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
-   instead of the hardcoded light blue. */
-[data-theme="dark"] .luogu-tuack-table,
-.theme-emerald /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
-   instead of the hardcoded light blue. */
-[data-theme="dark"] .luogu-tuack-table,
-.theme-monokai /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
-   instead of the hardcoded light blue. */
-[data-theme="dark"] .luogu-tuack-table,
-.theme-nord /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
-   instead of the hardcoded light blue. */
-[data-theme="dark"] .luogu-tuack-table,
-.theme-obsidian /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
-   instead of the hardcoded light blue. */
-[data-theme="dark"] .luogu-tuack-table,
-.theme-plasma /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
-   instead of the hardcoded light blue. */
-[data-theme="dark"] .luogu-tuack-table,
-.theme-solarized /* Dark mode: make the Tuack (contest) table use a dark-appropriate palette
-   instead of the hardcoded light blue. */
-[data-theme="dark"] .luogu-tuack-table {
+/* ---- 暗色主题覆盖（midnight / graphite 两个深色主题）---- */
+.theme-midnight .luogu-tuack-table,
+.theme-graphite .luogu-tuack-table {
   border-color: #1f6feb;
 }
 
-.theme-abyss .luogu-tuack-table th,
-.theme-aurora .luogu-tuack-table th,
-.theme-carbon .luogu-tuack-table th,
-.theme-crimson .luogu-tuack-table th,
-.theme-cyberpunk .luogu-tuack-table th,
-.theme-dracula .luogu-tuack-table th,
-.theme-emerald .luogu-tuack-table th,
-.theme-monokai .luogu-tuack-table th,
-.theme-nord .luogu-tuack-table th,
-.theme-obsidian .luogu-tuack-table th,
-.theme-plasma .luogu-tuack-table th,
-.theme-solarized .luogu-tuack-table th {
+.theme-midnight .luogu-tuack-table th,
+.theme-graphite .luogu-tuack-table th {
   background: #1f6feb;
   border-color: #1759c4;
 }
 
-.theme-abyss .luogu-tuack-table td,
-.theme-aurora .luogu-tuack-table td,
-.theme-carbon .luogu-tuack-table td,
-.theme-crimson .luogu-tuack-table td,
-.theme-cyberpunk .luogu-tuack-table td,
-.theme-dracula .luogu-tuack-table td,
-.theme-emerald .luogu-tuack-table td,
-.theme-monokai .luogu-tuack-table td,
-.theme-nord .luogu-tuack-table td,
-.theme-obsidian .luogu-tuack-table td,
-.theme-plasma .luogu-tuack-table td,
-.theme-solarized .luogu-tuack-table td {
+.theme-midnight .luogu-tuack-table td,
+.theme-graphite .luogu-tuack-table td {
   border-color: #2d3a4a;
 }
 
-.theme-abyss .luogu-tuack-table tr:nth-child(even) td,
-.theme-aurora .luogu-tuack-table tr:nth-child(even) td,
-.theme-carbon .luogu-tuack-table tr:nth-child(even) td,
-.theme-crimson .luogu-tuack-table tr:nth-child(even) td,
-.theme-cyberpunk .luogu-tuack-table tr:nth-child(even) td,
-.theme-dracula .luogu-tuack-table tr:nth-child(even) td,
-.theme-emerald .luogu-tuack-table tr:nth-child(even) td,
-.theme-monokai .luogu-tuack-table tr:nth-child(even) td,
-.theme-nord .luogu-tuack-table tr:nth-child(even) td,
-.theme-obsidian .luogu-tuack-table tr:nth-child(even) td,
-.theme-plasma .luogu-tuack-table tr:nth-child(even) td,
-.theme-solarized .luogu-tuack-table tr:nth-child(even) td {
+.theme-midnight .luogu-tuack-table tr:nth-child(even) td,
+.theme-graphite .luogu-tuack-table tr:nth-child(even) td {
   background: #1c2530;
 }
 
-.theme-abyss .luogu-tuack-table tr:hover td,
-.theme-aurora .luogu-tuack-table tr:hover td,
-.theme-carbon .luogu-tuack-table tr:hover td,
-.theme-crimson .luogu-tuack-table tr:hover td,
-.theme-cyberpunk .luogu-tuack-table tr:hover td,
-.theme-dracula .luogu-tuack-table tr:hover td,
-.theme-emerald .luogu-tuack-table tr:hover td,
-.theme-monokai .luogu-tuack-table tr:hover td,
-.theme-nord .luogu-tuack-table tr:hover td,
-.theme-obsidian .luogu-tuack-table tr:hover td,
-.theme-plasma .luogu-tuack-table tr:hover td,
-.theme-solarized .luogu-tuack-table tr:hover td {
+.theme-midnight .luogu-tuack-table tr:hover td,
+.theme-graphite .luogu-tuack-table tr:hover td {
   background: #24303e;
 }
 
-.theme-abyss .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
-.theme-abyss .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
-.theme-abyss .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
-.theme-abyss .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
-.theme-abyss .luogu-cute-centered-table th { color: #79b8f3; }
-.theme-abyss .luogu-unclosed-warning { color: #f0b27a; }
-.theme-abyss .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
-.theme-abyss .luogu-footnotes-title { color: var(--text-secondary); }
-.theme-aurora .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
-.theme-aurora .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
-.theme-aurora .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
-.theme-aurora .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
-.theme-aurora .luogu-cute-centered-table th { color: #79b8f3; }
-.theme-aurora .luogu-unclosed-warning { color: #f0b27a; }
-.theme-aurora .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
-.theme-aurora .luogu-footnotes-title { color: var(--text-secondary); }
-.theme-carbon .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
-.theme-carbon .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
-.theme-carbon .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
-.theme-carbon .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
-.theme-carbon .luogu-cute-centered-table th { color: #79b8f3; }
-.theme-carbon .luogu-unclosed-warning { color: #f0b27a; }
-.theme-carbon .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
-.theme-carbon .luogu-footnotes-title { color: var(--text-secondary); }
-.theme-crimson .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
-.theme-crimson .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
-.theme-crimson .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
-.theme-crimson .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
-.theme-crimson .luogu-cute-centered-table th { color: #79b8f3; }
-.theme-crimson .luogu-unclosed-warning { color: #f0b27a; }
-.theme-crimson .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
-.theme-crimson .luogu-footnotes-title { color: var(--text-secondary); }
-.theme-cyberpunk .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
-.theme-cyberpunk .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
-.theme-cyberpunk .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
-.theme-cyberpunk .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
-.theme-cyberpunk .luogu-cute-centered-table th { color: #79b8f3; }
-.theme-cyberpunk .luogu-unclosed-warning { color: #f0b27a; }
-.theme-cyberpunk .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
-.theme-cyberpunk .luogu-footnotes-title { color: var(--text-secondary); }
-.theme-dracula .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
-.theme-dracula .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
-.theme-dracula .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
-.theme-dracula .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
-.theme-dracula .luogu-cute-centered-table th { color: #79b8f3; }
-.theme-dracula .luogu-unclosed-warning { color: #f0b27a; }
-.theme-dracula .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
-.theme-dracula .luogu-footnotes-title { color: var(--text-secondary); }
-.theme-emerald .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
-.theme-emerald .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
-.theme-emerald .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
-.theme-emerald .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
-.theme-emerald .luogu-cute-centered-table th { color: #79b8f3; }
-.theme-emerald .luogu-unclosed-warning { color: #f0b27a; }
-.theme-emerald .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
-.theme-emerald .luogu-footnotes-title { color: var(--text-secondary); }
-.theme-monokai .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
-.theme-monokai .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
-.theme-monokai .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
-.theme-monokai .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
-.theme-monokai .luogu-cute-centered-table th { color: #79b8f3; }
-.theme-monokai .luogu-unclosed-warning { color: #f0b27a; }
-.theme-monokai .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
-.theme-monokai .luogu-footnotes-title { color: var(--text-secondary); }
-.theme-nord .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
-.theme-nord .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
-.theme-nord .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
-.theme-nord .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
-.theme-nord .luogu-cute-centered-table th { color: #79b8f3; }
-.theme-nord .luogu-unclosed-warning { color: #f0b27a; }
-.theme-nord .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
-.theme-nord .luogu-footnotes-title { color: var(--text-secondary); }
-.theme-obsidian .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
-.theme-obsidian .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
-.theme-obsidian .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
-.theme-obsidian .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
-.theme-obsidian .luogu-cute-centered-table th { color: #79b8f3; }
-.theme-obsidian .luogu-unclosed-warning { color: #f0b27a; }
-.theme-obsidian .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
-.theme-obsidian .luogu-footnotes-title { color: var(--text-secondary); }
-.theme-plasma .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
-.theme-plasma .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
-.theme-plasma .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
-.theme-plasma .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
-.theme-plasma .luogu-cute-centered-table th { color: #79b8f3; }
-.theme-plasma .luogu-unclosed-warning { color: #f0b27a; }
-.theme-plasma .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
-.theme-plasma .luogu-footnotes-title { color: var(--text-secondary); }
-.theme-solarized .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
-.theme-solarized .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
-.theme-solarized .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
-.theme-solarized .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
-.theme-solarized .luogu-cute-centered-table th { color: #79b8f3; }
-.theme-solarized .luogu-unclosed-warning { color: #f0b27a; }
-.theme-solarized .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
-.theme-solarized .luogu-footnotes-title { color: var(--text-secondary); }
+.theme-midnight .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
+.theme-midnight .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
+.theme-midnight .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
+.theme-midnight .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
+.theme-midnight .luogu-cute-centered-table th { color: #79b8f3; }
+.theme-midnight .luogu-unclosed-warning { color: #f0b27a; }
+.theme-midnight .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
+.theme-midnight .luogu-footnotes-title { color: var(--text-secondary); }
+.theme-graphite .luogu-callout-info > .luogu-callout-summary { color: #79b8f3; }
+.theme-graphite .luogu-callout-success > .luogu-callout-summary { color: #58d68d; }
+.theme-graphite .luogu-callout-warning > .luogu-callout-summary { color: #f0b27a; }
+.theme-graphite .luogu-callout-error > .luogu-callout-summary { color: #ec7063; }
+.theme-graphite .luogu-cute-centered-table th { color: #79b8f3; }
+.theme-graphite .luogu-unclosed-warning { color: #f0b27a; }
+.theme-graphite .luogu-unclosed-warning code { background: rgba(255, 255, 255, 0.08); }
+.theme-graphite .luogu-footnotes-title { color: var(--text-secondary); }
+
 
 /* ---- 代码高亮 token 配色：随主题在 One Light / One Dark 之间切换 ----
    底色已跟随 --bg-code-block（浅色主题是浅底），token 必须一起换，否则浅底浅字看不见。
@@ -1221,18 +1068,8 @@
   --lg-token-inserted: #2f7a34;
 }
 
-.theme-abyss,
-.theme-aurora,
-.theme-carbon,
-.theme-crimson,
-.theme-cyberpunk,
-.theme-dracula,
-.theme-emerald,
-.theme-monokai,
-.theme-nord,
-.theme-obsidian,
-.theme-plasma,
-.theme-solarized {
+.theme-midnight,
+.theme-graphite {
   --lg-token-comment: #7f848e;
   --lg-token-punctuation: #abb2bf;
   --lg-token-keyword: #c678dd;

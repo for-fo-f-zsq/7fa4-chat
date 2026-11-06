@@ -3,11 +3,14 @@
     @dragover.prevent="onInputDragOver"
     @dragleave="onInputDragLeave"
     @drop.prevent="onInputDrop">
+    <Transition name="fade-down">
     <div class="reply-bar" v-if="replyTo">
       <i class="fas fa-quote-left reply-bar-icon"></i>
       <span class="reply-bar-text">{{ replyTo.content }}</span>
       <button class="reply-bar-close" @click="replyTo = null"><i class="fas fa-times"></i></button>
     </div>
+    </Transition>
+    <Transition name="fade-down">
     <div class="pending-files-bar" v-if="pendingFiles.length">
       <div class="pending-file-item" v-for="(pf, idx) in pendingFiles" :key="idx" @click="previewPendingFile(pf)">
         <div class="pending-file-thumb" v-if="pf.isImage">
@@ -23,14 +26,15 @@
         <button class="pending-file-remove" @click.stop="removePendingFile(idx)"><i class="fas fa-times"></i></button>
       </div>
     </div>
+    </Transition>
 
     <!-- 输入区：与「工具 → Markdown」同一版式 —— 左源码、右预览，中间可拖拽分隔条。
          左侧是原生 textarea（源码为唯一真源，中文输入法与撤销栈与普通文本框一致），
          右侧走 renderMarkdownPreview，与消息气泡同一个渲染器，表情/公式/代码高亮一并保留。
          滚动是双向跟随：拖任一侧，另一侧按比例对齐。 -->
     <div class="input-row">
-    <div class="input-split" :class="{ 'collapse-left': collapseSide === 'left', 'collapse-right': collapseSide === 'right' }">
-      <div class="input-split-left" v-show="collapseSide !== 'left'" :style="splitLeftWidth && !collapseSide ? { width: splitLeftWidth + 'px', flex: 'none' } : {}">
+    <div class="input-split" :class="{ 'collapse-left': collapseSide === 'left', 'collapse-right': collapseSide === 'right', 'preview-collapsed': !previewOpen }">
+      <div class="input-split-left" v-show="collapseSide !== 'left'" :style="splitLeftWidth && !collapseSide && previewOpen ? { width: splitLeftWidth + 'px', flex: 'none' } : {}">
         <div class="textarea-wrap">
             <textarea
               class="input-editor"
@@ -44,6 +48,7 @@
               @paste="onPaste"
               @scroll="syncPreviewFromInput"
             ></textarea>
+            <Transition name="dropdown">
             <div class="mention-popup" v-if="mentionVisible" :style="mentionPopupStyle">
               <div class="mention-item mention-all-item" :class="{ active: mentionIndex === 0 }" @click="applyMentionAll" v-if="pageType === 'group'">
                 <i class="fas fa-users"></i> 所有人
@@ -52,10 +57,11 @@
                 <i class="fas fa-user"></i> {{ displayName(m) }}
               </div>
             </div>
+            </Transition>
           </div>
         </div>
-        <div class="input-split-divider" title="拖动调整双栏宽度，拖到边缘继续拖可隐藏该侧" @mousedown="onSplitDragStart"></div>
-        <div class="input-split-right" v-show="collapseSide !== 'right'">
+        <div class="input-split-divider" v-show="previewOpen && !collapseSide" title="拖动调整双栏宽度，拖到边缘继续拖可隐藏该侧" @mousedown="onSplitDragStart"></div>
+        <div class="input-split-right" v-show="previewOpen && collapseSide !== 'right'">
           <div class="input-preview-label">预览</div>
           <div
             class="input-preview-content luogu-md"
@@ -67,35 +73,32 @@
           <div class="input-preview-empty" v-else>输入内容后在此预览</div>
         </div>
       </div>
-      <button id="send" @click="sendMessage" :disabled="sending || inputDisabled">发送</button>
+      <UiButton id="send" class="send-btn" variant="primary" size="md" :disabled="sending || inputDisabled" @click="sendMessage">发送</UiButton>
     </div>
     <div class="counter-line">
       <div class="input-actions">
-        <div class="fmt-toggle" title="消息格式：纯文本原样显示，Markdown 支持渲染">
-          <button :class="{ active: msgFmt === 'txt' }" @click="msgFmt = 'txt'">纯文本</button>
-          <button :class="{ active: msgFmt === 'md' }" @click="msgFmt = 'md'">MD</button>
-        </div>
-        <button id="emoji_btn" title="表情" @click.stop="toggleEmoji" :disabled="sending || inputDisabled"><i class="fas fa-smile"></i></button>
-        <button id="camera_btn" :class="{ active: cameraBusy }" :title="cameraBusy ? '取消拍照' : '拍照'" @click="takePhoto" :disabled="sending || inputDisabled">
-          <i :class="cameraBusy ? 'fas fa-times' : 'fas fa-camera'"></i>
-        </button>
-        <button id="voice_btn" :class="{ active: recording }" :title="recording ? '停止录音并转文字' : '语音转文字'" @click="toggleVoice" :disabled="sending || inputDisabled || voiceBusy">
-          <i :class="recording ? 'fas fa-stop-circle' : 'fas fa-microphone'"></i>
-        </button>
+        <UiSegmented class="fmt-toggle" v-model="msgFmt" size="sm" :items="FMT_ITEMS" aria-label="消息格式" title="消息格式：纯文本原样显示，Markdown 支持渲染" />
+        <UiIconButton class="preview-btn" :icon="previewOpen ? 'fas fa-eye-slash' : 'fas fa-eye'" :active="previewOpen" aria-label="预览" title="预览渲染效果" :disabled="sending || inputDisabled" @click="togglePreview" />
+        <UiIconButton id="emoji_btn" class="emoji-btn" icon="fas fa-smile" aria-label="表情" title="表情" :disabled="sending || inputDisabled" @click.stop="toggleEmoji" />
+        <UiIconButton id="camera_btn" class="camera-btn" :icon="cameraBusy ? 'fas fa-times' : 'fas fa-camera'" :active="cameraBusy" :aria-label="cameraBusy ? '取消拍照' : '拍照'" :title="cameraBusy ? '取消拍照' : '拍照'" :disabled="sending || inputDisabled" @click="takePhoto" />
+        <UiIconButton id="voice_btn" class="voice-btn" :icon="recording ? 'fas fa-stop-circle' : 'fas fa-microphone'" :danger="recording" :active="recording" :aria-label="recording ? '停止录音并转文字' : '语音转文字'" :title="recording ? '停止录音并转文字' : '语音转文字'" :disabled="sending || inputDisabled || voiceBusy" @click="toggleVoice" />
         <div class="more-menu" :class="{ open: moreVisible }">
-          <button id="more_btn" title="更多" @click.stop="toggleMore" :disabled="sending || inputDisabled"><i class="fas fa-ellipsis-h"></i></button>
+          <UiIconButton id="more_btn" class="more-btn" icon="fas fa-ellipsis-h" aria-label="更多" title="更多" :active="moreVisible" :disabled="sending || inputDisabled" @click.stop="toggleMore" />
+          <Transition name="dropdown">
           <div class="more-panel" v-if="moreVisible" @click.stop>
-            <button @click="moreAction(sendFileMessage)"><i class="fas fa-paperclip"></i>文件</button>
-            <button @click="moreAction(openPollCompose)"><i class="fas fa-poll"></i>投票</button>
+            <UiButton variant="ghost" size="sm" block icon="fas fa-paperclip" @click="moreAction(sendFileMessage)">文件</UiButton>
+            <UiButton variant="ghost" size="sm" block icon="fas fa-poll" @click="moreAction(openPollCompose)">投票</UiButton>
           </div>
+          </Transition>
         </div>
       </div>
-      <span class="error" v-if="errorMessage">{{ errorMessage }}</span>
+      <span class="error motion-shake" v-if="errorMessage">{{ errorMessage }}</span>
       <span class="token-info" :class="{ 'token-info-warn': tokenInfo && tokenInfo.remain <= 2 }" v-if="tokenInfo">
         剩余 {{ tokenInfo.remain }} / {{ tokenInfo.total }} token
         <span class="token-tip-icon" title="token 恢复倒计时" @mouseenter="onTokenHover(true)" @mouseleave="onTokenHover(false)">
           <i class="fas fa-question-circle"></i>
         </span>
+        <Transition name="fade">
         <span class="token-tooltip" v-if="tokenTipVisible">
           <template v-if="tokenRecovery.length">
             <div v-for="(r, i) in tokenRecovery" :key="i" class="token-tooltip-row">
@@ -105,6 +108,7 @@
           </template>
           <div v-else class="token-tooltip-row">全部 token 可用</div>
         </span>
+        </Transition>
       </span>
     </div>
     <EmojiPicker
@@ -119,11 +123,13 @@
     />
 
     <!-- 发起投票弹窗（走「普通文本消息 + 约定格式」，见 utils.makePollContent） -->
+    <Transition name="overlay">
     <div class="poll-modal-mask" v-if="pollVisible" @click.self="closePollCompose">
+      <Transition name="modal" appear>
       <div class="poll-modal">
         <div class="poll-modal-head">
           <span class="poll-modal-title"><i class="fas fa-poll"></i>发起投票</span>
-          <button class="poll-modal-close" @click="closePollCompose"><i class="fas fa-times"></i></button>
+          <UiIconButton class="poll-modal-close" icon="fas fa-times" aria-label="关闭" size="sm" @click="closePollCompose" />
         </div>
         <div class="poll-modal-body">
           <label class="poll-field">
@@ -168,13 +174,17 @@
           <div class="poll-modal-err" v-if="pollError">{{ pollError }}</div>
         </div>
         <div class="poll-modal-foot">
-          <button class="poll-btn" @click="closePollCompose">取消</button>
-          <button class="poll-btn poll-btn-primary" @click="submitPoll" :disabled="sending">发起</button>
+          <UiButton variant="secondary" size="sm" @click="closePollCompose">取消</UiButton>
+          <UiButton variant="primary" size="sm" :disabled="sending" @click="submitPoll">发起</UiButton>
         </div>
       </div>
+      </Transition>
     </div>
+    </Transition>
   </div>
 </template>
+
+<style scoped src="../css/input-footer.css"></style>
 
 <script setup>
 import { ref, computed, nextTick, watch, onUnmounted } from 'vue';
@@ -183,7 +193,7 @@ import { displayName, parseMsgContent, renderMarkdownPreview, applyChatToStore, 
 import EmojiPicker from './EmojiPicker.vue';
 import { QUANCODE, qqfaceUrl, qqfaceShortCode } from '../qqface-data.js';
 import { createScrollSync } from '../markdown/scroll-sync.js';
-import '../css/input-footer.css';
+import { UiButton, UiIconButton, UiSegmented } from '../ui/index.js';
 
 const props = defineProps({
   pageType: { type: String, required: true },
@@ -215,6 +225,8 @@ const splitLeftWidth = ref(0);
 
 /** 消息格式：'md' = Markdown 渲染（默认，历史消息均按此）；'txt' = 纯文本原样显示 */
 const msgFmt = ref('md');
+// 消息格式分段选项（UiSegmented 数据源）
+const FMT_ITEMS = [{ value: 'txt', label: '纯文本' }, { value: 'md', label: 'MD' }];
 
 function renderMdPreview() {
   // 纯文本模式：预览也是原样文本（转义 + 保留换行），不做 Markdown / 表情渲染
@@ -248,7 +260,7 @@ watch(inputText, () => {
   nextTick(() => {
     const ta = inputEl.value
     const pv = inputPreviewRef.value
-    if (ta && (!pv || collapseSide.value === 'right')) {
+    if (ta && (!pv || !previewOpen.value || collapseSide.value === 'right')) {
       // 还原引擎写入的内联尾部 padding
       ta.style.paddingBottom = ''
       return
@@ -940,6 +952,25 @@ async function finishVoice(stream) {
 // 拖到边缘再继续拖 SNAP 像素 → 收起该侧（左极限隐藏输入栏、右极限隐藏预览）；
 // 收起后分隔条贴边保留，往回拖过 SNAP 即恢复。
 const collapseSide = ref('');
+// 预览默认收起：聊天时只留源码编辑区，需要对照渲染结果时点工具栏的眼睛展开。
+const previewOpen = ref(false);
+
+function togglePreview() {
+  previewOpen.value = !previewOpen.value;
+  if (!previewOpen.value && collapseSide.value === 'right') collapseSide.value = '';
+  nextTick(() => {
+    const ta = inputEl.value;
+    const pv = inputPreviewRef.value;
+    if (!previewOpen.value) {
+      if (ta) ta.style.paddingBottom = '';
+      return;
+    }
+    if (!ta || !pv) return;
+    scrollSync.invalidate();
+    scrollSync.syncEditorTailPadding();
+    scrollSync.sync('editor');
+  });
+}
 function onSplitDragStart(e) {
   e.preventDefault();
   const splitEl = e.currentTarget.parentElement;

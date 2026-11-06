@@ -1,0 +1,48 @@
+.ui-skeleton {
+  --sk-w: 100%;
+  --sk-h: var(--skeleton-line-h);
+  display: block;
+  width: var(--sk-w);
+}
+
+.ui-skeleton--rect {
+  --sk-h: var(--skeleton-circle-size);
+}
+
+.ui-skeleton--circle {
+  --sk-w: var(--skeleton-circle-size);
+  --sk-h: var(--skeleton-circle-size);
+  width: auto;
+}
+
+.ui-skeleton-line,
+.ui-skeleton-block {
+  display: block;
+  width: 100%;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+}
+
+.ui-skeleton-line {
+  height: var(--skeleton-line-h);
+  margin-bottom: var(--space-2);
+}
+
+.ui-skeleton-line--last {
+  width: 60%;
+  margin-bottom: 0;
+}
+
+.ui-skeleton-block {
+  height: var(--sk-h);
+}
+
+.ui-skeleton--rect .ui-skeleton-block {
+  border-radius: var(--radius-md);
+}
+
+.ui-skeleton--circle .ui-skeleton-block {
+  width: var(--sk-w);
+  height: var(--sk-h);
+  border-radius: 50%;
+}

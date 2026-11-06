@@ -8,3 +8,5 @@ defineProps({
 })
 const emit = defineEmits(['back'])
 </script>
+
+<style scoped src="../css/back-button.css"></style>

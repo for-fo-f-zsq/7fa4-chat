@@ -1,18 +1,20 @@
 <template>
-  <ContextMenu
-    :visible="visible"
-    :x="x"
-    :y="y"
-    :items="actionList"
+  <div ref="anchorEl" class="group-action-menu__anchor" :style="anchorStyle"></div>
+  <UiMenu
+    :items="menuItems"
+    :open="visible"
+    :anchor="anchorEl"
+    :offset="0"
+    placement="bottom"
     @select="onSelect"
     @close="$emit('close')"
   />
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { store } from '../store.js'
-import ContextMenu from './ContextMenu.vue'
+import UiMenu from '../ui/UiMenu/UiMenu.vue'
 
 const props = defineProps({
   visible: Boolean,
@@ -23,6 +25,13 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'action'])
+
+// 0 尺寸锚点：把右键/点击位置交给 UiMenu 做 fixed 定位与视口翻转
+const anchorEl = ref(null)
+const anchorStyle = computed(() => ({
+  left: `${props.x || 0}px`,
+  top: `${props.y || 0}px`,
+}))
 
 const actionList = computed(() => {
   const member = store.groups?.[props.gid]?.users?.filter(u => u.user_id == props.mid)[0]
@@ -65,7 +74,13 @@ const actionList = computed(() => {
   return list
 })
 
-function onSelect(value) {
-  emit('action', { type: value, targetId: props.mid })
+const menuItems = computed(() =>
+  actionList.value.map(item => ({ key: item.value, label: item.label, icon: item.icon }))
+)
+
+function onSelect(key) {
+  emit('action', { type: key, targetId: props.mid })
 }
 </script>
+
+<style scoped src="../css/group-action-menu.css"></style>

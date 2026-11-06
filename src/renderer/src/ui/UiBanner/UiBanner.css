@@ -1,0 +1,98 @@
+.ui-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-base);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.ui-banner--info {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.ui-banner--success {
+  background: var(--status-success-soft);
+  color: var(--status-success);
+}
+
+.ui-banner--warning {
+  background: var(--status-warning-soft);
+  color: var(--status-warning);
+}
+
+.ui-banner--danger {
+  background: var(--status-danger-soft);
+  color: var(--status-danger);
+}
+
+.ui-banner--notice {
+  background: var(--status-notice-soft);
+  color: var(--status-notice);
+}
+
+.ui-banner-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  font-size: var(--icon-md);
+}
+
+.ui-banner-content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.ui-banner-title {
+  color: var(--fg);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+}
+
+.ui-banner-desc {
+  color: var(--fg-muted);
+}
+
+.ui-banner-close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-xl);
+  height: var(--icon-xl);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font-size: var(--icon-sm);
+  line-height: 1;
+  cursor: pointer;
+  opacity: var(--opacity-muted);
+  transition:
+    background var(--motion-dur-fast) var(--motion-ease-standard),
+    opacity var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+.ui-banner-close:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+@media (hover: hover) {
+  .ui-banner-close:hover {
+    background: var(--surface-hover);
+    opacity: 1;
+  }
+}

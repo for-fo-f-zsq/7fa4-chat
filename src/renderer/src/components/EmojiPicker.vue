@@ -1,10 +1,8 @@
 <template>
+  <Transition name="dropdown">
   <div class="emoji-picker" v-if="visible" ref="pickerEl" :style="pickerStyle">
     <div class="emoji-drag-bar" title="上下拖动调整高度" @mousedown.prevent="onDragStart"><i></i></div>
-    <div class="emoji-mode-switch">
-      <button :class="['mode-btn', { active: mode === 'emoji' }]" @click="mode = 'emoji'">QQ 表情</button>
-      <button :class="['mode-btn', { active: mode === 'sticker' }]" @click="mode = 'sticker'">自定义表情</button>
-    </div>
+    <UiSegmented class="emoji-mode-switch" v-model="mode" size="sm" :items="MODE_ITEMS" aria-label="表情类型" />
     <template v-if="mode === 'emoji'">
       <div class="emoji-search">
         <input v-autofocus v-model="search" placeholder="搜索 QQ 表情（输入 /微笑 或 /wx）..." ref="searchInput" />
@@ -19,7 +17,7 @@
     </template>
     <template v-if="mode === 'sticker'">
       <div class="sticker-toolbar">
-        <button class="sticker-add-btn" @click="emit('addSticker')"><i class="fas fa-plus"></i> 添加表情</button>
+        <UiButton size="sm" variant="secondary" icon="fas fa-plus" @click="emit('addSticker')">添加表情</UiButton>
       </div>
       <div class="sticker-grid">
         <div v-if="!stickers || stickers.length === 0" class="sticker-empty">
@@ -35,11 +33,16 @@
       </div>
     </template>
   </div>
+  </Transition>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { QQFACES, qqfaceUrl } from '../qqface-data.js'
+import { UiButton, UiSegmented } from '../ui/index.js'
+
+// 表情类型分段选项（UiSegmented 数据源）
+const MODE_ITEMS = [{ value: 'emoji', label: 'QQ 表情' }, { value: 'sticker', label: '自定义表情' }]
 
 const props = defineProps({
   visible: Boolean,
@@ -122,3 +125,5 @@ onUnmounted(() => {
   onDragEnd()
 })
 </script>
+
+<style scoped src="../css/emoji-picker.css"></style>

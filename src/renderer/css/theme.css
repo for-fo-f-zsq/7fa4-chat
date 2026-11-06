@@ -1,23 +1,8 @@
+/* 主题入口：default（雾蓝）必须先加载（唯一 :root 主题），其余由 html.theme-<id> 命中。
+   新增主题：在 themes/ 下建 <id>.css（.theme-<id> 块），再登记到 constants.js 的 THEMES。 */
 @import url('themes/default.css');
-@import url('themes/wechat.css');
-@import url('themes/aurora.css');
-@import url('themes/abyss.css');
-@import url('themes/rose.css');
-@import url('themes/lavender.css');
-@import url('themes/mint.css');
-@import url('themes/peach.css');
-@import url('themes/amber.css');
-@import url('themes/coral.css');
+@import url('themes/sand.css');
 @import url('themes/sage.css');
-@import url('themes/slate.css');
-@import url('themes/obsidian.css');
-@import url('themes/crimson.css');
-@import url('themes/emerald.css');
-@import url('themes/carbon.css');
-@import url('themes/plasma.css');
-@import url('themes/nord.css');
-@import url('themes/dracula.css');
-@import url('themes/monokai.css');
-@import url('themes/cyberpunk.css');
-@import url('themes/solarized.css');
-@import url('themes/palette.css');
+@import url('themes/midnight.css');
+@import url('themes/graphite.css');
+@import url('themes/contrast.css');

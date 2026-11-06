@@ -1,51 +1,54 @@
 <template>
   <div class="chat-header">
     <div class="header-left">
-      <div class="nav-icon button back-icon" @click="$emit('back')" title="返回"><i class="fas fa-arrow-left"></i></div>
+      <BackButton class="back-icon" title="返回" aria-label="返回" @back="$emit('back')" />
       <template v-if="pageType === 'user' && targetUser">
         <div class="user-info" @click="$emit('openUserInfo', targetUser.uid)">
-          <div class="header-avatar">
-            <div class="avatar-placeholder-sm">{{ getAvatarInitial(targetUser.uid) }}</div>
-          </div>
+          <UiAvatar class="header-avatar" :size="32" :color="avatarTint(targetUser.uid)" :name="getAvatarInitial(targetUser.uid)" />
           <h3 :style="{ color: getGradeColor(targetUser.uid) }">{{ displayName(targetUser) }}</h3>
-          <div
+          <UiIconButton
             class="header-watch-btn"
-            :class="{ watched: targetUser.watchee === true }"
+            :icon="targetUser.watchee === true ? 'fas fa-check' : 'fas fa-plus'"
+            size="md"
+            variant="soft"
+            :disabled="targetUser.watchee === true"
+            :aria-label="targetUser.watchee === true ? '已关注' : '加关注'"
             :title="targetUser.watchee === true ? '已关注' : '加关注'"
             @click.stop="onWatchClick"
-          >
-            <i v-if="targetUser.watchee === true" class="fas fa-check"></i>
-            <i v-else class="fas fa-plus"></i>
-          </div>
+          />
         </div>
       </template>
       <template v-if="pageType === 'group' && targetGroup">
         <div class="user-info" @click="!targetGroup.exited && $emit('openGroupSettings', pageId)">
-          <div class="header-avatar">
-            <div class="avatar-placeholder-sm">{{ targetGroup.name ? targetGroup.name.charAt(0) : '群' }}</div>
-          </div>
-          <h3>{{ targetGroup.name }}<span v-if="targetGroup.exited" class="exited-badge">(已退出)</span><span v-if="targetGroup.blocked" class="blocked-badge">(已屏蔽)</span></h3>
-          <span v-if="targetGroup.mentioned" class="chat-mention-badge">[有人@你]</span>
+          <UiAvatar class="header-avatar" :size="32" :color="avatarTint('group:' + (targetGroup.name || ''))" :name="targetGroup.name || '群'" />
+          <h3>
+            {{ targetGroup.name }}
+            <UiBadge v-if="targetGroup.exited" class="exited-badge" variant="outline" size="sm">已退出</UiBadge>
+            <UiBadge v-if="targetGroup.blocked" class="blocked-badge" variant="danger" size="sm">已屏蔽</UiBadge>
+          </h3>
+          <UiBadge v-if="targetGroup.mentioned" class="chat-mention-badge" variant="brand" size="sm">[有人@你]</UiBadge>
         </div>
       </template>
     </div>
     <template v-if="pageType === 'user' && targetUser">
       <div class="header-actions">
-        <div class="nav-icon button group-settings-icon" @click="$emit('toggleSearch')"><i class="fas fa-search"></i></div>
-        <div class="nav-icon button group-settings-icon" @click="$emit('openUserInfo', targetUser.uid)"><i class="fas fa-ellipsis-v"></i></div>
+        <UiIconButton icon="fas fa-search" size="md" variant="ghost" aria-label="搜索" title="搜索" @click="$emit('toggleSearch')" />
+        <UiIconButton icon="fas fa-ellipsis-v" size="md" variant="ghost" aria-label="更多" title="更多" @click="$emit('openUserInfo', targetUser.uid)" />
       </div>
     </template>
     <template v-if="pageType === 'group' && targetGroup">
       <div class="header-actions">
-        <div class="nav-icon button group-settings-icon" @click="$emit('toggleSearch')"><i class="fas fa-search"></i></div>
-        <div v-if="!targetGroup.exited" class="nav-icon button group-settings-icon" @click="$emit('openGroupSettings', pageId)"><i class="fas fa-ellipsis-v"></i></div>
+        <UiIconButton icon="fas fa-search" size="md" variant="ghost" aria-label="搜索" title="搜索" @click="$emit('toggleSearch')" />
+        <UiIconButton v-if="!targetGroup.exited" icon="fas fa-ellipsis-v" size="md" variant="ghost" aria-label="群设置" title="群设置" @click="$emit('openGroupSettings', pageId)" />
       </div>
     </template>
   </div>
 </template>
 
 <script setup>
-import { displayName, getGradeColor, getAvatarInitial } from '../utils.js';
+import BackButton from './BackButton.vue';
+import { UiAvatar, UiBadge, UiIconButton } from '../ui';
+import { displayName, getGradeColor, getAvatarInitial, avatarTint } from '../utils.js';
 
 const props = defineProps({
   pageType: { type: String, required: true },
@@ -61,3 +64,6 @@ function onWatchClick() {
   emit('addfriend', props.targetUser.uid)
 }
 </script>
+
+<style scoped src="../css/chat-header.css"></style>
+

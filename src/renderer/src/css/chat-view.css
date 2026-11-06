@@ -1,19 +1,157 @@
+/* ChatView — Shell / 页面骨架 scoped 样式（A 域 P2-A）
+   来源：原全局 chat-view.css（422 行）拆分后保留的 shell 段 + base.css 迁入的 .app、.title-bar*、.app-body。
+   只消费 tokens.css / motion.css 语义令牌；组件内不定义 @keyframes。
+   已剪出（见 .team/refactor/css/A-handoff.md）：
+   - ChatHeader 段（原 34-150）→ components/ChatHeader.vue + css/chat-header.css
+   - ContentPreviewModal 段（原 152-302）→ C2 域
+   - ForwardModal 段（原 304-368）→ C2 域
+   - .conversation-item.drop-target（原 370-375）→ B 域 conversation-list.css
+   迁移期与 index.css 的 legacy 全局行并存属预期（Lead 集成时删 legacy 行）。
+   */
+
+/* ---------- 1. 应用根骨架（原 base.css .app；启动动画改 .motion-fade-in 类） ---------- */
+.app {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--gradient-app);
+}
+
+/* W2 鼠标光晕：坐标由 App.vue 写入 --mouse-x/--mouse-y（EXCEPTIONS W2）；
+   performance/reduced 时 App.vue 给根节点加 .no-mouse-gradient，媒体查询兜底关闭 */
+.app::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(150px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), var(--brand-glow), transparent 55%);
+    pointer-events: none;
+    z-index: var(--z-max);
+    transition: background var(--motion-dur-emph) var(--motion-ease-standard);
+}
+.app.no-mouse-gradient::after {
+    display: none;
+}
+/* performance 档（html.fx-lite）同样关闭鼠标光晕（W2），不依赖组件 attrs 透传 */
+:global(html.fx-lite) .app::after {
+    display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    .app::after {
+        display: none;
+    }
+}
+
+/* ---------- 2. 标题栏（原 base.css .title-bar*；ChatView + LoginView 共用，见 A-handoff §6） ---------- */
+.title-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 32px;
+    flex-shrink: 0;
+    background: var(--surface-0);
+    border-bottom: var(--border-width) solid var(--line);
+    box-shadow: var(--elev-titlebar);
+    z-index: var(--z-header);
+    user-select: none;
+}
+.title-bar-drag {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    padding-left: var(--space-3);
+    -webkit-app-region: drag;
+}
+.title-bar-title {
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+}
+.title-bar-controls {
+    display: flex;
+    height: 100%;
+    -webkit-app-region: no-drag;
+}
+.title-btn {
+    width: 46px;
+    height: 100%;
+    border: none;
+    background: transparent;
+    color: var(--fg-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--text-sm);
+    transition: background var(--motion-dur-fast) var(--motion-ease-standard),
+                color var(--motion-dur-fast) var(--motion-ease-standard);
+}
+.title-btn:hover {
+    background: var(--surface-hover);
+    color: var(--fg);
+}
+.title-close:hover {
+    background: var(--status-danger);
+    color: var(--on-danger);
+}
+
+/* ---------- 3. 应用主体 / 窄屏单列（原 base.css .app-body + nav-bar.css .app-body.narrow） ---------- */
+.app-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+}
+.app-body.narrow {
+    flex-direction: column;
+}
+
+/* ---------- 4. 列表拖拽调宽条（B 域移交，div 在 ChatView 模板内）
+   注意：该 div 是 .page-stage 的 flex 子项（ConversationList 之后、chat-main 之前），
+   无定位祖先可挂 absolute（会落到 .app 右缘），故改为 0 净宽 flex 项 + 双向负 margin，
+   正好跨在列表/会话区边界上，不改变原有布局宽度。 ---------- */
+.list-resize-bar {
+    position: relative;
+    flex: 0 0 var(--space-2);
+    margin: 0 calc(-1 * var(--space-1));
+    cursor: col-resize;
+    z-index: var(--z-raised);
+    background: transparent;
+    transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
+}
+.list-resize-bar:hover {
+    background: var(--brand-soft);
+}
+
+/* ---------- 5. 页级舞台（Transition 载体） ----------
+   page-stage 是 <Transition name="fade" mode="out-in"> 的唯一子节点：页类别切换时整块淡出→淡入；
+   会话切换由内层 chat-main Transition 负责。过渡类全部来自 motion.css（.fade-*，enter 180ms / leave 120ms），
+   组件内不重复定义 .fade-enter-from 等类；reduced-motion 由 motion.css 全局归零。 */
+.page-stage {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+}
+/* 窄长窗口单列：列表与消息区互斥显示，舞台改为纵向排列（原 .app-body.narrow 的纵向规则由本舞台承接） */
+.app-body.narrow .page-stage {
+    flex-direction: column;
+}
+
+/* ---------- 6. 主会话区 ---------- */
 .chat-main {
     flex: 1;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(180deg, var(--bg-app), var(--bg-gradient-end));
     overflow: hidden;
     position: relative;
+    background: var(--gradient-app);
 }
-
-.fade-content {
-    transition: opacity 0.3s ease;
-}
-.fade-content.fade-out {
-    opacity: 0;
-}
-
+/* 顶部氛围光：原 chatMainGlow 6s 无限循环已收敛为静态光晕（W6 边界：仅 fancy 生效） */
 .chat-main::before {
     content: '';
     position: absolute;
@@ -21,402 +159,77 @@
     left: 0;
     right: 0;
     height: 260px;
-    background: radial-gradient(ellipse at 50% 0%, var(--gradient-subtle), transparent 70%);
+    background: radial-gradient(ellipse at 50% 0%, var(--brand-glow), transparent 70%);
+    opacity: 0.8;
     pointer-events: none;
-    z-index: 0;
-    animation: chatMainGlow 6s ease-in-out infinite alternate;
-}
-@keyframes chatMainGlow {
-    from { opacity: 0.6; }
-    to { opacity: 1; }
-}
-
-.chat-header {
-    padding: 0 20px;
-    height: 56px;
-    background: linear-gradient(90deg, var(--bg-app), var(--bg-gradient-end));
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: relative;
-    box-shadow: var(--shadow-chat-header);
-    border-bottom: 1px solid var(--border-3d-dark);
-    z-index: 1;
-}
-
-.header-left {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    flex-shrink: 1;
-}
-.chat-header .back-icon {
-    margin-right: 6px;
-    flex-shrink: 0;
-}
-.chat-header .back-icon:hover {
-    background: var(--bg-sidebar-hover);
-}
-.chat-header::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--gradient-subtle) 15%, var(--border-light) 50%, var(--gradient-subtle) 85%, transparent);
-}
-
-.user-info { display: flex; align-items: center; gap: 10px; }
-.user-info .nav-icon { width: auto; height: auto; background: none; }
-.user-info h3 { font-size: 1rem; font-weight: 500; color: var(--text-primary); }
-
-/* 会话头部：关注 / 已关注按钮（与 UserInfoModal 的 userinfo-action-btn 一致） */
-.header-watch-btn {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius);
-    background: var(--accent-light);
-    color: var(--accent);
-    border: none;
-    cursor: pointer;
-    font-size: var(--font-size-base);
-    transition: all 0.2s;
-}
-.header-watch-btn:hover {
-    background: var(--accent);
-    color: var(--text-on-accent);
-    transform: scale(1.1);
-    box-shadow: var(--shadow-btn-hover);
-}
-.header-watch-btn:active { transform: scale(0.95); }
-.header-watch-btn.watched {
-    pointer-events: none;
-    cursor: default;
-    opacity: 0.5;
+    z-index: var(--z-base);
 }
 
 /* 单方面关注关系提示栏 */
 .chat-watch-warn {
-    padding: 6px 12px;
-    background: #fff7e6;
-    color: #d48806;
-    font-size: var(--font-size-small);
+    padding: 6px var(--space-3);
+    background: var(--status-warning-soft);
+    color: var(--status-warning);
+    font-size: var(--text-sm);
     text-align: center;
-    border-bottom: 1px solid #ffe7ba;
+    border-bottom: var(--border-width) solid var(--line);
     flex-shrink: 0;
 }
 
-.group-settings-icon { cursor: pointer; transition: transform 0.2s ease; }
-.group-settings-icon:hover { transform: scale(1.15); color: var(--accent); }
-
-.chat-mention-badge { color: var(--accent); font-size: var(--font-size-small); font-weight: 500; margin-left: 6px; }
-.exited-badge { font-size: var(--font-size-small); color: var(--text-secondary); font-weight: 400; margin-left: 6px; }
-.blocked-badge { font-size: var(--font-size-small); color: var(--text-error); font-weight: 400; margin-left: 4px; }
-
-.header-actions { display: flex; align-items: center; gap: 4px; }
-
-.header-avatar {
-    position: relative;
-    width: 32px;
-    height: 32px;
-    min-width: 32px;
-    border-radius: 40%;
-    overflow: hidden;
-    flex-shrink: 0;
-}
-.header-avatar .avatar-img {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    object-fit: cover;
-    border-radius: 40%;
-    z-index: 1;
-}
-.header-avatar .avatar-placeholder-sm {
-    width: 100%; height: 100%;
-    display: flex;
+/* ---------- 7. 网络/登录状态横幅（UiBanner + UiButton；全宽条覆盖，位于 title-bar 与 app-body 之间） ---------- */
+.network-banner.ui-banner {
+    border-radius: 0;
+    border: none;
+    padding: var(--space-2) var(--space-4);
     align-items: center;
     justify-content: center;
-    color: var(--avatar-icon-color);
-    font-size: var(--font-size-small);
-    font-weight: 600;
-    border-radius: 40%;
-    background: var(--avatar-grad-default);
+    flex: 0 0 auto;
+    font-size: var(--text-sm);
 }
-
-/* 预览弹窗 - 模态框 */
-.preview-overlay {
-    position: fixed; inset: 0;
-    background: var(--bg-modal-overlay);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 3000;
-    animation: fadeIn 0.3s ease;
+/* 软底状态条文字：使用对应的 --fg-* 深色前景，而不是 --on-brand
+   （--on-* 家族只服务状态色实心填充；软底上文字保持深色才可读） */
+.network-banner.ui-banner--danger :deep(.ui-banner-desc) {
+    color: var(--fg-danger);
 }
-.preview-modal {
-    background: var(--bg-group-detail);
-    border-radius: var(--radius-lg, 12px);
-    box-shadow: var(--shadow-elevated), inset 0 1px 0 var(--border-3d-light);
-    border: 1px solid var(--border-3d-dark);
-    display: flex;
-    flex-direction: column;
-    width: 90vw;
-    max-width: 700px;
-    max-height: 80vh;
-    overflow: hidden;
-    animation: modalSlideIn 0.2s ease;
+.network-banner.ui-banner--warning :deep(.ui-banner-desc),
+.chat-watch-warn :deep(.ui-banner-desc) {
+    color: var(--status-warning);
 }
-@keyframes modalSlideIn {
-    from { opacity: 0; transform: translateY(-20px) scale(0.95); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
+/* 横幅内登录按钮：UiButton ghost；文字/描边跟随所在状态条前景色（--fg-*），
+   不再用品牌反色（--on-brand 只服务品牌实心底，暗色主题为深色，软底上不可读） */
+.network-banner.ui-banner--danger {
+    --banner-action-fg: var(--fg-danger);
 }
-.preview-header {
-    display: flex;
+.network-banner.ui-banner--warning {
+    --banner-action-fg: var(--status-warning);
+}
+.network-banner .banner-login-btn.ui-btn {
+    margin-left: var(--space-2);
+    border-radius: var(--radius-pill);
+    color: var(--banner-action-fg);
+    background: color-mix(in srgb, var(--banner-action-fg) 22%, transparent);
+    border-color: color-mix(in srgb, var(--banner-action-fg) 55%, transparent);
+}
+.network-banner .banner-login-btn.ui-btn:hover:not(.is-disabled) {
+    color: var(--banner-action-fg);
+    background: color-mix(in srgb, var(--banner-action-fg) 35%, transparent);
+}
+/* 单方面关注提示条（UiBanner warning）：紧凑居中的窄条，保留底部分隔线 */
+.chat-watch-warn.ui-banner {
+    border-radius: 0;
+    border: none;
+    border-bottom: var(--border-width) solid var(--line);
+    padding: var(--space-2) var(--space-3);
+    justify-content: center;
     align-items: center;
-    gap: 8px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border-light);
     flex-shrink: 0;
-}
-.preview-title {
-    font-size: var(--font-size-large);
-    font-weight: 600;
-    color: var(--text-primary);
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.preview-header-actions {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    flex-shrink: 0;
-}
-.preview-action-btn {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    font-size: var(--font-size-base);
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: var(--radius);
-    transition: color 0.2s, background 0.2s;
-}
-.preview-action-btn:hover {
-    color: var(--accent);
-    background: var(--bg-conversation-hover);
-}
-.preview-close {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    font-size: var(--font-size-large);
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: var(--radius);
-    transition: color 0.2s, background 0.2s;
-    flex-shrink: 0;
-}
-.preview-close:hover {
-    color: var(--accent);
-    background: var(--bg-conversation-hover);
-}
-.preview-body { padding: 16px; overflow: auto; flex: 1; }
-/* 图片预览：纯黑遮罩 + 图片，支持缩放与平移 */
-.preview-overlay-image { background: rgba(0, 0, 0, 0.9); }
-.image-stage {
-    position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    overflow: hidden;
-}
-.preview-image-zoom {
-    max-width: 90vw;
-    max-height: 90vh;
-    width: auto;
-    height: auto;
-    border-radius: 6px;
-    box-shadow: var(--shadow-modal);
-    user-select: none;
-    transform-origin: center center;
-    cursor: zoom-in;
-}
-.image-toolbar {
-    position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%);
-    display: flex; align-items: center; gap: 4px;
-    background: rgba(20, 24, 34, 0.72);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 12px;
-    padding: 6px 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-    z-index: 2;
-}
-.image-toolbar button {
-    border: none; background: transparent; color: #dde3f0;
-    width: 32px; height: 32px; border-radius: 8px;
-    font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-    transition: background 0.15s, color 0.15s;
-}
-.image-toolbar button:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
-.image-zoom-label {
-    color: #cbd3e2; font-size: 12px; min-width: 44px; text-align: center;
-    font-variant-numeric: tabular-nums;
-}
-.image-toolbar-sep { width: 1px; height: 18px; background: rgba(255, 255, 255, 0.16); margin: 0 2px; }
-.preview-text {
-    white-space: pre-wrap; word-break: break-all;
-    font-size: var(--font-size-small); color: var(--text-primary);
-    font-family: 'Consolas', 'Monaco', monospace;
-    user-select: text;
-}
-.preview-html {
-    font-size: var(--font-size-base, 14px); color: var(--text-primary);
-    line-height: 1.6; word-break: break-word;
-    user-select: text;
-}
-.preview-pdf {
-    width: 100%;
-    height: 70vh;
-    border: none;
-    border-radius: var(--radius);
-    background: #fff;
-}
-.preview-html pre { background: var(--bg-code-block); padding: 10px 14px; border-radius: var(--radius); overflow-x: auto; margin: 6px 0; user-select: text; }
-.preview-html code { background: var(--bg-code-inline); padding: 2px 6px; border-radius: var(--radius); font-family: 'Consolas', 'Monaco', monospace; font-size: 0.9em; user-select: text; }
-.preview-html pre code { background: transparent; padding: 0; }
-.preview-html a { color: var(--text-link); text-decoration: none; }
-.preview-html a:hover { text-decoration: underline; }
-.preview-html img { max-width: 100%; border-radius: var(--radius); }
-.preview-html table { border-collapse: collapse; margin: 6px 0; }
-.preview-html th, .preview-html td { border: 1px solid var(--border-row); padding: 4px 8px; }
-.preview-html blockquote { border-left: 3px solid var(--border-row); padding-left: 10px; margin: 6px 0; }
-.preview-html ul, .preview-html ol { padding-left: 20px; margin: 6px 0; }
-.preview-error {
-    text-align: center; padding: 40px;
-    color: var(--text-secondary); font-size: var(--font-size-base);
+    font-size: var(--text-sm);
 }
 
-.forward-overlay {
-    position: fixed; inset: 0;
-    background: var(--bg-modal-overlay);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 3000;
-    animation: fadeIn 0.3s ease;
+/* ---------- 8. 移动安全区 / 窄屏（原 base.css @media） ---------- */
+@media (max-width: 768px) {
+    .app {
+        max-height: 100vh;
+        border-radius: 0;
+    }
 }
-.forward-modal {
-    background: var(--bg-group-detail);
-    border: 1px solid var(--border-3d-dark);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-modal), inset 0 1px 0 var(--border-3d-light);
-    width: 320px; max-height: 70vh;
-    display: flex; flex-direction: column;
-    animation: ctxFade 0.3s ease;
-}
-.forward-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border-light);
-    font-size: var(--font-size-base); color: var(--text-primary); font-weight: 500;
-}
-.forward-search {
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--border-light);
-}
-.forward-search-input {
-    width: 100%;
-    padding: 6px 10px;
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius);
-    background: var(--bg-input);
-    color: var(--text-primary);
-    font-size: var(--font-size-small);
-    outline: none;
-    box-sizing: border-box;
-    transition: border-color 0.2s;
-}
-.forward-search-input:focus { border-color: var(--accent); }
-.forward-search-input::placeholder { color: var(--text-placeholder); }
-.forward-list {
-    flex: 1; overflow-y: auto; padding: 8px 0;
-}
-.forward-item {
-    padding: 8px 16px; cursor: pointer;
-    font-size: var(--font-size-small); color: var(--text-primary);
-    display: flex; align-items: center; gap: 8px;
-    transition: background-color 0.15s;
-}
-.forward-item:hover { background: var(--bg-conversation-hover); }
-.forward-item.active { background: var(--bg-conversation-active); color: var(--accent); }
-.forward-empty {
-    padding: 12px 16px;
-    font-size: var(--font-size-small);
-    color: var(--text-secondary);
-    text-align: center;
-}
-.forward-send-btn {
-    margin: 12px 16px; padding: 8px;
-    background: var(--accent); color: var(--text-on-accent);
-    border: none; border-radius: var(--radius);
-    cursor: pointer; font-size: var(--font-size-small);
-    transition: opacity 0.15s;
-}
-.forward-send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-/* 拖拽悬停样式 - 会话列表项 */
-.conversation-item.drop-target {
-  outline: 2px dashed var(--accent);
-  outline-offset: -2px;
-  background: var(--accent-light);
-}
-
-/* 网络状态横幅（全宽横条，位于 title-bar 与 app-body 之间） */
-.network-banner {
-  padding: 6px 16px;
-  text-align: center;
-  font-size: var(--font-size-small);
-  color: var(--text-on-accent);
-  background: var(--danger);
-  flex: 0 0 auto;
-}
-.network-banner.online {
-  background: var(--success);
-}
-/* 未登录（游客）横幅：橙色警示，区别于连接失败的红条。
-   此前是硬编码 #b8860b，不随主题走；改回 --warning（:root 里由默认主题提供，各主题未覆盖即沿用） */
-.network-banner.not-logged-in {
-  background: var(--warning);
-}
-.banner-login-btn {
-  margin-left: 10px;
-  padding: 1px 12px;
-  font-size: var(--font-size-small);
-  color: #fff;
-  background: rgba(255, 255, 255, 0.22);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  border-radius: 12px;
-  cursor: pointer;
-}
-.banner-login-btn:hover { background: rgba(255, 255, 255, 0.35); }
-/* 横幅「本次忽略」：只关掉当前这一次，不落盘（重启/状态变化后重新出现），
-   避免把故障提示永久藏掉造成静默失败 */
-.banner-close {
-  margin-left: 8px;
-  padding: 0;
-  width: 18px;
-  height: 18px;
-  line-height: 1;
-  font-size: 11px;
-  color: #fff;
-  background: transparent;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  opacity: 0.75;
-  vertical-align: -2px;
-}
-.banner-close:hover { opacity: 1; background: rgba(255, 255, 255, 0.25); }

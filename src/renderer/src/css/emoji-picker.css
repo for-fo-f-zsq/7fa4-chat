@@ -1,260 +1,221 @@
+/* EmojiPicker — 表情/贴纸选择面板（C1）；进出由 motion.css 的 dropdown 组成对过渡。 */
 .emoji-picker {
-    border: 1px solid var(--border-3d-dark);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-emoji-picker), inset 0 1px 0 var(--border-3d-light);
-    margin-top: 6px;
-    flex: 1;
-    /* 最小高度 = 固定头部(拖拽条+模式切换+分类+搜索 ≈110) + 一排表情网格(60) + 边框，
-       窗口矮时收缩到这里：只显示一排完整表情，不会露出半截第二排。
-       注意必须显式写死 —— 本元素 overflow:hidden，flex 子项的 auto 最小高度会退化成 0，
-       不写就会被压到只剩头部。 */
-    min-height: 172px;
-    max-height: 320px;
-    overflow: hidden;
-    animation: ctxFade 0.15s ease;
-    backdrop-filter: blur(12px);
-    display: flex;
-    flex-direction: column;
-    background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  margin-top: var(--space-1);
+  /* 最小高度 = 固定头部(拖拽条+模式切换+搜索 ≈110) + 一排表情网格(60) + 边框；
+     窗口矮时收缩到这里：只显示一排完整表情，不会露出半截第二排。 */
+  min-height: 172px;
+  max-height: 320px;
+  overflow: hidden;
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-base);
+  box-shadow: var(--elev-2);
+  backdrop-filter: blur(12px);
 }
+
 .emoji-drag-bar {
-    flex-shrink: 0;
-    height: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: ns-resize;
-    user-select: none;
-    border-bottom: 1px solid var(--border-light);
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  height: 10px;
+  cursor: ns-resize;
+  user-select: none;
+  border-bottom: var(--border-width) solid var(--line-subtle);
 }
+
 .emoji-drag-bar i {
-    width: 36px;
-    height: 4px;
-    border-radius: 2px;
-    background: var(--border-light);
-    transition: background 0.15s;
+  width: 36px;
+  height: 4px;
+  background: var(--line-subtle);
+  border-radius: var(--radius-xs);
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
-.emoji-drag-bar:hover i { background: var(--accent); }
+
+.emoji-drag-bar:hover i {
+  background: var(--brand);
+}
+
+/* 类型切换外观由 UiSegmented 提供，这里只保留位置。 */
 .emoji-mode-switch {
-    display: flex;
-    border-bottom: 1px solid var(--border-light);
-    flex-shrink: 0;
+  flex-shrink: 0;
+  margin: var(--space-1) var(--space-2) 0;
 }
-.mode-btn {
-    flex: 1;
-    padding: 6px 0;
-    border: none;
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: var(--font-size-small);
-    font-weight: 500;
-    cursor: pointer;
-    transition: color 0.15s, background 0.15s, border-bottom 0.15s;
-    border-bottom: 2px solid transparent;
-}
-.mode-btn:hover {
-    color: var(--text-primary);
-    background: var(--bg-conversation-hover);
-}
-.mode-btn.active {
-    color: var(--accent);
-    border-bottom-color: var(--accent);
-    background: var(--accent-alpha);
-}
-.emoji-tabs {
-    display: flex;
-    border-bottom: 1px solid var(--border-light);
-    padding: 4px 2px;
-    gap: 2px;
-    flex-shrink: 0;
-}
-.emoji-tab {
-    flex: 1;
-    font-size: var(--font-size-large);
-    padding: 4px 0;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    border-radius: var(--radius);
-    transition: background 0.15s;
-    line-height: 1;
-}
-.emoji-tab:hover {
-    background: var(--bg-conversation-hover);
-}
-.emoji-tab.active {
-    background: var(--accent-alpha);
-}
+
 .emoji-search {
-    padding: 4px 8px;
-    flex-shrink: 0;
+  flex-shrink: 0;
+  padding: var(--space-1) var(--space-2);
 }
+
 .emoji-search input {
-    width: 100%;
-    padding: 4px 8px;
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius);
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    font-size: var(--font-size-small);
-    outline: none;
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  color: var(--fg);
+  font-size: var(--text-sm);
+  background: var(--surface-2);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: border-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
+
 .emoji-search input:focus {
-    border-color: var(--accent);
+  border-color: var(--brand);
 }
+
 .emoji-grid {
-    display: grid;
-    grid-template-columns: repeat(8, 1fr);
-    gap: 4px;
-    padding: 8px 6px;
-    overflow-y: auto;
-    flex: 1;
-    /* 一排表情的完整高度（item 44 + 上下 padding 16）：撑住表情框的最小高度 */
-    min-height: 60px;
-    overscroll-behavior: contain;
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(8, 1fr);
+  gap: var(--space-1);
+  min-height: 60px;
+  padding: var(--space-2) var(--space-1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
+
 .emoji-item {
-    font-size: 26px;
-    line-height: 1.2;
-    text-align: center;
-    cursor: pointer;
-    padding: 8px 4px;
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius);
-    transition: background 0.1s;
-    user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-1);
+  font-size: 26px;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  border-radius: var(--radius-md);
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
+
 .emoji-item:hover {
-    background: var(--bg-conversation-hover);
+  background: var(--surface-hover);
 }
+
 .sticker-toolbar {
-    padding: 6px 8px;
-    flex-shrink: 0;
-    display: flex;
-    gap: 4px;
-    border-bottom: 1px solid var(--border-light);
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-1);
+  padding: 6px var(--space-2);
+  border-bottom: var(--border-width) solid var(--line-subtle);
 }
-.sticker-add-btn {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border: 1px dashed var(--border-light);
-    border-radius: var(--radius);
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: var(--font-size-small);
-    cursor: pointer;
-    transition: color 0.15s, border-color 0.15s, background 0.15s;
-}
-.sticker-add-btn:hover {
-    color: var(--accent);
-    border-color: var(--accent);
-    background: var(--accent-alpha);
-}
+
+/* 添加表情按钮外观由 UiButton 提供，这里只保留工具栏布局。 */
+
 .sticker-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
-    padding: 8px 6px;
-    overflow-y: auto;
-    flex: 1;
-    min-height: 0;
-    overscroll-behavior: contain;
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  min-height: 0;
+  padding: var(--space-2) var(--space-1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
+
 .sticker-item {
-    position: relative;
-    cursor: pointer;
-    padding: 6px;
-    border-radius: var(--radius);
-    transition: background 0.1s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
+
 .sticker-item:hover {
-    background: var(--bg-conversation-hover);
+  background: var(--surface-hover);
 }
+
 .sticker-item img {
-    height: 60px;
-    width: 90px;
-    object-fit: contain;
-    border-radius: 2px;
+  width: 90px;
+  height: 60px;
+  object-fit: contain;
+  border-radius: var(--radius-xs);
 }
+
 .sticker-del-btn {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 16px;
-    height: 16px;
-    border: none;
-    border-radius: 50%;
-    background: var(--bg-conversation-hover);
-    color: var(--text-secondary);
-    font-size: var(--font-size-small);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.15s, background 0.15s, color 0.15s;
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  background: var(--surface-hover);
+  border: none;
+  border-radius: var(--radius-pill);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity var(--motion-dur-fast) var(--motion-ease-standard),
+    background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    color var(--motion-dur-fast) var(--motion-ease-standard);
 }
+
 .sticker-item:hover .sticker-del-btn {
-    opacity: 1;
+  opacity: 1;
 }
+
 .sticker-del-btn:hover {
-    background: var(--text-error);
-    color: var(--text-on-accent);
+  color: var(--on-brand);
+  background: var(--fg-danger);
 }
+
 .sticker-empty {
-    grid-column: 1 / -1;
-    text-align: center;
-    color: var(--text-secondary);
-    font-size: var(--font-size-small);
-    padding: 20px 0;
-    line-height: 1.6;
+  grid-column: 1 / -1;
+  padding: 20px 0;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  text-align: center;
 }
 
 /* ===== QQ 表情网格（覆盖 .emoji-item 旧布局：固定 56x56 正方形格子） ===== */
 .qqface-grid {
-    grid-template-columns: repeat(auto-fill, 56px);
-    grid-auto-rows: 56px;
-    gap: 10px;
-    padding: 10px;
-    justify-content: center;
+  grid-template-columns: repeat(auto-fill, 56px);
+  grid-auto-rows: 56px;
+  gap: 10px;
+  padding: 10px;
+  justify-content: center;
 }
+
 .qqface-grid .qqface-item {
-    width: 56px;
-    height: 56px;
-    min-height: 56px;
-    padding: 0;
-    display: block;
-    line-height: 0;
-    font-size: 0;
-    cursor: pointer;
-    border-radius: 6px;
-    transition: transform var(--duration-fast) ease, background var(--duration-fast) ease;
+  display: block;
+  width: 56px;
+  height: 56px;
+  min-height: 56px;
+  padding: 0;
+  font-size: 0;
+  line-height: 0;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: transform var(--motion-dur-fast) var(--motion-ease-standard),
+    background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
+
 .qqface-grid .qqface-item:hover {
-    transform: scale(1.15);
-    background: var(--bg-conversation-hover);
+  background: var(--surface-hover);
+  transform: scale(1.25);
 }
+
 .qqface-grid .qqface-item img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    display: block;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
-.qqface-grid .qqface-item:hover {
-    transform: scale(1.25);
-    background: var(--bg-conversation-hover);
-}
+
 .emoji-empty {
-    text-align: center;
-    color: var(--text-sub);
-    padding: 20px;
-    font-size: 13px;
+  padding: 20px;
+  color: var(--fg-subtle);
+  font-size: var(--text-md);
+  text-align: center;
 }

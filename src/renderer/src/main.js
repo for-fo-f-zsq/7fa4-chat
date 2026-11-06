@@ -1,7 +1,9 @@
 import { createApp, nextTick } from 'vue';
 import App from './App.vue';
-// 代码块统一样式：放在 App 之后引入，确保级联顺序上压过各容器/组件里的旧规则。
+// 全局样式入口：统一入口 → v-html 代码块样式（保持最后压过组件旧规则）→ 第三方数学排版。
+import './css/index.css';
 import './css/code-block.css';
+import 'katex/dist/katex.min.css';
 
 // 非 Electron 环境（Capacitor Android / 浏览器）：先安装 window.api 适配层再挂载。
 // 动态 import 保证桌面端（已有 preload 注入的 window.api）不会打包该 chunk。

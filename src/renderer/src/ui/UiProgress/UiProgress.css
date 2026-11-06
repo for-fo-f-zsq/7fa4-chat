@@ -1,0 +1,64 @@
+.ui-progress {
+  --progress-h: var(--space-1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-family: var(--font-sans);
+}
+
+.ui-progress--xs {
+  --progress-h: var(--border-width-thick);
+}
+
+.ui-progress--sm {
+  --progress-h: var(--space-1);
+}
+
+.ui-progress--md {
+  --progress-h: var(--space-2);
+}
+
+.ui-progress-label {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.ui-progress-track {
+  display: block;
+  width: 100%;
+  height: var(--progress-h);
+  border-radius: var(--radius-pill);
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+
+.ui-progress-bar {
+  --p: 0%;
+  display: block;
+  width: var(--p);
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--brand);
+  transition: width var(--motion-dur-slow) var(--motion-ease-standard);
+}
+
+.ui-progress-bar--brand {
+  background: var(--brand);
+}
+
+.ui-progress-bar--success {
+  background: var(--success);
+}
+
+.ui-progress-bar--warning {
+  background: var(--warning);
+}
+
+.ui-progress-bar--danger {
+  background: var(--danger);
+}
+
+.ui-progress-bar.is-indeterminate {
+  width: 100%;
+}

@@ -5,97 +5,119 @@
     @dragleave="onListDragLeave"
     @drop.prevent="onListDrop">
     <div class="list-header">
-      <h2 class="page-title"><i class="fas fa-comment-dots"></i> 消息</h2>
+      <h2 class="page-title motion-fade-down-in"><i class="fas fa-comment-dots"></i> 消息</h2>
       <div class="list-header-actions">
-        <button class="inputModal-btn" v-if="hasUnread" @click="$emit('markAllRead')" title="全部已读">
-          <i class="fas fa-check-double"></i>
-        </button>
-        <button class="inputModal-btn" @click="onNewConversation">
-          <i class="fas fa-plus"></i>
-        </button>
-        <div v-if="showNewMenu" class="new-convo-menu">
-          <div class="new-convo-item" @click="onNewUser"><i class="fas fa-user-plus"></i> 添加好友</div>
-          <div class="new-convo-item" @click="onNewGroup"><i class="fas fa-users"></i> 创建群聊</div>
-        </div>
+        <!-- .inputModal-btn 保留为 Onboarding 定位锚点（plusBtn() 取最后一个），样式由 UiIconButton 提供 -->
+        <UiIconButton
+          v-if="hasUnread"
+          class="inputModal-btn"
+          icon="fas fa-check-double"
+          aria-label="全部已读"
+          title="全部已读"
+          size="sm"
+          @click="$emit('markAllRead')"
+        />
+        <UiIconButton
+          class="inputModal-btn"
+          icon="fas fa-plus"
+          aria-label="新建会话"
+          title="新建会话"
+          size="sm"
+          @click.stop="onNewConversation"
+        />
+        <Transition name="dropdown">
+          <div v-if="showNewMenu" class="new-convo-menu">
+            <div class="new-convo-item" @click="onNewUser"><i class="fas fa-user-plus"></i> 添加好友</div>
+            <div class="new-convo-item" @click="onNewGroup"><i class="fas fa-users"></i> 创建群聊</div>
+          </div>
+        </Transition>
       </div>
     </div>
-    <div class="list-search">
-      <div class="list-search-box">
-        <i class="fas fa-search list-search-icon"></i>
-        <input
-          ref="searchInputRef"
-          v-model="searchQuery"
-          class="list-search-input"
-          placeholder="搜索联系人或群聊..."
-          @keydown.escape.prevent="clearSearch"
-          @keydown.down.prevent="navigateList(1)"
-          @keydown.up.prevent="navigateList(-1)"
-          @keydown.enter.prevent="selectNavigatedItem"
-        />
-        <button v-if="searchQuery" class="list-search-clear" @click="clearSearch">
-          <i class="fas fa-times"></i>
-        </button>
-      </div>
+    <!-- 搜索：UiSearchInput 承载输入/前缀图标/清空按钮；键盘导航挂在外层冒泡 -->
+    <div
+      class="list-search"
+      ref="searchRootRef"
+      @keydown.escape.prevent="clearSearch"
+      @keydown.down.prevent="navigateList(1)"
+      @keydown.up.prevent="navigateList(-1)"
+      @keydown.enter.prevent="selectNavigatedItem"
+    >
+      <UiSearchInput
+        v-model="searchQuery"
+        placeholder="搜索联系人或群聊..."
+        size="sm"
+        @clear="navIndex = -1"
+      />
     </div>
     <div class="list-scroll" ref="listScrollRef">
-      <div
-        v-for="item in filteredConversations"
-        :key="item.key"
-        class="conversation-item"
-        :class="{
-          active: item.type === activeType && pageId === item.id,
-          pinned: item.pinned,
-          unread: item.unread > 0,
-          inactive: item.type === 'user' && !item.watcher,
-          exited: item.type === 'group' && item.exited,
-          blocked: item.type === 'group' && item.blocked,
-          'nav-highlight': navIndex >= 0 && filteredConversations[navIndex]?.key === item.key,
-          'drop-target': dragOverType === item.type && dragOverId === item.id
-        }"
-        @click="$emit('select', { type: item.type, id: item.id })"
-        @contextmenu.prevent="onContextMenu($event, item)"
-        @dragover.prevent="onItemDragOver($event, item.type, item.id)"
-        @dragleave="onItemDragLeave($event)"
-        @drop.prevent.stop="onItemDrop($event, item.type, item.id)"
-      >
-        <!-- 私信头像 -->
-        <div v-if="item.type === 'user'" class="conv-avatar">
-          <div class="avatar-placeholder-sm">{{ getAvatarInitial(item.id) }}</div>
+      <TransitionGroup name="list" tag="div" class="list-inner">
+        <div
+          v-for="item in filteredConversations"
+          :key="item.key"
+          class="conversation-item"
+          :class="{
+            active: item.type === activeType && pageId === item.id,
+            pinned: item.pinned,
+            unread: item.unread > 0,
+            inactive: item.type === 'user' && !item.watcher,
+            exited: item.type === 'group' && item.exited,
+            blocked: item.type === 'group' && item.blocked,
+            'nav-highlight': navIndex >= 0 && filteredConversations[navIndex]?.key === item.key,
+            'drop-target': dragOverType === item.type && dragOverId === item.id
+          }"
+          @click="$emit('select', { type: item.type, id: item.id })"
+          @contextmenu.prevent="onContextMenu($event, item)"
+          @dragover.prevent="onItemDragOver($event, item.type, item.id)"
+          @dragleave="onItemDragLeave($event)"
+          @drop.prevent.stop="onItemDrop($event, item.type, item.id)"
+        >
+          <!-- 私信/群聊头像统一由 UiAvatar 承担（shape="rounded" 与列表/消息一致）；
+               底色按会话稳定取马卡龙浅色，文字走 --on-brand 深墨色保证可读性 -->
+          <UiAvatar
+            class="conv-avatar"
+            shape="rounded"
+            :size="40"
+            :color="convAvatarBg(item)"
+            :name="item.type === 'user' ? getAvatarInitial(item.id) : (item.groupName || '群')"
+          />
+          <div class="conv-info">
+            <!-- 私信名称 -->
+            <div v-if="item.type === 'user'" class="conv-name" :style="{ color: getGradeColor(item.id) }" :title="getGradeLabel(item.id)">{{ item.displayName }}</div>
+            <!-- 群聊名称 -->
+            <div v-else class="conv-name">{{ item.groupName }}<span v-if="item.blocked" class="conv-blocked-tag">(已屏蔽)</span><span v-else-if="item.exited" class="conv-exited-tag">(已退出)</span></div>
+            <!-- 私信最后消息 -->
+            <div v-if="item.type === 'user'" class="conv-last"><span v-if="hasDraft('user', item.id)" class="conv-draft-tag">[草稿]</span>{{ getDraft('user', item.id) || getLastMessage(item.message_ids, messages) }}</div>
+            <!-- 群聊最后消息 -->
+            <div v-else class="conv-last"><span v-if="hasDraft('group', item.id)" class="conv-draft-tag">[草稿]</span><span v-if="!hasDraft('group', item.id) && item.mentioned" class="conv-mention">[有人@你]</span>{{ getDraft('group', item.id) || (getLastMessageSender(item.message_ids, messages) + getLastMessage(item.message_ids, messages)) }}</div>
+          </div>
+          <div class="conv-meta">
+            <span class="conv-time">{{ lastTime(item) }}</span>
+            <i v-if="isMuted(item.type, item.id)" class="fas fa-bell-slash conv-muted-icon"></i>
+            <UiBadge v-if="item.unread > 0" size="md" :count="item.unread" color="var(--brand)" />
+          </div>
         </div>
-        <!-- 群聊头像 -->
-        <div v-else class="conv-avatar">
-          <div class="avatar-placeholder-sm">{{ item.groupName ? item.groupName.charAt(0) : '群' }}</div>
-        </div>
-        <div class="conv-info">
-          <!-- 私信名称 -->
-          <div v-if="item.type === 'user'" class="conv-name" :style="{ color: getGradeColor(item.id) }" :title="getGradeLabel(item.id)">{{ item.displayName }}</div>
-          <!-- 群聊名称 -->
-          <div v-else class="conv-name">{{ item.groupName }}<span v-if="item.blocked" class="conv-blocked-tag">(已屏蔽)</span><span v-else-if="item.exited" class="conv-exited-tag">(已退出)</span></div>
-          <!-- 私信最后消息 -->
-          <div v-if="item.type === 'user'" class="conv-last"><span v-if="hasDraft('user', item.id)" class="conv-draft-tag">[草稿]</span>{{ getDraft('user', item.id) || getLastMessage(item.message_ids, messages) }}</div>
-          <!-- 群聊最后消息 -->
-          <div v-else class="conv-last"><span v-if="hasDraft('group', item.id)" class="conv-draft-tag">[草稿]</span><span v-if="!hasDraft('group', item.id) && item.mentioned" class="conv-mention">[有人@你]</span>{{ getDraft('group', item.id) || (getLastMessageSender(item.message_ids, messages) + getLastMessage(item.message_ids, messages)) }}</div>
-        </div>
-        <div class="conv-meta">
-          <span class="conv-time">{{ lastTime(item) }}</span>
-          <i v-if="isMuted(item.type, item.id)" class="fas fa-bell-slash conv-muted-icon"></i>
-          <span v-if="item.unread > 0" class="conv-unread-count">{{ item.unread > 99 ? '99+' : item.unread }}</span>
-        </div>
-      </div>
-      <div v-if="searchQuery && filteredConversations.length === 0" class="list-search-empty">
-        无搜索结果
-      </div>
-      <div v-else-if="filteredConversations.length === 0 && hiddenNonMutualCount > 0" class="list-search-empty">
-        已隐藏 {{ hiddenNonMutualCount }} 个非双向好友
-      </div>
+      </TransitionGroup>
+      <UiEmptyState
+        v-if="searchQuery && filteredConversations.length === 0"
+        size="sm"
+        icon="fas fa-magnifying-glass"
+        title="无搜索结果"
+      />
+      <UiEmptyState
+        v-else-if="filteredConversations.length === 0 && hiddenNonMutualCount > 0"
+        size="sm"
+        icon="fas fa-user-slash"
+        :title="`已隐藏 ${hiddenNonMutualCount} 个非双向好友`"
+      />
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick, onMounted } from 'vue'
 import { store } from '../store.js'
-import { getLastMessage, getLastMessageSender, getLastMessageTime, gettime1, displayName, getGradeColor, getGradeLabel, getAvatarInitial, getConvoKey, isConvoMuted, isUserHiddenBySetting } from '../utils.js'
+import { UiAvatar, UiBadge, UiEmptyState, UiIconButton, UiSearchInput } from '../ui/index.js'
+import { getLastMessage, getLastMessageSender, getLastMessageTime, gettime1, displayName, getGradeColor, getGradeLabel, getAvatarInitial, getConvoKey, isConvoMuted, isUserHiddenBySetting, avatarTint } from '../utils.js'
 
 const props = defineProps({
   pageType: String,
@@ -107,20 +129,38 @@ const props = defineProps({
 
 const emit = defineEmits(['select', 'Targetmenu', 'dropFile', 'markAllRead', 'newConversation'])
 
+// 会话头像底色 key：单聊用 uid、群聊用 group:<群名>，与聊天标题/群设置/成员表保持一致
+function convAvatarBg(item) {
+  if (!item) return undefined
+  return item.type === 'group' ? avatarTint('group:' + (item.groupName || '')) : avatarTint(item.id)
+}
+
 // --- 搜索 ---
 const searchQuery = ref('')
-const searchInputRef = ref(null)
+const searchRootRef = ref(null)
 const navIndex = ref(-1)
+
+function searchInputEl() {
+  return searchRootRef.value?.querySelector('input') || null
+}
 
 function clearSearch() {
   searchQuery.value = ''
   navIndex.value = -1
-  searchInputRef.value?.blur()
+  searchInputEl()?.blur()
 }
 
 function focusSearch() {
-  searchInputRef.value?.focus()
+  searchInputEl()?.focus()
 }
+
+// 兼容 A 域 ChatView.vue:1379 对 activeElement.classList 含 .list-search-input 的判断：
+// UiSearchInput 的 class 落在包裹层，这里把锚点类同步到内层 input（A 域改用 closest('.list-search') 后可删）。
+function syncSearchInputClass() {
+  searchInputEl()?.classList.add('list-search-input')
+}
+
+onMounted(() => nextTick(syncSearchInputClass))
 
 // --- 当前激活的会话类型（从 pageType/pageId 推导） ---
 const activeType = computed(() => {
@@ -243,7 +283,7 @@ const filteredConversations = computed(() => {
 const showNewMenu = ref(false)
 
 function onNewConversation() {
-  setTimeout(()=>showNewMenu.value = !showNewMenu.value,1)
+  showNewMenu.value = !showNewMenu.value
 }
 
 function onNewUser() {
@@ -377,3 +417,5 @@ function onItemDrop(e, type, id) {
 
 defineExpose({ focusSearch, navigateConversation })
 </script>
+
+<style scoped src="../css/conversation-list.css"></style>

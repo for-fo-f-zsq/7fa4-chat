@@ -1,0 +1,195 @@
+.ui-btn {
+  --btn-h: var(--control-h-lg);
+  --btn-px: var(--space-4);
+  --btn-fs: var(--text-base);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--btn-h);
+  padding: 0 var(--btn-px);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-base);
+  background: transparent;
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--btn-fs);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--motion-dur-fast) var(--motion-ease-standard),
+    border-color var(--motion-dur-fast) var(--motion-ease-standard),
+    color var(--motion-dur-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+.ui-btn--sm {
+  --btn-h: var(--control-h-sm);
+  --btn-px: var(--space-3);
+  --btn-fs: var(--text-sm);
+}
+
+.ui-btn--md {
+  --btn-h: var(--control-h-lg);
+  --btn-px: var(--space-4);
+  --btn-fs: var(--text-base);
+}
+
+.ui-btn--lg {
+  --btn-h: var(--control-h-xl);
+  --btn-px: var(--space-5);
+  --btn-fs: var(--text-base);
+}
+
+.ui-btn--pill {
+  border-radius: var(--radius-pill);
+}
+
+.ui-btn--block {
+  display: flex;
+  width: 100%;
+}
+
+.ui-btn--primary {
+  background: var(--brand);
+  border-color: transparent;
+  color: var(--on-brand);
+  box-shadow: var(--elev-brand);
+}
+
+.ui-btn--secondary {
+  background: var(--surface-2);
+  border-color: var(--line);
+  color: var(--fg);
+}
+
+.ui-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--fg-muted);
+}
+
+.ui-btn--text {
+  padding-inline: var(--space-2);
+  background: transparent;
+  border-color: transparent;
+  color: var(--brand);
+}
+
+.ui-btn--danger {
+  background: var(--status-danger);
+  border-color: transparent;
+  color: var(--on-danger);
+  box-shadow: var(--elev-1);
+}
+
+.ui-btn:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.ui-btn:active:not(.is-disabled) {
+  transform: translateY(0);
+}
+
+.ui-btn--primary:active:not(.is-disabled) {
+  background: var(--brand-active);
+  box-shadow: var(--elev-brand-press);
+}
+
+.ui-btn--secondary:active:not(.is-disabled) {
+  background: var(--surface-press);
+}
+
+.ui-btn--ghost:active:not(.is-disabled),
+.ui-btn--text:active:not(.is-disabled) {
+  background: var(--surface-press);
+}
+
+.ui-btn--danger:active:not(.is-disabled) {
+  background: var(--status-danger-hover);
+  color: var(--on-danger-hover);
+}
+
+.ui-btn.is-loading {
+  cursor: progress;
+}
+
+.ui-btn.is-disabled {
+  opacity: var(--opacity-disabled);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.ui-btn-icon,
+.ui-btn-trailing {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--icon-md);
+  line-height: 1;
+}
+
+.ui-btn--sm .ui-btn-icon,
+.ui-btn--sm .ui-btn-trailing {
+  font-size: var(--icon-sm);
+}
+
+.ui-btn-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.ui-btn-spinner {
+  flex: none;
+}
+
+@media (hover: hover) {
+  .ui-btn--primary:hover:not(.is-disabled) {
+    background: var(--brand-hover);
+    box-shadow: var(--elev-brand-hover);
+    transform: translateY(-1px);
+  }
+
+  .ui-btn--secondary:hover:not(.is-disabled) {
+    background: var(--surface-0);
+    border-color: var(--brand-line);
+    color: var(--brand);
+  }
+
+  .ui-btn--ghost:hover:not(.is-disabled) {
+    background: var(--surface-hover);
+    color: var(--fg);
+  }
+
+  .ui-btn--text:hover:not(.is-disabled) {
+    background: var(--surface-hover);
+    color: var(--brand-hover);
+  }
+
+  .ui-btn--danger:hover:not(.is-disabled) {
+    background: var(--status-danger-hover);
+    color: var(--on-danger-hover);
+  }
+
+  .ui-btn.is-disabled:hover {
+    transform: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .ui-btn::after {
+    content: '';
+    position: absolute;
+    inset: calc((var(--btn-h) - var(--control-h-touch)) / 2) calc((100% - var(--control-h-touch)) / 2);
+  }
+}

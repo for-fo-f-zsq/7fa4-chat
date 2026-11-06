@@ -1,15 +1,17 @@
+/* 输入区（InputFooter.vue scoped）——令牌化 + 统一动效
+   动效：显隐一律由模板里的 <Transition> 提供（motion.css 成对类组），本文件不定义 @keyframes。 */
 .input-footer {
-    background: var(--bg-app);
-    padding: 10px 16px 14px;
-    transition: background var(--duration-fast) ease;
+    background: var(--surface-0);
+    padding: var(--space-3) var(--space-4) var(--space-3);
+    transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
     position: relative;
     display: flex;
     flex-direction: column;
     min-height: 60px;
     max-height: 400px;
     overflow: visible;
-    box-shadow: var(--shadow-input-top);
-    border-top: 1px solid var(--border-3d-dark);
+    box-shadow: var(--elev-input-top);
+    border-top: var(--border-width) solid var(--line);
 }
 
 /* 表情框打开时放开高度上限：面板占的是消息区的空间（消息列表 flex:1 自动让位），
@@ -18,94 +20,22 @@
     max-height: none;
 }
 
-.input-resize-bar {
-    position: absolute;
-    top: -3px;
-    left: 0;
-    right: 0;
-    height: 6px;
-    cursor: ns-resize;
-    z-index: 2;
-}
-.input-resize-bar::after {
-    content: '';
-    position: absolute;
-    top: 1px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 30px;
-    height: 2px;
-    background: var(--border-light);
-    border-radius: 1px;
-    opacity: 0.5;
-    transition: opacity 0.2s, background 0.2s;
-}
-.input-resize-bar:hover::after {
-    opacity: 1;
-    background: var(--accent);
-}
-
-.input-footer::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--accent-light) 25%, var(--gradient-accent) 50%, var(--accent-light) 75%, transparent);
-}
-
 .input-actions {
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 2px;
+    gap: var(--space-1);
     flex-shrink: 0;
 }
 
-.input-actions button {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    font-size: 20px;
-    cursor: pointer;
-    padding: 6px;
-    border-radius: var(--radius);
-    transition: color 0.2s, background 0.2s;
-    overflow: hidden;
-    position: static;
-}
-.input-actions button:hover { color: var(--accent); background: var(--bg-conversation-hover); }
-
-/* 纯文本 / Markdown 格式切换 */
+/* 动作按钮 / 格式切换外观由 UiIconButton / UiSegmented 提供，这里只保留间距。 */
 .fmt-toggle {
-    display: flex;
-    align-items: center;
-    align-self: center;
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius);
-    overflow: hidden;
-    margin-right: 4px;
-}
-.fmt-toggle button {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    font-size: 11px;
-    line-height: 1;
-    padding: 5px 8px;
-    cursor: pointer;
-    transition: color 0.2s, background 0.2s;
-}
-.fmt-toggle button + button { border-left: 1px solid var(--border-light); }
-.fmt-toggle button.active {
-    color: var(--text-on-accent);
-    background: var(--accent);
+    margin-right: var(--space-1);
 }
 
 .input-row {
     display: flex;
-    gap: 6px;
+    gap: var(--space-2);
     align-items: flex-end;
     flex-shrink: 0;
     min-height: 40px;
@@ -113,739 +43,629 @@
 
 .input-footer.sending,
 .input-footer.disabled {
-    opacity: 0.45;
+    opacity: var(--opacity-disabled);
     pointer-events: none;
 }
 .input-footer.sending .textarea-wrap textarea,
 .input-footer.disabled .textarea-wrap textarea {
-    opacity: 0.6;
+    opacity: var(--opacity-muted);
 }
-.input-footer.sending .input-row > button,
-.input-footer.sending .input-actions button,
-.input-footer.disabled .input-row > button,
-.input-footer.disabled .input-actions button {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
+/* 按钮禁用态由原语的 is-disabled 负责。 */
 
-.input-row > button {
-    background: var(--bg-input);
-    border: none;
-    border-bottom: 3px solid var(--border-3d-dark);
-    color: var(--text-primary);
-    padding: 10px 20px;
-    border-radius: var(--radius);
-    font-weight: 400;
-    font-size: var(--font-size-base, 14px);
-    cursor: pointer;
-    transition: all var(--duration-normal) cubic-bezier(0.4, 0, 0.2, 1);
-    position: relative;
-    overflow: hidden;
+/* 发送按钮外观由 UiButton 提供，这里只保留布局。 */
+.send-btn {
     flex-shrink: 0;
     align-self: flex-end;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), inset 0 1px 0 var(--border-3d-light);
 }
-.input-row > button:hover {
-    background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-    color: var(--text-on-accent);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-btn-hover);
-    border-bottom-color: var(--accent-active);
-    border-bottom-width: 4px;
-}
-.input-row > button:hover::after {
-    content: '';
-    position: absolute;
-    top: 0; left: -100%; width: 100%; height: 100%;
-    background: linear-gradient(90deg, transparent, var(--btn-shine), transparent);
-    animation: btnShine 0.3s ease;
-}
-@keyframes btnShine { to { left: 100%; } }
-.input-row > button:active {
-    transform: translateY(1px);
-    background: var(--accent);
-    color: var(--text-on-accent);
-    box-shadow: var(--shadow-btn-active);
-    border-bottom-width: 1px;
-}
-.input-row > button:focus { outline: 2px solid var(--accent-outline); outline-offset: 2px; }
 
 .counter-line {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: 6px;
-    gap: 8px;
-    font-size: var(--font-size-small);
+    margin-top: var(--space-2);
+    gap: var(--space-2);
+    font-size: var(--text-sm);
     position: relative;
-    padding: 0 6px;
+    padding: 0 var(--space-2);
 }
 
 .counter-line .error {
-    font-size: var(--font-size-base, 14px);
-    background: var(--bg-code-inline);
-    border-radius: var(--radius);
+    font-size: var(--text-base);
+    background: var(--surface-code-inline);
+    border-radius: var(--radius-base);
     text-align: center;
     height: 25px;
     min-width: 150px;
-    border: 1px solid var(--border-row);
-    color: var(--text-error, #FA5151);
-    animation: errorShake 0.4s ease;
+    border: var(--border-width) solid var(--line-subtle);
+    color: var(--fg-danger);
     flex-shrink: 0;
 }
 
 .token-info {
-    font-size: var(--font-size-small);
-    color: var(--text-secondary);
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
     margin-left: auto;
     position: relative;
     cursor: default;
     user-select: none;
 }
 .token-info-warn {
-    color: var(--text-error);
-    font-weight: 600;
+    color: var(--fg-danger);
+    font-weight: var(--weight-semibold);
 }
 .token-tip-icon {
     display: inline-flex;
     align-items: center;
-    margin-left: 4px;
-    font-size: 13px;
-    color: var(--text-secondary);
+    margin-left: var(--space-1);
+    font-size: var(--text-md);
+    color: var(--fg-muted);
     cursor: help;
     vertical-align: -1px;
 }
-.token-tip-icon:hover { color: var(--accent); }
+.token-tip-icon:hover { color: var(--brand); }
 .token-tooltip {
     position: absolute;
     right: 0;
-    bottom: calc(100% + 6px);
+    bottom: calc(100% + var(--space-2));
     min-width: 150px;
-    padding: 6px 0;
-    background: var(--bg-app);
-    border: 1px solid var(--border-3d-dark);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-modal);
-    z-index: 9999;
-    font-size: var(--font-size-small);
-    color: var(--text-primary);
+    padding: var(--space-2) 0;
+    background: var(--surface-0);
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-base);
+    box-shadow: var(--elev-2);
+    z-index: var(--z-tooltip);
+    font-size: var(--text-sm);
+    color: var(--fg);
 }
 .token-tooltip-row {
     display: flex;
     align-items: baseline;
-    gap: 8px;
-    padding: 3px 12px;
+    gap: var(--space-2);
+    padding: 3px var(--space-3);
     white-space: nowrap;
 }
 .token-tooltip-time {
     font-variant-numeric: tabular-nums;
-    color: var(--accent);
-    font-weight: 600;
-}
-
-@keyframes errorShake {
-  0%, 100% { transform: translateX(0); }
-  20%, 60% { transform: translateX(-5px); }
-  40%, 80% { transform: translateX(5px); }
+    color: var(--brand);
+    font-weight: var(--weight-semibold);
 }
 
 .reply-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  background: var(--bg-conversation-hover);
-  border-left: 3px solid var(--accent);
-  border-radius: 0 var(--radius) var(--radius) 0;
-  margin-bottom: 6px;
-  font-size: var(--font-size-small);
-  color: var(--text-secondary);
-  animation: replyBarIn 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface-hover);
+    border-left: var(--border-width-thick) solid var(--brand);
+    border-radius: 0 var(--radius-base) var(--radius-base) 0;
+    margin-bottom: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
 }
-@keyframes replyBarIn {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.reply-bar-icon { color: var(--accent); font-size: var(--font-size-small); flex-shrink: 0; }
+.reply-bar-icon { color: var(--brand); font-size: var(--text-sm); flex-shrink: 0; }
 .reply-bar-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reply-bar-close {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: var(--font-size-small);
-  padding: 2px 4px;
-  border-radius: var(--radius);
-  transition: color 0.15s, background 0.15s;
+    background: none;
+    border: none;
+    color: var(--fg-muted);
+    cursor: pointer;
+    font-size: var(--text-sm);
+    padding: 2px var(--space-1);
+    border-radius: var(--radius-base);
+    transition: color var(--motion-dur-fast) var(--motion-ease-standard),
+        background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
-.reply-bar-close:hover { color: var(--text-primary); background: var(--bg-conversation-hover); }
+.reply-bar-close:hover { color: var(--fg); background: var(--surface-hover); }
 
 .textarea-wrap {
-  flex: 1;
-  position: relative;
-  min-width: 0;
+    flex: 1;
+    position: relative;
+    min-width: 0;
 }
 .textarea-wrap textarea {
-  width: 100%;
-  background: var(--bg-input);
-  border: 1px solid var(--border-light);
-  border-bottom: 2px solid var(--border-3d-dark);
-  border-radius: var(--radius);
-  padding: 10px 14px;
-  font-size: var(--font-size-base, 14px);
-  resize: none;
-  font-family: inherit;
-  transition: background var(--duration-normal) ease, box-shadow var(--duration-normal) ease, border-color var(--duration-normal) ease;
-  line-height: 1.4;
-  color: var(--text-primary);
-  min-height: 40px;
-  max-height: 200px;
-  overflow-y: auto;
-  box-shadow: var(--shadow-input);
+    width: 100%;
+    background: var(--surface-2);
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-base);
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--text-base);
+    resize: none;
+    font-family: inherit;
+    transition: background-color var(--motion-dur-base) var(--motion-ease-standard),
+        border-color var(--motion-dur-base) var(--motion-ease-standard);
+    line-height: 1.4;
+    color: var(--fg);
+    min-height: 40px;
+    max-height: 200px;
+    overflow-y: auto;
 }
 .textarea-wrap textarea:focus {
-  outline: none;
-  background: var(--bg-input-focus);
-  border-color: var(--accent);
-  border-bottom-color: var(--accent);
-  box-shadow: var(--shadow-input-focus);
+    outline: none;
+    background: var(--surface-field-focus);
+    border-color: var(--brand);
+    box-shadow: var(--focus-halo);
 }
-.textarea-wrap textarea::placeholder { color: var(--text-placeholder); }
+.textarea-wrap textarea::placeholder { color: var(--fg-placeholder); }
 
 .mention-popup {
-  position: fixed;
-  background: var(--bg-group-detail);
-  border: 1px solid var(--border-3d-dark);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-dropdown), inset 0 1px 0 var(--border-3d-light);
-  max-height: 200px;
-  overflow-y: auto;
-  z-index: 9999;
-  min-width: 160px;
-  animation: mentionIn 0.15s ease;
-}
-@keyframes mentionIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+    position: fixed;
+    background: var(--surface-raised);
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-base);
+    box-shadow: var(--elev-2);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: var(--z-popover);
+    min-width: 160px;
 }
 .mention-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  font-size: var(--font-size-small);
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-sm);
+    color: var(--fg);
+    cursor: pointer;
+    transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
-.mention-item:hover { background: var(--accent-light); }
-.mention-item.active { background: var(--accent-light); color: var(--accent); }
+.mention-item:hover { background: var(--brand-soft); }
+.mention-item.active { background: var(--brand-soft); color: var(--brand); }
+
+/* @所有人标识 */
+.mention-all-item {
+    background: var(--bg-mention-all);
+    color: var(--text-mention-all);
+    font-weight: var(--weight-semibold);
+}
 
 /* 文件拖入输入区域样式 */
 .input-footer.drag-over {
-  border: 2px dashed var(--accent);
-  background: var(--accent-light);
+    border: var(--border-width-thick) dashed var(--brand);
+    background: var(--brand-soft);
 }
 .input-footer.drag-over .textarea-wrap textarea {
-  background: transparent;
+    background: transparent;
 }
 
 /* --- 待发送文件预览栏 --- */
 .pending-files-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 8px 0;
-  margin-bottom: 4px;
-  animation: pendingBarIn 0.2s ease;
-}
-@keyframes pendingBarIn {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+    margin-bottom: var(--space-1);
 }
 .pending-file-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  background: var(--bg-conversation-hover);
-  border: 1px solid var(--border-3d-dark);
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s;
-  max-width: 220px;
-  min-width: 0;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05), inset 0 1px 0 var(--border-3d-light);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface-hover);
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-base);
+    cursor: pointer;
+    transition: background-color var(--motion-dur-fast) var(--motion-ease-standard),
+        border-color var(--motion-dur-fast) var(--motion-ease-standard),
+        box-shadow var(--motion-dur-fast) var(--motion-ease-standard),
+        transform var(--motion-dur-fast) var(--motion-ease-standard);
+    max-width: 220px;
+    min-width: 0;
+    box-shadow: var(--elev-bubble);
 }
 .pending-file-item:hover {
-  background: var(--bg-conversation-active);
-  border-color: var(--accent);
-  box-shadow: 0 4px 10px var(--gradient-accent), inset 0 1px 0 var(--border-3d-light);
-  transform: translateY(-1px);
+    background: var(--surface-active);
+    border-color: var(--brand);
+    box-shadow: var(--elev-brand);
+    transform: translateY(-1px);
 }
 .pending-file-thumb {
-  width: 36px;
-  height: 36px;
-  border-radius: 4px;
-  overflow: hidden;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-app);
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-xs);
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-0);
 }
 .pending-file-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 .pending-file-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-app);
-  color: var(--text-secondary);
-  font-size: 16px;
-  flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-xs);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-0);
+    color: var(--fg-muted);
+    font-size: var(--text-lg);
+    flex-shrink: 0;
 }
 .pending-file-info {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 2px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 2px;
 }
 .pending-file-name {
-  font-size: var(--font-size-small);
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+    font-size: var(--text-sm);
+    color: var(--fg);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .pending-file-size {
-  font-size: 11px;
-  color: var(--text-secondary);
+    font-size: var(--text-xs);
+    color: var(--fg-muted);
 }
 .pending-file-remove {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: var(--radius);
-  font-size: var(--font-size-small);
-  transition: color 0.15s, background 0.15s;
-  flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--fg-muted);
+    cursor: pointer;
+    padding: 2px var(--space-1);
+    border-radius: var(--radius-base);
+    font-size: var(--text-sm);
+    transition: color var(--motion-dur-fast) var(--motion-ease-standard),
+        background-color var(--motion-dur-fast) var(--motion-ease-standard);
+    flex-shrink: 0;
 }
 .pending-file-remove:hover {
-  color: var(--danger);
-  background: var(--bg-conversation-hover);
-}
-
-/* @所有人标识 */
-.mention-all {
-  background: var(--bg-mention-all);
-  color: var(--text-mention-all);
-  font-weight: 600;
+    color: var(--fg-danger);
+    background: var(--surface-hover);
 }
 
 /* ===== 输入区：左源码 + 右预览（与「工具 → Markdown」同一版式）=====
    左栏是原生 textarea 写 Markdown 源码，右栏是它的实时渲染结果；
    中间分隔条可拖拽调宽，两栏滚动按比例双向跟随。
    外框（边框/圆角/高度）定义在 .input-split 上，两栏都不再自带边框。 */
-/* 盒模型兜底：base.css 的 `* { box-sizing: border-box }` 由 ChatView 引入，
-   这里显式再声明一次，避免输入框在缺少全局 reset 的场景（自检页、嵌入式复用）
-   因为 content-box 而让 textarea 撑高一个 padding（200px 容器 + 上下 16px = 216px 溢出）。 */
 .input-split,
 .input-split * {
-  box-sizing: border-box;
+    box-sizing: border-box;
 }
 .input-split {
-  flex: 1;
-  display: flex;
-  min-width: 0;
-  min-height: 40px;
-  max-height: 200px;
-  border: 1px solid var(--border-light);
-  border-bottom: 2px solid var(--border-3d-dark);
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: var(--bg-input);
-  box-shadow: var(--shadow-input);
-  transition: border-color var(--duration-normal) ease, box-shadow var(--duration-normal) ease;
+    flex: 1;
+    display: flex;
+    min-width: 0;
+    min-height: 40px;
+    max-height: 200px;
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-base);
+    overflow: hidden;
+    background: var(--surface-2);
+    transition: border-color var(--motion-dur-base) var(--motion-ease-standard),
+        box-shadow var(--motion-dur-base) var(--motion-ease-standard);
 }
 .input-split:focus-within {
-  border-color: var(--accent);
-  border-bottom-color: var(--accent);
-  box-shadow: var(--shadow-input-focus);
+    border-color: var(--brand);
+    box-shadow: var(--focus-halo);
 }
 
 /* 左栏：源码 */
 .input-split-left {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
 }
 .input-split-left .textarea-wrap {
-  flex: 1;
-  display: flex;
-  min-height: 0;
+    flex: 1;
+    display: flex;
+    min-height: 0;
 }
 .input-split-left .textarea-wrap textarea {
-  flex: 1;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  max-height: none;
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  padding: 8px 12px;
+    flex: 1;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: var(--space-2) var(--space-3);
 }
 .input-split-left .textarea-wrap textarea:focus {
-  background: transparent;
-  box-shadow: none;
-  border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    border-color: transparent;
 }
 
 /* 分隔条 */
 .input-split-divider {
-  width: 5px;
-  cursor: col-resize;
-  background: var(--border-light);
-  flex-shrink: 0;
-  position: relative;
-  transition: background 0.2s;
+    width: 5px;
+    cursor: col-resize;
+    background: var(--line);
+    flex-shrink: 0;
+    position: relative;
+    transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
 .input-split-divider:hover,
 .input-split-divider:active {
-  background: var(--accent);
+    background: var(--brand);
 }
 .input-split-divider::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 3px;
-  height: 20px;
-  border-radius: 2px;
-  background: var(--text-secondary);
-  opacity: 0.3;
-  transition: opacity 0.2s;
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 3px;
+    height: 20px;
+    border-radius: var(--radius-xs);
+    background: var(--fg-muted);
+    opacity: 0.3;
+    transition: opacity var(--motion-dur-fast) var(--motion-ease-standard);
 }
 .input-split-divider:hover::after {
-  opacity: 0.7;
-  background: var(--text-on-accent);
+    opacity: 0.7;
+    background: var(--on-brand);
 }
 
 /* 收起态：一侧被拖到边缘隐藏后，分隔条贴边保留（往回拖即恢复），淡色提示还有内容 */
 .input-split.collapse-left .input-split-divider,
 .input-split.collapse-right .input-split-divider {
-  background: var(--accent-light);
+    background: var(--brand-soft);
 }
 
 /* 右栏：预览 */
 .input-split-right {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--bg-app);
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--surface-0);
 }
 .input-preview-label {
-  font-size: var(--font-size-small);
-  color: var(--text-secondary);
-  padding: 4px 10px 0;
-  flex-shrink: 0;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+    padding: var(--space-1) var(--space-3) 0;
+    flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 .input-preview-content {
-  flex: 1;
-  padding: 6px 10px 8px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  font-size: var(--font-size-base, 14px);
-  line-height: 1.5;
-  color: var(--text-primary);
-  word-break: break-word;
-  user-select: text;
-  min-height: 0;
+    flex: 1;
+    padding: var(--space-2) var(--space-3) var(--space-2);
+    overflow-y: auto;
+    overflow-x: hidden;
+    font-size: var(--text-base);
+    line-height: 1.5;
+    color: var(--fg);
+    word-break: break-word;
+    user-select: text;
+    min-height: 0;
 }
-.input-preview-content pre:not(.luogu-code-pre) {
-  background: var(--bg-code-block);
-  padding: 6px 10px;
-  border-radius: var(--radius);
-  overflow-x: auto;
-  margin: 4px 0;
-  user-select: text;
+.input-preview-content :deep(pre:not(.luogu-code-pre)) {
+    background: var(--surface-code);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-base);
+    overflow-x: auto;
+    margin: var(--space-1) 0;
+    user-select: text;
 }
-.input-preview-content code {
-  background: var(--bg-code-inline);
-  padding: 1px 4px;
-  border-radius: var(--radius);
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 0.9em;
-  user-select: text;
+.input-preview-content :deep(code) {
+    background: var(--surface-code-inline);
+    padding: 1px var(--space-1);
+    border-radius: var(--radius-base);
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.9em;
+    user-select: text;
 }
-.input-preview-content pre code {
-  background: transparent;
-  padding: 0;
+.input-preview-content :deep(pre code) {
+    background: transparent;
+    padding: 0;
 }
-.input-preview-content a {
-  color: var(--text-link);
-  text-decoration: none;
+.input-preview-content :deep(a) {
+    color: var(--fg-link);
+    text-decoration: none;
 }
-.input-preview-content a:hover {
-  text-decoration: underline;
+.input-preview-content :deep(a:hover) {
+    text-decoration: underline;
 }
-.input-preview-content img {
-  max-width: 100%;
-  border-radius: var(--radius);
+.input-preview-content :deep(img) {
+    max-width: 100%;
+    border-radius: var(--radius-base);
 }
-.input-preview-content blockquote {
-  border-left: 3px solid var(--border-row);
-  padding-left: 10px;
-  margin: 4px 0;
+.input-preview-content :deep(blockquote) {
+    border-left: var(--border-width-thick) solid var(--line-subtle);
+    padding-left: var(--space-3);
+    margin: var(--space-1) 0;
 }
-.input-preview-content ul,
-.input-preview-content ol {
-  padding-left: 20px;
-  margin: 4px 0;
+.input-preview-content :deep(ul),
+.input-preview-content :deep(ol) {
+    padding-left: var(--space-5);
+    margin: var(--space-1) 0;
 }
-.input-preview-content table {
-  border-collapse: collapse;
-  margin: 4px 0;
+.input-preview-content :deep(table) {
+    border-collapse: collapse;
+    margin: var(--space-1) 0;
 }
-.input-preview-content th,
-.input-preview-content td {
-  border: 1px solid var(--border-row);
-  padding: 4px 8px;
+.input-preview-content :deep(th),
+.input-preview-content :deep(td) {
+    border: var(--border-width) solid var(--line-subtle);
+    padding: var(--space-1) var(--space-2);
 }
-.input-preview-content .chat-image {
-  vertical-align: middle;
+/* 纯文本模式预览（renderMdPreview 输出） */
+.input-preview-content :deep(.plain-msg) {
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 .input-preview-empty {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-placeholder);
-  font-size: var(--font-size-small);
-  padding: 10px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--fg-placeholder);
+    font-size: var(--text-sm);
+    padding: var(--space-3);
 }
 
 .input-footer.sending .input-split,
 .input-footer.disabled .input-split {
-  opacity: 0.6;
-  pointer-events: none;
+    opacity: var(--opacity-muted);
+    pointer-events: none;
 }
 .input-footer.drag-over .input-split {
-  border-color: var(--accent);
+    border-color: var(--brand);
 }
 
 /* ===== 「更多」菜单（文件 / 投票） ===== */
 .more-menu {
-  position: relative;
-  display: flex;
+    position: relative;
+    display: flex;
 }
-.more-menu.open > #more_btn {
-  color: var(--accent);
-  background: var(--bg-conversation-hover);
-}
+/* 触发按钮的打开态由 UiIconButton 的 :active 提供。 */
 .more-panel {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
-  min-width: 120px;
-  padding: 4px;
-  background: var(--bg-group-detail);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-modal), inset 0 1px 0 var(--border-3d-light);
-  z-index: 40;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+    position: absolute;
+    bottom: calc(100% + var(--space-2));
+    left: 0;
+    min-width: 120px;
+    padding: var(--space-1);
+    background: var(--surface-raised);
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-base);
+    box-shadow: var(--elev-3);
+    z-index: var(--z-dropdown);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
-.more-panel button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
-  text-align: left;
-  padding: 7px 10px;
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: color 0.15s, background 0.15s;
-}
-.more-panel button:hover { color: var(--accent); background: var(--bg-conversation-hover); }
-.more-panel button i { width: 14px; text-align: center; }
-#voice_btn.active { color: var(--danger); }
-/* 拍照等待中：按钮变成「取消」，用强调色而非 danger（取消不是错误操作） */
-#camera_btn.active { color: var(--accent); background: var(--accent-light); }
+/* 面板内两项按钮外观由 UiButton 提供。 */
 
 /* ===== 发起投票弹窗 ===== */
 .poll-modal-mask {
-  position: fixed;
-  inset: 0;
-  background: var(--bg-modal-overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 3000;
+    position: fixed;
+    inset: 0;
+    background: var(--surface-scrim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--z-modal);
 }
 .poll-modal {
-  width: min(440px, 92vw);
-  max-height: 88vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-group-detail);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow: var(--shadow-modal), inset 0 1px 0 var(--border-3d-light);
+    width: min(440px, 92vw);
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface-raised);
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-2xl);
+    overflow: hidden;
+    box-shadow: var(--elev-3);
 }
 .poll-modal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-light);
-  font-size: var(--font-size-base);
-  color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-3) var(--space-4);
+    border-bottom: var(--border-width) solid var(--line);
+    font-size: var(--text-base);
+    color: var(--fg);
 }
-.poll-modal-close {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 16px;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--radius);
-}
-.poll-modal-close:hover { color: var(--accent); background: var(--bg-conversation-hover); }
-.poll-modal-title { color: var(--text-primary); }
+/* 关闭按钮外观由 UiIconButton 提供。 */
+.poll-modal-title { color: var(--fg); }
 .poll-modal-body {
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  overflow-y: auto;
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    overflow-y: auto;
 }
-.poll-field { display: flex; flex-direction: column; gap: 6px; }
-.poll-field-label { font-size: var(--font-size-small); color: var(--text-secondary); }
-.poll-field-hint { color: var(--text-placeholder); font-size: 11px; }
+.poll-field { display: flex; flex-direction: column; gap: var(--space-2); }
+.poll-field-label { font-size: var(--text-sm); color: var(--fg-muted); }
+.poll-field-hint { color: var(--fg-placeholder); font-size: var(--text-xs); }
 .poll-input {
-  width: 100%;
-  box-sizing: border-box;
-  background: var(--bg-input);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius);
-  color: var(--text-primary);
-  font-size: var(--font-size-base);
-  font-family: inherit;
-  padding: 8px 10px;
-  outline: none;
-  transition: border-color 0.15s;
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--surface-2);
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-base);
+    color: var(--fg);
+    font-size: var(--text-base);
+    font-family: inherit;
+    padding: var(--space-2) var(--space-3);
+    outline: none;
+    transition: border-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
-.poll-input:focus { border-color: var(--accent); }
+.poll-input:focus { border-color: var(--brand); }
 .poll-input:disabled { opacity: 0.5; }
-.poll-opt-list { display: flex; flex-direction: column; gap: 6px; }
-.poll-opt-row { display: flex; align-items: center; gap: 8px; }
+.poll-opt-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.poll-opt-row { display: flex; align-items: center; gap: var(--space-2); }
 .poll-opt-idx {
-  flex: none;
-  width: 18px;
-  text-align: center;
-  color: var(--text-placeholder);
-  font-size: var(--font-size-small);
+    flex: none;
+    width: 18px;
+    text-align: center;
+    color: var(--fg-placeholder);
+    font-size: var(--text-sm);
 }
 .poll-opt-del {
-  flex: none;
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: var(--radius);
+    flex: none;
+    background: none;
+    border: none;
+    color: var(--fg-muted);
+    cursor: pointer;
+    padding: var(--space-1);
+    border-radius: var(--radius-base);
+    transition: color var(--motion-dur-fast) var(--motion-ease-standard),
+        background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
-.poll-opt-del:hover { color: var(--danger); background: var(--bg-conversation-hover); }
+.poll-opt-del:hover { color: var(--fg-danger); background: var(--surface-hover); }
 /* 开放题删空所有选项时的占位提示（撑住布局，别让弹窗塌下去） */
 .poll-opt-empty {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 10px;
-  font-size: 12.5px;
-  color: var(--text-secondary);
-  background: var(--bg-input);
-  border: 1px dashed var(--border-light);
-  border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-md);
+    color: var(--fg-muted);
+    background: var(--surface-2);
+    border: var(--border-width) dashed var(--line);
+    border-radius: var(--radius-base);
 }
-.poll-opt-empty i { color: var(--accent); }
+.poll-opt-empty i { color: var(--brand); }
 .poll-opt-add {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: none;
-  color: var(--accent);
-  font-size: var(--font-size-small);
-  cursor: pointer;
-  padding: 4px 2px;
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    background: none;
+    border: none;
+    color: var(--brand);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    padding: var(--space-1) var(--space-1);
 }
-.poll-field-row { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 16px; }
+.poll-field-row { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--space-4); }
 .poll-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
-  cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+    cursor: pointer;
 }
-.poll-check input[type="checkbox"] { accent-color: var(--accent); }
-.poll-check-until { gap: 8px; }
-.poll-input-dt { width: auto; padding: 5px 8px; font-size: var(--font-size-small); }
+.poll-check input[type="checkbox"] { accent-color: var(--brand); }
+.poll-check-until { gap: var(--space-2); }
+.poll-input-dt { width: auto; padding: var(--space-1) var(--space-2); font-size: var(--text-sm); }
 /* 多选限选数：窄数字框，留空即「不限」 */
-.poll-check-max { gap: 6px; }
-.poll-input-num { width: 64px; padding: 4px 8px; font-size: 12px; text-align: center; }
-.poll-modal-err { color: var(--danger); font-size: var(--font-size-small); }
+.poll-check-max { gap: var(--space-2); }
+.poll-input-num { width: 64px; padding: var(--space-1) var(--space-2); font-size: var(--text-sm); text-align: center; }
+.poll-modal-err { color: var(--fg-danger); font-size: var(--text-sm); }
 .poll-modal-foot {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--border-light);
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-top: var(--border-width) solid var(--line);
 }
-.poll-btn {
-  border: 1px solid var(--border-light);
-  background: none;
-  color: var(--text-secondary);
-  font-size: var(--font-size-small);
-  padding: 7px 18px;
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: color 0.15s, background 0.15s, border-color 0.15s;
-}
-.poll-btn:hover { color: var(--text-primary); border-color: var(--text-secondary); }
-.poll-btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--text-on-accent);
-}
-.poll-btn-primary:hover { color: var(--text-on-accent); filter: brightness(1.08); }
-.poll-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+/* 投票弹窗按钮外观由 UiButton 提供，仅保留页脚布局。 */

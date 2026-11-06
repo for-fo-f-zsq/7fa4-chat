@@ -1,9 +1,10 @@
 <template>
+  <Transition name="fade-down">
   <div class="search-panel" v-if="visible">
-    <div class="search-bar">
-      <div class="search-field">
+    <div class="search-bar motion-fade-down-in">
+      <div class="search-field" ref="queryFieldEl">
         <label class="search-label">关键词</label>
-        <input class="search-input" v-autofocus v-model="query" placeholder="搜索消息..." ref="inputEl" />
+        <UiSearchInput v-model="query" class="search-input" placeholder="搜索消息..." size="sm" />
       </div>
       <div class="search-field">
         <label class="search-label">范围</label>
@@ -12,10 +13,12 @@
             <span>{{ searchScope === 'all' ? '全部会话' : '当前会话' }}</span>
             <i class="fas fa-chevron-down custom-select-arrow"></i>
           </div>
+          <Transition name="dropdown">
           <div class="custom-select-dropdown" v-if="scopeOpen">
             <div class="custom-select-option" :class="{ active: searchScope === 'current' }" @click.stop="searchScope = 'current'; scopeOpen = false"><span>当前会话</span></div>
             <div class="custom-select-option" :class="{ active: searchScope === 'all' }" @click.stop="searchScope = 'all'; scopeOpen = false"><span>全部会话</span></div>
           </div>
+          </Transition>
         </div>
       </div>
       <div class="search-field" v-if="isGroup && searchScope === 'current' && senderCandidates.length">
@@ -25,9 +28,10 @@
             <span>{{ currentSenderLabel }}</span>
             <i class="fas fa-chevron-down custom-select-arrow"></i>
           </div>
+          <Transition name="dropdown">
           <div class="custom-select-dropdown" :class="{ dropup: senderDropup }" v-if="senderOpen">
-            <div class="custom-select-search" @click.stop>
-              <input class="custom-select-search-input" v-autofocus v-model="senderSearchQuery" placeholder="搜索发送者..." ref="senderSearchInput" />
+            <div class="custom-select-search" @click.stop ref="senderSearchFieldEl">
+              <UiSearchInput v-model="senderSearchQuery" class="custom-select-search-input" placeholder="搜索发送者..." size="sm" />
             </div>
             <div class="custom-select-options">
               <div class="custom-select-option" :class="{ active: !senderFilter }" @click.stop="selectSender('')"><span>全部</span></div>
@@ -35,6 +39,7 @@
               <div v-if="!searchedSenders.length" class="custom-select-empty">无匹配结果</div>
             </div>
           </div>
+          </Transition>
         </div>
       </div>
       <div class="search-field">
@@ -44,23 +49,25 @@
             <span>{{ currentTypeLabel }}</span>
             <i class="fas fa-chevron-down custom-select-arrow"></i>
           </div>
+          <Transition name="dropdown">
           <div class="custom-select-dropdown" :class="{ dropup: typeDropup }" v-if="typeOpen">
             <div class="custom-select-option" :class="{ active: !msgTypeFilter }" @click.stop="selectType('')"><span>全部</span></div>
             <div class="custom-select-option" :class="{ active: msgTypeFilter === 'text' }" @click.stop="selectType('text')"><span>文本</span></div>
             <div class="custom-select-option" :class="{ active: msgTypeFilter === 'file' }" @click.stop="selectType('file')"><span>文件</span></div>
             <div class="custom-select-option" :class="{ active: msgTypeFilter === 'emoji' }" @click.stop="selectType('emoji')"><span>表情</span></div>
           </div>
+          </Transition>
         </div>
       </div>
       <div class="search-field">
         <label class="search-label">起始日期</label>
-        <input class="search-date" type="date" v-model="dateAfter" />
+        <UiInput class="search-date" type="date" v-model="dateAfter" size="sm" />
       </div>
       <div class="search-field">
         <label class="search-label">结束日期</label>
-        <input class="search-date" type="date" v-model="dateBefore" />
+        <UiInput class="search-date" type="date" v-model="dateBefore" size="sm" />
       </div>
-      <button class="search-close-btn" @click="$emit('close')"><i class="fas fa-times"></i></button>
+      <UiIconButton class="search-close-btn" icon="fas fa-times" aria-label="关闭搜索" size="sm" @click="$emit('close')" />
     </div>
     <div class="search-results" v-if="hasFilter && pagedResults.length">
       <div class="search-results-header">找到 {{ results.length }} 条消息</div>
@@ -75,12 +82,13 @@
         <span class="search-result-content" v-html="resultPreview(msg)"></span>
         <span class="search-result-time">{{ gettime2(msg.send_time) }}</span>
       </div>
-      <div v-if="results.length > resultLimit" class="search-more-btn" @click="resultLimit += 50">查看更多 ({{ results.length - resultLimit }} 条)</div>
+      <UiButton v-if="results.length > resultLimit" class="search-more-btn" variant="text" size="sm" block @click="resultLimit += 50">查看更多 ({{ results.length - resultLimit }} 条)</UiButton>
     </div>
     <div class="search-results" v-else-if="hasFilter && !results.length">
       <div class="search-results-header">无匹配结果</div>
     </div>
   </div>
+  </Transition>
 </template>
 
 <script setup>
@@ -88,6 +96,7 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { store } from '../store.js'
 import { displayName, gettime2, highlightKeyword, getConvoKey } from '../utils.js'
 import { vClickOutside } from '../composables/vClickOutside.js'
+import { UiButton, UiIconButton, UiInput, UiSearchInput } from '../ui/index.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -103,7 +112,7 @@ const senderFilter = ref('')
 const msgTypeFilter = ref('')
 const dateAfter = ref('')
 const dateBefore = ref('')
-const inputEl = ref(null)
+const queryFieldEl = ref(null)
 const searchScope = ref('current')
 const resultLimit = ref(50)
 
@@ -113,7 +122,7 @@ const senderDropup = ref(false)
 const typeOpen = ref(false)
 const typeDropup = ref(false)
 const senderSearchQuery = ref('')
-const senderSearchInput = ref(null)
+const senderSearchFieldEl = ref(null)
 
 const isGroup = computed(() => props.pageType === 'group')
 
@@ -191,7 +200,7 @@ function toggleSenderSelect(e) {
   if (senderOpen.value) {
     senderDropup.value = checkDropup(e.currentTarget)
     senderSearchQuery.value = ''
-    nextTick(() => senderSearchInput.value?.focus())
+    nextTick(() => senderSearchFieldEl.value?.querySelector('input')?.focus())
   }
 }
 
@@ -293,24 +302,15 @@ function resetFilters() {
 }
 
 watch(() => props.visible, (v) => {
-  if (v) nextTick(() => inputEl.value?.focus())
+  if (v) nextTick(() => queryFieldEl.value?.querySelector('input')?.focus())
   else resetFilters()
 })
 
 watch(query, () => { resultLimit.value = 50 })
 
-function focusInput() { inputEl.value?.focus() }
+function focusInput() { queryFieldEl.value?.querySelector('input')?.focus() }
 
 defineExpose({ focusInput })
 </script>
 
-<style scoped>
-.search-more-btn {
-  text-align: center;
-  padding: 8px;
-  color: var(--accent, #3C8CE7);
-  cursor: pointer;
-  font-size: 13px;
-}
-.search-more-btn:hover { text-decoration: underline; }
-</style>
+<style scoped src="../css/search-panel.css"></style>

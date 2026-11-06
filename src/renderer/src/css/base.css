@@ -1,295 +1,102 @@
-@import url('../../css/theme.css');
+/* ============================================================================
+   base.css — 全局底座（唯一全局层）
+   加载顺序：themes/*.css → tokens.css → base.css → motion.css → utilities.css
+   职责：reset / 全局排版 / 应用背景 / 滚动条 / 焦点可见 / 平台与安全区 / 第三方内容白名单
+   下方「迁移期组件规则」按域迁入各组件 scoped 后整段删除；A 域（.app、.title-bar*、.app-body、
+   .view-fade/.app::after/.particle-canvas/@keyframes appFadeIn）已于 P2-A 迁出：
+   .app、.app::after、.app-body、.title-bar*、.list-resize-bar → ChatView scoped（chat-view.css）；
+   .view-fade/.particle-canvas → App.vue scoped（页面切换改 <Transition name="fade">）；
+   LoginView 的 title-bar 由 D 域在 login-view.css scoped 内补一份（见 .team/refactor/css/A-handoff.md §6）。
+   ========================================================================== */
 
-@property --accent { syntax: '<color>'; inherits: true; initial-value: #3C8CE7; }
-@property --accent-hover { syntax: '<color>'; inherits: true; initial-value: #2E78D0; }
-@property --accent-active { syntax: '<color>'; inherits: true; initial-value: #2566B8; }
-@property --accent-light { syntax: '<color>'; inherits: true; initial-value: rgba(60,140,231,0.1); }
-@property --accent-outline { syntax: '<color>'; inherits: true; initial-value: rgba(60,140,231,0.3); }
-@property --gradient-accent { syntax: '<color>'; inherits: true; initial-value: rgba(60,140,231,0.25); }
-@property --gradient-subtle { syntax: '<color>'; inherits: true; initial-value: rgba(60,140,231,0.08); }
-@property --bg-app { syntax: '<color>'; inherits: true; initial-value: #FFFFFF; }
-@property --bg-sidebar { syntax: '<color>'; inherits: true; initial-value: #F7F7F7; }
-@property --bg-input { syntax: '<color>'; inherits: true; initial-value: #F5F5F5; }
-@property --border-light { syntax: '<color>'; inherits: true; initial-value: #E6E6E6; }
-@property --text-primary { syntax: '<color>'; inherits: true; initial-value: #191919; }
-@property --text-secondary { syntax: '<color>'; inherits: true; initial-value: #888888; }
-@property --message-self-bg { syntax: '<color>'; inherits: true; initial-value: #C0E0FF; }
-@property --message-other-bg { syntax: '<color>'; inherits: true; initial-value: #FFFFFF; }
-@property --scrollbar-thumb { syntax: '<color>'; inherits: true; initial-value: #D0D0D0; }
-@property --font-size-base { syntax: '<length>'; inherits: true; initial-value: 14px; }
-@property --font-size-small { syntax: '<length>'; inherits: true; initial-value: 12px; }
-@property --font-size-large { syntax: '<length>'; inherits: true; initial-value: 16px; }
-
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
-}
-
-/* 恢复 KaTeX 数学字体：上方全局 * 的 font-family 会直接命中 .katex 内部所有子元素，
-   把本应继承 KaTeX_Main 的正体算子（\min \max \mathrm 等 .mop/.mord）覆盖成 sans-serif，
-   导致"$内和$外显示一样"。这里让 .katex 内部恢复 KaTeX 官方默认字体：
-   - 根与多数元素 → KaTeX_Main（正体，\min \max \sum \mathrm 等）；
-   - .mathnormal → KaTeX_Math（斜体变量，如 x）；
-   - 花体/哥特等专属字体类保持自身规则（KaTeX .css 自带，无需覆盖）。 */
-.katex,
-.katex * {
-    font-family: KaTeX_Main, 'Times New Roman', serif;
-}
-.katex .mathnormal {
-    font-family: KaTeX_Math, KaTeX_Main, 'Times New Roman', serif;
-    font-style: italic;
-}
-.katex .mathcal {
-    font-family: KaTeX_Caligraphic, KaTeX_Main, 'Times New Roman', serif;
-}
-.katex .mathfrak,
-.katex .textfrak {
-    font-family: KaTeX_Fraktur, KaTeX_Main, 'Times New Roman', serif;
-}
-.katex .mathscr,
-.katex .textscr {
-    font-family: KaTeX_Script, KaTeX_Main, 'Times New Roman', serif;
-}
-.katex .mathrm,
-.katex .textrm,
-.katex .textsf,
-.katex .texttt,
-.katex .mop,
-.katex .mathdefault {
-    font-style: normal;
-}
-
-html, body, #app {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
+/* ---------- 1. reset ---------- */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    color: var(--fg);
+    background-color: var(--surface-0);
+    background-image: var(--gradient-panel);
+    background-attachment: fixed;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     overflow: hidden;
+    overscroll-behavior: none;
 }
 
-/* 安全区：Android 15 强制 edge-to-edge，靠 index.html 的 viewport-fit=cover 让 env() 生效；桌面/老安卓恒 0 可无条件全局加；内部 100vh 容器须改 100% */
+/* ---------- 2. 应用容器与安全区（Android 15 edge-to-edge） ---------- */
 #app {
+    width: 100%; height: 100%; overflow: hidden;
     padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
     padding-left: env(safe-area-inset-left, 0px);
-    padding-right: env(safe-area-inset-right, 0px);
+}
+#app > * { min-width: 0; min-height: 0; }
+
+/* ---------- 3. 全局排版 ---------- */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-tight);
+    color: var(--fg);
+}
+h1 { font-size: var(--text-3xl); }
+h2 { font-size: var(--text-2xl); }
+h3 { font-size: var(--text-xl); }
+h4 { font-size: var(--text-lg); }
+h5, h6 { font-size: var(--text-base); }
+p { line-height: var(--leading-relaxed); }
+small { font-size: var(--text-sm); color: var(--fg-muted); }
+code, pre, kbd, samp { font-family: var(--font-mono); font-size: 0.92em; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { background: none; border: 0; padding: 0; cursor: pointer; }
+img, svg, video, canvas { display: block; max-width: 100%; }
+ul, ol { list-style: none; }
+a { color: var(--fg-link); text-decoration: none; }
+a:hover { color: var(--brand-hover); }
+[hidden] { display: none; }
+::selection { background: var(--brand-soft); color: var(--fg); }
+
+/* ---------- 4. 焦点可见（唯一来源，原语不得再改 outline 颜色） ---------- */
+:focus { outline: none; }
+:focus-visible {
+    outline: var(--focus-width) solid var(--focus-color);
+    outline-offset: var(--focus-offset);
 }
 
-body {
-    background: linear-gradient(160deg, var(--bg-app), var(--bg-gradient-end));
+/* ---------- 5. 滚动条（全局一次；组件禁止再写 ::-webkit-scrollbar） ---------- */
+* { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: var(--radius-pill);
 }
+*::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); background-clip: padding-box; }
+*::-webkit-scrollbar-corner { background: transparent; }
 
-* {
-    scrollbar-width: thin;
-    scrollbar-color: var(--scrollbar-thumb) transparent;
-}
-*::-webkit-scrollbar { width: 5px !important; height: 5px !important; }
-*::-webkit-scrollbar-track { background: transparent !important; }
-*::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb) !important; border-radius: 3px !important; }
-*::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover) !important; }
+/* ---------- 6. 平台（Web / Capacitor Android） ---------- */
+body.web { user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+body.web :is(input, textarea, [contenteditable='true']) { user-select: text; -webkit-user-select: text; }
+/* web/移动端不显示桌面窗口标题栏（P1：迁移期曾丢失，导致所有页面整体下移 32px） */
+body.web .title-bar { display: none; }
 
-.app {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(135deg, var(--bg-app), var(--bg-gradient-end));
-    overflow: hidden;
-    animation: appFadeIn var(--duration-slow) ease-out forwards;
-    position: relative;
-}
-
-.title-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 32px;
-    background: var(--bg-app);
-    border-bottom: 1px solid var(--border-3d-dark);
-    box-shadow: var(--shadow-title-bar);
-    flex-shrink: 0;
-    z-index: 1000;
-    user-select: none;
-}
-.title-bar-drag {
-    flex: 1;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    padding-left: 12px;
-    -webkit-app-region: drag;
-}
-.title-bar-title {
-    font-size: var(--font-size-small);
-    color: var(--text-secondary);
-}
-.title-bar-controls {
-    display: flex;
-    height: 100%;
-    -webkit-app-region: no-drag;
-}
-.title-btn {
-    width: 46px;
-    height: 100%;
-    border: none;
-    background: transparent;
-    color: var(--text-secondary);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: var(--font-size-small);
-    transition: background 0.15s, color 0.15s;
-}
-.title-btn:hover { background: var(--bg-conversation-hover); color: var(--text-primary); }
-.title-close:hover { background: var(--title-close-hover); color: var(--text-on-accent); }
-
-.app-body {
-    display: flex;
-    flex: 1;
-    overflow: hidden;
-    min-height: 0;
-}
-/* 通用返回按钮（工具内部 & 头像菜单子页共用）：圆角小图标，嵌入 header 与标题同行 */
-.md-back-btn {
-    border: none;
-    background: var(--bg-input);
-    color: var(--text-secondary);
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: var(--font-size-base);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: all var(--duration-fast) ease;
-}
-.md-back-btn:hover { background: var(--accent-light); color: var(--accent); }
-.app::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(150px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), var(--gradient-subtle), transparent 55%);
-    pointer-events: none;
-    z-index: 999;
-    transition: background 0.45s ease;
-}
-.app.no-mouse-gradient::after {
-    display: none;
-}
-
-.view-fade {
-    width: 100%;
-    height: 100%;
-    transition: opacity 0.3s ease;
-}
-.view-fade.view-fade-out {
-    opacity: 0;
-}
-.particle-canvas {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 9999;
-}
-@keyframes appFadeIn {
-    from { opacity: 0; transform: scale(0.98); }
-    to { opacity: 1; transform: scale(1); }
-}
-
-@media (max-width: 768px) {
-    .app { max-height: 100vh; border-radius: 0; }
-    .list-section { width: 220px; min-width: 180px; }
-    /* 不在宽度媒体查询中缩放 navbar/图标：桌面侧栏窄窗口下保持原尺寸，
-       底部 TabBar 形态由 .app-body.narrow（高宽比驱动）统一处理，避免误伤宽模式 */
-}
-
-.editable-name {
-    font-size: var(--font-size-large);
-    font-weight: 500;
-    color: var(--text-primary);
-    margin: 0;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    cursor: default;
-}
-.editable-name.editable {
-    cursor: pointer;
-}
-.editable-name.editable:hover {
-    color: var(--accent);
-}
-.edit-icon {
-    font-size: var(--font-size-base);
-    color: var(--text-secondary);
-    opacity: 0.6;
-    transition: opacity 0.2s;
-}
-.editable-name.editable:hover .edit-icon {
-    opacity: 1;
-    color: var(--accent);
-}
-
-/* ========== Web/Android 平台（body.web，由入口 main.js 在安装适配层时添加） ========== */
-/* 移动端由系统状态栏 + NavBar 承担标题职责，隐藏桌面自定义标题栏（含窗口控制按钮） */
-body.web .title-bar {
-    display: none;
-}
-/* 系统状态栏透明沉浸：顶部留出安全区（刘海屏） */
-body.web .app {
-    padding-top: env(safe-area-inset-top, 0px);
-}
-/* 触屏设备去掉悬停依赖的提示 */
-body.web {
-    user-select: none;
-    -webkit-user-select: none;
-    touch-action: manipulation;
-}
-/* 输入类元素保留文本选择与缩放行为（iOS/Android WebView 禁缩放会导致输入字号<16px 时自动放大） */
-body.web input,
-body.web textarea,
-body.web [contenteditable] {
-    user-select: text;
-    -webkit-user-select: text;
-}
-
-/* 搜索关键词高亮（utils.highlightKeyword 产出的 <mark class="search-highlight">）
-   此前一直没有样式定义，各处都在吃浏览器默认的黄底黑字，在深色主题下很突兀 */
+/* ---------- 7. 第三方/内容白名单 ---------- */
+/* 搜索关键词高亮（utils.highlightKeyword 产出的 <mark class="search-highlight">） */
 mark.search-highlight {
-    background: var(--accent-light);
-    color: var(--accent);
-    border-radius: 3px;
+    background: var(--brand-soft);
+    color: var(--brand);
+    border-radius: var(--radius-xs);
     padding: 0 2px;
 }
 
-/* 一级页面标题（消息 / 工具 / 设置）统一带一枚小图标，图标与左侧导航同一套 fa 图标。
-   配色沿用公告页既有约定：--accent + 6px 间距。 */
+/* ---------- 7. 页面级标题（跨页面共享排版：消息/工具/设置/关于/公告/搜索） ---------- */
 .page-title i {
-    color: var(--accent);
-    margin-right: 6px;
+    color: var(--brand);
+    margin-right: var(--space-3);
 }
 
-/* 工具类（Markdown / 图片编辑 / 图编辑器）统一的保存状态文字。
-   文案由 utils.toolSaveState() 统一给出，这里只负责样式，避免三个工具各写一套。
-   --success / --warning 定义在 css/themes/default.css 的 :root 里，
-   各主题只覆盖自己列出的变量，因此这两个色值在全部主题下都可用。 */
-.tool-save-state {
-    flex-shrink: 0;
-    font-size: 11px;
-    white-space: nowrap;
-}
-
-.tool-save-state.is-clean {
-    color: var(--success);
-}
-
-.tool-save-state.is-dirty {
-    color: var(--warning);
-}

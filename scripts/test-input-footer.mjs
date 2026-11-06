@@ -82,6 +82,10 @@ await esbuild.build({
   loader: { '.css': 'empty' },
   define: {
     'process.env.NODE_ENV': '"development"',
+    // 原语里用 import.meta.env.DEV 做开发期告警守卫，临时 harness 需补齐该对象
+    'import.meta.env.DEV': 'true',
+    'import.meta.env.PROD': 'false',
+    'import.meta.env.MODE': '"development"',
     __VUE_OPTIONS_API__: 'true',
     __VUE_PROD_DEVTOOLS__: 'false',
     __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: 'false',
@@ -249,6 +253,9 @@ chk('跟随滚动：写入后无回灌抖动（位置稳定）', pvEl.scrollTop 
 // -- 8. 分隔条拖拽改宽 + 边缘吸附隐藏 --
 {
   const g = await mountFooter()
+  // 预览默认收起，拖拽前先点「预览」按钮展开双栏
+  g.root.querySelector('.preview-btn').click()
+  await flush()
   // happy-dom 无布局（splitRect 宽 0），走纯 clamp 分支
   mouse(g.divider, 'mousedown', { clientX: 100 })
   win.document.dispatchEvent(new win.MouseEvent('mousemove', { bubbles: true, clientX: 160 }))
@@ -259,6 +266,8 @@ chk('跟随滚动：写入后无回灌抖动（位置稳定）', pvEl.scrollTop 
 }
 {
   const g = await mountFooter()
+  g.root.querySelector('.preview-btn').click()
+  await flush()
   // 伪造分栏容器布局尺寸，验证边缘吸附隐藏/回拖恢复
   const splitEl = g.divider.parentElement
   splitEl.getBoundingClientRect = () => ({ left: 0, top: 0, right: 400, bottom: 0, width: 400, height: 0, x: 0, y: 0, toJSON() {} })

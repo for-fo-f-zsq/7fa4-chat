@@ -1,94 +1,136 @@
+/* ========== 鼠尾草（Sage）：低饱和浅绿 ==========
+   浅绿灰底：应用底色、侧栏、输入框都带一点草绿灰调，避免大面积纯白。
+   约定：浅色填充统一配深绿墨色文字（--text-on-accent），不出现深色实心块。
+   头像色板：--avatar-tint-1..8 为 8 组极浅底色（红/橙/黄/绿/青/蓝/紫/中性），--avatar-tint-text 为统一深墨字。 */
 .theme-sage {
-        --bg-app: #F5F5F0;
-        --bg-sidebar: #E8E8E0;
-        --bg-sidebar-hover: #D8D8CC;
-        --bg-sidebar-active: #C8C8B8;
-        --bg-conversation-hover: #E0E0D4;
-        --bg-conversation-active: #C8C8B8;
-        --bg-conversation-press: #B8B8A4;
-        --bg-input: #E0E0D4;
-        --bg-input-focus: #D8D8CC;
-        --bg-input-footer-focus: #F5F5F0;
-        --bg-code-block: rgba(120, 144, 108, 0.06);
-        --bg-code-inline: rgba(120, 144, 108, 0.1);
-        --bg-code-inline-self: rgba(120, 144, 108, 0.14);
-        --bg-token-badge: #D8D8CC;
-        --bg-token-badge-hover: rgba(120, 144, 108, 0.1);
-        --bg-settings-info: #F5F5F0;
-        --bg-about-content: #F5F5F0;
-        --bg-action-panel: #E8E8E0;
-        --bg-table-header: #E8E8E0;
-        --bg-role-owner: #FFF3E0;
-        --bg-role-admin: #E0E8D8;
-        --bg-role-member: #E0E0D4;
-        --bg-role-owner-hover: #FFE0B2;
-        --bg-role-admin-hover: #D0DCC4;
-        --bg-role-member-hover: #D0D0C0;
-        --bg-modal-overlay: rgba(0, 0, 0, 0.5);
-        --bg-group-detail: #F5F5F0;
+  /* ---------- 背景（浅绿层次） ---------- */
+  --bg-app: #F1F5EF;
+  --bg-sidebar: #E8EFE6;
+  --bg-sidebar-hover: #DEE8DB;
+  --bg-sidebar-active: #D3E0CF;
+  --bg-conversation-hover: #EAF1E7;
+  --bg-conversation-active: #DDE8D9;
+  --bg-conversation-press: #D1DFCC;
+  --bg-input: #EAF1E7;
+  --bg-input-focus: #E2EDDF;
+  --bg-input-footer-focus: #F6FAF4;
+  --bg-code-block: rgba(110, 138, 108, 0.08);
+  --bg-code-inline: rgba(110, 138, 108, 0.10);
+  --bg-code-inline-self: rgba(60, 92, 64, 0.12);
+  --bg-token-badge: #E6EFE2;
+  --bg-token-badge-hover: #DBE8D6;
+  --bg-settings-info: #F6FAF4;
+  --bg-about-content: #F6FAF4;
+  --bg-action-panel: #EEF4EB;
+  --bg-table-header: #EBF2E8;
+  --bg-role-owner: #F7EFE2;
+  --bg-role-admin: #E6EFE2;
+  --bg-role-member: #F0F4EE;
+  --bg-role-owner-hover: #F2E5D2;
+  --bg-role-admin-hover: #DCE9D7;
+  --bg-role-member-hover: #E8EFE5;
+  --bg-modal-overlay: rgba(44, 62, 46, 0.38);
+  --bg-group-detail: #F6FAF4;
+  --bg-gradient-end: #E4EEDF;
 
-        --border-light: #C8C8B8;
-        --border-table: #B8B8A4;
-        --border-row: #D0D0C0;
-        --border-conversation-bottom: rgba(120, 144, 108, 0.05);
+  /* ---------- 边框 ---------- */
+  --border-light: #D6E1D1;
+  --border-table: #DAE5D5;
+  --border-row: #E4EDE0;
+  --border-conversation-bottom: rgba(70, 96, 70, 0.06);
+  --border-3d-light: rgba(255, 255, 255, 0.85);
+  --border-3d-dark: rgba(56, 80, 58, 0.10);
 
-        --text-primary: #2A2A20;
-        --text-secondary: #787868;
-        --text-sidebar: #585848;
-        --text-link: #6A8A58;
-        --text-link-self: #78906C;
-        --text-placeholder: #A0A090;
-        --text-error: #C84040;
-        --text-mute-warning: #C84040;
-        --text-mute-normal: #78906C;
-        --text-hint: #787868;
-        --text-self-bubble-time: rgba(42, 42, 32, 0.35);
-        --text-blockquote: #686858;
+  /* ---------- 文字 ---------- */
+  --text-primary: #2C3830;
+  --text-secondary: #5C6B5F;
+  --text-sidebar: #4B5A4E;
+  --text-link: #46684E;
+  --text-link-self: #2F5D3E;
+  --text-placeholder: #637065;
+  --text-error: #9C6059;
+  --text-mute-warning: #9C6059;
+  --text-mute-normal: #6C8F72;
+  --text-hint: #647461;
+  --text-self-bubble-time: rgba(20, 40, 24, 0.52);
+  --text-blockquote: #5B6E5F;
+  --text-on-accent: #1C2A22;
+  --text-unread-badge: #9B5A51;
+  --text-role-owner: #8D6635;
+  --text-idle: #6A7D6E;
 
-        --accent: #78906C;
-        --accent-hover: #687E5C;
-        --accent-active: #586E4C;
-        --accent-light: rgba(120, 144, 108, 0.1);
-        --accent-outline: rgba(120, 144, 108, 0.3);
-        --gradient-accent: rgba(120, 144, 108, 0.2);
-        --gradient-subtle: rgba(120, 144, 108, 0.06);
+  /* ---------- 品牌色（低饱和灰绿，浅填充＋深墨字） ---------- */
+  --accent: #8FA98C;
+  --accent-hover: #7F9B7D;
+  --accent-active: #72906F;
+  --accent-light: rgba(143, 169, 140, 0.16);
+  --accent-outline: rgba(143, 169, 140, 0.36);
+  --gradient-accent: rgba(143, 169, 140, 0.26);
+  --gradient-subtle: rgba(143, 169, 140, 0.09);
 
-        --message-self-bg: #C8D4B8;
-        --message-self-text: #2A2A20;
-        --message-other-bg: #FFFFFF;
+  /* ---------- 消息气泡 ---------- */
+  --message-self-bg: #D3E4CE;
+  --message-self-text: #16241A;
+  --message-other-bg: #FAFCF9;
 
-        --avatar-grad-default: #D8D8CC
-        --avatar-icon-color: #585848;
-        --avatar-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        --avatar-msg-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  /* ---------- 头像 ---------- */
+  --avatar-grad-default: #DDE9D8;
+  --avatar-icon-color: #4B5A4E;
+  --avatar-shadow: 0 2px 8px rgba(52, 76, 56, 0.12), 0 1px 3px rgba(52, 76, 56, 0.06);
+  --avatar-msg-shadow: 0 2px 6px rgba(52, 76, 56, 0.10), 0 1px 2px rgba(52, 76, 56, 0.04);
 
-        --shadow-card: 0 1px 4px rgba(0, 0, 0, 0.04);
-        --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
-        --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.15);
-        --shadow-btn-hover: 0 4px 12px rgba(120, 144, 108, 0.3);
-        --shadow-logout-hover: 0 4px 12px rgba(200, 64, 64, 0.3);
-        --shadow-bubble-hover: 0 2px 8px rgba(0, 0, 0, 0.05);
-        --shadow-input-focus: 0 0 0 2px rgba(120, 144, 108, 0.12);
+  /* ---------- 头像色板（浅底深字，随主题切换） ---------- */
+  --avatar-tint-1: #EEF2EC;
+  --avatar-tint-2: #F6E7E3;
+  --avatar-tint-3: #F7EDE0;
+  --avatar-tint-4: #F1F0DC;
+  --avatar-tint-5: #E4EFDF;
+  --avatar-tint-6: #E2EFEC;
+  --avatar-tint-7: #E8EDF4;
+  --avatar-tint-8: #F0E9F1;
+  --avatar-tint-text: #2A3A2E;
 
-        --scrollbar-thumb: #B8B8A4;
-        --scrollbar-thumb-hover: #A0A090;
+  /* ---------- 阴影 ---------- */
+  --shadow-card: 0 2px 4px rgba(52, 76, 56, 0.08), 0 4px 12px rgba(52, 76, 56, 0.06);
+  --shadow-card-hover: 0 6px 16px rgba(52, 76, 56, 0.14), 0 2px 6px rgba(52, 76, 56, 0.06);
+  --shadow-modal: 0 16px 48px rgba(40, 62, 46, 0.22), 0 6px 16px rgba(40, 62, 46, 0.10);
+  --shadow-btn-hover: 0 8px 20px rgba(143, 169, 140, 0.32), 0 4px 8px rgba(143, 169, 140, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  --shadow-logout-hover: 0 8px 20px rgba(197, 130, 120, 0.30), 0 4px 8px rgba(197, 130, 120, 0.15);
+  --shadow-bubble-hover: 0 6px 16px rgba(52, 76, 56, 0.12), 0 2px 6px rgba(52, 76, 56, 0.05);
+  --shadow-bubble-self: 0 2px 8px rgba(128, 160, 128, 0.20), 0 4px 12px rgba(128, 160, 128, 0.10);
+  --shadow-input-focus: 0 0 0 3px rgba(143, 169, 140, 0.16), 0 4px 12px rgba(128, 160, 128, 0.12), inset 0 1px 2px rgba(52, 76, 56, 0.04);
 
-        --arrow-border-left: 6px solid var(--message-other-bg);
-        --arrow-border-right: 6px solid var(--message-self-bg);
+  /* ---------- 滚动条 ---------- */
+  --scrollbar-thumb: #BBCBB6;
+  --scrollbar-thumb-hover: #A2B59D;
 
-        --text-on-accent: #FFFFFF;
-        --text-unread-badge: #C84040;
-        --text-role-owner: #B88830;
-        --text-idle: #787868;
-        --border-self-bubble: rgba(0, 0, 0, 0.1);
-        --border-self-blockquote: rgba(0, 0, 0, 0.18);
-        --btn-ripple: rgba(255, 255, 255, 0.2);
-        --logout-hover-bg: #B83030;
+  /* ---------- 气泡箭头 ---------- */
+  --arrow-border-left: 6px solid var(--message-other-bg);
+  --arrow-border-right: 6px solid var(--message-self-bg);
 
-        --bg-gradient-end: #E8E8E0;
---grade-x4: #D97E24; --grade-x5: #C16A15; --grade-x6: #A5530C;
---grade-c1: #10A093; --grade-c2: #0B8379; --grade-c3: #076A62;
---grade-g1: #3FA45B; --grade-g2: #2D8F48; --grade-g3: #1E7A38;
---grade-d1: #4B7AE8; --grade-d2: #3762CC; --grade-d3: #284DB2; --grade-d4: #1D3A96;
---grade-by: #8D96A7; --grade-jl: #CE4E82; --grade-uk: #828B98;
+  /* ---------- 其他 ---------- */
+  --border-self-bubble: rgba(32, 60, 36, 0.12);
+  --border-self-blockquote: rgba(32, 60, 36, 0.20);
+  --btn-ripple: rgba(255, 255, 255, 0.35);
+  --logout-hover-bg: #C58A7E;
+
+  /* ---------- 等级色（洛谷，低饱和微调） ---------- */
+  --grade-x4: #C58A62; --grade-x5: #B27A54; --grade-x6: #9C6A46;
+  --grade-c1: #5E9C93; --grade-c2: #4F8B83; --grade-c3: #417A73;
+  --grade-g1: #6E9E7B; --grade-g2: #5C8D6A; --grade-g3: #4B7B59;
+  --grade-d1: #6B8FC4; --grade-d2: #5B80B6; --grade-d3: #4C71A8; --grade-d4: #3E629B;
+  --grade-by: #8E99A9; --grade-jl: #B97BA0; --grade-uk: #87919F;
+
+  /* ---------- 状态色（低饱和马卡龙） ---------- */
+  --danger: #DFA097;
+  --danger-hover: #D69087;
+  --success: #8FB49A;
+  --warning: #CFA87A;
+  --notice: #C49BB1;
+
+  /* ---------- 主题色板（计时器/公告等需要多色的场景） ---------- */
+  --palette-1: #6C8F8A;
+  --palette-2: #7FA98D;
+  --palette-3: #C9A06E;
+  --palette-4: #B08CA6;
 }

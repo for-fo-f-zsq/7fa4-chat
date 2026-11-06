@@ -1,352 +1,268 @@
-.graph-tool-host {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-}
+/**
+ * 图编辑器（GraphEditor.vue）自有样式 —— 仅本组件以 `<style scoped src>` 引入
+ *
+ * P2-E：从全局加载改为 scoped src；`.graph-tool-host`（GraphTool.vue 根节点样式）
+ * 已移入同目录 graph-tool.css。配色 / 圆角 / 字号 / 动效一律走设计令牌；
+ * `transition: all` 已拆成具体属性。
+ */
 
 .graph-tool {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    background: var(--bg-app);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-0);
 }
 
 .graph-tool-body {
-    flex: 1;
-    min-height: 0;
-    display: flex;
+  flex: 1;
+  min-height: 0;
+  display: flex;
 }
 
 .graph-side {
-    width: 284px;
-    flex-shrink: 0;
-    overflow-y: auto;
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    background: var(--bg-sidebar);
-    border-right: 1px solid var(--border-light);
+  width: 284px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--surface-1);
+  border-right: 1px solid var(--line);
 }
 
 /* 窄模式（手机比例）：侧栏收起为左侧抽屉，画布优先占满 */
 .graph-tool.narrow .graph-side-handle {
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 18px;
-    height: 64px;
-    border-radius: 0 8px 8px 0;
-    background: var(--accent);
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    cursor: pointer;
-    z-index: 6;
-    opacity: 0.85;
-    transition: opacity 0.2s, left 0.22s ease;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-    user-select: none;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 64px;
+  padding: 0;
+  border: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: var(--brand);
+  color: var(--on-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  z-index: 6;
+  opacity: 0.85;
+  transition:
+    opacity var(--motion-dur-fast) var(--motion-ease-standard),
+    left var(--motion-dur-base) var(--motion-ease-enter);
+  box-shadow: var(--elev-2);
+  user-select: none;
 }
+
 .graph-tool.narrow .graph-side-handle:hover {
-    opacity: 1;
+  opacity: 1;
 }
+
 .graph-tool.narrow .graph-side-handle.open {
-    left: 262px;
+  left: 262px;
 }
+
 .graph-tool.narrow .graph-side {
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: 262px;
-    z-index: 5;
-    transform: translateX(-100%);
-    transition: transform 0.22s ease;
-    box-shadow: var(--shadow-elevated);
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 262px;
+  z-index: 5;
+  transform: translateX(-100%);
+  transition: transform var(--motion-dur-base) var(--motion-ease-enter);
+  box-shadow: var(--elev-4);
 }
+
 .graph-tool.narrow .graph-side.open {
-    transform: translateX(0);
+  transform: translateX(0);
 }
+
 .graph-tool.narrow .graph-tool-body {
-    position: relative;
+  position: relative;
 }
+
 .graph-tool.narrow .graph-canvas-col {
-    width: 100%;
+  width: 100%;
 }
 
 .graph-panel {
-    background: var(--bg-app);
-    border: 1px solid var(--border-light);
-    border-radius: 10px;
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  background: var(--surface-0);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-base);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .graph-panel-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
-.graph-panel-title i { color: var(--accent); }
+.graph-panel-title i {
+  color: var(--brand);
+}
 
 .graph-field-label {
-    font-size: 12px;
-    color: var(--text-secondary);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
 }
 
 .graph-field-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .graph-field-row .graph-field-label {
-    flex: 1;
+  flex: 1;
 }
 
-.graph-textarea {
-    width: 100%;
-    resize: vertical;
-    box-sizing: border-box;
-    background: var(--bg-input);
-    border: 1px solid var(--border-light);
-    border-radius: 8px;
-    color: var(--text-primary);
-    padding: 8px;
-    font-family: Consolas, 'Courier New', monospace;
-    font-size: 12px;
-    line-height: 1.5;
-}
-
-.graph-textarea:focus {
-    outline: none;
-    border-color: var(--accent);
-}
+/* 边列表/标签输入：UiTextarea 负责视觉，本文件不再重复输入框样式 */
 
 .graph-select {
-    flex: 1;
-    min-width: 0;
-    background: var(--bg-input);
-    border: 1px solid var(--border-light);
-    border-radius: 8px;
-    color: var(--text-primary);
-    padding: 5px 8px;
-    font-size: 12px;
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--fg);
+  padding: 5px var(--space-2);
+  font-size: var(--text-sm);
 }
 
 .graph-select:focus {
-    outline: none;
-    border-color: var(--accent);
+  outline: none;
+  border-color: var(--brand);
 }
 
+/* 数字输入：UiInput 负责视觉，这里只限定面板内的宽度 */
 .graph-input {
-    width: 76px;
-    flex-shrink: 0;
-    background: var(--bg-input);
-    border: 1px solid var(--border-light);
-    border-radius: 8px;
-    color: var(--text-primary);
-    padding: 5px 8px;
-    font-size: 12px;
-    box-sizing: border-box;
-}
-
-.graph-input:focus {
-    outline: none;
-    border-color: var(--accent);
+  width: 76px;
+  flex-shrink: 0;
 }
 
 /* 布局参数滑块 */
 .graph-slider {
-    flex: 1;
-    min-width: 0;
-    accent-color: var(--accent);
-    cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--brand);
+  cursor: pointer;
 }
+
 .graph-slider-val {
-    flex-shrink: 0;
-    width: 38px;
-    text-align: right;
-    font-size: 11px;
-    color: var(--text-secondary);
+  flex-shrink: 0;
+  width: 38px;
+  text-align: right;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
 }
 
 .graph-input:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.graph-check {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    user-select: none;
-}
-
-.graph-check input {
-    accent-color: var(--accent);
-    cursor: pointer;
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
 }
 
 .graph-btn-row {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-}
-
-.graph-btn {
-    flex: 1;
-    min-width: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 6px 8px;
-    border: 1px solid var(--border-light);
-    border-radius: 8px;
-    background: var(--bg-input);
-    color: var(--text-primary);
-    font-size: 12px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all var(--duration-normal) ease;
-}
-
-.graph-btn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-}
-
-.graph-btn.primary {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
-}
-
-.graph-btn.primary:hover {
-    opacity: 0.88;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .graph-info {
-    font-size: 12px;
-    color: var(--text-secondary);
-    line-height: 1.5;
-    word-break: break-all;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  line-height: var(--leading-normal);
+  word-break: break-all;
 }
 
 .graph-canvas-col {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .graph-toolbar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--border-light);
-    flex-wrap: wrap;
-    flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .graph-tool-group {
-    display: flex;
-    align-items: center;
-    gap: 4px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .graph-tool-divider {
-    width: 1px;
-    height: 22px;
-    background: var(--border-light);
-    margin: 0 2px;
+  width: 1px;
+  height: 22px;
+  background: var(--line);
+  margin: 0 2px;
 }
 
 .graph-tool-spacer {
-    flex: 1;
-}
-
-.graph-tool-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    height: 30px;
-    padding: 0 9px;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--text-secondary);
-    font-size: 13px;
-    cursor: pointer;
-    transition: all var(--duration-fast) ease;
-}
-
-.graph-tool-btn:hover {
-    background: var(--bg-sidebar-hover);
-    color: var(--text-primary);
-}
-
-.graph-tool-btn.active {
-    background: var(--bg-sidebar-active);
-    border-color: var(--accent);
-    color: var(--accent);
-}
-
-.graph-tool-text {
-    font-size: 12px;
+  flex: 1;
 }
 
 .graph-canvas-wrap {
-    flex: 1;
-    min-height: 0;
-    position: relative;
-    overflow: hidden;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
 }
 
 .graph-canvas-wrap canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-    touch-action: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  touch-action: none;
 }
 
 .graph-hint {
-    padding: 6px 12px;
-    font-size: 12px;
-    color: var(--text-secondary);
-    border-top: 1px solid var(--border-light);
-    flex-shrink: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  padding: 6px var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  border-top: 1px solid var(--line);
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.graph-hint i { color: var(--accent); margin-right: 6px; }
-
-/* 大图标无文字按钮 */
-.graph-btn-icon {
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 14px;
+.graph-hint i {
+  color: var(--brand);
+  margin-right: 6px;
 }
-.graph-btn.primary.graph-btn-icon { color: #fff; }
-.graph-btn-icon { flex: 0 0 32px; }
+
+/* 保存状态文字：归属工具页（CONTRACT §3.3 从 base.css 迁出；全局副本可由 Lead 删除）。
+   is-clean / is-dirty 由 utils.toolSaveState() 动态提供，audit 静态扫描可能误报孤儿。 */
+.tool-save-state {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.tool-save-state.is-clean {
+  color: var(--status-success);
+}
+
+.tool-save-state.is-dirty {
+  color: var(--status-warning);
+}

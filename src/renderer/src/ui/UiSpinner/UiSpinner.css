@@ -1,0 +1,37 @@
+.ui-spinner {
+  --spin-size: var(--icon-xl);
+  --spin-width: var(--border-width-thick);
+  --spin-track: var(--line);
+  --spin-color: var(--brand);
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  color: var(--spin-color);
+  line-height: 1;
+}
+
+.ui-spinner--xs {
+  --spin-size: var(--icon-xs);
+}
+
+.ui-spinner--sm {
+  --spin-size: var(--icon-md);
+}
+
+.ui-spinner--md {
+  --spin-size: var(--icon-xl);
+}
+
+.ui-spinner--lg {
+  --spin-size: var(--icon-2xl);
+}
+
+.ui-spinner-ring {
+  display: block;
+  width: var(--spin-size);
+  height: var(--spin-size);
+  border: var(--spin-width) solid var(--spin-track);
+  border-top-color: var(--spin-color);
+  border-radius: 50%;
+}

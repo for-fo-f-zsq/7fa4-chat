@@ -1,6 +1,6 @@
 <template>
-  <div class="userinfo-overlay" @click.self="$emit('close')">
-    <div class="userinfo-modal">
+  <UiModal v-model:open="modalOpen" size="sm" @closed="$emit('close')">
+    <template #header>
       <div class="userinfo-header">
         <div class="user-note-wrapper" v-if="editingName">
           <input
@@ -22,66 +22,59 @@
           </h3>
         </div>
         <div class="userinfo-actions">
-          <button class="userinfo-action-btn" v-if="!isFriend" @click="$emit('addfriend', uid)">
-            <i class="fas fa-plus"></i>
-          </button>
-          <button class="userinfo-action-btn disabled" v-if="isFriend">
-            <i class="fas fa-check"></i>
-          </button>
-          <button class="userinfo-action-btn" v-if="user?.watcher === true" @click="startChat">
-            <i class="fas fa-comment"></i>
-          </button>
-          <button class="userinfo-close" @click="$emit('close')">
-            <i class="fas fa-times"></i>
-          </button>
+          <UiIconButton v-if="!isFriend" icon="fas fa-plus" aria-label="添加好友" size="sm" @click="$emit('addfriend', uid)" />
+          <UiIconButton v-else icon="fas fa-check" aria-label="已是好友" size="sm" disabled />
+          <UiIconButton v-if="user?.watcher === true" icon="fas fa-comment" aria-label="私信" size="sm" @click="startChat" />
         </div>
       </div>
-      <div class="userinfo-body">
-        <div class="userinfo-row">
-          <span class="userinfo-label">Uid</span>
-          <span class="userinfo-value">{{ user?.uid || uid }}</span>
-        </div>
-        <div class="userinfo-row" v-if="user?.username">
-          <span class="userinfo-label">用户名</span>
-          <span class="userinfo-value">{{ user.username }}</span>
-        </div>
-        <div class="userinfo-row" v-if="user?.nickname">
-          <span class="userinfo-label">昵称</span>
-          <span class="userinfo-value">{{ user.nickname }}</span>
-        </div>
-        <div class="userinfo-row" v-if="realName">
-          <span class="userinfo-label">真名</span>
-          <span class="userinfo-value">{{ realName }}</span>
-        </div>
-        <div class="userinfo-row" v-if="gradeLabel">
-          <span class="userinfo-label">年级</span>
-          <span class="userinfo-value" :style="{ color: gradeColor }">{{ gradeLabel }}</span>
-        </div>
-        <div class="userinfo-row" v-if="user?.note">
-          <span class="userinfo-label">备注</span>
-          <span class="userinfo-value">{{ user.note }}</span>
-        </div>
-        <div class="userinfo-row" v-if="gradeClass">
-          <span class="userinfo-label">班级</span>
-          <span class="userinfo-value">{{ gradeClass }}</span>
-        </div>
-        <div class="userinfo-row" v-if="user?.seat">
-          <span class="userinfo-label">座位</span>
-          <span class="userinfo-value">{{ user.seat }}</span>
-        </div>
-        <div class="userinfo-row">
-          <span class="userinfo-label">个人主页</span>
-          <a class="userinfo-value userinfo-link" href="#" @click.prevent="openLink(homepageUrl)">/user/{{ uid }}</a>
-        </div>
+    </template>
+    <div class="userinfo-body">
+      <div class="userinfo-row">
+        <span class="userinfo-label">Uid</span>
+        <span class="userinfo-value">{{ user?.uid || uid }}</span>
+      </div>
+      <div class="userinfo-row" v-if="user?.username">
+        <span class="userinfo-label">用户名</span>
+        <span class="userinfo-value">{{ user.username }}</span>
+      </div>
+      <div class="userinfo-row" v-if="user?.nickname">
+        <span class="userinfo-label">昵称</span>
+        <span class="userinfo-value">{{ user.nickname }}</span>
+      </div>
+      <div class="userinfo-row" v-if="realName">
+        <span class="userinfo-label">真名</span>
+        <span class="userinfo-value">{{ realName }}</span>
+      </div>
+      <div class="userinfo-row" v-if="gradeLabel">
+        <span class="userinfo-label">年级</span>
+        <span class="userinfo-value" :style="{ color: gradeColor }">{{ gradeLabel }}</span>
+      </div>
+      <div class="userinfo-row" v-if="user?.note">
+        <span class="userinfo-label">备注</span>
+        <span class="userinfo-value">{{ user.note }}</span>
+      </div>
+      <div class="userinfo-row" v-if="gradeClass">
+        <span class="userinfo-label">班级</span>
+        <span class="userinfo-value">{{ gradeClass }}</span>
+      </div>
+      <div class="userinfo-row" v-if="user?.seat">
+        <span class="userinfo-label">座位</span>
+        <span class="userinfo-value">{{ user.seat }}</span>
+      </div>
+      <div class="userinfo-row">
+        <span class="userinfo-label">个人主页</span>
+        <a class="userinfo-value userinfo-link" href="#" @click.prevent="openLink(homepageUrl)">/user/{{ uid }}</a>
       </div>
     </div>
-  </div>
+  </UiModal>
 </template>
 
 <script setup>
-import { computed, ref, onMounted, nextTick } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { store } from '../store.js'
 import { displayName, getGradeColor, getGradeLabel, usersJson, localGradeColorKey } from '../utils.js'
+import UiModal from '../ui/UiModal/UiModal.vue'
+import UiIconButton from '../ui/UiIconButton/UiIconButton.vue'
 
 const props = defineProps({
   uid: Number
@@ -117,8 +110,12 @@ const apiUrl = ref('')
 const editingName = ref(false)
 const tempName = ref('')
 const nameInputRef = ref(null)
+const modalOpen = ref(false)
 
 onMounted(async () => {
+  nextTick(() => {
+    modalOpen.value = true
+  })
   try {
     const setting = await window.api.loadSetting()
     apiUrl.value = ((setting.apiUrl || 'https://jx.7fa4.cn').replace(/^http:\/\//, 'https://')) + ':8888'
@@ -139,7 +136,7 @@ function openLink(url) {
 
 function startChat() {
   emit('switchToChat', { type: 'user', id: props.uid })
-  emit('close')
+  modalOpen.value = false
 }
 
 function startEditName() {
@@ -165,5 +162,6 @@ function saveUserNote() {
   }
   editingName.value = false
 }
+</script>
 
-// ========== 头像 ==========</script>
+<style scoped src="../css/user-info.css"></style>

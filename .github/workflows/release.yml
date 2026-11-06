@@ -254,7 +254,60 @@ jobs:
           const PACKAGE_URL = `${API}/packages/generic/${encodeURIComponent(PACKAGE_NAME)}`;
           const LATEST_URL = `${PACKAGE_URL}/latest`;
           // 与 actions/upload-artifact 的产物过滤保持一致（扩展名比较时统一转小写）
+          // 注意：yml/CHANGELOG 仍需上传（自动更新清单与客户端更新日志依赖 latest/），但**不挂** Release 资源链接
           const FILE_EXTS = ['.exe', '.zip', '.appimage', '.deb', '.dmg', '.yml', '.apk'];
+          // Release 资源链接：只挂可下载安装包，按 平台 → 格式 → 架构 → 文件名 排序（与 scripts/release-assets.mjs 同口径）
+          const LINK_TYPE_ORDER = ['windows', 'macos', 'linux', 'android', 'archive'];
+          const LINK_TYPE_BY_EXT = {
+            '.exe': 'windows', '.msi': 'windows',
+            '.dmg': 'macos', '.pkg': 'macos',
+            '.appimage': 'linux', '.deb': 'linux', '.rpm': 'linux',
+            '.apk': 'android',
+            '.zip': 'archive',
+          };
+          const LINK_ARCH_ORDER = ['x64', 'arm64', 'universal'];
+          // 架构别名：x86_64 / amd64 视同 x64；aarch64 视同 arm64（Linux 产物命名不一致）
+          const LINK_ARCH_ALIASES = {
+            x64: ['x64', 'x86_64', 'amd64'],
+            arm64: ['arm64', 'aarch64'],
+            universal: ['universal'],
+          };
+          // 平台内格式顺序：AppImage 优先于 deb/rpm，dmg 优先于 pkg，exe 优先于 msi
+          const LINK_FORMAT_ORDER = {
+            '.appimage': 0, '.deb': 1, '.rpm': 2,
+            '.dmg': 0, '.pkg': 1,
+            '.exe': 0, '.msi': 1,
+          };
+          const LINK_SKIP_NAMES = new Set(['changelog', 'changelog.md', 'builder-debug.yml', 'builder-effective-config.yaml']);
+          const extOf = (name) => { const i = name.lastIndexOf('.'); return i === -1 ? '' : name.slice(i).toLowerCase(); };
+          const isLinkableAsset = (name) => {
+            const lower = String(name).toLowerCase();
+            if (LINK_SKIP_NAMES.has(lower)) return false;
+            const ext = extOf(lower);
+            if (ext === '.yml' || ext === '.yaml' || ext === '.blockmap' || ext === '.json') return false;
+            return Boolean(LINK_TYPE_BY_EXT[ext]);
+          };
+          const linkType = (name) => LINK_TYPE_BY_EXT[extOf(String(name))] || 'archive';
+          const archRank = (name) => {
+            const lower = String(name).toLowerCase();
+            for (let i = 0; i < LINK_ARCH_ORDER.length; i++) {
+              const aliases = LINK_ARCH_ALIASES[LINK_ARCH_ORDER[i]];
+              if (aliases.some((alias) => lower.includes(`-${alias}`) || lower.includes(`_${alias}`))) return i;
+            }
+            return LINK_ARCH_ORDER.length;
+          };
+          const sortLinkNames = (names) => [...names].sort((a, b) => {
+            const ta = LINK_TYPE_ORDER.indexOf(linkType(a));
+            const tb = LINK_TYPE_ORDER.indexOf(linkType(b));
+            if (ta !== tb) return ta - tb;
+            const fa = LINK_FORMAT_ORDER[extOf(a)] ?? 9;
+            const fb = LINK_FORMAT_ORDER[extOf(b)] ?? 9;
+            if (fa !== fb) return fa - fb;
+            const ra = archRank(a);
+            const rb = archRank(b);
+            if (ra !== rb) return ra - rb;
+            return a.localeCompare(b, 'en');
+          });
           const REQUEST_TIMEOUT_MS = 15 * 60 * 1000;
 
           const log = (msg) => console.log(`[gitlab] ${msg}`);
@@ -389,11 +442,15 @@ jobs:
             log(`旧 Release 资源链接清理完成：扫描 ${releasesScanned} 个 Release，删除 ${deletedLinks} 个链接${failedLinks ? `，失败 ${failedLinks} 个` : ''}`);
 
             // ---------- 4. 重建本版本 Release ----------
-            const links = uploadedNames.map((name) => ({
+            // 资源链接只含安装包（排除 CHANGELOG、latest*.yml、.blockmap 等更新元数据），按平台/架构排序
+            const linkableNames = sortLinkNames(uploadedNames.filter(isLinkableAsset));
+            if (linkableNames.length === 0) warn('没有可挂到 Release 资源链接的安装包，Release 将不带资源链接');
+            const links = linkableNames.map((name) => ({
               name,
               url: `${LATEST_URL}/${encodeURIComponent(name)}`,
               link_type: 'package',
             }));
+            log(`Release 资源链接 ${links.length} 个（已排除 CHANGELOG/yml 等非安装包，按平台/架构排序）：${linkableNames.join(' | ')}`);
             const encodedTag = encodeURIComponent(TAG);
             const existing = await request('GET', `/releases/${encodedTag}`);
             if (existing.status === 200) {
@@ -411,7 +468,8 @@ jobs:
               name: `${PACKAGE_NAME} v${VERSION}`,
               description: releaseBody,
               ref: GITLAB_REF, // tag 已存在时该字段被忽略；不存在时用于从默认分支自动建 tag
-              assets: { links },
+              // GitLab 按创建时间倒序展示资源链接，因此创建顺序取目标顺序的逆序，页面上才是正序
+              assets: { links: [...links].reverse() },
             };
             const created = await request('POST', '/releases', {
               body: JSON.stringify(payload),

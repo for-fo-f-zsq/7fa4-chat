@@ -2,30 +2,37 @@
   <div class="graph-tool" :class="{ narrow: isNarrow }">
     <div class="graph-tool-body">
       <!-- 窄模式：侧边把手（抽屉收起时仍可见，点击展开/收起） -->
-      <div v-if="isNarrow" class="graph-side-handle" :class="{ open: sideOpen }" @click="sideOpen = !sideOpen" :title="sideOpen ? '收起输入面板' : '展开输入面板'">
-        <i :class="sideOpen ? 'fas fa-chevron-left' : 'fas fa-chevron-right'"></i>
-      </div>
+      <button
+        v-if="isNarrow"
+        class="graph-side-handle"
+        :class="{ open: sideOpen }"
+        type="button"
+        :aria-label="sideOpen ? '收起输入面板' : '展开输入面板'"
+        :aria-expanded="sideOpen"
+        :title="sideOpen ? '收起输入面板' : '展开输入面板'"
+        @click="sideOpen = !sideOpen"
+      >
+        <i :class="sideOpen ? 'fas fa-chevron-left' : 'fas fa-chevron-right'" aria-hidden="true"></i>
+      </button>
       <div class="graph-side" :class="{ open: sideOpen }">
         <div class="graph-panel">
-          <div class="graph-panel-title"><i class="fas fa-edit"></i> 输入</div>
+          <div class="graph-panel-title"><i class="fas fa-edit" aria-hidden="true"></i> 输入</div>
           <div class="graph-field-label">边列表（u v [w]，输入实时生效，# 开头为注释）</div>
-          <textarea
-            :value="inputText"
-            @input="onInputText"
-            class="graph-textarea"
-            rows="8"
+          <UiTextarea
+            :model-value="inputText"
+            :rows="8"
             spellcheck="false"
             placeholder="1 2&#10;2 3 5&#10;4 4&#10;或 JSON：[[1,2],[2,3,5]]"
-          ></textarea>
+            @update:model-value="onInputText"
+          />
           <div class="graph-field-label">节点标签（可选，每行对应一个节点，_ 跳过）</div>
-          <textarea
-            :value="labelsText"
-            @input="onInputLabels"
-            class="graph-textarea"
-            rows="3"
+          <UiTextarea
+            :model-value="labelsText"
+            :rows="3"
             spellcheck="false"
             placeholder="a&#10;_&#10;c"
-          ></textarea>
+            @update:model-value="onInputLabels"
+          />
           <div class="graph-field-row">
             <span class="graph-field-label">编号起始</span>
             <select v-model.number="offset" class="graph-select">
@@ -34,13 +41,13 @@
             </select>
           </div>
           <div class="graph-btn-row">
-            <button class="graph-btn graph-btn-icon" title="加载示例图" @click="loadExample"><i class="fas fa-file-alt"></i></button>
-            <button class="graph-btn graph-btn-icon" title="清空输入" @click="clearInput"><i class="fas fa-eraser"></i></button>
+            <UiIconButton size="sm" icon="fas fa-file-alt" title="加载示例图" aria-label="加载示例图" @click="loadExample" />
+            <UiIconButton size="sm" icon="fas fa-eraser" title="清空输入" aria-label="清空输入" @click="clearInput" />
           </div>
         </div>
 
         <div class="graph-panel">
-          <div class="graph-panel-title"><i class="fas fa-dice"></i> 随机图</div>
+          <div class="graph-panel-title"><i class="fas fa-dice" aria-hidden="true"></i> 随机图</div>
           <div class="graph-field-row">
             <span class="graph-field-label">类型</span>
             <select v-model="randMode" class="graph-select">
@@ -51,18 +58,33 @@
           </div>
           <div class="graph-field-row">
             <span class="graph-field-label">节点数 n</span>
-            <input v-model.number="randN" type="number" min="1" max="200" class="graph-input" />
+            <UiInput
+              class="graph-input"
+              type="number"
+              size="sm"
+              :model-value="randN"
+              @update:model-value="randN = Number($event) || 1"
+            />
           </div>
           <div class="graph-field-row">
             <span class="graph-field-label">边数 m{{ randMode === 'tree' ? '（树自动）' : '' }}</span>
-            <input v-model.number="randM" type="number" min="0" max="1000" class="graph-input" :disabled="randMode === 'tree'" />
+            <UiInput
+              class="graph-input"
+              type="number"
+              size="sm"
+              :model-value="randM"
+              :disabled="randMode === 'tree'"
+              @update:model-value="randM = Number($event) || 0"
+            />
           </div>
-          <label class="graph-check">
-            <input v-model="randWeighted" type="checkbox" />
-            带权（随机 1-9）
-          </label>
+          <UiSwitch
+            :model-value="randWeighted"
+            size="sm"
+            label="带权（随机 1-9）"
+            @update:model-value="randWeighted = $event"
+          />
           <div class="graph-btn-row">
-            <button class="graph-btn primary graph-btn-icon" title="随机生成图" @click="randomGraph"><i class="fas fa-dice"></i></button>
+            <UiIconButton size="sm" variant="solid" icon="fas fa-dice" title="随机生成图" aria-label="随机生成图" @click="randomGraph" />
           </div>
         </div>
 
@@ -104,15 +126,33 @@
           </select>
           <div v-if="highlight === 'shortest'" class="graph-field-row">
             <span class="graph-field-label">源点</span>
-            <input v-model.number="algoSrc" type="number" min="1" class="graph-input" />
+            <UiInput
+              class="graph-input"
+              type="number"
+              size="sm"
+              :model-value="algoSrc"
+              @update:model-value="algoSrc = Number($event) || 0"
+            />
           </div>
           <div v-if="highlight === 'flow'" class="graph-field-row">
             <span class="graph-field-label">源点</span>
-            <input v-model.number="algoSrc" type="number" min="1" class="graph-input" />
+            <UiInput
+              class="graph-input"
+              type="number"
+              size="sm"
+              :model-value="algoSrc"
+              @update:model-value="algoSrc = Number($event) || 0"
+            />
           </div>
           <div v-if="highlight === 'flow'" class="graph-field-row">
             <span class="graph-field-label">汇点</span>
-            <input v-model.number="algoSink" type="number" min="1" class="graph-input" />
+            <UiInput
+              class="graph-input"
+              type="number"
+              size="sm"
+              :model-value="algoSink"
+              @update:model-value="algoSink = Number($event) || 0"
+            />
           </div>
           <div class="graph-info">{{ info }}</div>
         </div>
@@ -121,67 +161,63 @@
       <div class="graph-canvas-col">
         <div class="graph-toolbar">
           <div class="graph-tool-group">
-            <button
+            <UiIconButton
               v-for="t in tools"
               :key="t.value"
-              class="graph-tool-btn"
-              :class="{ active: mode === t.value }"
+              size="sm"
+              :icon="t.icon"
+              :active="mode === t.value"
               :title="t.label"
+              :aria-label="t.label"
               @click="mode = t.value"
-            >
-              <i :class="t.icon"></i>
-            </button>
+            />
           </div>
           <div class="graph-tool-divider"></div>
           <div class="graph-tool-group">
-            <button
-              class="graph-tool-btn"
-              :class="{ active: directed }"
+            <UiButton
+              size="sm"
+              :variant="directed ? 'primary' : 'secondary'"
+              :icon="directed ? 'fas fa-long-arrow-alt-right' : 'fas fa-exchange-alt'"
               :title="directed ? '当前为有向图，点击切换为无向' : '当前为无向图，点击切换为有向'"
               @click="directed = !directed"
             >
-              <i :class="directed ? 'fas fa-long-arrow-alt-right' : 'fas fa-exchange-alt'"></i>
-              <span class="graph-tool-text">{{ directed ? '有向' : '无向' }}</span>
-            </button>
-            <button
-              class="graph-tool-btn"
-              :class="{ active: !locked }"
+              {{ directed ? '有向' : '无向' }}
+            </UiButton>
+            <UiButton
+              size="sm"
+              :variant="!locked ? 'primary' : 'secondary'"
+              :icon="locked ? 'fas fa-lock' : 'fas fa-unlock'"
               :title="locked ? '已锁定布局，点击解锁' : '自动布局（力导向），点击锁定'"
               @click="toggleLock"
             >
-              <i :class="locked ? 'fas fa-lock' : 'fas fa-unlock'"></i>
-              <span class="graph-tool-text">{{ locked ? '锁定' : '布局' }}</span>
-            </button>
-            <button class="graph-tool-btn" title="重新随机排布并自动布局" @click="restartLayout">
-              <i class="fas fa-magic"></i>
-            </button>
-            <button
-              class="graph-tool-btn"
-              :class="{ active: treeMode }"
+              {{ locked ? '锁定' : '布局' }}
+            </UiButton>
+            <UiIconButton size="sm" icon="fas fa-magic" title="重新随机排布并自动布局" aria-label="重新随机排布并自动布局" @click="restartLayout" />
+            <UiButton
+              size="sm"
+              :variant="treeMode ? 'primary' : 'secondary'"
+              icon="fas fa-sitemap"
               title="树形布局：点击一个节点作为根，按 DFS 树边分层排布"
               @click="toggleTreeMode"
             >
-              <i class="fas fa-sitemap"></i>
-              <span class="graph-tool-text">树形</span>
-            </button>
+              树形
+            </UiButton>
           </div>
           <div class="graph-tool-divider"></div>
           <div class="graph-tool-group">
-            <button class="graph-tool-btn" title="清空画布" @click="clearGraph">
-              <i class="fas fa-trash"></i>
-            </button>
+            <UiIconButton size="sm" icon="fas fa-trash" title="清空画布" aria-label="清空画布" @click="clearGraph" />
           </div>
           <div class="graph-tool-spacer"></div>
           <div class="graph-tool-group">
-            <button class="graph-tool-btn" title="放大" @click="zoomIn"><i class="fas fa-search-plus"></i></button>
-            <button class="graph-tool-btn" title="缩小" @click="zoomOut"><i class="fas fa-search-minus"></i></button>
-            <button class="graph-tool-btn" title="适应画布" @click="fitView"><i class="fas fa-expand"></i></button>
+            <UiIconButton size="sm" icon="fas fa-search-plus" title="放大" aria-label="放大" @click="zoomIn" />
+            <UiIconButton size="sm" icon="fas fa-search-minus" title="缩小" aria-label="缩小" @click="zoomOut" />
+            <UiIconButton size="sm" icon="fas fa-expand" title="适应画布" aria-label="适应画布" @click="fitView" />
           </div>
           <div class="graph-tool-divider"></div>
           <div class="graph-tool-group">
-            <button class="graph-tool-btn" title="从文件载入图（.json）" @click="openFile"><i class="fas fa-folder-open"></i></button>
-            <button class="graph-tool-btn" title="保存 (Ctrl+S)：首次选位置，之后直接覆盖该文件" @click="save"><i class="fas fa-save"></i></button>
-            <button class="graph-tool-btn" title="导出为 PNG 图片" @click="exportImg"><i class="fas fa-file-image"></i></button>
+            <UiIconButton size="sm" icon="fas fa-folder-open" title="从文件载入图（.json）" aria-label="从文件载入图" @click="openFile" />
+            <UiIconButton size="sm" icon="fas fa-save" title="保存 (Ctrl+S)：首次选位置，之后直接覆盖该文件" aria-label="保存" @click="save" />
+            <UiIconButton size="sm" icon="fas fa-file-image" title="导出为 PNG 图片" aria-label="导出为 PNG 图片" @click="exportImg" />
           </div>
           <span class="tool-save-state" :class="saveState.cls" :title="savedPath || (savedName || '尚未保存到文件')">{{ saveState.text }}</span>
         </div>
@@ -208,10 +244,10 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { UiButton, UiIconButton, UiInput, UiSwitch, UiTextarea } from '@/ui'
 import * as algos from './graphAlgos.js'
 import { useNarrow } from '../../../composables/useNarrow.js'
 import { saveToolFile, toolSaveState, flashTip } from '../../../utils.js'
-import './graph-editor.css'
 
 const emit = defineEmits(['back', 'dirty-change'])
 
@@ -483,14 +519,14 @@ function clearInput() {
   clearGraph()
 }
 
-function onInputText(e) {
-  inputText.value = e.target.value
+function onInputText(value) {
+  inputText.value = value
   clearTimeout(parseTimer)
   parseTimer = setTimeout(() => parseInput(true, true), 450)
 }
 
-function onInputLabels(e) {
-  labelsText.value = e.target.value
+function onInputLabels(value) {
+  labelsText.value = value
   clearTimeout(labelsTimer)
   labelsTimer = setTimeout(applyLabelsLive, 300)
 }
@@ -1874,3 +1910,5 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown)
 })
 </script>
+
+<style scoped src="./graph-editor.css"></style>

@@ -1,43 +1,44 @@
 <template>
-  <div class="forward-overlay" @click.self="$emit('close')">
-    <div class="forward-modal">
-      <div class="forward-header">
-        <span>{{ title }}</span>
-        <button class="preview-close" @click="$emit('close')"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="forward-search">
-        <input class="forward-search-input" v-autofocus v-model="searchQuery" placeholder="搜索联系人/群聊..." ref="searchInput" />
-      </div>
-      <div class="forward-list">
-        <div
-          v-for="user in searchedTargets"
-          :key="'u-'+user.uid"
-          class="forward-item"
-          :class="{ active: selectedType === 'user' && selectedId === user.uid }"
-          @click="selectedType = 'user'; selectedId = user.uid"
-        >
-          <i class="fas fa-user"></i> {{ displayName(user) }}
-        </div>
-        <div
-          v-for="group in searchedGroups"
-          :key="'g-'+group.gid"
-          class="forward-item"
-          :class="{ active: selectedType === 'group' && selectedId === group.gid }"
-          @click="selectedType = 'group'; selectedId = group.gid"
-        >
-          <i class="fas fa-users"></i> {{ group.name }}
-        </div>
-        <div v-if="!searchedTargets.length && !searchedGroups.length" class="forward-empty">无匹配结果</div>
-      </div>
-      <button class="forward-send-btn" :disabled="!selectedId" @click="doSend">发送</button>
+  <UiModal v-model:open="open" size="sm" :title="title" @opened="focus" @closed="$emit('close')">
+    <div class="forward-search">
+      <UiInput ref="searchInput" v-model="searchQuery" size="sm" placeholder="搜索联系人/群聊..." />
     </div>
-  </div>
+    <div class="forward-list">
+      <div
+        v-for="user in searchedTargets"
+        :key="'u-'+user.uid"
+        class="forward-item"
+        :class="{ active: selectedType === 'user' && selectedId === user.uid }"
+        @click="selectedType = 'user'; selectedId = user.uid"
+      >
+        <i class="fas fa-user"></i> {{ displayName(user) }}
+      </div>
+      <div
+        v-for="group in searchedGroups"
+        :key="'g-'+group.gid"
+        class="forward-item"
+        :class="{ active: selectedType === 'group' && selectedId === group.gid }"
+        @click="selectedType = 'group'; selectedId = group.gid"
+      >
+        <i class="fas fa-users"></i> {{ group.name }}
+      </div>
+      <div v-if="!searchedTargets.length && !searchedGroups.length" class="forward-empty">无匹配结果</div>
+    </div>
+    <template #footer>
+      <UiButton variant="primary" :disabled="!selectedId" @click="doSend">发送</UiButton>
+    </template>
+  </UiModal>
 </template>
 
+<style scoped src="../css/forward-modal.css"></style>
+
 <script setup>
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed, nextTick, onMounted } from 'vue';
 import { store } from '../store.js';
 import { displayName } from '../utils.js';
+import UiModal from '../ui/UiModal/UiModal.vue';
+import UiInput from '../ui/UiInput/UiInput.vue';
+import UiButton from '../ui/UiButton/UiButton.vue';
 
 const props = defineProps({
   msgContent: { type: String, default: '' },
@@ -50,6 +51,15 @@ const selectedType = ref('');
 const selectedId = ref(null);
 const searchQuery = ref('');
 const searchInput = ref(null);
+
+// 关闭时先播 UiModal 离场，after-leave 后再通知父级卸载
+const open = ref(false);
+
+onMounted(() => {
+  nextTick(() => {
+    open.value = true;
+  });
+});
 
 const forwardTargets = computed(() => Object.values(store.users || {}).filter(u => u.watcher));
 const forwardGroups = computed(() => Object.values(store.groups || {}).filter(g => !g.exited));
@@ -80,7 +90,7 @@ function doSend() {
 }
 
 function focus() {
-  nextTick(() => searchInput.value?.focus());
+  searchInput.value?.$el?.querySelector?.('input')?.focus();
 }
 
 defineExpose({ focus });

@@ -1,0 +1,12 @@
+/* SaveConfirmModal — 面板/遮罩/按钮由 UiModal + UiButton 承载；仅保留正文与「不保存」危险文案色。 */
+.saveconfirm-message {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+}
+
+/* UiButton ghost 的危险语义变体（原语未提供 ghost-danger，按需覆盖文字色） */
+.ui-btn.saveconfirm-discard {
+  color: var(--fg-danger);
+}

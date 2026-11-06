@@ -3,54 +3,66 @@
     <div class="tm-header">
       <div class="tm-header-right">
         <div class="tm-seg tm-layout-seg" title="显示格数">
-          <button v-for="n in LAYOUTS" :key="n" :class="{ on: timer.layout === n }" @click="timer.layout = n">{{ n }} 格</button>
+          <UiButton
+            v-for="n in LAYOUTS"
+            :key="n"
+            size="sm"
+            :variant="timer.layout === n ? 'primary' : 'secondary'"
+            @click="timer.layout = n"
+          >{{ n }} 格</UiButton>
         </div>
-        <button
-          class="tm-icon-btn"
-          :class="{ on: timer.soundOn }"
+        <UiIconButton
+          size="sm"
+          :icon="timer.soundOn ? 'fas fa-volume-high' : 'fas fa-volume-xmark'"
+          :active="timer.soundOn"
           :title="timer.soundOn ? '提示音：开' : '提示音：关'"
+          :aria-label="timer.soundOn ? '关闭提示音' : '开启提示音'"
           @click="timer.soundOn = !timer.soundOn"
-        >
-          <i :class="timer.soundOn ? 'fas fa-volume-high' : 'fas fa-volume-xmark'"></i>
-        </button>
+        />
 
         <!-- 计时器悬浮窗：独立置顶小窗，开了就一直留着（由计时引擎托管），只有点 ✕ 才关（桌面端专属） -->
         <div v-if="timer.floatSupported" class="tm-float-wrap">
           <div class="tm-float-group">
-            <button
-              class="tm-icon-btn tm-float-main"
-              :class="{ on: timer.float.on }"
+            <UiIconButton
+              size="sm"
+              icon="fas fa-window-restore"
+              :active="timer.float.on"
               :title="timer.float.on ? '关闭计时器悬浮窗' : '打开计时器悬浮窗（置顶显示，随时瞄一眼）'"
+              aria-label="计时器悬浮窗"
               @click="toggleFloat"
-            >
-              <i class="fas fa-window-restore"></i>
-            </button>
-            <button
-              class="tm-icon-btn tm-float-caret"
-              :class="{ on: timer.float.on }"
+            />
+            <UiIconButton
+              size="sm"
+              class="tm-float-caret"
+              icon="fas fa-chevron-down"
+              :active="timer.float.on"
               title="悬浮窗设置（位置 / 置顶）"
+              aria-label="悬浮窗设置"
               @click.stop="toggleFloatPanel"
-            >
-              <i class="fas fa-chevron-down"></i>
-            </button>
+            />
           </div>
           <div v-if="timer.floatPanelOpen" class="tm-float-pop" @click.stop>
             <div class="tm-float-title">计时器悬浮窗</div>
             <div class="tm-float-row">
               <span class="tm-float-label">位置</span>
               <div class="tm-float-pos">
-                <button
+                <UiButton
                   v-for="opt in FLOAT_POS"
                   :key="opt.key"
-                  :class="{ on: timer.float.pos === opt.key }"
+                  size="sm"
+                  :variant="timer.float.pos === opt.key ? 'primary' : 'secondary'"
                   :title="opt.label"
                   @click="setFloatPos(opt.key)"
-                >{{ opt.short }}</button>
+                >{{ opt.short }}</UiButton>
               </div>
             </div>
-            <label class="tm-float-check">
-              <input type="checkbox" v-model="timer.float.onTop" @change="pushFloatConfig" /><span>窗口置顶</span>
-            </label>
+            <UiSwitch
+              :model-value="timer.float.onTop"
+              size="sm"
+              label="窗口置顶"
+              @update:model-value="timer.float.onTop = $event"
+              @change="pushFloatConfig"
+            />
             <p class="tm-float-tip">直接拖动悬浮窗可自由移动，位置会被记住；切换「位置」则回到预设角落。</p>
           </div>
         </div>
@@ -58,10 +70,13 @@
     </div>
 
     <div class="tm-actions">
-      <button class="tm-act" :class="anyRunning ? 'hold' : 'go'" @click="toggleAll">
-        <i :class="anyRunning ? 'fas fa-pause' : 'fas fa-play'"></i> {{ anyRunning ? '全部暂停' : '全部开始' }}
-      </button>
-      <button class="tm-act rst" @click="resetAll"><i class="fas fa-rotate-left"></i> 全部重置</button>
+      <UiButton
+        size="md"
+        :variant="anyRunning ? 'secondary' : 'primary'"
+        :icon="anyRunning ? 'fas fa-pause' : 'fas fa-play'"
+        @click="toggleAll"
+      >{{ anyRunning ? '全部暂停' : '全部开始' }}</UiButton>
+      <UiButton size="md" variant="secondary" icon="fas fa-rotate-left" @click="resetAll">全部重置</UiButton>
       <span class="tm-hint" v-if="!isNarrow">输入框回车即开始</span>
     </div>
 
@@ -75,7 +90,7 @@
       >
         <div class="tm-panel-head">
           <button class="tm-who" :class="{ open: pickerOpen === cell.i }" @click="togglePicker(cell.i, $event)">
-            <span v-if="panelUser(cell.p)" class="tm-who-avatar" :style="{ color: panelUser(cell.p).color || 'var(--accent)' }">
+            <span v-if="panelUser(cell.p)" class="tm-who-avatar" :style="{ color: panelUser(cell.p).color || 'var(--brand)' }">
               {{ panelUser(cell.p).initial }}
             </span>
             <i v-else class="fas fa-user tm-who-none"></i>
@@ -83,13 +98,14 @@
             <i class="fas fa-chevron-down tm-who-caret"></i>
           </button>
 
-          <input
-            v-model="cell.p.task"
+          <UiInput
             class="tm-task"
-            type="text"
+            size="sm"
+            :model-value="cell.p.task"
             maxlength="40"
             placeholder="任务（可选）"
             spellcheck="false"
+            @update:model-value="cell.p.task = $event"
             @keydown.enter="onTaskEnter"
           />
 
@@ -131,7 +147,7 @@
                   @keydown.enter.prevent="commitCustomName(cell.i)"
                   @keydown.esc.prevent="customEditing = null"
                 />
-                <button class="tm-picker-custom-ok" title="确定" @click="commitCustomName(cell.i)"><i class="fas fa-check"></i></button>
+                <UiIconButton size="sm" icon="fas fa-check" title="确定" aria-label="确定" @click="commitCustomName(cell.i)" />
               </div>
               <div v-if="!pickerResult.length && !cell.p.customName" class="tm-picker-empty">无匹配用户</div>
               <button
@@ -141,57 +157,61 @@
                 :class="{ sel: cell.p.uid === u.uid && !cell.p.customName }"
                 @click="selectUser(cell.i, u)"
               >
-                <span class="tm-picker-avatar" :style="{ color: u.gradeColor || 'var(--accent)' }">{{ u.initial }}</span>
-                <span class="tm-picker-name" :style="{ color: u.gradeColor || 'var(--text-primary)' }">{{ u.realName }}</span>
+                <span class="tm-picker-avatar" :style="{ color: u.gradeColor || 'var(--brand)' }">{{ u.initial }}</span>
+                <span class="tm-picker-name" :style="{ color: u.gradeColor || 'var(--fg)' }">{{ u.realName }}</span>
                 <span class="tm-picker-meta">{{ u.meta }}</span>
                 <i v-if="cell.p.uid === u.uid && !cell.p.customName" class="fas fa-check tm-picker-check"></i>
               </button>
             </div>
             <div class="tm-picker-foot">
-              <button class="tm-picker-clear" @click="selectUser(cell.i, null)">清空</button>
+              <UiButton size="sm" variant="text" @click="selectUser(cell.i, null)">清空</UiButton>
             </div>
           </div>
         </div>
 
-        <div class="tm-time" :style="timeStyle(cell.p)">{{ timeText(cell.p) }}</div>
+        <div class="tm-time" :class="{ 'motion-blink': cell.p.done }" :style="timeStyle(cell.p)">{{ timeText(cell.p) }}</div>
 
         <div class="tm-progress"><i :style="{ width: progressPct(cell.p) + '%' }"></i></div>
 
         <div class="tm-ctrl">
           <div class="tm-seg">
-            <button :class="{ on: cell.p.mode === 'duration' }" @click="setMode(cell.p, 'duration')">时长</button>
-            <button :class="{ on: cell.p.mode === 'target' }" @click="setMode(cell.p, 'target')">目标时刻</button>
+            <UiButton size="sm" :variant="cell.p.mode === 'duration' ? 'primary' : 'secondary'" @click="setMode(cell.p, 'duration')">时长</UiButton>
+            <UiButton size="sm" :variant="cell.p.mode === 'target' ? 'primary' : 'secondary'" @click="setMode(cell.p, 'target')">目标时刻</UiButton>
           </div>
 
           <div class="tm-fields">
             <template v-if="cell.p.mode === 'duration'">
-              <input
-                v-model="cell.p.durationText"
+              <UiInput
                 class="tm-fld tm-fld-dur"
-                type="text"
+                size="sm"
+                :model-value="cell.p.durationText"
                 placeholder="时:分:秒"
                 spellcheck="false"
-                @input="onDurationInput(cell.p)"
+                @update:model-value="onDurationUpdate(cell.p, $event)"
                 @keydown.enter="start(cell.p)"
               />
               <div class="tm-quick">
-                <button v-for="q in QUICK" :key="q" @click="setQuick(cell.p, q)">{{ q }}′</button>
+                <UiButton v-for="q in QUICK" :key="q" size="sm" variant="secondary" @click="setQuick(cell.p, q)">{{ q }}′</UiButton>
               </div>
             </template>
-            <input
+            <UiInput
               v-else
-              v-model="cell.p.targetText"
               class="tm-fld"
+              size="sm"
               type="datetime-local"
-              @change="onTargetChange(cell.p)"
+              :model-value="cell.p.targetText"
+              @update:model-value="onTargetUpdate(cell.p, $event)"
             />
           </div>
 
           <div class="tm-acts">
-            <button :class="cell.p.running ? 'hold' : 'go'" @click="toggle(cell.p)">
-              <i :class="cell.p.running ? 'fas fa-pause' : 'fas fa-play'"></i> {{ toggleLabel(cell.p) }}
-            </button>
-            <button class="rst" @click="reset(cell.p)"><i class="fas fa-rotate-left"></i> 重置</button>
+            <UiButton
+              size="sm"
+              :variant="cell.p.running ? 'secondary' : 'primary'"
+              :icon="cell.p.running ? 'fas fa-pause' : 'fas fa-play'"
+              @click="toggle(cell.p)"
+            >{{ toggleLabel(cell.p) }}</UiButton>
+            <UiButton size="sm" variant="secondary" icon="fas fa-rotate-left" @click="reset(cell.p)">重置</UiButton>
           </div>
         </div>
       </section>
@@ -210,7 +230,7 @@ import {
   onDurationInput, onTargetChange, setQuick, toggleAll, resetAll,
   toggleFloat, setFloatPos, pushFloatConfig, toggleFloatPanel, saveConfig
 } from './timerStore.js'
-import './timer-tool.css'
+import { UiButton, UiIconButton, UiInput, UiSwitch } from '@/ui'
 
 defineEmits(['back'])
 
@@ -364,6 +384,17 @@ function onTaskEnter(e) {
   e.target.blur()
 }
 
+/* UiInput 不回写原生 v-model，这里先同步到面板对象再走 store 的既有刷新逻辑 */
+function onDurationUpdate(p, value) {
+  p.durationText = value
+  onDurationInput(p)
+}
+
+function onTargetUpdate(p, value) {
+  p.targetText = value
+  onTargetChange(p)
+}
+
 function onDocMouseDown(e) {
   // 悬浮窗设置气泡：点外部即收起
   if (timer.floatPanelOpen && !e.target?.closest?.('.tm-float-wrap')) timer.floatPanelOpen = false
@@ -394,3 +425,4 @@ onBeforeUnmount(() => {
 })
 </script>
 
+<style scoped src="./timer-tool.css"></style>

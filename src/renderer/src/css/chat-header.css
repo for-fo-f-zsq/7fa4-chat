@@ -1,0 +1,95 @@
+/* ChatHeader — 会话头部 scoped 样式（A 域 P2-A）
+   来源：chat-view.css:34-150（剪出），只消费 tokens.css / motion.css 语义令牌。
+   组件内不定义 @keyframes；按钮/头像/徽标外观由 UiIconButton / UiAvatar / UiBadge /
+   BackButton 原语提供（P2-ADOPT-A），本文件只保留头部布局、名称排版与状态徽标间距。 */
+
+.chat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    padding: 0 var(--space-5);
+    background: var(--surface-0);
+    border-bottom: var(--border-width) solid var(--line);
+    box-shadow: var(--elev-chat-header);
+    position: relative;
+    z-index: var(--z-header);
+}
+
+/* 底缘 1px 分隔线（P1-9 收敛：原渐变分隔线改实色 --line） */
+.chat-header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: var(--line);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    flex-shrink: 1;
+}
+
+/* 返回按钮（BackButton 原语自带 scoped 样式，这里只补头部队列间距） */
+.back-icon {
+    margin-right: var(--space-2);
+    flex-shrink: 0;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+.user-info h3 {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-medium);
+    color: var(--fg);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 关注 / 已关注按钮：UiIconButton soft 变体承载按钮语义，
+   旧视觉是品牌软底强调，故在同一原语上补一层品牌色覆盖（不改原语）。 */
+.chat-header .header-watch-btn.ui-icon-btn {
+    flex-shrink: 0;
+    border-radius: var(--radius-base);
+    background: var(--brand-soft);
+    color: var(--brand);
+    transition: background var(--motion-dur-fast) var(--motion-ease-standard),
+                color var(--motion-dur-fast) var(--motion-ease-standard),
+                transform var(--motion-dur-base) var(--motion-ease-spring),
+                box-shadow var(--motion-dur-base) var(--motion-ease-standard);
+}
+.chat-header .header-watch-btn.ui-icon-btn:hover:not(.is-disabled) {
+    background: var(--brand);
+    color: var(--on-brand);
+    transform: scale(1.1);
+    box-shadow: var(--elev-brand-hover);
+}
+.chat-header .header-watch-btn.ui-icon-btn:active:not(.is-disabled) {
+    transform: scale(0.95);
+}
+
+/* 群/用户状态徽标：外观由 UiBadge 变体提供，这里只保留行内间距 */
+.chat-mention-badge {
+    margin-left: var(--space-2);
+}
+.exited-badge {
+    margin-left: var(--space-2);
+}
+.blocked-badge {
+    margin-left: var(--space-1);
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}

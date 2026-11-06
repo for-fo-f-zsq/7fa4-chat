@@ -1,264 +1,267 @@
+/* NavBar — 左侧导航 / 窄屏底部 TabBar scoped 样式（A 域 P2-A）
+   迁移：原全局 nav-bar.css → NavBar.vue scoped；跨组件祖先选择器 `.app-body.narrow` 全部删除，
+   改为 NavBar 自身 prop `narrow` + 根节点 `.navbar.narrow`（ChatView 传入 isNarrowLayout）。
+   动效映射（详见 .team/refactor/EXCEPTIONS.md W9–W10；原 W8 navGlowLine 光条按 P3-FIX-VIS-A P1-9 删除）：
+   - activeGlow（激活项 box-shadow 循环）→ 品牌例外 W9，参数用 --motion-loop-pulse
+   - downloadBreathe（下载入口 box-shadow 循环）→ 品牌例外 W10，参数用 --motion-loop-breathe
+   - indicatorSlide → 过渡化：::before 固定尺寸 + scaleY 过渡（不再有 @keyframes）
+   - badgePulse → 模板挂 .motion-pulse（status 指示）
+   - navUserIn → 模板改 <Transition name="dropdown">
+   - navIndicatorBottom → 死代码，删除
+   performance 档由模板 `.fx-off` 类（store.setting.effectLevel==='performance'）暂停循环并取消脉冲。 */
+
+/* ---------- 1. 容器 ---------- */
 .navbar {
     width: 54px;
-    background: linear-gradient(180deg, var(--bg-sidebar), var(--bg-app));
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 20px 0 16px;
-    gap: 4px;
     flex-shrink: 0;
-    border-right: 1px solid var(--border-3d-dark);
-    box-shadow: var(--shadow-navbar);
+    gap: var(--space-1);
+    padding: var(--space-5) 0 var(--space-4);
+    background: linear-gradient(180deg, var(--surface-1), var(--surface-0));
+    border-right: var(--border-width) solid var(--line);
+    box-shadow: var(--elev-navbar);
     position: relative;
-    z-index: 2;
+    z-index: var(--z-raised);
 }
 
-.navbar::after {
-    content: '';
-    position: absolute;
-    top: 5%;
-    right: -1px;
-    bottom: 5%;
-    width: 2px;
-    background: linear-gradient(180deg, transparent, var(--gradient-accent), var(--accent), var(--gradient-accent), transparent);
-    opacity: 0.5;
-    pointer-events: none;
-    z-index: 2;
-    animation: navGlowLine 3s ease-in-out infinite alternate;
-}
-@keyframes navGlowLine {
-    from { opacity: 0.3; }
-    to { opacity: 0.7; }
-}
+/* P1-9：原 W8 右侧竖直渐变光条按规范删除（装饰光条仅允许关于页/主题卡）。 */
 
+/* ---------- 2. 导航图标按钮（UiIconButton 原语承载按钮语义；本文件只覆盖导航专属令牌/布局） ---------- */
+/* 导航项需要 44×44（原语最大 lg=36），用自定义属性覆盖；ghost 默认色是 --fg-muted，
+   导航栏改用侧栏专属前景色。复合选择器 + 双类选择器是为了压过原语的单类规则（顺序无关）。 */
 .nav-icon {
-    width: 44px;
-    height: 44px;
+    --ibtn-size: var(--control-h-touch);
+    --ibtn-icon: var(--icon-lg);
+}
+.navbar .nav-icon.ui-icon-btn {
+    --ibtn-size: var(--control-h-touch);
+    --ibtn-icon: var(--icon-lg);
+    color: var(--fg-sidebar);
+}
+
+.nav-icon-stack {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border-radius: var(--radius);
-    color: var(--text-sidebar);
-    font-size: var(--font-size-small);
-    font-weight: 400;
-    transition: all var(--duration-normal) cubic-bezier(0.4, 0, 0.2, 1);
-    cursor: pointer;
     gap: 2px;
-    position: relative;
-    overflow: visible;
+    line-height: 1;
+}
+.nav-icon-stack i {
+    font-size: var(--icon-lg);
+    transition: transform var(--motion-dur-base) var(--motion-ease-spring);
+}
+.nav-icon-label {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-regular);
+    line-height: 1;
+    transition: color var(--motion-dur-fast) var(--motion-ease-standard);
 }
 
-.nav-icon i {
-    font-size: 20px;
-    transition: transform var(--duration-normal) cubic-bezier(0.34, 1.56, 0.64, 1);
-    position: relative;
-    z-index: 1;
-}
-
-.nav-icon > span:not(.nav-badge) {
-    font-size: var(--font-size-small);
-    position: relative;
-    z-index: 1;
-    transition: color var(--duration-fast) ease;
-}
-
-.nav-icon.active {
-    background: var(--bg-sidebar-active);
-    color: var(--accent);
-    box-shadow: 0 3px 10px var(--gradient-accent), 0 1px 4px var(--gradient-subtle), inset 0 1px 0 var(--border-3d-light);
-    animation: activeGlow 2.5s ease-in-out infinite alternate;
-}
-@keyframes activeGlow {
-    from { box-shadow: 0 3px 8px var(--gradient-subtle), 0 1px 3px var(--gradient-accent), inset 0 1px 0 var(--border-3d-light); }
-    to { box-shadow: 0 4px 14px var(--gradient-accent), 0 2px 6px var(--gradient-subtle), inset 0 1px 0 var(--border-3d-light); }
-}
-
-.nav-icon.active::before {
+/* 激活指示条：height 动画已过渡化 —— 固定 24px + scaleY（不再用 @keyframes） */
+.nav-icon::before {
     content: '';
     position: absolute;
-    left: 0;
+    left: calc(-1 * var(--space-1));
     top: 50%;
-    transform: translateY(-50%);
     width: 3px;
     height: 24px;
-    background: var(--accent);
-    border-radius: 0 3px 3px 0;
-    animation: indicatorSlide var(--duration-normal) cubic-bezier(0.4, 0, 0.2, 1);
-    z-index: 2;
+    border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+    background: var(--brand);
+    opacity: 0;
+    transform: translateY(-50%) scaleY(0);
+    transform-origin: center;
+    transition: transform var(--motion-dur-base) var(--motion-ease-standard),
+                opacity var(--motion-dur-fast) var(--motion-ease-standard);
+    z-index: var(--z-raised);
+    pointer-events: none;
 }
-@keyframes indicatorSlide {
-    from { height: 0; opacity: 0; }
-    to { height: 24px; opacity: 1; }
+.nav-icon.is-active::before {
+    opacity: 1;
+    transform: translateY(-50%) scaleY(1);
 }
 
-.nav-icon:active { transform: scale(0.95); }
+/* 激活态：W9 box-shadow 循环例外；fx-off 暂停 */
+.navbar .nav-icon.is-active {
+    background: var(--surface-active);
+    color: var(--brand);
+    box-shadow: var(--elev-brand);
+    animation: activeGlow var(--motion-loop-pulse) var(--motion-ease-standard) infinite alternate;
+}
+@keyframes activeGlow {
+    from { box-shadow: var(--elev-brand); }
+    to { box-shadow: var(--elev-brand-hover); }
+}
 
+.navbar .nav-icon:hover:not(.is-active):not(.is-disabled) {
+    background: var(--surface-hover);
+    box-shadow: var(--elev-1);
+    transform: translateY(-1px) scale(1.1);
+}
+.navbar .nav-icon:hover:not(.is-disabled) .nav-icon-stack i {
+    transform: scale(1.1);
+}
+
+/* 未读红点：只保留绝对定位结构；圆点外观/颜色由 UiBadge variant="danger" 提供，脉冲由模板 .motion-pulse */
 .nav-badge {
     position: absolute;
     top: 2px;
     right: 2px;
-    width: 10px;
-    height: 10px;
-    background-color: var(--text-unread-badge);
-    border-radius: 50%;
-    border: 1.5px solid var(--bg-sidebar);
-    box-sizing: border-box;
-    z-index: 10;
+    z-index: var(--z-raised);
     pointer-events: none;
-    box-shadow: var(--shadow-badge), inset 0 1px 0 var(--border-3d-light);
-    animation: badgePulse 2s ease-in-out infinite;
-}
-@keyframes badgePulse {
-    0%, 100% { transform: scale(1); box-shadow: var(--shadow-badge), inset 0 1px 0 var(--border-3d-light); }
-    50% { transform: scale(1.15); box-shadow: 0 0 8px var(--text-unread-badge), var(--shadow-badge), inset 0 1px 0 var(--border-3d-light); }
 }
 
-.navbar .nav-icon:hover { transform: scale(1.1) translateY(-1px); box-shadow: 0 4px 12px var(--gradient-subtle), 0 2px 4px rgba(0, 0, 0, 0.04); }
-.navbar .nav-icon:hover i { transform: scale(1.1); }
-
-/* ========== 未登录（游客）进不去的入口：保留可见，只变浅 + 不可交互 ==========
-   隐藏会让人以为软件没有这个功能；灰掉并悬停提示"登录后可用"，才知道是登录态限制。
-   必须把 hover / active 的缩放与光晕一并压掉，否则看起来仍是可点的。 */
-.nav-icon.disabled {
-    opacity: 0.38;
+/* ---------- 3. 未登录（游客）不可用入口：保留可见，变浅 + 不可交互 ---------- */
+.navbar .nav-icon.is-disabled {
+    opacity: var(--opacity-ghost);
     cursor: not-allowed;
 }
-.nav-icon.disabled:hover { transform: none; box-shadow: none; }
-.nav-icon.disabled:hover i { transform: none; }
-.nav-icon.disabled:active { transform: none; }
-.app-body.narrow .nav-icon.disabled:hover { transform: none; }
-.nav-icon.disabled .nav-badge { display: none; }
+.navbar .nav-icon.is-disabled:hover {
+    background: transparent;
+    box-shadow: none;
+    transform: none;
+}
+.navbar .nav-icon.is-disabled:hover .nav-icon-stack i {
+    transform: none;
+}
+.navbar .nav-icon.is-disabled .nav-badge {
+    display: none;
+}
+
 .nav-user-menu-item.disabled {
-    opacity: 0.38;
+    opacity: var(--opacity-ghost);
     cursor: not-allowed;
 }
-.nav-user-menu-item.disabled:hover { background: transparent; }
-
-/* ========== 网页端专属：客户端下载入口 ==========
-   网页端功能受限（无本地消息存储、无 GeoGebra 离线包等），用强调色 + 呼吸光晕让它始终显眼 */
-.nav-icon.nav-download {
-    color: var(--accent);
-    background: var(--bg-sidebar-active);
-    box-shadow: 0 2px 10px var(--gradient-accent), inset 0 1px 0 var(--border-3d-light);
-    animation: downloadBreathe 2.6s ease-in-out infinite;
+.nav-user-menu-item.disabled:hover {
+    background: transparent;
 }
-.nav-icon.nav-download i { font-size: 19px; }
+
+/* ---------- 4. 网页端专属：客户端下载入口（W10 呼吸光例外） ---------- */
+.navbar .nav-icon.nav-download {
+    color: var(--brand);
+    background: var(--surface-active);
+    box-shadow: var(--elev-brand);
+    animation: downloadBreathe var(--motion-loop-breathe) var(--motion-ease-standard) infinite;
+}
 @keyframes downloadBreathe {
-    0%, 100% { box-shadow: 0 2px 8px var(--gradient-subtle), inset 0 1px 0 var(--border-3d-light); }
-    50% { box-shadow: 0 4px 16px var(--gradient-accent), inset 0 1px 0 var(--border-3d-light); }
+    0%, 100% { box-shadow: var(--elev-brand); }
+    50% { box-shadow: var(--elev-brand-hover); }
 }
-.nav-icon.nav-download:hover {
-    color: var(--accent);
-    transform: scale(1.1) translateY(-1px);
-}
-.app-body.narrow .nav-icon.nav-download {
-    color: var(--accent);
-    border-radius: var(--radius);
+.navbar .nav-icon.nav-download:hover {
+    color: var(--brand);
+    background: var(--surface-active);
 }
 
+/* ---------- 5. Logo ---------- */
 .nav-logo {
-    margin-bottom: 12px;
+    margin-bottom: var(--space-3);
     cursor: pointer;
-    transition: opacity var(--duration-fast, 0.15s) ease;
+    transition: opacity var(--motion-dur-fast) var(--motion-ease-standard);
 }
-.nav-logo:hover { opacity: 0.8; }
+.nav-logo:hover {
+    opacity: 0.8;
+}
 .nav-logo-img {
-    width: 36px;
-    height: 36px;
-    border-radius: var(--radius);
+    width: var(--control-h-lg);
+    height: var(--control-h-lg);
+    border-radius: var(--radius-md);
 }
 
-/* 底部用户头像（左下角固定） */
+/* ---------- 6. 底部用户头像（UiAvatar 原语承载头像外观；本文件只保留位置/悬停个人化） ---------- */
 .nav-user-wrap {
     margin-top: auto;
     display: flex;
     flex-direction: column;
     align-items: center;
     position: relative;
-    padding-top: 8px;
+    padding-top: var(--space-2);
 }
 .nav-user {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: var(--bg-sidebar-active);
-    border: 1px solid var(--border-3d-light);
-    color: var(--accent);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all var(--duration-normal, 0.2s) ease;
-    user-select: none;
+    transition: transform var(--motion-dur-base) var(--motion-ease-spring);
 }
-.nav-user:hover { transform: scale(1.08); box-shadow: 0 3px 10px var(--gradient-accent); }
+.nav-user:hover {
+    transform: scale(1.08);
+}
 .nav-user-initial {
-    font-size: 17px;
-    font-weight: 600;
-    color: var(--accent);
+    font-size: var(--text-xl);
+    font-weight: var(--weight-semibold);
+    color: var(--brand);
 }
-.nav-user-fallback { font-size: 18px; opacity: 0.7; }
+.nav-user-fallback {
+    font-size: var(--text-lg);
+    color: var(--brand);
+    opacity: 0.7;
+}
 
-/* 用户菜单：fixed 定位脱离 navbar stacking context 与 overflow 裁剪，
-   固定显示在左下角头像上方（z-index 高于会话列表 3） */
+/* 有新版本（仅非桌面端置位）：头像红点（UiBadge dot 提供外观，这里只定位） */
+.nav-update-dot {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: var(--z-raised);
+    pointer-events: none;
+}
+
+/* ---------- 7. 用户菜单（fixed 定位，脱离 navbar 层叠/裁剪） ---------- */
 .nav-user-menu {
     position: fixed;
     bottom: 16px;
     left: 58px;
     width: 264px;
-    background: var(--bg-app, #fff);
-    border: 1px solid var(--border-3d-dark);
-    border-radius: 14px;
-    box-shadow: var(--shadow-context, 0 14px 40px rgba(0, 0, 0, 0.28));
-    padding: 8px;
-    z-index: 9999;
     display: flex;
     flex-direction: column;
     gap: 6px;
-    animation: navUserIn 0.16s ease;
-}
-@keyframes navUserIn {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
+    padding: var(--space-2);
+    background: var(--surface-raised);
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--elev-pop);
+    z-index: var(--z-popover);
 }
 .nav-user-menu-head {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 6px 4px 10px;
-    border-bottom: 1px solid var(--border-3d-dark, #eee);
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-1) var(--space-2);
+    border-bottom: var(--border-width) solid var(--line-subtle);
 }
 .nav-user-menu-head-top {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--space-3);
 }
-.nav-user-menu-avatar {
-    width: 46px;
-    height: 46px;
-    min-width: 46px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent), var(--accent-hover));
-    color: #fff;
+.nav-user-initial-lg {
+    font-size: var(--text-2xl);
+    font-weight: var(--weight-bold);
+    color: var(--on-brand);
+}
+.nav-user-menu-names {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 22px;
-    box-shadow: 0 3px 10px var(--gradient-accent);
+    flex-direction: column;
+    min-width: 0;
 }
-.nav-user-initial-lg { font-size: 20px; font-weight: 700; color: #fff; }
-.nav-user-menu-names { display: flex; flex-direction: column; min-width: 0; }
-.nav-user-menu-name { font-size: 15px; font-weight: 650; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.nav-user-menu-uname { font-size: 12px; color: var(--text-hint, #888); }
+.nav-user-menu-name {
+    font-size: var(--text-lg);
+    font-weight: var(--weight-semibold);
+    color: var(--fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.nav-user-menu-uname {
+    font-size: var(--text-sm);
+    color: var(--fg-subtle);
+}
 
 .nav-user-menu-info {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 6px;
-    background: var(--bg-input, #f5f5f5);
-    border-radius: 10px;
-    padding: 8px;
+    padding: var(--space-2);
+    border-radius: var(--radius-base);
+    background: var(--surface-2);
 }
 .nav-user-menu-info .info-item {
     display: flex;
@@ -267,120 +270,110 @@
     min-width: 0;
 }
 .nav-user-menu-info .info-key {
-    font-size: 11px;
-    color: var(--text-hint, #888);
+    font-size: var(--text-xs);
+    color: var(--fg-subtle);
 }
 .nav-user-menu-info .info-val {
-    font-size: 12.5px;
-    font-weight: 550;
-    color: var(--text-primary);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    color: var(--fg);
     word-break: break-all;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 .nav-user-menu-info .info-val.mono {
-    font-family: "SFMono-Regular", Consolas, monospace;
+    font-family: var(--font-mono);
     letter-spacing: 0.3px;
 }
 
-/* 分组容器 */
 .nav-user-menu-group {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 3px 2px;
+    padding: var(--space-1) 2px;
 }
 .nav-user-menu-group + .nav-user-menu-group {
-    border-top: 1px solid var(--border-3d-dark, #eee);
+    border-top: var(--border-width) solid var(--line-subtle);
 }
 .nav-user-menu-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
-    border-radius: 8px;
-    font-size: 13px;
-    color: var(--text-primary);
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    font-size: var(--text-md);
+    color: var(--fg);
     cursor: pointer;
-    transition: background var(--duration-fast, 0.15s) ease, color var(--duration-fast, 0.15s) ease;
+    transition: background var(--motion-dur-fast) var(--motion-ease-standard),
+                color var(--motion-dur-fast) var(--motion-ease-standard);
 }
-.nav-user-menu-item i { width: 18px; text-align: center; color: var(--accent); font-size: 14px; }
-.nav-user-menu-item span { flex: 1; }
-.nav-user-menu-item:hover { background: var(--bg-conversation-hover, rgba(0, 0, 0, 0.06)); }
-.nav-user-menu-item.danger { color: var(--danger, #e64340); }
-.nav-user-menu-item.danger i { color: var(--danger, #e64340); }
-.nav-user-menu-item.danger:hover { background: rgba(230, 67, 64, 0.09); }
+.nav-user-menu-item i {
+    width: var(--space-5);
+    text-align: center;
+    color: var(--brand);
+    font-size: var(--text-base);
+}
+.nav-user-menu-item span {
+    flex: 1;
+}
+.nav-user-menu-item:hover {
+    background: var(--surface-hover);
+}
+.nav-user-menu-item.danger {
+    color: var(--fg-danger);
+}
+.nav-user-menu-item.danger i {
+    color: var(--fg-danger);
+}
+.nav-user-menu-item.danger:hover {
+    background: var(--status-danger-soft);
+}
+.nav-user-menu-item span.nav-update-tag {
+    flex: 0 0 auto;
+}
 
-/* ========== 窄长窗口（手机比例）：导航栏移到底部成 TabBar ==========
-   由 ChatView 的 isNarrowLayout（高/宽比 > 1.4）驱动，.app-body 加 .narrow 类 */
-.app-body.narrow {
-    flex-direction: column;
-}
-.app-body.narrow .navbar {
+/* ---------- 8. 窄屏（高宽比驱动）：导航栏移到底部 TabBar ---------- */
+.navbar.narrow {
     width: 100%;
     height: 58px;
     flex-direction: row;
-    padding: 0 12px;
+    padding: 0 var(--space-3);
+    gap: var(--space-2);
+    order: 99;
     border-right: none;
-    border-top: 1px solid var(--border-3d-dark);
-    box-shadow: 0 -4px 12px var(--shadow-navbar);
-    order: 99; /* 沉到底部 */
-    gap: 8px;
-    flex-shrink: 0;
+    border-top: var(--border-width) solid var(--line);
+    box-shadow: var(--elev-navbar);
 }
-.app-body.narrow .navbar::after {
-    display: none; /* 底部模式下顶部横道光条观感突兀，隐藏 */
+.navbar.narrow .nav-logo {
+    display: none;
 }
-.app-body.narrow .nav-logo {
-    display: none; /* 手机比例空间紧张，隐藏 logo */
+.navbar.narrow .nav-icon.is-active {
+    background: var(--surface-active);
+    border-radius: var(--radius-md);
+    box-shadow: none;
+    animation: none;
 }
-.app-body.narrow .nav-icon.active::before {
-    display: none; /* 移动 TabBar 惯例：不画顶部横线，用图标高亮表达激活态 */
+.navbar.narrow .nav-icon.is-active::before {
+    display: none;
 }
-.app-body.narrow .nav-icon.active {
-    background: var(--bg-sidebar-active);
-    border-radius: var(--radius);
+.navbar.narrow .nav-icon:hover:not(.is-active):not(.is-disabled) {
+    transform: scale(1.08);
 }
-@keyframes navIndicatorBottom {
-    from { width: 0; opacity: 0; }
-    to { width: 22px; opacity: 1; }
-}
-.app-body.narrow .nav-icon:hover { transform: scale(1.08) translateY(0); }
-.app-body.narrow .nav-user-wrap {
+.navbar.narrow .nav-user-wrap {
     margin-top: 0;
     margin-left: auto;
     padding-top: 0;
 }
-.app-body.narrow .nav-user-menu {
+.navbar.narrow .nav-user-menu {
     bottom: 66px;
     left: auto;
     right: 12px;
 }
 
-/* 有新版本（仅非桌面端会置位）：头像红点 + 菜单项标签。
-   颜色用 var(--danger, ...) 带兜底 —— 21 套主题里只有 default.css 定义了 --danger。 */
-.nav-user { position: relative; }
-.nav-update-dot {
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 10px;
-    height: 10px;
-    background-color: var(--danger, #e64340);
-    border-radius: 50%;
-    border: 1.5px solid var(--bg-sidebar);
-    box-sizing: border-box;
-    z-index: 10;
-    pointer-events: none;
-    animation: badgePulse 2s ease-in-out infinite;
-}
-.nav-user-menu-item span.nav-update-tag {
-    flex: 0 0 auto;
-    font-size: 11px;
-    line-height: 1;
-    padding: 3px 6px;
-    border-radius: 8px;
-    color: #fff;
-    background: var(--danger, #e64340);
+/* ---------- 9. performance 档（html.fx-lite 同步）：品牌循环与状态脉冲暂停，不改变布局 ---------- */
+.navbar.fx-off .nav-icon.is-active,
+.navbar.fx-off .nav-icon.nav-download,
+.navbar.fx-off .motion-pulse {
+    animation-play-state: paused;
 }

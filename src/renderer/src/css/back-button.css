@@ -1,0 +1,22 @@
+/* BackButton — 工具内部 / 头像菜单子页共用的圆角小图标返回按钮（scoped，来自 base.css 迁移） */
+.md-back-btn {
+  border: none;
+  background: var(--surface-2);
+  color: var(--fg-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--text-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition:
+    background var(--motion-dur-fast) var(--motion-ease-standard),
+    color var(--motion-dur-fast) var(--motion-ease-standard);
+}
+.md-back-btn:hover {
+  background: var(--brand-soft);
+  color: var(--brand);
+}

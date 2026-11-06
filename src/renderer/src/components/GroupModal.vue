@@ -1,57 +1,60 @@
 <template>
-  <div class="modal-overlay" v-if="groupId" @click.self="$emit('close')">
-    <div class="modal-container">
-      <div class="group-detail-card" v-if="group">
-        <div class="group-detail-header">
-          <div class="group-avatar-section">
-            <div class="group-avatar-container">
-              <div class="avatar-placeholder-lg">{{ group.name ? group.name.charAt(0) : '群' }}</div>
-            </div>
-          </div>
-          <div class="group-name-wrapper" v-if="canEditName && editingName">
-            <input
-              ref="nameInputRef"
-              v-autofocus
-              v-model="tempName"
-              type="text"
-              class="group-name-input"
-              @keydown.enter="saveGroupName"
-              @keydown.esc="cancelEditName"
-              @blur="saveGroupName"
-              maxlength="50"
-            />
-          </div>
-          <div class="group-name-wrapper" v-else>
-            <h3 class="editable-name" :class="{ 'editable': canEditName }" @click="startEditName">
-              {{ group.name }}
-              <i v-if="canEditName" class="fas fa-pencil-alt edit-icon"></i>
-            </h3>
-          </div>
-          <button class="modal-close-btn" @click="$emit('close')"><i class="fas fa-times"></i></button>
+  <UiModal v-model:open="modalOpen" size="md" @closed="finishClose">
+    <template #header>
+      <div class="group-detail-header">
+        <div class="group-avatar-section">
+          <UiAvatar shape="rounded" size="2xl" :color="avatarTint('group:' + (group?.name || ''))" :name="group?.name || '群'" />
         </div>
-        <div class="group-info-section">
-          <div class="group-info-item">
-            <span class="group-info-label">群ID</span>
-            <span class="group-info-value">{{ groupId }}</span>
-          </div>
-          <div class="group-info-item">
-            <span class="group-info-label">成员数</span>
-            <span class="group-info-value">{{ group.users.length }}人</span>
-          </div>
-          <div class="group-info-item">
-            <span class="group-info-label">我的身份</span>
-            <span class="group-info-value"><span class="role-badge" :class="roleClass(selfType)">{{ roleLabel(selfType) }}</span></span>
-          </div>
-          <div class="group-info-item">
-            <span class="group-info-label">我的禁言</span>
-            <span class="group-info-value"><span class="mute-status" :class="selfEffectiveMute > nowSeconds ? 'mute-warning' : 'mute-normal'">{{ selfEffectiveMute > nowSeconds ? getMutetime(selfEffectiveMute, nowSeconds) : '正常' }}</span></span>
-          </div>
+        <div class="group-name-wrapper" v-if="canEditName && editingName">
+          <input
+            ref="nameInputRef"
+            v-autofocus
+            v-model="tempName"
+            type="text"
+            class="group-name-input"
+            @keydown.enter="saveGroupName"
+            @keydown.esc="cancelEditName"
+            @blur="saveGroupName"
+            maxlength="50"
+          />
         </div>
-        <div class="section-title"><i class="fas fa-users"></i> 成员列表({{ group.users.length }}人)</div>
-        <div class="member-search-bar">
-          <input class="member-search-input" v-autofocus v-model="memberSearchQuery" placeholder="搜索成员..." ref="memberSearchInput" />
+        <div class="group-name-wrapper" v-else>
+          <h3 class="editable-name" :class="{ 'editable': canEditName }" @click="startEditName">
+            {{ group?.name }}
+            <i v-if="canEditName" class="fas fa-pencil-alt edit-icon"></i>
+          </h3>
         </div>
-        <div class="table-wrapper">
+      </div>
+    </template>
+    <template v-if="group">
+      <div class="group-info-section">
+        <div class="group-info-item">
+          <span class="group-info-label">群ID</span>
+          <span class="group-info-value">{{ groupId }}</span>
+        </div>
+        <div class="group-info-item">
+          <span class="group-info-label">成员数</span>
+          <span class="group-info-value">{{ group.users.length }}人</span>
+        </div>
+        <div class="group-info-item">
+          <span class="group-info-label">我的身份</span>
+          <span class="group-info-value"><UiBadge :variant="roleBadgeVariant(selfType)" size="sm">{{ roleLabel(selfType) }}</UiBadge></span>
+        </div>
+        <div class="group-info-item">
+          <span class="group-info-label">我的禁言</span>
+          <span class="group-info-value">
+            <UiBadge :variant="selfEffectiveMute > nowSeconds ? 'danger' : 'neutral'" size="sm">
+              {{ selfEffectiveMute > nowSeconds ? getMutetime(selfEffectiveMute, nowSeconds) : '正常' }}
+            </UiBadge>
+          </span>
+        </div>
+      </div>
+      <div class="section-title"><i class="fas fa-users"></i> 成员列表({{ group.users.length }}人)</div>
+      <div class="member-search-bar">
+        <UiInput ref="memberSearchInput" v-model="memberSearchQuery" size="sm" placeholder="搜索成员..." />
+      </div>
+      <Transition name="fade" appear>
+        <div v-if="modalOpen" class="table-wrapper">
           <table class="member-table">
             <thead>
               <tr>
@@ -69,93 +72,130 @@
                 @contextmenu.prevent="openMemberMenu($event, member.user_id)"
               >
                 <td class="member-avatar-cell" @click="emit('openuserinfo', member.user_id)">
-                  <div class="member-avatar">
-                    <div class="avatar-placeholder-xs">{{ getAvatarInitial(member.user_id) }}</div>
-                  </div>
+                  <UiAvatar shape="rounded" size="sm" :color="avatarTint(member.user_id)" :name="getAvatarInitial(member.user_id)" />
                 </td>
                 <td class="user-id-cell" @click="emit('openuserinfo', member.user_id)">{{ member.user_id }}</td>
                 <td class="user-name-cell" @click="emit('openuserinfo', member.user_id)">{{ getUsername(member.user_id, store.users) }}</td>
-                <td><span class="role-badge" :class="roleClass(member.type)">{{ roleLabel(member.type) }}</span></td>
-                <td><span class="mute-status" :class="muteClass(member)">{{ getMutetime(muteValue(member), nowSeconds) }}</span></td>
+                <td><UiBadge :variant="roleBadgeVariant(member.type)" size="sm">{{ roleLabel(member.type) }}</UiBadge></td>
+                <td><UiBadge :variant="muteClass(member) === 'mute-warning' ? 'danger' : 'neutral'" size="sm">{{ muteLabel(member) }}</UiBadge></td>
               </tr>
             </tbody>
           </table>
         </div>
-        <div class="action-panel">
+      </Transition>
+      <Transition name="slide-up" appear>
+        <div v-if="modalOpen" class="action-panel">
           <div class="custom-select" :class="{ open: actionOpen, dropup: actionDropup }" @click="toggleActionSelect" v-click-outside="() => actionOpen = false">
             <div class="custom-select-trigger">
               <span>{{ currentActionLabel }}</span>
               <i class="fas fa-chevron-down custom-select-arrow"></i>
             </div>
-            <div class="custom-select-dropdown" :class="{ dropup: actionDropup }" v-if="actionOpen">
-              <div class="custom-select-option" v-for="a in availableActions" :key="a.value" :class="{ active: actionType === a.value }" @click.stop="selectAction(a.value)">
-                <span>{{ a.label }}</span>
+            <Transition name="dropdown">
+              <div class="custom-select-dropdown" :class="{ dropup: actionDropup }" v-if="actionOpen">
+                <div class="custom-select-option" v-for="a in availableActions" :key="a.value" :class="{ active: actionType === a.value }" @click.stop="selectAction(a.value)">
+                  <span>{{ a.label }}</span>
+                </div>
               </div>
-            </div>
+            </Transition>
           </div>
           <div class="custom-select" :class="{ open: userOpen, dropup: userDropup }" @click="toggleUserSelect" v-click-outside="() => userOpen = false" v-if="showChooseUser && filteredUsers.length">
             <div class="custom-select-trigger">
               <span>{{ currentUserLabel }}</span>
               <i class="fas fa-chevron-down custom-select-arrow"></i>
             </div>
-            <div class="custom-select-dropdown user-dropdown" :class="{ dropup: userDropup }" v-if="userOpen">
-              <div class="custom-select-search" @click.stop>
-                <input class="custom-select-search-input" v-autofocus v-model="userSearchQuery" placeholder="搜索用户..." ref="userSearchInput" />
-              </div>
-              <div class="select-all-option" v-if="multiSelect && searchedUsers.length" @click.stop="toggleSelectAll">
-                <input type="checkbox" :checked="allSearchedSelected" @click.stop.prevent="toggleSelectAll" />
-                <span>全选（已选 {{ selectedUsers.length }}）</span>
-              </div>
-              <div class="custom-select-options">
-                <div class="custom-select-option" v-for="u in searchedUsers" :key="u.id" :class="{ active: selectedUsers.includes(String(u.id)) }" @click.stop="toggleUser(u.id)">
-                  <input type="checkbox" :checked="selectedUsers.includes(String(u.id))" @click.stop.prevent="toggleUser(u.id)" />
-                  <span>{{ u.name }}</span>
+            <Transition name="dropdown">
+              <div class="custom-select-dropdown user-dropdown" :class="{ dropup: userDropup }" v-if="userOpen">
+                <div class="custom-select-search" @click.stop>
+                  <UiInput ref="userSearchInput" v-model="userSearchQuery" size="sm" placeholder="搜索用户..." />
                 </div>
-                <div v-if="!searchedUsers.length" class="custom-select-empty">无匹配结果</div>
+                <div class="select-all-option" v-if="multiSelect && searchedUsers.length" @click.stop="toggleSelectAll">
+                  <UiCheckbox
+                    :model-value="allSearchedSelected"
+                    label="全选"
+                    @click.stop
+                    @update:model-value="toggleSelectAll"
+                  />
+                  <span>（已选 {{ selectedUsers.length }}）</span>
+                </div>
+                <div class="custom-select-options">
+                  <div class="custom-select-option" v-for="u in searchedUsers" :key="u.id" :class="{ active: selectedUsers.includes(String(u.id)) }" @click.stop="toggleUser(u.id)">
+                    <UiCheckbox
+                      :model-value="selectedUsers.includes(String(u.id))"
+                      :aria-label="`选择 ${u.name}`"
+                      @click.stop
+                      @update:model-value="toggleUser(u.id)"
+                    />
+                    <span>{{ u.name }}</span>
+                  </div>
+                  <div v-if="!searchedUsers.length" class="custom-select-empty">无匹配结果</div>
+                </div>
               </div>
-            </div>
+            </Transition>
           </div>
           <div class="group-select-error" v-if="selectError">{{ selectError }}</div>
-          <input v-if="showMuteTime" v-model.number="muteMinutes" type="number" class="mute-input" placeholder="禁言分钟" min="1" />
-          <input v-if="showNewName" v-model="newName" type="text" class="name-input" placeholder="新群名" />
-          <button class="execute-btn" :disabled="!!progress?.show" @click="executeAction">
-            <i v-if="progress?.show" class="fas fa-spinner fa-spin"></i>
+          <div class="action-panel-field" v-if="showMuteTime">
+            <UiInput
+              :model-value="muteMinutes"
+              size="sm"
+              type="number"
+              placeholder="禁言分钟"
+              @update:model-value="(v) => muteMinutes = Number(v) || 0"
+            />
+          </div>
+          <div class="action-panel-field" v-if="showNewName">
+            <UiInput v-model="newName" size="sm" placeholder="新群名" />
+          </div>
+          <UiButton
+            variant="primary"
+            size="md"
+            :loading="!!progress?.show"
+            :disabled="!!progress?.show"
+            @click="executeAction"
+          >
             {{ progress?.show ? formatProgressLabel() : '执行' }}
-          </button>
+          </UiButton>
         </div>
-        <div v-if="progress?.show" class="group-progress-bar">
-          <div class="group-progress-fill" :style="{ width: progressPercent + '%' }"></div>
-          <span class="group-progress-label">{{ progress.label }}</span>
-        </div>
-
-        <GroupActionMenu
-          :visible="menuVisible"
-          :x="menuX"
-          :y="menuY"
-          :gid="groupId"
-          :mid="currentMember"
-          @close="menuVisible = false"
-          @action="onMemberAction"
-        />
-
-        <InputModal
-          v-model:visible="muteModalVisible"
-          title="禁言成员"
-          placeholder="请输入禁言分钟数"
-          confirm-text="确定"
-          @confirm="onMuteMinutesConfirm"
-        />
+      </Transition>
+      <div v-if="progress?.show" class="group-progress-bar">
+        <div class="group-progress-fill" :style="{ width: progressPercent + '%' }"></div>
+        <span class="group-progress-label">{{ progress.label }}</span>
       </div>
-    </div>
-  </div>
+
+      <GroupActionMenu
+        :visible="menuVisible"
+        :x="menuX"
+        :y="menuY"
+        :gid="groupId"
+        :mid="currentMember"
+        @close="menuVisible = false"
+        @action="onMemberAction"
+      />
+
+      <InputModal
+        v-model:visible="muteModalVisible"
+        title="禁言成员"
+        placeholder="请输入禁言分钟数"
+        confirm-text="确定"
+        @confirm="onMuteMinutesConfirm"
+      />
+    </template>
+  </UiModal>
 </template>
+
+<style scoped src="../css/group-modal.css"></style>
 
 <script setup>
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
-import { getUsername, getMutetime, getAvatarInitial, getGradeColor } from '../utils.js'
+import { getUsername, getMutetime, getAvatarInitial, getGradeColor, avatarTint } from '../utils.js'
 import { store } from '../store.js'
 import GroupActionMenu from './GroupActionMenu.vue'
 import InputModal from './InputModal.vue'
+import UiModal from '../ui/UiModal/UiModal.vue'
+import UiInput from '../ui/UiInput/UiInput.vue'
+import UiButton from '../ui/UiButton/UiButton.vue'
+import UiBadge from '../ui/UiBadge/UiBadge.vue'
+import UiAvatar from '../ui/UiAvatar/UiAvatar.vue'
+import UiCheckbox from '../ui/UiCheckbox/UiCheckbox.vue'
 import { vClickOutside } from '../composables/vClickOutside.js'
 import { useMuteConfirm } from '../composables/useMuteConfirm.js'
 import { useNowSeconds } from '../composables/useNowSeconds.js'
@@ -169,6 +209,17 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'submit', 'openuserinfo', 'switchToChat'])
+
+// 浮层开关：父级 v-if 挂载后触发 UiModal 进场，关闭时等离场结束再通知父级卸载
+const modalOpen = ref(false)
+
+function closeModal() {
+  modalOpen.value = false
+}
+
+function finishClose() {
+  emit('close')
+}
 
 // 操作进度辅助（progress 由父组件 submitGroupAction 更新）
 const progressPercent = computed(() => {
@@ -233,12 +284,16 @@ function toggleActionSelect(e) {
   }
 }
 
+function focusUiInput(component) {
+  component?.$el?.querySelector?.('input')?.focus()
+}
+
 function toggleUserSelect(e) {
   userOpen.value = !userOpen.value
   if (userOpen.value) {
     userDropup.value = checkDropup(e.currentTarget)
     userSearchQuery.value = ''
-    nextTick(() => userSearchInput.value?.focus())
+    nextTick(() => focusUiInput(userSearchInput.value))
   }
 }
 
@@ -402,10 +457,10 @@ function roleLabel(type) {
   return '成员'
 }
 
-function roleClass(type) {
-  if (type === 'Owner') return 'role-owner'
-  if (type === 'Administrator') return 'role-admin'
-  return 'role-member'
+function roleBadgeVariant(type) {
+  if (type === 'Owner') return 'warning'
+  if (type === 'Administrator') return 'brand'
+  return 'neutral'
 }
 
 function muteValue(member) {
@@ -415,6 +470,10 @@ function muteValue(member) {
 
 function muteClass(member) {
   return muteValue(member) <= nowSeconds.value ? 'mute-normal' : 'mute-warning'
+}
+
+function muteLabel(member) {
+  return getMutetime(muteValue(member), nowSeconds.value) || '正常'
 }
 
 function onActionChange() {
@@ -490,7 +549,7 @@ function executeAction() {
     title: newName.value
   }
   emit('submit', action)
-  if (actionType.value === 'leave' || actionType.value === 'dissolve' || actionType.value === 'block') emit('close')
+  if (actionType.value === 'leave' || actionType.value === 'dissolve' || actionType.value === 'block') closeModal()
 }
 
 function openMemberMenu(event, member) {
@@ -504,7 +563,7 @@ function openMemberMenu(event, member) {
 
 function onMemberAction(action) {
   if (action.type === 'private_chat') {
-    emit('close')
+    closeModal()
     emit('switchToChat', { type: 'user', id: action.targetId })
     return
   }
@@ -559,11 +618,14 @@ function cancelEditName() {
 
 // ----- 监听全局搜索聚焦事件 -----
 function onFocusGroupSearch() {
-  memberSearchInput.value?.focus()
+  focusUiInput(memberSearchInput.value)
 }
 
 onMounted(() => {
   document.addEventListener('focus-group-search', onFocusGroupSearch)
+  nextTick(() => {
+    modalOpen.value = true
+  })
 })
 
 onUnmounted(() => {

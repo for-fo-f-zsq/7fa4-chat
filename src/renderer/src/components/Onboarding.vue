@@ -3,30 +3,33 @@
     <!-- 全程不遮挡、不拦截任何操作：只在目标上画一圈呼吸描边指个方向，
          气泡常驻提示该做什么，完成由真实状态判定 -->
 
-    <div class="ob-tip" :style="tipStyle" ref="tipEl">
+    <UiCard ref="tipEl" class="ob-tip" size="sm" :style="tipStyle">
       <div class="ob-tip-head" title="按住可拖动气泡" @mousedown="onTipDragStart">
-        <span class="ob-step">第 {{ stepIndex + 1 }} / {{ STEPS.length }} 步</span>
-        <button class="ob-skip" @click="emit('close')">跳过引导</button>
+        <UiBadge class="ob-step" variant="neutral" size="sm">第 {{ stepIndex + 1 }} / {{ STEPS.length }} 步</UiBadge>
+        <UiButton class="ob-skip" variant="text" size="sm" @click="emit('close')">跳过引导</UiButton>
       </div>
       <div class="ob-tip-title">
         <i class="fas" :class="step.icon"></i> {{ step.title }}
       </div>
       <div class="ob-tip-text">{{ step.text }}</div>
       <div class="ob-tip-actions" v-if="step.actionLabel">
-        <button class="ob-btn primary" @click="runAction">{{ step.actionLabel }}</button>
+        <UiButton variant="primary" size="sm" @click="runAction">{{ step.actionLabel }}</UiButton>
       </div>
-    <!-- 高亮框：只画一圈呼吸描边指个方向，不挡任何东西 -->
-    <div class="ob-hole" v-show="ready" :style="holeStyle">      </div>
       <!-- 参观型步骤没有「完成」动作，静态说明一句，避免用户不知道还要不要点什么 -->
       <div class="ob-tip-hint" v-if="isFree">随便试，玩一会儿会自动进入下一步</div>
-    </div>
+    </UiCard>
+
+    <!-- 高亮框：只画一圈呼吸描边指个方向，不挡任何东西 -->
+    <div class="ob-hole" data-ambient v-show="ready" :style="holeStyle"></div>
   </div>
 </template>
 
 <script setup>
+// 用法：<Onboarding v-if="showGuide" @close="showGuide = false" />
+
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { store } from '../store.js'
-import '../css/onboarding.css'
+import { UiBadge, UiButton, UiCard } from '@/ui'
 
 const emit = defineEmits(['close'])
 
@@ -72,7 +75,7 @@ const STEPS = [
     text: '在这里输入校内 OJ 的用户名和密码。登录后会自动保持登录态，下次打开不用再输。',
     // 已进主界面（游客）时登录页不渲染，退一步高亮顶栏横幅的「去登录」
     resolve: () =>
-      document.querySelector('.login-root .btn') ||
+      document.querySelector('.login-root .ui-btn') ||
       byText('.nav-user-menu-item', '登录') ||
       document.querySelector('.banner-login-btn'),
     done: () => !!store.logined,
@@ -146,7 +149,7 @@ const STEPS = [
     title: '挑一个喜欢的主题',
     text: '点头像 → 设置 → 主题：20 多套预设配色还能自定义，点开就能实时预览，整个界面马上换新感觉。',
     resolve: () =>
-      document.querySelector('.theme-modal-card') ||
+      document.querySelector('.ui-modal') ||
       document.querySelector('.theme-row') ||
       byText('.nav-user-menu-item', '设置') ||
       document.querySelector('.nav-user'),
@@ -187,6 +190,8 @@ function sampleBaseline() {
 
 const ready = ref(false)
 const tipEl = ref(null)
+/** 组件 ref 取根节点：UiCard 的根元素挂在 $el 上 */
+const tipNode = computed(() => tipEl.value?.$el || tipEl.value)
 const hole = reactive({ x: 0, y: 0, w: 0, h: 0 })
 const tip = reactive({ x: 0, y: 0 })
 const domDone = reactive({})
@@ -249,16 +254,16 @@ function placeTip(hr, TW, TH) {
 let tipMoved = false
 function onTipDragStart(e) {
   if (e.button !== 0) return
-  tipEl.value?.classList.add('ob-dragging')
+  tipNode.value?.classList.add('ob-dragging')
   const offX = e.clientX - tip.x
   const offY = e.clientY - tip.y
   const move = (ev) => {
     tipMoved = true
-    tip.x = Math.max(12, Math.min(ev.clientX - offX, window.innerWidth - (tipEl.value?.offsetWidth || 330) - 12))
-    tip.y = Math.max(12, Math.min(ev.clientY - offY, window.innerHeight - (tipEl.value?.offsetHeight || 150) - 12))
+    tip.x = Math.max(12, Math.min(ev.clientX - offX, window.innerWidth - (tipNode.value?.offsetWidth || 330) - 12))
+    tip.y = Math.max(12, Math.min(ev.clientY - offY, window.innerHeight - (tipNode.value?.offsetHeight || 150) - 12))
   }
   const up = () => {
-    tipEl.value?.classList.remove('ob-dragging')
+    tipNode.value?.classList.remove('ob-dragging')
     window.removeEventListener('mousemove', move)
     window.removeEventListener('mouseup', up)
   }
@@ -297,7 +302,7 @@ function locate() {
   hole.h = r.height + pad * 2
 
   const TW = 330
-  const TH = (tipEl.value?.offsetHeight || 150) + 4
+  const TH = (tipNode.value?.offsetHeight || 150) + 4
   placeTip(r, TW, TH)
   ready.value = true
 
@@ -374,3 +379,5 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
 })
 </script>
+
+<style scoped src="../css/onboarding.css"></style>

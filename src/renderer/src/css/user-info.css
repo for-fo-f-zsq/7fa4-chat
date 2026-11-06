@@ -1,158 +1,20 @@
-.userinfo-overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--bg-modal-overlay);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 3000;
-  animation: modalFadeIn 0.25s ease;
-  backdrop-filter: blur(4px);
-}
-@keyframes modalFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.userinfo-modal {
-  background-color: var(--bg-group-detail);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-modal), inset 0 1px 0 var(--border-3d-light);
-  border: 1px solid var(--border-3d-dark);
-  display: flex;
-  flex-direction: column;
-  animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  min-width: 370px;
-  max-width: 400px;
-  padding: 20px 24px;
-  position: relative;
-  overflow: hidden;
-}
-.userinfo-modal::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 5%; right: 5%;
-  height: 3px;
-  background: linear-gradient(90deg, transparent, var(--accent), var(--accent-hover), transparent);
-  border-radius: 0 0 3px 3px;
-}
-@keyframes modalSlideIn {
-  from { opacity: 0; transform: scale(0.9) translateY(-20px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
-}
-
+/* 用户信息弹窗内容 — 由 UserInfoModal.vue scoped 引入；浮层外壳（遮罩/面板/焦点锁）由 UiModal 原语承载。 */
 .userinfo-header {
   display: flex;
+  flex: 1;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--border-light);
+  gap: var(--space-2);
+  min-width: 0;
+  /* 长备注名最多 2 行，头部随内容增高但保留上下呼吸位，避免贴住弹窗边框 */
+  padding: var(--space-2) 0;
 }
 
 .userinfo-actions {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-1);
   margin-left: auto;
-}
-
-.userinfo-close {
-  background: none;
-  border: none;
-  color: var(--text-secondary);
-  font-size: var(--font-size-large);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--radius);
-  transition: color 0.2s, background 0.2s;
-}
-.userinfo-close:hover {
-  color: var(--accent);
-  background: var(--bg-conversation-hover);
-}
-
-.userinfo-body {
-  overflow: auto;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.userinfo-row {
-    display: flex;
-    align-items: center;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--bg-conversation-hover);
-    transition: background 0.15s;
-    border-radius: var(--radius);
-}
-.userinfo-row:hover { background: var(--bg-conversation-hover); }
-.userinfo-row:last-child {
-  border-bottom: none;
-}
-
-.userinfo-label {
-  color: var(--text-secondary);
-  display: flex;
-  min-width: 100px;
-  font-size: var(--font-size-large);
-  flex-shrink: 0;
-  justify-content: center;
-}
-
-.userinfo-value {
-    display: flex;
-    color: var(--text-primary);
-    font-size: var(--font-size-large);
-    width: 212px;
-    font-weight: 400;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    justify-content: center;
-}
-
-.userinfo-link {
-  color: var(--accent);
-  cursor: pointer;
-  text-decoration: none;
-  transition: color 0.15s;
-}
-.userinfo-link:hover {
-  text-decoration: underline;
-  color: var(--accent-hover);
-}
-
-.userinfo-action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius);
-  background: var(--accent-light);
-  color: var(--accent);
-  border: none;
-  cursor: pointer;
-  font-size: var(--font-size-base);
-  transition: all 0.2s;
-}
-.userinfo-action-btn:hover {
-  background: var(--accent);
-  color: var(--text-on-accent);
-  transform: scale(1.1);
-  box-shadow: var(--shadow-btn-hover);
-}
-.userinfo-action-btn:active {
-  transform: scale(0.95);
-}
-
-.userinfo-action-btn.disabled,
-.userinfo-action-btn:disabled {
-  pointer-events: none;
-  cursor: default;
-  opacity: 0.5;
 }
 
 .user-note-wrapper {
@@ -161,50 +23,115 @@
 }
 
 .user-note-input {
-  font-size: var(--font-size-large);
-  font-weight: 500;
-  padding: 6px 10px;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  background: var(--bg-input);
-  color: var(--text-primary);
-  outline: none;
   width: 100%;
-  max-width: 200px;
-  transition: box-shadow 0.2s;
-}
-.user-note-input:focus {
-  box-shadow: var(--shadow-input-focus);
+  max-width: calc(var(--space-16) * 3 + var(--space-2));
+  padding: var(--space-1) var(--space-2);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-medium);
+  background: var(--surface-2);
+  border: var(--border-width) solid var(--brand);
+  border-radius: var(--radius-base);
+  outline: none;
+  transition: box-shadow var(--motion-dur-fast) var(--motion-ease-standard);
 }
 
-/* ===== Avatar in UserInfo ===== */
-.userinfo-avatar-row {
-  display: flex;
-  justify-content: center;
-  padding: 8px 0 12px 0;
+.user-note-input:focus {
+  box-shadow: var(--focus-halo);
 }
-.userinfo-avatar {
-  position: relative;
-  width: 80px;
-  height: 80px;
-  border-radius: 40%;
+
+/* 标题编辑：原 base.css 迁移期共享段，C2 scoped 后由本文件拥有；长名字限 2 行并省略 */
+.editable-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  box-shadow: var(--shadow-avatar-hover), 0 0 0 3px rgba(255, 255, 255, 0.8), inset 0 1px 0 var(--border-3d-light);
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: var(--fg);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-medium);
+  line-height: 1.35;
+  cursor: default;
 }
-.userinfo-avatar .avatar-img {
-  position: absolute;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  object-fit: cover;
-  z-index: 1;
+
+.editable-name.editable {
+  cursor: pointer;
 }
-.avatar-placeholder-lg {
-  width: 100%; height: 100%;
+
+.editable-name.editable:hover {
+  color: var(--brand);
+}
+
+.edit-icon {
+  color: var(--fg-muted);
+  font-size: var(--text-base);
+  opacity: 0.6;
+  transition: opacity var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+.editable-name.editable:hover .edit-icon {
+  color: var(--brand);
+  opacity: 1;
+}
+
+.userinfo-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.userinfo-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  color: var(--avatar-icon-color);
-  font-size: var(--font-size-large);
-  font-weight: 600;
-  background: var(--avatar-grad-default);
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: var(--border-width) solid var(--line-subtle);
+  border-radius: var(--radius-base);
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+.userinfo-row:hover {
+  background: var(--surface-hover);
+}
+
+.userinfo-row:last-child {
+  border-bottom: 0;
+}
+
+.userinfo-label {
+  flex: 0 0 auto;
+  min-width: calc(var(--space-16) + var(--space-8));
+  color: var(--fg-muted);
+  font-size: var(--text-lg);
+  text-align: center;
+}
+
+.userinfo-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg);
+  font-size: var(--text-lg);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userinfo-link {
+  color: var(--brand);
+  cursor: pointer;
+  text-decoration: none;
+  transition: color var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+.userinfo-link:hover {
+  color: var(--brand-hover);
+  text-decoration: underline;
+}
+
+.userinfo-link:focus-visible,
+.user-note-input:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
 }

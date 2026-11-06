@@ -1,0 +1,32 @@
+/**
+ * 内置工具外壳（ToolShell.vue）样式 —— 仅本组件 scoped 引入
+ *
+ * 结构：顶部窄条（ToolBar）+ 工具本体插槽。
+ * 视觉与远端工具宿主（ToolHost）保持同构。颜色 / 圆角 / 动效一律走令牌。
+ */
+
+.tool-shell {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-0);
+}
+
+.tool-shell-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ChatView 以 class="ide-host" 透传到本组件根节点：与工具列表一致的页面背景。
+   与 tool-host.css 中的同名规则保持一致（两个宿主各持一份 scoped 规则）。 */
+.ide-host {
+  flex: 1;
+  min-height: 0;
+  background: var(--gradient-panel);
+}

@@ -9,6 +9,8 @@
  */
 import '../../shared/bridge-client.js'
 import '../../shared/tool-base.css'
+// 独立包不经过主窗口 main.js，须自行引入 KaTeX 排版样式（此前缺失导致公式错位）
+import 'katex/dist/katex.min.css'
 
 import { createApp } from 'vue'
 import MarkdownTool from '../../../src/renderer/src/views/tools/MarkdownTool.vue'

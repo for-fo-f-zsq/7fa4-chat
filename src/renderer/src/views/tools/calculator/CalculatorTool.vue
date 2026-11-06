@@ -2,25 +2,35 @@
   <div class="calc-tool" :class="{ narrow: isNarrow }">
     <div class="calc-body">
       <!-- 窄模式：侧边把手（历史抽屉收起时仍可见，点击展开/收起） -->
-      <div v-if="isNarrow" class="calc-side-handle" :class="{ open: historyOpen }" @click="historyOpen = !historyOpen" :title="historyOpen ? '收起历史' : '展开历史'">
-        <i :class="historyOpen ? 'fas fa-chevron-right' : 'fas fa-chevron-left'"></i>
-      </div>
+      <button
+        v-if="isNarrow"
+        class="calc-side-handle"
+        :class="{ open: historyOpen }"
+        type="button"
+        :aria-label="historyOpen ? '收起历史' : '展开历史'"
+        :aria-expanded="historyOpen"
+        :title="historyOpen ? '收起历史' : '展开历史'"
+        @click="historyOpen = !historyOpen"
+      >
+        <i :class="historyOpen ? 'fas fa-chevron-right' : 'fas fa-chevron-left'" aria-hidden="true"></i>
+      </button>
 
       <div class="calc-main">
         <!-- 计算模式 -->
         <div class="calc-modes" role="tablist" aria-label="计算模式">
-          <button
+          <UiButton
             v-for="m in modes"
             :key="m.value"
-            class="calc-mode-btn"
-            :class="{ active: mode === m.value }"
+            size="sm"
+            :variant="mode === m.value ? 'primary' : 'secondary'"
+            :icon="m.icon"
             role="tab"
             :aria-selected="mode === m.value"
             :title="m.desc"
             @click="switchMode(m.value)"
           >
-            <i :class="m.icon"></i>{{ m.label }}
-          </button>
+            {{ m.label }}
+          </UiButton>
         </div>
 
         <!-- 显示区：模数选择固定在输入框左边（仅模数模式出现） -->
@@ -56,13 +66,16 @@
 
         <!-- 函数：一条紧凑网格（原来 5 组各带标题+说明，是页面最长的一块） -->
         <div class="calc-grid calc-grid--funcs">
-          <button
+          <UiButton
             v-for="f in funcKeys"
             :key="f"
-            class="calc-func"
+            size="sm"
+            variant="secondary"
             :title="funcTips[f]"
             @click="pressFunc(f)"
-          >{{ f }}</button>
+          >
+            {{ f }}
+          </UiButton>
         </div>
 
         <!-- 主键盘：经典 5 列（数字 3 列 + 运算符 2 列），末行 0 . = -->
@@ -82,9 +95,11 @@
         <div class="calc-history-title">历史</div>
         <div class="calc-history">
           <div v-if="!history.length" class="calc-history-empty">暂无历史</div>
-          <div v-for="(h, i) in history" :key="i" class="calc-history-item" :title="h.expr" @click="exprText = h.expr">
-            <span class="calc-history-expr">{{ h.expr }}</span>
-            <span class="calc-history-result">= {{ h.result }}</span>
+          <div v-for="(h, i) in history" :key="i" class="calc-history-item">
+            <button class="calc-history-pick" type="button" :title="h.expr" @click="exprText = h.expr">
+              <span class="calc-history-expr">{{ h.expr }}</span>
+              <span class="calc-history-result">= {{ h.result }}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -94,9 +109,9 @@
 
 <script setup>
 import { ref, computed, nextTick } from 'vue'
+import { UiButton } from '@/ui'
 import * as ce from './calcEngine.js'
 import { useNarrow } from '../../../composables/useNarrow.js'
-import './calc-tool.css'
 
 defineEmits(['back'])
 
@@ -301,3 +316,5 @@ function clearExpr() {
   hasError.value = false
 }
 </script>
+
+<style scoped src="./calc-tool.css"></style>

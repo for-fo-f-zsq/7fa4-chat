@@ -1,0 +1,20 @@
+/* UiPopover — 锚点浮层样式；只消费 tokens/motion 语义令牌。 */
+.ui-popover {
+  display: inline-flex;
+}
+
+.ui-popover__panel {
+  position: fixed;
+  z-index: var(--z-popover);
+  min-width: var(--menu-w-min);
+  max-height: var(--popover-w-max);
+  overflow-y: auto;
+  padding: var(--space-1);
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--elev-2);
+  color: var(--fg);
+  font-size: var(--text-md);
+  line-height: var(--leading-snug);
+}

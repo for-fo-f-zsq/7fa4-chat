@@ -1,0 +1,123 @@
+/* UiModal — 弹窗原语样式；只消费 tokens/motion 语义令牌。 */
+.ui-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: var(--surface-scrim);
+  backdrop-filter: blur(var(--overlay-blur));
+}
+
+.ui-modal {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: fit-content;
+  max-height: 85vh;
+  overflow: hidden;
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--elev-3);
+  color: var(--fg);
+  outline: none;
+}
+
+.ui-modal--sm {
+  max-width: var(--modal-w-sm);
+}
+
+.ui-modal--md {
+  max-width: var(--modal-w-md);
+}
+
+.ui-modal--lg {
+  max-width: var(--modal-w-lg);
+}
+
+.ui-modal--xl {
+  max-width: var(--modal-w-xl);
+}
+
+.ui-modal__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+  min-height: 56px;
+  padding: 0 var(--space-5);
+  border-bottom: var(--border-width) solid var(--line);
+}
+
+.ui-modal__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--fg);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+}
+
+.ui-modal__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--control-h-md);
+  height: var(--control-h-md);
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    color var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+@media (hover: hover) {
+  .ui-modal__close:hover {
+    background: var(--surface-hover);
+    color: var(--fg);
+  }
+}
+
+.ui-modal__close:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+}
+
+.ui-modal__close-glyph {
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+
+.ui-modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--space-5);
+  overflow-y: auto;
+  color: var(--fg);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+}
+
+.ui-modal:not(.is-scrollable) .ui-modal__body {
+  overflow: hidden;
+}
+
+.ui-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex: none;
+  min-height: 60px;
+  padding: var(--space-3) var(--space-5);
+  border-top: var(--border-width) solid var(--line);
+}

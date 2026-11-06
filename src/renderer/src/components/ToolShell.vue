@@ -31,3 +31,5 @@ defineProps({
 
 const emit = defineEmits(['back'])
 </script>
+
+<style scoped src="../css/tool-shell.css"></style>

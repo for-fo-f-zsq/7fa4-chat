@@ -1,58 +1,68 @@
 <template>
-  <!-- 图片预览：纯黑遮罩 + 图片，支持滚轮/按钮缩放 + 按住拖动平移 -->
-  <div v-if="type === 'image'" class="preview-overlay preview-overlay-image">
-    <div class="image-stage" ref="stageEl" @mousedown.self="$emit('close')" @wheel.prevent="onWheel">
-      <img
-        :src="src" class="preview-image-zoom" ref="imgEl"
-        :style="imgStyle"
-        draggable="false"
-        @mousedown="onPanStart"
-      />
-    </div>
-    <div class="image-toolbar">
-      <button title="缩小" @click="zoomStep(-0.25)"><i class="fas fa-search-minus"></i></button>
-      <span class="image-zoom-label">{{ Math.round(scale * 100) }}%</span>
-      <button title="放大" @click="zoomStep(0.25)"><i class="fas fa-search-plus"></i></button>
-      <span class="image-toolbar-sep"></span>
-      <button title="旋转 90°" @click="rot = (rot + 90) % 360"><i class="fas fa-redo-alt"></i></button>
-      <span class="image-toolbar-sep"></span>
-      <button title="重置视图" @click="resetView"><i class="fas fa-expand-arrows-alt"></i></button>
-      <span class="image-toolbar-sep"></span>
-      <button title="下载" :disabled="downloading" @click="onDownloadClick">
-        <i :class="downloading ? 'fas fa-spinner fa-spin' : 'fas fa-download'"></i>
-      </button>
-      <template v-if="showEdit">
+  <!-- 图片预览：纯黑媒体层 + 图片，支持滚轮/按钮缩放 + 按住拖动平移（UiModal 的浅色遮罩会破坏沉浸式预览，此分支保留自定义外观，见 C2-adopt.md） -->
+  <!-- M-5 特例（review-motion.md）：v-if 在 Transition 自身且运行期 type 不切换，永不触发 leave；图片分支由内部 v-show 承担退出，行为正常。 -->
+  <Transition v-if="type === 'image'" name="overlay" appear @after-leave="$emit('close')">
+    <div v-show="shown" class="preview-overlay">
+      <div class="image-stage" ref="stageEl" @mousedown.self="requestClose" @wheel.prevent="onWheel">
+        <img
+          :src="src" class="preview-image-zoom" ref="imgEl"
+          :class="{ 'is-dragging': dragging }"
+          :style="imgStyle"
+          draggable="false"
+          @mousedown="onPanStart"
+        />
+      </div>
+      <div class="image-toolbar">
+        <UiIconButton icon="fas fa-search-minus" aria-label="缩小" title="缩小" @click="zoomStep(-0.25)" />
+        <span class="image-zoom-label">{{ Math.round(scale * 100) }}%</span>
+        <UiIconButton icon="fas fa-search-plus" aria-label="放大" title="放大" @click="zoomStep(0.25)" />
         <span class="image-toolbar-sep"></span>
-        <button title="用图片编辑器打开" @click="$emit('edit')"><i class="fas fa-edit"></i></button>
-      </template>
-      <span class="image-toolbar-sep"></span>
-      <button class="preview-close" title="关闭" @click="$emit('close')"><i class="fas fa-times"></i></button>
+        <UiIconButton icon="fas fa-redo-alt" aria-label="旋转 90°" title="旋转 90°" @click="rot = (rot + 90) % 360" />
+        <span class="image-toolbar-sep"></span>
+        <UiIconButton icon="fas fa-expand-arrows-alt" aria-label="重置视图" title="重置视图" @click="resetView" />
+        <span class="image-toolbar-sep"></span>
+        <UiIconButton
+          :icon="downloading ? 'fas fa-spinner fa-spin' : 'fas fa-download'"
+          aria-label="下载"
+          title="下载"
+          :disabled="downloading"
+          @click="onDownloadClick"
+        />
+        <template v-if="showEdit">
+          <span class="image-toolbar-sep"></span>
+          <UiIconButton icon="fas fa-edit" aria-label="用图片编辑器打开" title="用图片编辑器打开" @click="$emit('edit')" />
+        </template>
+        <span class="image-toolbar-sep"></span>
+        <UiIconButton class="preview-close" icon="fas fa-times" aria-label="关闭" title="关闭" @click="requestClose" />
+      </div>
     </div>
-  </div>
-  <div v-else class="preview-overlay" @click.self="$emit('close')">
-    <div class="preview-modal">
+  </Transition>
+  <UiModal v-else v-model:open="open" size="lg" @closed="$emit('close')">
+    <template #header>
       <div class="preview-header">
         <span class="preview-title">{{ title }}</span>
         <div class="preview-header-actions">
-          <button v-if="showActions" class="preview-action-btn" title="复制" @click="$emit('copy')"><i class="fas fa-copy"></i></button>
-          <button v-if="showActions" class="preview-action-btn" title="转发" @click="$emit('forward')"><i class="fas fa-share"></i></button>
-          <button v-if="canDownload" class="preview-action-btn" title="下载" :disabled="downloading" @click="onDownloadClick"><i :class="downloading ? 'fas fa-spinner fa-spin' : 'fas fa-download'"></i></button>
-          <button class="preview-close" @click="$emit('close')"><i class="fas fa-times"></i></button>
+          <UiButton v-if="showActions" variant="ghost" size="sm" icon="fas fa-copy" aria-label="复制" @click="$emit('copy')" />
+          <UiButton v-if="showActions" variant="ghost" size="sm" icon="fas fa-share" aria-label="转发" @click="$emit('forward')" />
+          <UiButton v-if="canDownload" variant="ghost" size="sm" :icon="downloading ? 'fas fa-spinner fa-spin' : 'fas fa-download'" aria-label="下载" :disabled="downloading" @click="onDownloadClick" />
         </div>
       </div>
-      <div class="preview-body" @click="onBodyClick">
-        <pre v-if="type === 'text'" class="preview-text">{{ text }}</pre>
-        <div v-else-if="type === 'html'" class="preview-html" v-html="text"></div>
-        <iframe v-else-if="type === 'pdf'" :src="src" class="preview-pdf" title="PDF 预览"></iframe>
-        <div v-else class="preview-error">无法解析为图片或文字</div>
-      </div>
+    </template>
+    <div class="preview-body" @click="onBodyClick">
+      <pre v-if="type === 'text'" class="preview-text">{{ text }}</pre>
+      <div v-else-if="type === 'html'" class="preview-html" v-html="text"></div>
+      <iframe v-else-if="type === 'pdf'" :src="src" class="preview-pdf" title="PDF 预览"></iframe>
+      <div v-else class="preview-error">无法解析为图片或文字</div>
     </div>
-  </div>
+  </UiModal>
 </template>
 
 <script setup>
-import { computed, ref, watch, useAttrs } from 'vue'
+import { computed, ref, watch, useAttrs, onMounted, nextTick } from 'vue'
 import { parseMsgContent } from '../utils.js'
+import UiModal from '../ui/UiModal/UiModal.vue'
+import UiButton from '../ui/UiButton/UiButton.vue'
+import UiIconButton from '../ui/UiIconButton/UiIconButton.vue'
 
 const props = defineProps({
   type: String,
@@ -73,6 +83,20 @@ const props = defineProps({
 const emit = defineEmits(['close', 'copy', 'forward', 'download', 'edit'])
 // 用 useAttrs() 判断父级是否监听 @download：getCurrentInstance() 在事件回调里返回 null（取不到 onDownload）
 const attrs = useAttrs()
+
+// 关闭动效：图片分支播 overlay leave；文字分支交 UiModal 播离场，after-leave 再通知父级卸载
+const shown = ref(true)
+const open = ref(false)
+
+// 父级 v-if 挂载后打开，让文字分支也有进入过渡（图片分支由 appear 负责）
+onMounted(() => {
+  if (props.type !== 'image') nextTick(() => { open.value = true })
+})
+
+function requestClose() {
+  if (props.type === 'image') shown.value = false
+  else open.value = false
+}
 
 const canDownload = computed(() => {
   // 远程图片（只读预览场景）：没有 rawContent，但有可下载的地址
@@ -181,13 +205,12 @@ const panX = ref(0)
 const panY = ref(0)
 const stageEl = ref(null)
 const imgEl = ref(null)
-let dragging = null
+const dragging = ref(null)
 
-// 动画过渡仅在非拖动时开启
+// 拖动中由 .is-dragging 关闭过渡（见 content-preview-modal.css）
 const imgStyle = computed(() => ({
   transform: `translate(${panX.value}px, ${panY.value}px) rotate(${rot.value}deg) scale(${scale.value})`,
   cursor: scale.value > 1 ? 'grab' : 'zoom-in',
-  transition: dragging ? 'none' : 'transform 0.12s ease-out',
 }))
 
 function clampPan() {
@@ -220,21 +243,21 @@ function onWheel(e) {
 function onPanStart(e) {
   if (e.button !== 0) return
   e.preventDefault()
-  dragging = { x: e.clientX - panX.value, y: e.clientY - panY.value }
+  dragging.value = { x: e.clientX - panX.value, y: e.clientY - panY.value }
   document.addEventListener('mousemove', onPanMove)
   document.addEventListener('mouseup', onPanEnd)
   document.body.style.userSelect = 'none'
 }
 
 function onPanMove(e) {
-  if (!dragging) return
-  panX.value = e.clientX - dragging.x
-  panY.value = e.clientY - dragging.y
+  if (!dragging.value) return
+  panX.value = e.clientX - dragging.value.x
+  panY.value = e.clientY - dragging.value.y
   clampPan()
 }
 
 function onPanEnd() {
-  dragging = null
+  dragging.value = null
   document.removeEventListener('mousemove', onPanMove)
   document.removeEventListener('mouseup', onPanEnd)
   document.body.style.userSelect = ''
@@ -247,8 +270,12 @@ function resetView() {
   panY.value = 0
 }
 
-// 切换预览内容时复位视图
-watch(() => [props.type, props.src], () => resetView())
+// 切换预览内容时复位视图，并同步文字分支的 UiModal 开关
+watch(() => [props.type, props.src], () => {
+  resetView()
+  shown.value = true
+  open.value = props.type !== 'image'
+})
 
 function onBodyClick(e) {
   const a = e.target.closest('a[href]')
@@ -259,3 +286,5 @@ function onBodyClick(e) {
   }
 }
 </script>
+
+<style scoped src="../css/content-preview-modal.css"></style>

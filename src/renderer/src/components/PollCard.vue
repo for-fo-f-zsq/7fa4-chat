@@ -28,8 +28,8 @@
         :title="votersTitle(i)"
         @click.stop="toggle(i)"
       >
-        <!-- 结果条：宽度按占比，`min-width` 保证 0 票也有一条可见的底 -->
-        <span class="poll-opt-bar" :style="{ width: pct(i) }"></span>
+        <!-- 结果条：宽度按占比，外观由 UiProgress 提供 -->
+        <UiProgress class="poll-opt-progress" size="xs" :value="pctNum(i)" />
         <span class="poll-opt-check" :class="{ 'poll-opt-check--on': picked(i) }">
           <i v-if="picked(i)" class="fas fa-check"></i>
         </span>
@@ -48,7 +48,7 @@
         :class="{ 'poll-opt--picked': isMyCustom(o.label) }"
         :title="extraVotersTitle(j)"
       >
-        <span class="poll-opt-bar" :style="{ width: pctOf(o.count) }"></span>
+        <UiProgress class="poll-opt-progress" size="xs" :value="pctNumOf(o.count)" />
         <span class="poll-opt-check poll-opt-check--custom" :class="{ 'poll-opt-check--on': isMyCustom(o.label) }">
           <i v-if="isMyCustom(o.label)" class="fas fa-check"></i>
           <i v-else class="fas fa-pen"></i>
@@ -93,14 +93,16 @@
         <span class="poll-foot-voting" v-if="voting"><i class="fas fa-spinner"></i> 提交中…</span>
         <!-- 已投票：只显示结果，不可再改票（用户明确要求） -->
         <span class="poll-foot-done" v-else-if="voted"><i class="fas fa-check"></i> 已投票</span>
-        <button
+        <UiButton
           v-else
           type="button"
           class="poll-submit"
+          variant="primary"
+          size="sm"
           :disabled="!canSubmit"
           :title="submitTitle"
           @click.stop="submit"
-        >{{ submitLabel }}</button>
+        >{{ submitLabel }}</UiButton>
       </template>
     </div>
   </div>
@@ -109,6 +111,7 @@
 <script setup>
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { POLL_INVALID_TEXT, POLL_MAX_OPT_LEN } from '../utils.js'
+import { UiButton, UiProgress } from '../ui/index.js'
 
 const props = defineProps({
   /** parsePoll() 的返回值:{ q, opts, multi, until, maxSelect, allowCustom, ... } */
@@ -307,6 +310,13 @@ function pctOf(count) {
   if (!t) return '0%'
   return ((Number(count) || 0) / t * 100).toFixed(1) + '%'
 }
+/** UiProgress 需要 0–100 的数值；与 pct 同口径（分母 result.total） */
+function pctNum(i) {
+  return Number(pct(i).replace('%', ''))
+}
+function pctNumOf(count) {
+  return Number(pctOf(count).replace('%', ''))
+}
 
 /** 选项悬浮提示：列出选了这项的人（result.voters[i]）；用原生 title，无投票人时返回空避免空 tooltip */
 function votersTitle(i) {
@@ -333,144 +343,5 @@ const untilText = computed(() => {
 })
 </script>
 
-<style scoped>
-.poll-card {
-  /* 宽度跟随内容（投票题目本身有长度，不需要人为下限），只设上限防长题目撑太宽。
-     ⚠️ 不要在这里加 min-width：气泡是 width:fit-content，百分比解析不出（形同虚设），
-     固定像素又会在窄容器（预览侧栏挤压）溢出 —— 两条路都踩过（2026-10-02）。 */
-  max-width: 340px;
-  padding: 12px 14px 10px;
-  border-radius: var(--radius);
-  background: var(--bg-group-detail);
-  border: 1px solid var(--border-light);
-  font-size: 13.5px;
-  /* ⚠️ 必须显式给出文字颜色：本卡片不在 `.bubble-content` 内，而全局 `body` 只设了背景、
-     没有设置 `color`（base.css），于是 `.poll-q` / `.poll-opt-label` 会继承浏览器默认的
-     黑色 —— 浅色主题下看不出问题，深色主题下卡片底是深色、文字仍是黑色 → 完全看不清
-     （用户 2026-10-10 报障）。这里统一按主题取色，子元素继续继承即可。 */
-  color: var(--text-primary);
-}
-.poll-card--own { border-color: color-mix(in srgb, var(--accent) 40%, var(--border-light)); }
+<style scoped src="../css/poll-card.css"></style>
 
-.poll-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
-.poll-head-icon { color: var(--accent); font-size: 13px; }
-.poll-tag {
-  font-size: 11px; padding: 1px 6px; border-radius: 999px;
-  background: var(--accent-light); color: var(--accent);
-}
-.poll-tag--multi { background: var(--bg-input); color: var(--text-secondary); }
-.poll-tag--limit { background: var(--bg-input); color: var(--text-secondary); }
-.poll-tag--open { background: var(--bg-input); color: var(--text-secondary); }
-.poll-tag--expired { background: var(--bg-input); color: var(--text-secondary); }
-
-.poll-q { font-weight: 600; line-height: 1.45; margin-bottom: 10px; word-break: break-word; }
-
-.poll-opts { display: flex; flex-direction: column; gap: 7px; }
-.poll-opt {
-  position: relative;
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 10px;
-  border-radius: var(--radius);
-  background: var(--bg-input);
-  border: 1px solid transparent;
-  overflow: hidden;
-  min-height: 34px;
-}
-.poll-opt--clickable { cursor: pointer; }
-.poll-opt--clickable:hover { border-color: var(--border-light); }
-.poll-opt--picked { border-color: var(--accent); }
-.poll-opt--disabled { cursor: default; }
-/* 自拟选项行：虚线边框 + 轻微区分，一眼看出「这是别人写的」 */
-.poll-opt--extra { border-style: dashed; border-color: var(--border-light); }
-
-/* 结果条：绝对定位铺满，z-index 低于文字 */
-.poll-opt-bar {
-  position: absolute; left: 0; top: 0; bottom: 0;
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  transition: width 0.25s ease;
-  z-index: 0;
-}
-.poll-opt--picked .poll-opt-bar { background: color-mix(in srgb, var(--accent) 28%, transparent); }
-
-.poll-opt-check {
-  position: relative; z-index: 1; flex: none;
-  width: 16px; height: 16px; border-radius: 4px;
-  border: 1.5px solid var(--border-light);
-  display: grid; place-items: center;
-  font-size: 9px; color: var(--text-on-accent);
-}
-.poll-opt--picked .poll-opt-check { background: var(--accent); border-color: var(--accent); }
-/* 自拟行未选中时显示一支笔（区别于内置选项的「空方框」） */
-.poll-opt-check--custom:not(.poll-opt-check--on) { color: var(--text-secondary); }
-
-.poll-opt-label { position: relative; z-index: 1; flex: 1; min-width: 0; word-break: break-word; }
-.poll-opt-meta {
-  position: relative; z-index: 1; flex: none;
-  font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.poll-opt-meta b { color: var(--text-primary); }
-
-/* 开放题：自拟输入行 */
-.poll-custom {
-  display: flex; align-items: center; gap: 8px;
-  padding: 5px 10px;
-  border-radius: var(--radius);
-  background: var(--bg-input);
-  border: 1px dashed var(--border-light);
-}
-.poll-custom-icon { flex: none; font-size: 11px; color: var(--text-secondary); }
-.poll-custom-input {
-  flex: 1; min-width: 0;
-  border: none; outline: none; background: transparent;
-  font-size: 13px; font-family: inherit; color: var(--text-primary);
-}
-.poll-custom-input::placeholder { color: var(--text-secondary); }
-
-/* 限选提示：瞬时、不干扰布局 */
-.poll-hint {
-  display: flex; align-items: center; gap: 5px;
-  margin-top: 7px; font-size: 11.5px; color: var(--warning);
-}
-
-/* 无效投票人告警 */
-.poll-invalid {
-  display: flex; align-items: flex-start; gap: 6px;
-  margin-top: 8px; padding: 6px 9px;
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--danger) 10%, transparent);
-  color: var(--danger);
-  font-size: 11.5px; line-height: 1.5;
-  word-break: break-word;
-}
-.poll-invalid i { margin-top: 2px; flex: none; }
-
-.poll-foot {
-  display: flex; align-items: center; gap: 10px;
-  margin-top: 9px; font-size: 11.5px; color: var(--text-secondary);
-}
-.poll-foot-until { margin-left: auto; }
-.poll-foot-voting { margin-left: auto; color: var(--accent); }
-.poll-foot-dirty { margin-left: auto; color: var(--accent); font-size: 11.5px; }
-.poll-foot-done { margin-left: auto; color: var(--accent); font-size: 11.5px; }
-.poll-submit {
-  flex: none;
-  margin-left: auto;
-  padding: 3px 12px;
-  border-radius: var(--radius);
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: var(--text-on-accent);
-  font-size: 11.5px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-}
-.poll-submit:disabled {
-  border-color: var(--border-light);
-  background: var(--bg-input);
-  color: var(--text-secondary);
-  cursor: default;
-}
-.poll-submit:not(:disabled):hover { filter: brightness(1.08); }
-</style>

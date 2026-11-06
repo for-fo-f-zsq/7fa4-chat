@@ -1,0 +1,107 @@
+.ui-badge {
+  --badge-h: var(--badge-h-md);
+  --badge-fs: var(--text-sm);
+  --badge-dot: var(--badge-dot-md);
+  --badge-accent: var(--brand);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  height: var(--badge-h);
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid transparent;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-sans);
+  font-size: var(--badge-fs);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+}
+
+.ui-badge--sm {
+  --badge-h: var(--badge-h-sm);
+  --badge-fs: var(--text-xs);
+  --badge-dot: var(--badge-dot-sm);
+  padding: 0 var(--space-1);
+}
+
+.ui-badge--md {
+  --badge-h: var(--badge-h-md);
+  --badge-fs: var(--text-sm);
+  --badge-dot: var(--badge-dot-md);
+}
+
+.ui-badge--rect {
+  border-radius: var(--radius-xs);
+}
+
+.ui-badge--neutral {
+  background: var(--surface-2);
+  color: var(--fg-muted);
+}
+
+.ui-badge--brand {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.ui-badge--success {
+  background: var(--status-success-soft);
+  color: var(--status-success);
+}
+
+.ui-badge--warning {
+  background: var(--status-warning-soft);
+  color: var(--status-warning);
+}
+
+.ui-badge--danger {
+  background: var(--status-danger-soft);
+  color: var(--status-danger);
+}
+
+.ui-badge--notice {
+  background: var(--status-notice-soft);
+  color: var(--status-notice);
+}
+
+.ui-badge--outline {
+  border-color: var(--line-strong);
+  background: transparent;
+  color: var(--fg-muted);
+}
+
+.ui-badge--dot {
+  height: auto;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+.ui-badge-dot {
+  display: block;
+  width: var(--badge-dot);
+  height: var(--badge-dot);
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ui-badge.has-color {
+  border-color: transparent;
+  background: var(--badge-accent);
+  color: var(--on-brand);
+}
+
+.ui-badge--outline.has-color {
+  border-color: var(--badge-accent);
+  background: transparent;
+  color: var(--badge-accent);
+}
+
+.ui-badge--dot.has-color {
+  background: transparent;
+}
+
+.ui-badge--dot.has-color .ui-badge-dot {
+  background: var(--badge-accent);
+}

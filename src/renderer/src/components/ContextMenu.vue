@@ -1,26 +1,23 @@
 <template>
-  <div
-    ref="menuRef"
-    v-if="visible"
-    class="context-menu"
-    :class="extraClass"
-    :style="{ left: adjustedX + 'px', top: adjustedY + 'px' }"
-    @click.stop
-  >
+  <Transition name="dropdown">
     <div
-      v-for="item in items"
-      :key="item.value"
-      class="context-menu-item"
-      @click="onItemClick(item.value)"
+      ref="menuRef"
+      v-if="visible"
+      class="context-menu"
+      :class="extraClass"
+      :style="{ left: adjustedX + 'px', top: adjustedY + 'px' }"
+      @click.stop
     >
-      <i v-if="item.icon" :class="item.icon"></i> {{ item.label }}
+      <!-- 菜单主体（chrome / 键盘导航 / 点外关闭）由 UiMenu 承载，这里只做固定坐标定位 -->
+      <UiMenu :open="true" :items="menuItems" @select="onItemClick" @close="emit('close')" />
     </div>
-  </div>
+  </Transition>
 </template>
 
 <script setup>
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useContextMenu } from '../composables/useContextMenu.js'
+import { UiMenu } from '../ui/index.js'
 
 const props = defineProps({
   visible: Boolean,
@@ -40,8 +37,19 @@ const { adjustedX, adjustedY } = useContextMenu(
   () => props.visible
 )
 
-function onItemClick(value) {
-  emit('select', value)
+// 外部 API 是 { value,label,icon }；UiMenu 用 { key,label,icon }
+const menuItems = computed(() =>
+  props.items.map((it) => ({
+    key: it.value,
+    label: it.label,
+    icon: it.icon,
+    danger: !!it.danger,
+    disabled: !!it.disabled
+  }))
+)
+
+function onItemClick(key) {
+  emit('select', key)
   emit('close')
 }
 
@@ -63,3 +71,5 @@ onUnmounted(() => {
   document.removeEventListener('click', handleGlobalClick)
 })
 </script>
+
+<style scoped src="../css/context-menu.css"></style>

@@ -1,0 +1,133 @@
+/* 赞助页（D 域：DonatePanel.vue scoped）
+   - 卡片/空态/放大层交给 UiCard / UiEmptyState / UiModal，本文件只留页面布局与表格长文样式。
+   - 全部颜色/阴影/圆角/时长走 tokens / motion 语义令牌。 */
+
+.donate-view {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: var(--gradient-panel);
+  padding: var(--space-5) var(--space-6);
+}
+.donate-view-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: var(--border-width) solid var(--line);
+  flex-shrink: 0;
+}
+.donate-view-header h2 {
+  margin: 0;
+  color: var(--fg);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-medium);
+}
+
+/* ---------- 并排网格 ---------- */
+.donate-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+@media (max-width: 860px) {
+  .donate-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- 赞赏码卡 ---------- */
+.donate-qr-card {
+  text-align: center;
+}
+.donate-card-icon {
+  width: 18px;
+  color: var(--brand);
+  text-align: center;
+}
+.donate-desc {
+  max-width: 340px;
+  margin: 0 auto;
+  color: var(--fg-muted);
+  font-size: var(--text-md);
+  line-height: 1.7;
+}
+.donate-qr-wrap {
+  margin-top: var(--space-2);
+}
+.donate-qr-img {
+  width: 170px;
+  height: 170px;
+  border-radius: var(--radius-base);
+  box-shadow: var(--elev-1);
+  cursor: zoom-in;
+  transition: transform var(--motion-dur-slow) var(--motion-ease-standard);
+}
+.donate-qr-tip {
+  margin-top: var(--space-3);
+  color: var(--fg-subtle);
+  font-size: var(--text-xs);
+}
+
+@media (hover: hover) {
+  .donate-qr-img:hover {
+    transform: scale(1.03);
+  }
+}
+
+/* ---------- 赞助者表格（长文样式保留，UiTable 未交付） ---------- */
+.sponsor-table {
+  width: 100%;
+  overflow: hidden;
+  border-collapse: collapse;
+  border-radius: var(--radius-2xl);
+  background: var(--surface-1);
+  font-size: var(--text-sm);
+}
+.sponsor-table th {
+  padding: 6px 12px;
+  border-bottom: var(--border-width) solid var(--line);
+  background: var(--surface-table-head);
+  color: var(--fg-muted);
+  font-weight: var(--weight-semibold);
+}
+.sponsor-table th:first-child,
+.sponsor-table th:nth-child(2) {
+  text-align: left;
+}
+.sponsor-table th:last-child {
+  text-align: right;
+}
+.sponsor-table td {
+  padding: 6px 12px;
+  border-bottom: var(--border-width) solid var(--line);
+}
+.sponsor-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.sponsor-table .sponsor-idx {
+  width: 28px;
+  color: var(--fg-subtle);
+  text-align: center;
+}
+.sponsor-table .sponsor-name {
+  color: var(--fg);
+}
+.sponsor-table .sponsor-amount {
+  color: var(--brand);
+  font-weight: var(--weight-semibold);
+  text-align: right;
+}
+
+/* ---------- 放大图片（弹层外壳由 UiModal 提供） ---------- */
+.donate-zoom-img {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  border-radius: var(--radius-base);
+  cursor: zoom-out;
+}

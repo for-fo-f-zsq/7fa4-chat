@@ -11,8 +11,8 @@ export const STORAGE_KEY = '7fa4-timer-v1'
 export const PANEL_COUNT = 4
 export const LAYOUTS = [1, 2, 4]
 export const QUICK = [1, 3, 5, 10]
-// 每格配色：取自主题色板 `css/themes/palette.css`（每套主题一组 --palette-1..4）
-export const PALETTE = ['var(--palette-1)', 'var(--palette-2)', 'var(--palette-3)', 'var(--palette-4)']
+// 每格配色：取自主题色板 --palette-1..4（自定义主题没有这些变量时退回默认雾蓝主题的值）
+export const PALETTE = ['var(--palette-1, #6D93C9)', 'var(--palette-2, #7FA98D)', 'var(--palette-3, #CFA06A)', 'var(--palette-4, #B98BA8)']
 // 下课时间：12:00 / 17:30 / 22:00
 const BREAK_TIMES = [
   [12, 0],
