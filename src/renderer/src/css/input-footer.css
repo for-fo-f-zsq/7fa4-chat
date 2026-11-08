@@ -406,7 +406,7 @@
 }
 .input-split-divider:hover::after {
     opacity: 0.7;
-    background: var(--on-brand);
+    background: var(--surface-0);
 }
 
 /* 收起态：一侧被拖到边缘隐藏后，分隔条贴边保留（往回拖即恢复），淡色提示还有内容 */

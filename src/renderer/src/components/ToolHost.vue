@@ -75,7 +75,7 @@ const props = defineProps({
   },
 })
 
-const emit = defineEmits(['back'])
+const emit = defineEmits(['back', 'send-image'])
 
 /** 超过该时长仍未 load 视为加载失败（跨域被拦时 iframe 可能永不触发 load） */
 const LOAD_TIMEOUT = 25000
@@ -197,6 +197,12 @@ function connectBridge() {
       onReady: handleReady,
       onClose: () => emit('back'),
       onEvent: (name, data) => {
+        // 工具侧把「发送到会话」这类动作经 bridge 的 evt 发上来（工具内 emitEvent('sendImage', {...})）。
+        // 图片编辑工具的输出走这条：宿主弹出转发/接收方选择，和以前内置编辑器的手感一致。
+        if (name === 'sendImage') {
+          emit('send-image', data)
+          return
+        }
         console.warn(`[tool-host] 未处理的工具事件: ${name}`, data)
       },
       onError: (err) => console.warn('[tool-host] bridge 错误:', err),

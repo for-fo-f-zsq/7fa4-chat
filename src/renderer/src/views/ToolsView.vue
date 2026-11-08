@@ -44,28 +44,6 @@
     </div>
 
     <TransitionGroup v-else tag="div" name="list" class="tools-grid motion-stagger" appear>
-      <!-- 内置工具：manifest 中已提供同名远端工具的会被替换，其余继续走旧入口（过渡期） -->
-      <UiCard
-        v-for="tool in builtinCards"
-        :key="'builtin-' + tool.id"
-        interactive
-        clickable
-        class="tool-card"
-        @click="onBuiltinClick(tool)"
-      >
-        <i class="tool-card-icon" :class="tool.icon" aria-hidden="true"></i>
-        <div class="tool-card-name">{{ tool.name }}</div>
-        <div class="tool-card-desc">{{ tool.desc }}</div>
-        <template #footer>
-          <div class="tool-card-footer">
-            <UiBadge variant="brand" size="sm"><i class="fas fa-box" aria-hidden="true"></i> 内置</UiBadge>
-            <div class="tool-actions">
-              <UiButton variant="primary" size="sm" @click.stop="onBuiltinClick(tool)">打开</UiButton>
-            </div>
-          </div>
-        </template>
-      </UiCard>
-
       <!-- 远端工具：状态机 未安装→下载 / 已安装→打开+卸载 / 有新版→更新 / 下载中→进度 / 版本不满足→禁用 -->
       <UiCard
         v-for="card in remoteCards"
@@ -175,8 +153,8 @@
       v-if="!loading && remoteCards.length === 0"
       class="tools-empty"
       icon="fas fa-box-open"
-      title="暂无远端工具"
-      description="当前客户端版本或网络可能暂不支持工具中心。"
+      title="暂无可用工具"
+      description="工具需要联网获取：请检查网络后点右上角「刷新」重试。"
     />
   </div>
 </template>
@@ -185,20 +163,18 @@
 /**
  * 工具中心
  *
- * - 远端工具：fetchToolsManifest() 拿清单 + listInstalledTools() 拿本地安装状态；
- * - 内置工具：manifest 缺失时继续走旧入口（标注「内置」），保证过渡期可用；
- * - 安装 / 更新 / 卸载 / 打开全部经 window.api 平台层，API 缺失时降级为错误提示而不是白屏。
+ * 工具全部来自远端清单：`fetchToolsManifest()` 拿清单 + `listInstalledTools()` 拿本地安装状态，
+ * 安装 / 更新 / 卸载 / 打开全部经 window.api 平台层，API 缺失时降级为错误提示而不是白屏。
+ *
+ * 客户端不再内置任何工具页（曾经的 6 个「内置」实现已删除）：
+ * 同一份源码既编进工具包又要内置进主包，会出现「改了 src、用户点开的却是下载包」的错配，
+ * 而且联网时内置卡片本来就会被同名远端工具顶掉。离线时这里只提示需要联网获取。
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { compareVersion, isWebBrowser } from '../utils.js'
+import { compareVersion } from '../utils.js'
 import { UiBadge, UiBanner, UiButton, UiCard, UiEmptyState, UiProgress, UiSpinner } from '@/ui'
 
 const emit = defineEmits(['openTool'])
-
-// 纯网页浏览器端：GeoGebra 离线包体积过大（49MB），仅提示下载本地版。
-// 必须用 isWebBrowser()：Android 端已把 GeoGebra 打进 APK（scripts/build-web.mjs 复制到 /geogebra/），
-// 直接读 window.__7FA4_WEB__ 会把安卓误判成网页、把工具描述写错。
-const isWeb = isWebBrowser()
 
 const STATUS_TEXT = {
   'not-installed': '未安装',
@@ -207,47 +183,6 @@ const STATUS_TEXT = {
   outdated: '有新版',
 }
 
-// 内置工具清单（过渡期兜底；远端清单里出现同 id 时以远端卡片为准）
-const builtinTools = computed(() => [
-  {
-    id: 'markdown',
-    icon: 'fas fa-file-alt',
-    name: 'Markdown 编辑',
-    desc: 'Markdown 编写与预览；打开文件 / 新建 / 保存到文件 / 导出为图片',
-  },
-  {
-    id: 'image',
-    icon: 'fas fa-paint-brush',
-    name: '图片编辑',
-    desc: '画笔/橡皮/直线/矩形/椭圆；撤销；新建画布；保存到文件',
-  },
-  {
-    id: 'graph_editor',
-    icon: 'fas fa-project-diagram',
-    name: 'Graph Editor',
-    desc: '交互式图编辑器：点击建点、拖拽连边、力导向布局、连通分量/桥/MST/二分图高亮',
-  },
-  {
-    id: 'calculator',
-    icon: 'fas fa-calculator',
-    name: '计算器',
-    desc: '科学计算器：表达式求值、阶乘、快速幂、对数、组合排列、gcd/lcm、质因数分解、模逆元',
-  },
-  {
-    id: 'timer',
-    icon: 'fas fa-stopwatch',
-    name: '计时器',
-    desc: '四宫格倒计时：每格可选一名用户并搜索，按「时长」或「目标时刻」计时；支持 1/2/4 格切换、全部开始/暂停、快捷时长、归零提示音',
-  },
-  {
-    id: 'math',
-    icon: 'fas fa-chart-line',
-    name: 'GeoGebra',
-    desc: isWeb
-      ? '网页端不支持 GeoGebra，请下载本地版使用'
-      : 'GeoGebra 官方绘图计算器（本地离线版）：函数图像、几何画板、滑动条动画、测量、变换、轨迹、CAS 等全部二维功能',
-  },
-])
 
 const loading = ref(true)
 const loadError = ref('')
@@ -330,9 +265,6 @@ function scheduleAutoRetry() {
 
 const errorText = computed(() => loadError.value || actionError.value)
 const canRetry = computed(() => !!loadError.value)
-
-const remoteIds = computed(() => new Set(remoteTools.value.map((tool) => tool.id)))
-const builtinCards = computed(() => builtinTools.value.filter((tool) => !remoteIds.value.has(tool.id)))
 
 const remoteCards = computed(() =>
   remoteTools.value.map((tool) => {
@@ -670,10 +602,6 @@ async function batchInstall() {
   await refreshInstalled()
   batchRunning.value = false
   if (failed.length) actionError.value = `批量处理完成，${failed.length} 个失败 —— ${failed.join('；')}`
-}
-
-function onBuiltinClick(tool) {
-  emit('openTool', tool.id)
 }
 
 function dismissError() {

@@ -1,5 +1,5 @@
-/**
- * 工具顶部窄条（ToolBar.vue）样式 —— 内置工具（ToolShell）与远端工具（ToolHost）共用
+﻿/**
+ * 工具顶部窄条（ToolBar.vue）样式 —— 远端工具宿主（ToolHost）使用
  *
  * 仅由 ToolBar.vue 以 `<style scoped src>` 引入。
  * P2-ADOPT-E：返回按钮改用 UiButton（ghost/sm/pill），本文件只保留窄条容器与工具名排版。

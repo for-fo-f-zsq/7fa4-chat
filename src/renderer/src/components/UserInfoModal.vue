@@ -30,12 +30,19 @@
     </template>
     <div class="userinfo-body">
       <div class="userinfo-row">
-        <span class="userinfo-label">Uid</span>
-        <span class="userinfo-value">{{ user?.uid || uid }}</span>
+        <span class="userinfo-label">ID</span>
+        <span class="userinfo-value">{{ uid }}</span>
       </div>
+      <!-- 注意字段来路：/chat/info 的 user.username 是「学号」、user.uid 是「登录名」（见 ChatView 的映射），
+           而好友列表（friend/json）只返回 id/username/nickname/seat，没有登录名与学号。
+           所以下面两行分别按资料完整度显示，缺了就不显示，而不是拿内部 id 冒充「Uid」。 -->
       <div class="userinfo-row" v-if="user?.username">
         <span class="userinfo-label">用户名</span>
         <span class="userinfo-value">{{ user.username }}</span>
+      </div>
+      <div class="userinfo-row" v-if="user?.student_no">
+        <span class="userinfo-label">学号</span>
+        <span class="userinfo-value">{{ user.student_no }}</span>
       </div>
       <div class="userinfo-row" v-if="user?.nickname">
         <span class="userinfo-label">昵称</span>

@@ -114,13 +114,22 @@
   --focus-offset: 2px;
   --focus-halo: 0 0 0 3px var(--brand-soft, rgba(60,140,231,.12));
 
-  /* ========== 6. 颜色语义（全部引用主题原始令牌） ========== */
-  --brand: var(--accent, #3C8CE7);
-  --brand-hover: var(--accent-hover, #2E78D0);
-  --brand-active: var(--accent-active, #2566B8);
+  /* ========== 6. 颜色语义（全部引用主题原始令牌） ==========
+     品牌色拆两种用途，禁止混用：
+       --brand / -hover / -active      品牌墨色：图标、文字、边框、焦点、进度/指示条（浅色主题压暗、深色主题提亮）
+       --brand-fill / -hover / -active 品牌浅填充：实心按钮、勾选块、徽标等「浅底＋深墨字」的成块底色 */
+  --brand: var(--text-link, var(--accent, #3C8CE7));
+  --brand-hover: var(--text-link, var(--accent-hover, #2E78D0));
+  --brand-active: var(--text-link, var(--accent-active, #2566B8));
+  --brand-fill: var(--accent, #3C8CE7);
+  --brand-fill-hover: var(--accent-hover, #2E78D0);
+  --brand-fill-active: var(--accent-active, #2566B8);
   --brand-soft: var(--accent-light, rgba(60,140,231,.1));
   --brand-line: var(--accent-outline, rgba(60,140,231,.3));
   --on-brand: var(--text-on-accent, #FFFFFF);
+  /* 深色遮罩/媒体层上的文字与图标：遮罩恒为深色，故恒用白色，不随主题反转 */
+  --on-overlay: #FFFFFF;
+  --overlay-hover: rgba(255, 255, 255, 0.14);
   --brand-gradient: var(--gradient-accent, rgba(60,140,231,.25));
   --brand-glow: var(--gradient-subtle, rgba(60,140,231,.08));
 
@@ -182,6 +191,9 @@
 
   /* ========== 7. 状态色（补主题缺口；主题可覆盖原始 --danger 等） ========== */
   --status-danger: var(--danger, #e74c3c);
+  /* 状态色的「墨色」版本：--status-danger 兼作填充底色（danger 按钮/头像底色），
+     直接当文字色太浅；文字侧统一用 -ink（浅色主题压暗、深色主题提亮）。 */
+  --status-danger-ink: var(--danger, #e74c3c);
   --status-danger-hover: var(--danger-hover, #c0392b);
   --status-success: var(--success, #4caf50);
   --status-warning: var(--warning, #ff9800);
@@ -286,7 +298,12 @@
 /* color-mix 可用时用主题色实时派生（旧 WebView 自动退回上面的静态值） */
 @supports (color: color-mix(in srgb, red, blue)) {
   :root {
-    --elev-brand: 0 2px 8px color-mix(in srgb, var(--brand) 22%, transparent);
+    /* 品牌墨色：accent 向正文色混合 —— 浅色主题自动压暗、深色主题自动提亮，
+       实测 6 套主题最差底色对比度 ≥4.7:1（hover/active 更深一档）；无 color-mix 时退回主题链接色 */
+    --brand: color-mix(in srgb, var(--accent, #3C8CE7) 40%, var(--text-primary, #1A1A2E));
+    --brand-hover: color-mix(in srgb, var(--accent, #3C8CE7) 30%, var(--text-primary, #1A1A2E));
+    --brand-active: color-mix(in srgb, var(--accent, #3C8CE7) 20%, var(--text-primary, #1A1A2E));
+    --elev-brand: 0 2px 8px color-mix(in srgb, var(--brand-fill) 22%, transparent);
     --status-danger-soft: color-mix(in srgb, var(--status-danger) 12%, transparent);
     --status-success-soft: color-mix(in srgb, var(--status-success) 12%, transparent);
     --status-warning-soft: color-mix(in srgb, var(--status-warning) 14%, transparent);
@@ -296,6 +313,8 @@
     --fg-self-time: color-mix(in srgb, var(--text-self-bubble-time, rgba(0, 0, 0, 0.35)) 40%, var(--message-self-text, #000000));
     --status-warning: color-mix(in srgb, var(--warning, #ff9800) 50%, var(--fg));
     --status-success: color-mix(in srgb, var(--success, #4caf50) 50%, var(--fg));
+    /* 与上面两条同口径：危险色文字压到 --fg 里 50%，浅色主题才够 AA（原值 #DF9F97 只有 2.2:1） */
+    --status-danger-ink: color-mix(in srgb, var(--danger, #e74c3c) 50%, var(--fg));
   }
 }
 

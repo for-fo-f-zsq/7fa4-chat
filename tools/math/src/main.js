@@ -6,8 +6,8 @@
  * 构建产物里的 geogebra/calculator.html。因此这里没有 Vue，只需要桥接客户端
  * （宿主仍可能下发主题 / getEnv，GeoGebra 页面本身在子 frame 里不受影响）。
  *
- * geogebra/ 目录由 scripts/build-tools.mjs 在 Vite 构建后从 resources/geogebra/
- * 原样复制过来，不在本模块的 import 图里。
+ * geogebra/ 目录由 scripts/build-tools.mjs 在 Vite 构建后从 tools/math/geogebra/
+ * 原样复制过来，不在本模块的 import 图里。它只属于本工具，不随主程序安装包分发。
  */
 import '../../shared/bridge-client.js'
 

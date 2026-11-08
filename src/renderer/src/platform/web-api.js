@@ -1069,7 +1069,7 @@ window.api = {
   androidExit: () => { if (IS_NATIVE) CapApp.exitApp() }
 }
 
-// 平台标记（渲染层可读取，如 GeoGebra iframe 路径分支 / 反馈客户端信息）。
+// 平台标记（渲染层可读取，如反馈客户端信息、更新入口分支）。
 // ⚠️ 三者语义不同，别混用：
 //   __7FA4_WEB__      = 「非 Electron 环境」——网页浏览器 **和** Android 原生 App 共用本适配层，
 //                       所以它在 APK 里同样是 true。凡是要判断"是不是纯网页"的地方，

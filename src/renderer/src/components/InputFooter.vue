@@ -81,7 +81,6 @@
         <UiIconButton class="preview-btn" :icon="previewOpen ? 'fas fa-eye-slash' : 'fas fa-eye'" :active="previewOpen" aria-label="预览" title="预览渲染效果" :disabled="sending || inputDisabled" @click="togglePreview" />
         <UiIconButton id="emoji_btn" class="emoji-btn" icon="fas fa-smile" aria-label="表情" title="表情" :disabled="sending || inputDisabled" @click.stop="toggleEmoji" />
         <UiIconButton id="camera_btn" class="camera-btn" :icon="cameraBusy ? 'fas fa-times' : 'fas fa-camera'" :active="cameraBusy" :aria-label="cameraBusy ? '取消拍照' : '拍照'" :title="cameraBusy ? '取消拍照' : '拍照'" :disabled="sending || inputDisabled" @click="takePhoto" />
-        <UiIconButton id="voice_btn" class="voice-btn" :icon="recording ? 'fas fa-stop-circle' : 'fas fa-microphone'" :danger="recording" :active="recording" :aria-label="recording ? '停止录音并转文字' : '语音转文字'" :title="recording ? '停止录音并转文字' : '语音转文字'" :disabled="sending || inputDisabled || voiceBusy" @click="toggleVoice" />
         <div class="more-menu" :class="{ open: moreVisible }">
           <UiIconButton id="more_btn" class="more-btn" icon="fas fa-ellipsis-h" aria-label="更多" title="更多" :active="moreVisible" :disabled="sending || inputDisabled" @click.stop="toggleMore" />
           <Transition name="dropdown">
@@ -467,7 +466,9 @@ async function sendMessage() {
   sending.value = true;
   try {
     // 发送待发送文件（文件消息不再附带文字，图片/文件与文字分开发送）
-    for (const pf of pendingFiles.value) {
+    // 注意：成功一条就从待发列表里摘掉一条。以前全部成功后统一清空，
+    // 于是「3 个文件、第 3 个超限报错」时前两个已经发出去了却还留在列表里，用户重试就重复发送。
+    for (const pf of pendingFiles.value.slice()) {
       const msgObj = { type: 'file', name: pf.name, size: pf.size, data: pf.data, mime: pf.mime };
       const r = await sendChatMessage({ type: props.pageType, targetId: props.pageId, msgObj });
       if (!r.success) {
@@ -475,6 +476,7 @@ async function sendMessage() {
         sending.value = false;
         return;
       }
+      pendingFiles.value = pendingFiles.value.filter((x) => x !== pf);
       const { tokenInfo: info } = applyChatToStore(r, props.pageType, props.pageId);
       tokenInfo.value = info;
     }
@@ -893,61 +895,6 @@ async function takePhoto() {
   }
 }
 
-// --- 语音转文字 ---
-// 本地 Whisper：模型在**首次使用**时才下载（用户 2026-10-02 决策），下载/推理细节见任务 #36。
-// 此处先接入录音状态与入口，识别链路在 #36 落位；未就绪时给出明确提示，不静默失败。
-const recording = ref(false);
-const voiceBusy = ref(false);
-let mediaRecorder = null;
-let recChunks = [];
-
-function toggleVoice() {
-  if (voiceBusy.value) return;
-  if (recording.value) stopVoice();
-  else startVoice();
-}
-
-async function startVoice() {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    errorMessage.value = '当前环境不支持录音';
-    return;
-  }
-  voiceBusy.value = true;
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    recChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
-    mediaRecorder.onstop = () => finishVoice(stream);
-    mediaRecorder.start();
-    recording.value = true;
-  } catch (e) {
-    const name = e && e.name;
-    if (name === 'NotAllowedError') errorMessage.value = '麦克风权限被拒绝';
-    else if (name === 'NotFoundError') errorMessage.value = '未找到可用麦克风';
-    else errorMessage.value = '打开麦克风失败';
-  }
-  voiceBusy.value = false;
-}
-
-function stopVoice() {
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    try { mediaRecorder.stop(); } catch { /* 已停 */ }
-  }
-  recording.value = false;
-}
-
-async function finishVoice(stream) {
-  try { stream.getTracks().forEach((t) => t.stop()); } catch {}
-  mediaRecorder = null;
-  const blob = recChunks.length ? new Blob(recChunks, { type: recChunks[0].type || 'audio/webm' }) : null;
-  recChunks = [];
-  if (!blob || !blob.size) { errorMessage.value = '没有录到声音'; return; }
-  // 识别链路（本地 Whisper，模型首次使用时下载）在任务 #36 落位。
-  errorMessage.value = '语音转文字即将上线';
-  voiceBusy.value = false;
-}
-
 // --- 双栏宽度拖拽 ---
 // 拖到边缘再继续拖 SNAP 像素 → 收起该侧（左极限隐藏输入栏、右极限隐藏预览）；
 // 收起后分隔条贴边保留，往回拖过 SNAP 即恢复。
@@ -1029,6 +976,4 @@ function previewPendingFile(pf) {
 }
 
 defineExpose({ inputEl, focus, mentionVisible, emojiVisible, replyTo, sending, errorMessage, tokenInfo, startReply, pendingFiles });
-
-onUnmounted(() => { if (recording.value) stopVoice(); });
 </script>

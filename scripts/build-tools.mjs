@@ -12,7 +12,7 @@
  *   1. 读 tools/<id>/tool.json（id/name/desc/version/minAppVersion/entry）；
  *   2. 对每个工具调用本地 vite：`node node_modules/vite/bin/vite.js build --config tools.vite.config.mjs`，
  *      通过环境变量传 TOOL_ID / TOOL_VERSION（tools.vite.config.mjs 负责 root/outDir/base 等）；
- *   3. math 工具构建后把 resources/geogebra/（GeoGebra 官方 calculator.html + HTML5 运行时）原样复制到
+ *   3. math 工具构建后把 tools/math/geogebra/（GeoGebra 官方 calculator.html + HTML5 运行时）原样复制到
  *      dist-tools/math/<version>/geogebra/ —— 它不经过 Vite 打包，只是静态资源；
  *   4. 扫描 dist-tools/ 生成 dist-tools/tools.json（spec §2 schema，含每个文件的 size 与 sha256）；
  *   5. 打印逐工具体积表与总耗时/总体积。
@@ -45,7 +45,8 @@ const distDir = resolve(rootDir, 'dist-tools')
 const manifestPath = join(distDir, 'tools.json')
 const viteBin = join(rootDir, 'node_modules', 'vite', 'bin', 'vite.js')
 const viteConfig = join(rootDir, 'tools.vite.config.mjs')
-const geogebraSrcDir = resolve(rootDir, 'resources', 'geogebra')
+// GeoGebra 静态资源属于 math 工具自己，不再随主程序打包（主程序里已没有内置数学页）
+const geogebraSrcDir = resolve(rootDir, 'tools', 'math', 'geogebra')
 
 /* ------------------------------------------------------------------ *
  * 小工具
@@ -246,8 +247,8 @@ function buildTool(tool) {
     fail(`[${tool.id}] 构建完成但产物缺少 index.html：${outDir}`)
   }
 
-  // GeoGebra 工具：官方 calculator.html 是独立整页应用，不能交给 Vite 处理（体积大、非 ESM、
-  // 且 resources/geogebra 是被主窗口 extraResources 复用的同一份文件），构建后原样复制。
+  // GeoGebra 工具：官方 calculator.html 是独立整页应用，不能交给 Vite 处理（体积大、非 ESM），
+  // 构建后从 tools/math/geogebra 原样复制。
   let copied = null
   if (tool.id === 'math') {
     copied = copyGeogebra(outDir)

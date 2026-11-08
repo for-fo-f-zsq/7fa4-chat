@@ -1,6 +1,6 @@
 {
   "name": "7fa4-chat",
-  "version": "3.8.0",
+  "version": "3.8.1",
   "description": "7FA4 Chat",
   "main": "./out/main/index.js",
   "desktopName": "7fa4-chat.desktop",
@@ -12,6 +12,8 @@
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "build:tools": "node scripts/build-tools.mjs",
+    "install:tools:local": "node scripts/install-tools-local.mjs",
+    "tools:local": "node scripts/build-tools.mjs && node scripts/install-tools-local.mjs",
     "publish:tools": "node scripts/publish-tools.mjs"
   },
   "author": {
@@ -164,13 +166,6 @@
       {
         "from": "resources/katex",
         "to": "katex",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "resources/geogebra",
-        "to": "geogebra",
         "filter": [
           "**/*"
         ]

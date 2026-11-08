@@ -10,6 +10,17 @@
         <button class="title-btn title-close" @click="windowClose"><i class="fas fa-times"></i></button>
       </div>
     </div>
+    <!-- 服务端明确拒绝（如被禁止使用聊天）：原样展示后端文案，不要伪装成断网 -->
+    <UiBanner
+      v-if="store.logined && serverNotice && !serverNoticeMuted"
+      class="network-banner"
+      variant="danger"
+      closable
+      @close="serverNoticeMuted = true"
+    >
+      <template #icon><i class="fas fa-comment-slash" aria-hidden="true"></i></template>
+      {{ serverNotice }}
+    </UiBanner>
     <!-- 网络/登录状态横幅：UiBanner（danger=连接断开 / warning=未登录），位于 app-body 外，全宽横条 -->
     <UiBanner
       v-if="store.logined && store.netError && !netBannerMuted"
@@ -111,7 +122,7 @@
         :pageType="pageType"
         :pageId="pageId"
         :selfUid="store.self.uid"
-        :collapsedMsgs="collapsedMsgs"
+        :expandedMsgs="expandedMsgs"
         :visibleCount="visibleCount"
         @sendPat="sendPat"
         @openGroupActionMenu="openGroupActionMenu"
@@ -140,75 +151,17 @@
       v-if="pageType==='tools' && currentTool==='list'"
       @open-tool="onOpenTool"
     />
-    <!-- 远端工具：manifest 驱动的工具经 iframe 嵌入；返回按钮 / 工具内 closeTool 都回到工具列表 -->
+    <!-- 工具全部来自远端清单（iframe 嵌入）。客户端不再内置任何工具页：
+         同一份源码既编进工具包（tools/<id>/src/main.js 直接 import src/renderer/src/views/tools/*），
+         又内置进主包，会导致「改了 src 但用户点开的是下载包」的错配，故只保留远端这一条路径。
+         返回按钮 / 工具内 closeTool 都回到工具列表。 -->
     <ToolHost
       v-else-if="pageType==='tools' && currentTool && currentTool.remote"
       :tool="currentTool"
       class="ide-host"
       @back="onToolBack"
+      @send-image="onImageToolSend"
     />
-    <!-- 内置工具：统一套 ToolShell（顶部窄条显示工具名 + 返回），工具自身不再重复画标题 -->
-    <ToolShell
-      v-else-if="pageType==='tools' && currentTool==='markdown'"
-      name="Markdown 编辑"
-      class="ide-host"
-      @back="onToolBack"
-    >
-      <MarkdownTool
-        ref="markdownToolRef"
-        @dirty-change="toolsDirty = $event"
-      />
-    </ToolShell>
-    <ToolShell
-      v-else-if="pageType==='tools' && currentTool==='image'"
-      name="图片编辑"
-      class="ide-host"
-      @back="onToolBack"
-    >
-      <ImageTool
-        ref="imageToolRef"
-        @dirty-change="toolsDirty = $event"
-        @send-image="onImageToolSend"
-      />
-    </ToolShell>
-    <ToolShell
-      v-else-if="pageType==='tools' && currentTool==='graph_editor'"
-      name="Graph Editor"
-      class="ide-host"
-      @back="onToolBack"
-    >
-      <GraphTool
-        ref="graphToolRef"
-        @dirty-change="toolsDirty = $event"
-      />
-    </ToolShell>
-    <ToolShell
-      v-else-if="pageType==='tools' && currentTool==='calculator'"
-      name="计算器"
-      class="ide-host"
-      @back="onToolBack"
-    >
-      <CalculatorTool />
-    </ToolShell>
-    <ToolShell
-      v-else-if="pageType==='tools' && currentTool==='timer'"
-      name="计时器"
-      class="ide-host"
-      @back="onToolBack"
-    >
-      <TimerTool />
-    </ToolShell>
-    <ToolShell
-      v-else-if="pageType==='tools' && currentTool==='math'"
-      name="GeoGebra"
-      class="ide-host"
-      @back="onToolBack"
-    >
-      <MathTool
-        ref="mathToolRef"
-        @dirty-change="toolsDirty = $event"
-      />
-    </ToolShell>
     <SettingsPanel
       v-if="pageType==='settings'"
       :self="store.self"
@@ -283,14 +236,6 @@
     @close="shortcutModal = false"
     @settingChange="onSettingChange"
   />
-  <SaveConfirmModal
-    v-model:visible="saveConfirmVisible"
-    title="未保存的修改"
-    message="当前内容尚未保存，是否保存后再离开？"
-    @save="onSaveConfirmSave"
-    @discard="onSaveConfirmDiscard"
-    @cancel="pendingSwitch = null"
-  />
   <UserInfoModal
     v-if="userinfo.show"
     :uid="userinfo.uid"
@@ -330,11 +275,11 @@
     :text="previewData.text"
     :rawContent="previewData.rawContent"
     :showActions="previewData.showActions"
+    :showEdit="false"
     @close="previewData.show = false"
     @copy="onPreviewCopy"
     @forward="onPreviewForward"
     @download="onPreviewDownload"
-    @edit="onPreviewEdit"
   />
 </template>
 
@@ -369,14 +314,6 @@ import GroupActionMenu from '../components/GroupActionMenu.vue';
 import SearchPanel from '../components/SearchPanel.vue';
 import ToolsView from './ToolsView.vue';
 import ToolHost from '../components/ToolHost.vue';
-import ToolShell from '../components/ToolShell.vue';
-import MarkdownTool from './tools/MarkdownTool.vue';
-import ImageTool from './tools/ImageTool.vue';
-import GraphTool from './tools/graph/GraphTool.vue';
-import CalculatorTool from './tools/calculator/CalculatorTool.vue';
-import TimerTool from './tools/timer/TimerTool.vue';
-import MathTool from './tools/math/MathTool.vue';
-import SaveConfirmModal from '../components/SaveConfirmModal.vue';
 import { useWindowControls } from '../composables/useWindowControls.js';
 import { useMuteConfirm } from '../composables/useMuteConfirm.js';
 import { useCurrentMessages } from '../composables/useCurrentMessages.js';
@@ -388,15 +325,8 @@ import { NARROW_ASPECT, THEMES } from '../composables/constants.js';
 const pageType = ref('chat');
 const pageId = ref(null);
 const currentTool = ref('list');
-const imageToolRef = ref(null);
-const markdownToolRef = ref(null);
-const mathToolRef = ref(null);
-const graphToolRef = ref(null);
 // 工具打开来源：'list'=从工具列表进入（返回回列表）；chat 会话=记住来源会话（返回回到对应消息界面）
 let toolOrigin = { type: 'list' };
-const toolsDirty = ref(false); // 图片编辑未保存标记（ImageTool 上报）
-const saveConfirmVisible = ref(false);
-let pendingSwitch = null; // 被未保存拦截的切换动作（保存/不保存后执行）
 const isChatPage = computed(() => pageType.value === 'chat' || pageType.value === 'user' || pageType.value === 'group');
 const navPageType = computed(() => isChatPage.value ? 'chat' : pageType.value);
 // 窄模式导航栏：仅消息对象列表（chat/user/group 且未打开具体详情）与工具列表（未进入工具详情）显示，其余页/详情态隐藏
@@ -442,6 +372,9 @@ function gotoLogin() {
 // 两条横幅都只忽略本次、不落盘：重启自动恢复，状态变化也会复位。
 // 连接失败条尤其不能永久隐藏 —— 静默失败会让用户误以为"没人发消息"，实际是消息根本没收到。
 const netBannerMuted = ref(false);   // 未连接横幅
+// 服务端明确拒绝（封禁/禁言）时的横幅文案：与「未连接」区分开，避免把禁言显示成断网
+const serverNotice = ref('');
+const serverNoticeMuted = ref(false);
 const guestBannerMuted = ref(false); // 未登录（游客）横幅
 const netDownAt = ref(0);            // 本次断线起始时间戳（ms），0 = 未断线
 const nowTick = ref(Date.now());     // 驱动断线时长文本刷新
@@ -506,7 +439,8 @@ function updateLayoutMode() {
 }
 const searchVisible = ref(false);
 const listWidth = ref(260);
-const collapsedMsgs = reactive({});
+// 用户点过「展开」的消息 id → true。命名与语义看 MessageList.vue 的 expandableIds / expandedMsgs 注释。
+const expandedMsgs = reactive({});
 const visibleCount = ref(20);
 const setting = ref({});
 const version = ref('');
@@ -549,7 +483,9 @@ const watchWarnText = computed(() => {
   if (pageType.value !== 'user') return ''
   const u = targetUser.value
   if (!u) return ''
-  if (u.watchee !== true && u.watcher === true) return '未关注对方，无法接收对方消息'
+  // 注意：接收消息与关注关系无关（后端只在「发送」时校验 can_send_chat，要求对方关注我）。
+  // 原来这里对「我未关注对方、对方关注我」提示「无法接收对方消息」是错的 —— 那种状态
+  // 恰恰是可以正常互发的，提示会让人误以为会话坏了。只保留真正会拦住发送的那一种。
   if (u.watchee === true && u.watcher !== true) return '对方没有关注你，无法给对方发消息'
   return ''
 });
@@ -598,12 +534,6 @@ function startListResize(e) {
 function switchPage(type) {
   // 游客模式：聊天不可用，拦截导航
   if (!store.logined && type === 'chat') return;
-  // 未保存的工具内容（图片/Markdown）：离开工具前先确认（保存/不保存/取消）
-  if (toolsDirty.value && pageType.value === 'tools' && currentTool.value !== 'list') {
-    pendingSwitch = { type };
-    saveConfirmVisible.value = true;
-    return;
-  }
   // “工具”入口：点击时进入工具列表；已在工具页（可能正打开某个工具）则回到列表
   if (type === 'tools') {
     if (pageType.value === 'tools') {
@@ -665,12 +595,6 @@ function onOpenTool(tool) {
 
 // 工具内返回：按打开来源回跳（会话 → 对应消息界面；工具列表 → 工具列表）
 function onToolBack() {
-  // 未保存内容先拦截确认
-  if (toolsDirty.value) {
-    pendingSwitch = { type: 'tool-back' };
-    saveConfirmVisible.value = true;
-    return;
-  }
   leaveToolToOrigin();
 }
 
@@ -682,39 +606,6 @@ function leaveToolToOrigin() {
     currentTool.value = 'list';
   }
   toolOrigin = { type: 'list' };
-}
-
-// 未保存拦截弹窗：保存后离开
-async function onSaveConfirmSave() {
-  saveConfirmVisible.value = false;
-  // 按当前打开的工具调用对应保存
-  if (currentTool.value === 'image') await imageToolRef.value?.save();
-  else if (currentTool.value === 'markdown') await markdownToolRef.value?.save();
-  else if (currentTool.value === 'math') await mathToolRef.value?.save();
-  else if (currentTool.value === 'graph_editor') await graphToolRef.value?.save();
-  // 保存成功后 dirty=false → emit 更新 toolsDirty=false；失败/取消则留在页面
-  if (!toolsDirty.value && pendingSwitch) {
-    const t = pendingSwitch.type;
-    pendingSwitch = null;
-    if (t === 'tool-back') leaveToolToOrigin();
-    else switchPage(t);
-  } else {
-    pendingSwitch = null;
-  }
-}
-
-// 未保存拦截弹窗：不保存直接离开
-function onSaveConfirmDiscard() {
-  saveConfirmVisible.value = false;
-  if (pendingSwitch) {
-    const t = pendingSwitch.type;
-    pendingSwitch = null;
-    // 丢弃未保存内容：清除 dirty 标记，否则 switchPage 会再次命中未保存拦截，
-    // 弹窗关闭后立刻重开，表现为"不保存"无法点击/点了没反应
-    toolsDirty.value = false;
-    if (t === 'tool-back') leaveToolToOrigin();
-    else switchPage(t);
-  }
 }
 
 function onSelectConversation({ type, id }) {
@@ -735,7 +626,7 @@ function onSelectConversation({ type, id }) {
     }
     closeSearch();
     visibleCount.value = 20;
-    Object.keys(collapsedMsgs).forEach(k => delete collapsedMsgs[k]);
+    Object.keys(expandedMsgs).forEach(k => delete expandedMsgs[k]);
     if (type === 'user') {
       const user = store.users[id];
       if (user) user.unread = 0;
@@ -815,16 +706,39 @@ function startForward(msgContent) {
   forwardModalVisible.value = true;
 }
 
+/**
+ * 转发前清洗 content。
+ * 投票的「票」不是独立消息，而是记在发起消息 content 里的本地聚合结果（votes / voteMeta / invalid，
+ * 见 utils.js 的 makePollContent / 投票合并逻辑）。原样转发等于把 A 群谁投了什么都抄进 B 群：
+ * 新投票一出现就显示「已经有人投过」，票数也全错。转发只应保留题面与选项。
+ */
+function stripPollVotes(content) {
+  if (!content || typeof content !== 'string' || content.trim()[0] !== '{') return content;
+  try {
+    const obj = JSON.parse(content);
+    if (!obj || obj.type !== 'poll') return content;
+    delete obj.votes;
+    delete obj.voteMeta;
+    delete obj.invalid;
+    delete obj.custom;
+    return JSON.stringify(obj);
+  } catch {
+    return content;
+  }
+}
+
 async function forwardToTarget(type, targetId, msgContent) {
   if (!type || !targetId || !msgContent) return;
+  const payload = stripPollVotes(msgContent);
   try {
     const r = await (await safeFetch('/chat/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, target_id: targetId, content: msgContent })
+      body: JSON.stringify({ type, target_id: targetId, content: payload })
     })).json();
     if (!r.success) {
-      if (inputFooterRef.value) inputFooterRef.value.errorMessage = '转发失败';
+      // 服务端的失败原因（禁言 / 次数上限 / 消息过长）是能读的，直接透出比「转发失败」有用
+      if (inputFooterRef.value) inputFooterRef.value.errorMessage = r.err?.message || '转发失败';
     } else {
       if (inputFooterRef.value) inputFooterRef.value.errorMessage = '';
       const { tokenInfo } = applyChatToStore(r, type, targetId);
@@ -917,43 +831,6 @@ async function onImageToolSend({ data, base64, mime, name } = {}) {
   } catch {}
 }
 
-// 预览"编辑"：把预览图片载入图片编辑器（data:/blob: 均可）
-async function onPreviewEdit() {
-  const src = previewData.src || '';
-  if (!src || (!src.startsWith('data:') && !src.startsWith('blob:'))) {
-    alert('无法编辑该图片（仅支持本地图片）');
-    return;
-  }
-  let data = '', mime = 'image/png';
-  try {
-    if (src.startsWith('data:')) {
-      const m = src.match(/^data:([^;,]+);base64,(.*)$/);
-      if (!m) { alert('无法编辑该图片'); return; }
-      mime = m[1] || 'image/png';
-      data = m[2];
-    } else {
-      const blob = await (await fetch(src)).blob();
-      mime = blob.type || 'image/png';
-      data = await new Promise((res, rej) => {
-        const fr = new FileReader();
-        fr.onload = () => res(String(fr.result || '').split(',')[1] || '');
-        fr.onerror = rej;
-        fr.readAsDataURL(blob);
-      });
-    }
-  } catch { alert('无法编辑该图片'); return; }
-  previewData.show = false;
-  // 进入图片编辑工具并载入图片；记住来源会话，工具内返回时回到对应消息界面
-  toolOrigin = { type: 'chat', pageType: pageType.value || 'chat', pageId: pageId.value };
-  pageType.value = 'tools';
-  pageId.value = null;
-  currentTool.value = 'image';
-  if (inputFooterRef.value) { inputFooterRef.value.mentionVisible = false; inputFooterRef.value.emojiVisible = false; }
-  closeSearch();
-  await nextTick();
-  await nextTick();
-  imageToolRef.value?.imageOpen?.(data, mime, previewData.title || '图片');
-}
 
 async function onDropFile({ targetType, targetId, file }) {
   if (!file) return;
@@ -1295,9 +1172,22 @@ async function submitGroupAction(action, gidOverride) {
   if (action.type === 'block') {
     const group = store.groups[gid];
     if (group) {
+      // 「退出并屏蔽」在后端就是 leave（modules/chat.js）：但群主在群里还有别人时后端会拒绝，
+      // 以前这里是空 catch + 无条件标记成功 —— 结果是「已屏蔽」却仍在群里，而探针又把
+      // exited 的群排除掉，这个群就再也收不到消息、也没有任何提示。必须看返回值。
+      let r;
+      try {
+        r = await postGroup({ type: 'leave', group_id: gid, target_id: 0 });
+      } catch (e) {
+        alert('退出并屏蔽失败：' + (e && e.message ? e.message : '网络异常'));
+        return;
+      }
+      if (!r || !r.success) {
+        alert((r && r.err && r.err.message) || '退出并屏蔽失败，请稍后重试');
+        return;
+      }
       group.exited = true;
       group.blocked = true;
-      try { await postGroup({ type: 'leave', group_id: gid, target_id: 0 }); } catch {}
       groupModal.show = false;
     }
     return;
@@ -1321,6 +1211,17 @@ async function submitGroupAction(action, gidOverride) {
     }
     groupActionProgress.show = false;
     action = { ...action, type: 'leave' };
+  }
+  // 只发后端真正实现的 9 种 type（modules/chat.js:200-347 没有 else 兜底：未知 type 会
+  // 静默返回 success，前端会以为操作成功，实际什么都没发生）。
+  const GROUP_ACTIONS = [
+    'setup', 'leave', 'give_owner', 'add_member', 'del_member',
+    'add_administrator', 'del_administrator', 'mute_member', 'mute_group', 'set_title',
+  ];
+  if (!GROUP_ACTIONS.includes(action.type)) {
+    console.warn('[group] 未知的群操作，已拦截：', action.type);
+    alert('不支持的操作：' + action.type);
+    return;
   }
   // 支持批量选人：targetIds 数组优先，否则回退单 targetId
   const targets = (action.targetIds && action.targetIds.length)
@@ -1510,7 +1411,6 @@ async function update(result) {
     }));
   const hiddenUsers = Object.fromEntries(Object.entries(store.users).filter(([, u]) => u.show === false && !friendsMap[u.uid]));
   store.users = { ...friendsMap, ...hiddenUsers };
-  startRanklistFetch();
   const newGroupIds = new Set(result.groups.map(g => g.id));
   const newGroups = Object.fromEntries(result.groups.map(g => {
     const old = store.groups[g.id];
@@ -1518,30 +1418,67 @@ async function update(result) {
   }));
   for (const [gid, oldGroup] of Object.entries(store.groups)) { if (!newGroupIds.has(Number(gid))) { oldGroup.exited = true; newGroups[gid] = oldGroup; } }
   for (const [gid, newGroup] of Object.entries(newGroups)) {
-    if (newGroup.blocked && !newGroup.exited) { try { await postGroup({ type: 'leave', group_id: Number(gid), target_id: 0 }); newGroup.exited = true; } catch {} }
+    // 之前「已屏蔽」的群每次 /chat/info 刷新都补一次 leave（空 catch，失败也静默）。
+    // 失败时要撤销屏蔽标记：否则列表显示「已屏蔽」、探针又排除该群，但人其实还在群里，
+    // 消息和 @ 全都收不到。真正的退群成功由 submitGroupAction 处理，这里只做自愈重试。
+    if (newGroup.blocked && !newGroup.exited) {
+      try {
+        const r = await postGroup({ type: 'leave', group_id: Number(gid), target_id: 0 });
+        if (r && r.success) newGroup.exited = true;
+        else newGroup.blocked = false;
+      } catch { newGroup.blocked = false; }
+    }
   }
   store.groups = newGroups;
 }
 
-async function fetchMessages(type, end, take = 10, allowPage = false) {
-  if (!infoLoopRunning) return;
+/**
+ * 拉取一段消息并入库。
+ * - allowPage=true：历史爬取模式，整批都是新消息就继续往前翻页（首次进入 / 冷启动用）
+ * - targetId 非空：只拉这一个会话（定向增量）。此时返回值告诉调用方「是否已接上」和
+ *   「本页最旧的秒」，由调用方决定要不要继续往前翻 —— 轮询路径不在这里翻页。
+ */
+async function fetchMessages(type, end, take = 10, allowPage = false, targetId = null, depth = 0) {
+  if (!infoLoopRunning) return null;
   try {
-    const endSec = Math.floor(end / 1000);
-    const r = await (await safeFetch(`/chat/chat?type=${type}&end_time=${endSec}&take=${take}`)).json();
-    if (!r.success || !r.chats || !r.chats.length) return;
+    // 服务端（modules/chat.js）的过滤条件是 `send_time < end_time`：**严格开区间**，
+    // 而 chat.send_time 是「秒级整数」列。所以必须 +1 秒：
+    // 消息在服务器秒 T 落地 → 探针在 [T, T+1) 内就看到新时间戳 → 若这里传 floor(now)=T，
+    // 服务端会把 send_time=T 的那条挡在外面 → 拿回空列表 → 误判「已追上」→ 基线推到 T
+    // → 之后每轮都 sec <= prev，永久跳过。症状就是「target-times 明明更新了，消息却不出现」。
+    const endSec = Math.floor(end / 1000) + 1;
+    const targetQuery = targetId == null ? '' : `&target_id=${targetId}`;
+    const r = await (await safeFetch(`/chat/chat?type=${type}&end_time=${endSec}&take=${take}${targetQuery}`)).json();
+    // 服务端返回 success:false（限流、临时错误）不能当作「没有新消息」：
+    // 以前这里直接返回 caughtUp:true，调用方会以为已追上、把探针基线推到新时间戳，
+    // 结果这批消息就被永久跳过 —— 症状正是「target-times 明明变了，对话里却不再出现新消息」。
+    if (!r.success) return null;
+    if (!r.chats || !r.chats.length) return { inserted: false, caughtUp: true, oldestSendTime: null, maxSendTime: 0, count: 0 };
     let hasNew = false; // 本轮是否插入了至少一条新消息
+    let oldestSendTime = null; // 本页最旧一条的 send_time（秒），供游标翻页用
+    let maxSendTime = 0; // 本页最新一条的 send_time（秒）：调用方用它判断「真的看到这条了」
     for (const c of r.chats) {
-      if (!infoLoopRunning) return;
-      end = Math.min(end, c.send_time * 1000 - 1);
-      if (type === 'user' && c.sender_id === store.self.uid) continue;
+      if (!infoLoopRunning) return null;
+      if (oldestSendTime === null || c.send_time < oldestSendTime) oldestSendTime = c.send_time;
+      if (c.send_time > maxSendTime) maxSendTime = c.send_time;
+      // 下一页的上界：本页最旧那一秒。**不能减 1 毫秒** —— 服务端是 `send_time < end_time` 严格开区间，
+      // floor((T*1000-1)/1000)+1 = T，下一页会把整秒 T 的消息全挡掉；而 take 一旦在秒 T 这一批里截断，
+      // 剩下那些同秒消息就永久丢失（历史中间出现缺口）。
+      end = Math.min(end, c.send_time * 1000);
       const t = type === 'group' ? store.groups[c.receiver_id] : type === 'send_user' ? store.users[c.receiver_id] : store.users[c.sender_id];
       if (!t) continue;
+      // ⚠️「已接上」的判定不能只看「本页出现过已知消息」：翻页游标按秒前进时会重复取到
+      // 上一页最旧那条（它是已知的），于是第 2 页就误判「接上了」而停下 —— 一次探针间隔里
+      // 新增超过一页的消息就会留下缺口，而调用方又把基线推到最新时间戳，缺口永远补不回来。
+      // 现在改成「本页是否带来了新消息」（见下方 caughtUp = !hasNew），一页全是旧消息才算取尽。
+      const known = t.message_ids.includes(c.id);
+      if (type === 'user' && c.sender_id === store.self.uid) continue;
       const isCurrentPage = (pageType.value === (type === 'group' ? 'group' : 'user') || (isChatPage.value && pageId.value)) && pageId.value === (type === 'group' ? c.receiver_id : (type === 'send_user' ? c.receiver_id : c.sender_id));
       // 正在看这个会话：未读与 @ 提醒都该即时归零。
       // 放在 fetchMessages 而不是只依赖 onSelectConversation，是为了覆盖「点通知直接跳进来」
       // 这类不经过选择事件的进入路径 —— 否则头部会一直挂着 [有人@你]，得退出重进才消。
       if (isCurrentPage) { t.unread = 0; if (type === 'group') t.mentioned = false; }
-      if (t.message_ids.includes(c.id)) {
+      if (known) {
         // 旧消息：不重复处理，仅跳过
         // 自愈：id 已在会话消息列表、但内容缺失（本地未及落库 / 历史持久化丢失），
         // 从服务器返回补回内容，否则该消息重启后永远无法显示；由快照统一落库
@@ -1561,6 +1498,10 @@ async function fetchMessages(type, end, take = 10, allowPage = false) {
         markMsgDirty(persistKind, persistCid);
         // 投票回复：既不通知、也不计未读、也不置 @ 提醒——它只是「票」，不是一条消息
         if (ing.kind === 'vote') continue;
+        // 通知/铃声是「锦上添花」的一步：任何异常都不能影响消息入库与拉取流程。
+        // （之前 JSON.parse 在裸文本 content 上抛错，把整批 fetchMessages 打断，
+        //   连首爬都中断，表现就是「有新消息却一直不出现」。）
+        try {
         const state = await window.api.getWindowState();
         if (!state.focused || !state.visible) {
           const chatType = type === 'group' ? 'group' : 'user';
@@ -1571,7 +1512,10 @@ async function fetchMessages(type, end, take = 10, allowPage = false) {
             const now = Date.now();
             if (!notifCooldown[convoKey] || now - notifCooldown[convoKey] > 5000) {
               notifCooldown[convoKey] = now;
-              const msg = JSON.parse(msgContent);
+              // 线上可能混入「纯文本 content」（网页版/其它客户端发的历史消息就是裸字符串），
+              // 直接 JSON.parse 会抛 SyntaxError，把整轮 fetchMessages 打断 ——
+              // 结果既没弹通知、也把这条消息当成「拉取失败」反复重试。这里按文本兜底。
+              const msg = parseMsgContent(msgContent) || { type: 'text', content: String(msgContent || '') };
               // 通知正文内容提取（拍一拍等结构化消息没有 content 字段）
               let notifRaw = ''
               if (msg.type === 'file') notifRaw = '📄 ' + (msg.name || '')
@@ -1595,6 +1539,7 @@ async function fetchMessages(type, end, take = 10, allowPage = false) {
             }
           }
         }
+        } catch (e) { console.error('[notify] 通知失败（不影响消息拉取）：', e); }
         if (c.sender_id !== store.self.uid && !isCurrentPage) t.unread = (t.unread || 0) + 1;
         // @ 提醒同理：正停留在这个群聊里就不要再标记「有人@你」——消息就在眼前，
         // 标了反而要退出重进才消失（此前这里漏了 !isCurrentPage）。
@@ -1609,16 +1554,228 @@ async function fetchMessages(type, end, take = 10, allowPage = false) {
     // 结束条件：仅当整批消息全部是旧消息（hasNew=false）才停止；
     // 只要本批还有新消息（哪怕夹杂旧消息）就继续往前翻页，直到取尽历史。
     // 仅爬取模式（allowPage=true）才翻页，且翻页固定取 100 条；普通轮询不翻页（保持轻量）
-    if (hasNew && allowPage) {
-      await fetchMessages(type, end, 100, true);
+    // depth 上限：游标是「秒」，同一秒里消息数超过 take 时下一页可能原地返回同一批，
+    // 有 depth 兜底就不会无限递归（正常历史几百页也到不了 200）。
+    if (hasNew && allowPage && depth < 200) {
+      await fetchMessages(type, end, 100, true, targetId, depth + 1);
+    } else if (hasNew && allowPage) {
+      console.warn('[chat] 历史翻页达到上限，可能是同一秒内消息数超过单页容量：', type, targetId);
     }
-  } catch (e) { console.error(e); }
+    // 返回 caughtUp = 「本页没有带来任何新消息」＝再往前都是本地已有的历史，可以停。
+    // 不能把它定义成「本页出现过已知消息」：翻页游标按秒重叠时，第 2 页必然含上一页最旧
+    // 那条（已知），那样每轮最多只补一页，单轮新增超过一页就永久缺口（见上面 for 里的注释）。
+    // count = 本页返回条数：调用方要区分「整页塞满」和「已经到底了」，
+    // 同一秒里的消息多到超出一页时，只能靠放大 take 把这一秒盖全（时间游标分不开）。
+    return { inserted: hasNew, caughtUp: !hasNew, oldestSendTime, maxSendTime, count: r.chats.length };
+  } catch (e) { console.error(e); return null; }
 }
 
+/** 全量拉一轮三个视图。返回 false 表示至少有一个视图没拉成功（首爬失败要重来）。 */
 async function updateMessagesData(take = 10, allowPage = false) {
-  await fetchMessages('user', Date.now(), take, allowPage);
-  await fetchMessages('send_user', Date.now(), take, allowPage);
-  await fetchMessages('group', Date.now(), take, allowPage);
+  const a = await fetchMessages('user', Date.now(), take, allowPage);
+  const b = await fetchMessages('send_user', Date.now(), take, allowPage);
+  const c = await fetchMessages('group', Date.now(), take, allowPage);
+  return !!a && !!b && !!c;
+}
+
+// ===== 轮询：target-times 探针 + 定向增量拉取 =====
+// 常规轮询不再把「每个会话最近 10 条」全量重下（含 base64 图片，一条就 74~90 KB），改成：
+//   1) GET /chat/target-times  ← 542 B，只返回「会话 → 最后一条消息的时间戳」
+//   2) 只有时间戳变大的会话，才按 target_id 定向拉几条
+// 注意 target-times 必须带 id、且只回显被请求的 id，所以 /chat/info 仍然保留（降频），
+// 它是「有哪些会话」的唯一来源 —— 新好友/新群只能由它发现。
+// /chat/info 是全量会话快照（51 KB），只用来兜底发现「新加的好友 / 新群」——
+// 探针只回显已知 id，发现不了新对象。每 2 轮拉一次（用户定：宁可贵一点也要快）。
+const INFO_EVERY_ROUNDS = 2;
+const TOKEN_EVERY_ROUNDS = 1; // token 查询只有 60 B，每轮查
+const INCR_TAKE_START = 5; // 起手 5 条：同一秒可能有多条消息，take=1/2 容易漏，5 是实测折中
+const INCR_TAKE_MAX = 16;
+const INCR_MAX_PAGES = 4; // 单轮最多往前翻 4 页；还没接上就记进 backfillKeys，下一轮继续
+// 「还有更旧的新消息没拉完」的会话 key 集合。
+// 判定口径（用户定的）：只有「这一页里没有任何未出现过的消息」才算接上；
+// 只要还有没出现的消息，就必须继续往前翻 —— 单轮页数用完就留到下一轮，
+// 绝不能因为「本轮页数到顶」或「时间戳没变」就把这段缺口当成已同步。
+const backfillKeys = new Set();
+
+// 各会话「最后一条消息的时间戳」（秒），key = 'g:<gid>' / 'u:<uid>'。
+// 探针靠它判断谁有新消息；只在内存里，冷启动首爬会重新建立基线。
+const lastSendTimes = new Map();
+// 同一秒内的补查记录：key → 已经为这个秒补查过一次。
+// 服务端 MAX(send_time) 只有整秒精度，同一秒里的第二条消息不会让探针的数字变大，
+// 只靠 `sec > prev` 永远发现不了。对每个基线只补查一次（多 1 个 take=2 的请求），
+// 避免「时间戳不变」的会话每轮都多打一次请求。
+const sameSecondRechecked = new Map();
+const TARGET_TIMES_BATCH = 200; // 好友/群很多时按批问，避免 URL 过长被服务端截断
+
+/**
+ * 这个用户算不算「会话对象」。
+ * store.users 里不止会话：ranklist 后台爬取会把全校学生的资料也塞进来（show:false），
+ * 那些人既不是好友也没有消息，问探针纯属浪费 —— 早先没过滤，直接导致一轮发出 6 个
+ * target-times 请求（按 200 个 id 分批）。只保留「好友关系」或「已有消息」的用户。
+ */
+function isConversationUser(u) {
+  if (!u || u.uid == null) return false;
+  return u.watchee === true || u.watcher === true || (u.message_ids && u.message_ids.length > 0);
+}
+
+/** 把当前已知的群/好友 id 按批切开（探针只认被请求的 id） */
+function targetTimesBatches() {
+  const gids = [];
+  for (const g of Object.values(store.groups || {})) if (g && !g.exited && g.gid != null) gids.push(g.gid);
+  const uids = [];
+  for (const u of Object.values(store.users || {})) if (isConversationUser(u)) uids.push(u.uid);
+  const batches = [];
+  for (let i = 0; i < Math.max(gids.length, uids.length, 1); i += TARGET_TIMES_BATCH) {
+    batches.push({
+      group_ids: gids.slice(i, i + TARGET_TIMES_BATCH).join(','),
+      user_ids: uids.slice(i, i + TARGET_TIMES_BATCH).join(','),
+    });
+  }
+  return batches;
+}
+
+/**
+ * 问一次探针，返回「有新消息」的会话列表。
+ * seed=true 只记录基线、不产生待拉取项（冷启动用，避免把历史当成新消息再拉一遍）。
+ * 返回 null 表示这次请求失败（调用方据此做退避计数）。
+ */
+/**
+ * 登录态失效：服务端把请求重定向到登录页，返回的是 HTML 而不是 JSON。
+ * 以前这种响应会被当成「网络异常」→ 一直显示「未连接，正在尝试重新连接…」，
+ * 用户永远等不到恢复（cookie 已经没了，重试多少次都没用）。这里直接告诉他重新登录。
+ */
+function noteSessionExpired() {
+  if (serverNotice.value) return;
+  serverNotice.value = '登录状态已失效，请重新登录';
+  serverNoticeMuted.value = false;
+  store.netError = false;
+}
+
+/**
+ * 服务端「明确拒绝」类响应（封禁/禁言）要原样告诉用户。
+ * 以前所有失败一律当网络故障处理，于是后端返回的
+ * 「你被禁止使用聊天功能直到…」被压成「未连接，正在尝试重新连接…」，
+ * 用户完全不知道是自己被禁言了，只看到聊天一直不动。
+ */
+function noteServerFailure(r) {
+  if (!r || r.success) return false;
+  const msg = (r.err && r.err.message) || '';
+  if (!msg) return false;
+  if (/禁止使用聊天|被禁言|已被封禁/.test(msg)) {
+    serverNotice.value = msg;
+    return true;
+  }
+  return false;
+}
+
+async function probeTargetTimes(seed = false) {
+  const batches = targetTimesBatches();
+  if (!batches.length || (!batches[0].group_ids && !batches[0].user_ids)) return [];
+  const changes = [];
+  const collect = (map, prefix, kind) => {
+    for (const [rawId, rawSec] of Object.entries(map || {})) {
+      const id = Number(rawId);
+      const sec = Number(rawSec) || 0;
+      if (!id || !sec) continue;
+      const key = prefix + id;
+      const prev = lastSendTimes.get(key) || 0;
+      // 服务器偶发回退（时钟/主从）：保持旧基线，别当成新消息。
+      if (sec < prev) continue;
+      if (sec === prev) {
+        // 时间戳没变大，但可能是「同一秒里的第二条消息」——MAX(send_time) 精度只有秒。
+        // 每个基线补查一次；补查也走定向拉取，靠 id 去重，不会重复插入。
+        if (seed || prev === 0 || sameSecondRechecked.get(key) === sec) continue;
+        sameSecondRechecked.set(key, sec);
+        changes.push({ kind, id, fresh: false, key, sec, sameSecond: true });
+        continue;
+      }
+      if (seed) {
+        lastSendTimes.set(key, sec);
+        // 建基线时顺手把「同秒补查」也标记成已完成：紧接着的首次爬取（take=100）已经把
+        // 这一秒的消息全拉回来了，不需要开轮询后再对每个会话补查一次 ——
+        // 否则一启动就是「所有有过消息的会话各拉一遍」，几十个会话 ≈ 上百个请求。
+        sameSecondRechecked.set(key, sec);
+        continue;
+      }
+      // 注意：这里**不能**先更新 lastSendTimes —— 基线要等真正拉取成功后再推进
+      // （见调用方）。否则一次网络失败/服务端延迟就会把这段时间的新消息永久跳过，
+      // 表现就是「target-times 明明变了，但对话里一直不出现新消息」。
+      // prev=0 说明这是个「之前从未有过消息」的会话（新好友发的第一条），
+      // 本地一条历史都没有，得按首次爬取整段拉回来，不能只拉增量。
+      changes.push({ kind, id, fresh: prev === 0, key, sec });
+    }
+  };
+  for (const batch of batches) {
+    const qs = new URLSearchParams({ group_ids: batch.group_ids, user_ids: batch.user_ids, scope: '' }).toString();
+    let r;
+    try {
+      const res = await safeFetch('/chat/target-times?' + qs);
+      // safeFetch 遇到 HTML 响应（登录失效被重定向到登录页）会带 _html 标记
+      if (res && res._html) { noteSessionExpired(); return null; }
+      r = await res.json();
+    } catch {
+      return null;
+    }
+    if (!r || !r.success) {
+      noteServerFailure(r);
+      return null;
+    }
+    collect(r.groups, 'g:', 'group');
+    collect(r.users, 'u:', 'user');
+  }
+  return changes;
+}
+
+/**
+ * 定向增量拉取一个会话。take 从小到大倍增，靠「本页出现本地已有消息」判断已接上；
+ * 整页都是新消息才继续往前翻。
+ * 返回 { ok, maxSeen }：maxSeen = 本页见到的最新 send_time（秒），调用方据此决定基线能不能推进
+ * —— 服务端可能还没把「探针看到的那条」吐出来（秒级边界 / 主从延迟），没见到就不能推进。
+ */
+async function pullOne(type, targetId, fresh) {
+  if (fresh) {
+    // 新会话：本地没有历史，按首次爬取的做法整段拉（100 条 + 翻页）
+    const r = await fetchMessages(type, Date.now(), 100, true, targetId);
+    return { ok: !!r, maxSeen: r ? r.maxSendTime : 0, done: true };
+  }
+  let end = Date.now();
+  let take = INCR_TAKE_START;
+  let maxSeen = 0;
+  for (let page = 0; page < INCR_MAX_PAGES; page++) {
+    const res = await fetchMessages(type, end, take, false, targetId);
+    if (!res) return { ok: false, maxSeen, done: false }; // 请求失败：让调用方保留旧基线、下一轮重试
+    if (res.maxSendTime > maxSeen) maxSeen = res.maxSendTime;
+    // caughtUp = 这一页里没有一条未出现过的消息。只有这种情况才算真的接上了；
+    // 「本页出现过已知消息」不算（翻页游标按秒重叠，第 2 页必然含上一页最旧那条）。
+    if (res.caughtUp || res.oldestSendTime === null) return { ok: true, maxSeen, done: true };
+    // 往前翻的游标 = 本页最旧那一秒。fetchMessages 内部会 +1（服务端 `send_time < end_time`
+    // 是开区间），所以传 `oldest * 1000` 实际查的是 `send_time <= oldest`：同一秒里
+    // 剩下的消息仍会被取到。**不能传 (oldest + 1) * 1000** —— 那等于把上界又抬高 1 秒，
+    // 第 2 页必然命中上一页最旧那条已知消息，误判「接上了」而停，单轮新增超过一页就丢消息。
+    const nextEnd = res.oldestSendTime * 1000;
+    if (nextEnd >= end) {
+      // 整页都落在同一秒里：时间游标已经分不开了，只能把 take 放大到能把这一秒盖全。
+      // 盖不全就记成「没接上」，交给下一轮继续补 —— 绝不能在这里假装已经同步完。
+      if (res.count >= take && take < 100) {
+        take = Math.min(take * 4, 100);
+        page--; // 同一个时间窗口重试，不占页数
+        continue;
+      }
+      return { ok: true, maxSeen, done: res.count < take };
+    }
+    end = nextEnd;
+    take = Math.min(take * 2, INCR_TAKE_MAX);
+  }
+  // 页数用完了但还没接上：这一轮先到这里，把会话记下来，下一轮继续往前补。
+  return { ok: true, maxSeen, done: false };
+}
+
+/** 拉一个会话的新消息：群只有 group 一个视图；私聊要 user（对方发的）+ send_user（自己发的） */
+async function pullConversation(kind, id, fresh) {
+  if (kind === 'group') return pullOne('group', id, fresh);
+  const a = await pullOne('user', id, fresh);
+  const b = await pullOne('send_user', id, fresh);
+  return { ok: a.ok && b.ok, maxSeen: Math.max(a.maxSeen, b.maxSeen), done: a.done && b.done };
 }
 
 // ===== SQLite 存储：唯一快照保存通道 =====
@@ -1771,6 +1928,9 @@ async function logout(toLogin = false, clearCred = false) {
   if (pollTimer) clearInterval(pollTimer);
   if (autoSaveTimer) clearInterval(autoSaveTimer);
   stopRanklistFetch(); // 停止 ranklist 轮询（退登结束，重新登录后自动重启）
+  lastSendTimes.clear(); // 探针基线属于当前账号，换账号必须清掉
+  sameSecondRechecked.clear();
+  backfillKeys.clear(); // 未补完的缺口也属于当前账号
   // 等待可能正在执行的异步操作完成
   await new Promise(r => setTimeout(r, 100));
   // 退出前先保存当前数据（立即落盘，不等节流）
@@ -1787,9 +1947,12 @@ async function logout(toLogin = false, clearCred = false) {
     s.loginPassword = '';
   }
   await window.api.saveSetting(s);
-  // #2：退出登录清除持久化登录标记；重新登录时保留（本地仍认为登录过）
+  // 无论哪种退出，服务端会话都已经销毁（上面 POST /logout + 清了 cookie），本地绝不能再
+  // 留「已登录」标记。原来的注释以为「重新登录」可以保留标记，但那样下次启动会直接进入
+  // 聊天界面、所有请求都因没有 cookie 失败，只能看到一个空的破界面 —— 必须一并清掉，
+  // 让下次启动老老实实回登录页（keepLogin 的账号密码仍在，重新登录不用重输）。
   try {
-    if (clearCred) localStorage.removeItem('7fa4_logined');
+    localStorage.removeItem('7fa4_logined');
   } catch {}
   Object.assign(store, { self: { uid: null, username: null, nickname: null, realname: null }, users: {}, groups: {}, messages: {}, stickers: [], drafts: {}, mutedConvos: {}, hiddenConvos: {} });
   clearPendingVotes(); // 清空待落地投票缓冲，避免串到下一个账号
@@ -1805,6 +1968,8 @@ async function startInfoLoop() {
   if (infoLoopRunning) return; // 互斥：防止重复调用导致多个并发轮询循环（疯狂连续获取、不守间隔）
   infoLoopRunning = true;
   let failCount = 0;
+
+  // ① 启动首爬（保持原有行为，一次把历史取尽）
   // 首次进入：onMounted 里的 update(initialInfo) 因 infoLoopRunning 未置真，会被 update 自身的
   // `if (!infoLoopRunning) return` 守卫跳过，此时 store.users/groups 为空。若直接全量爬取，
   // fetchMessages 会因 `if (!t) continue`（t 取不到会话）把历史全部丢弃，只剩轮询的 10 条。
@@ -1815,27 +1980,114 @@ async function startInfoLoop() {
     if (r.success) { await update(r); failCount = 0; store.netError = false; store.online = true; }
     else { failCount++; store.netError = true; }
   } catch { failCount++; store.netError = true; }
+  // 先把「各会话最后消息时间」记成基线：必须排在首爬之前，
+  // 否则首爬结束到记基线之间到达的消息会被当成基线、再也不会被拉取。
+  // 记完基线再爬，这段时间来的消息既在爬取结果里、下一轮探针又会看到新时间戳（拉到已知 id 就停）。
+  try { await probeTargetTimes(true); } catch {}
   store.fetchNewCount = 0;
-  try { await updateMessagesData(100, true); } catch {}
+  let initialOk = false;
+  try { initialOk = await updateMessagesData(100, true); } catch {}
+  // 首爬没成功就别信上面记的基线：那些「刚好在这段时间到达」的消息会被当成基线永久跳过。
+  // 清空基线后下一轮探针会把有消息的会话全部当作「未接上」重新拉一遍（幂等，靠 id 去重）。
+  if (!initialOk) { console.warn('[poll] 首爬未完成，清空探针基线并重试'); lastSendTimes.clear(); }
   // 首次历史爬取（无论成败）结束：隐藏"正在加载消息…"提示，进入常规轮询
   store.initializing = false;
+  // ranklist 与聊天无关，放在首爬之后、后台慢慢爬，不占首屏时间
+  startRanklistFetch();
+
+  // ② 常规轮询：探针 → 定向增量拉取（详见上面「轮询：target-times 探针」一节）
+  let round = 0;
   while (infoLoopRunning && store.logined) {
-    try { const result = await (await safeFetch('/chat/info')).json(); if (!infoLoopRunning) break; if (result.success) { await update(result); failCount = 0; store.netError = false; store.online = true; } else { failCount++; store.netError = true; } } catch { failCount++; store.netError = true; }
-    if (!infoLoopRunning) break;
-    if (failCount >= 3) {
-      // 连续失败（如无法访问 jx）：退避到 10s，避免高频空转；保持"未连接"横幅直到恢复
-      store.online = false;
-      await new Promise(r => setTimeout(r, 10000));
-      continue;
-    }
-    try { await updateMessagesData(); } catch {}
-    if (!infoLoopRunning) break;
+    round++;
     try {
-      const tr = await (await safeFetch('/chat/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'none' }) })).json();
-      if (tr.success && tr.remain_token_count !== undefined) {
-        if (inputFooterRef.value) inputFooterRef.value.tokenInfo = { remain: tr.remain_token_count, total: tr.remain_token_count + tr.used_token_count };
+      // 探针（542 B）：只问「谁有新消息」，命中的会话才发定向请求
+      const changes = await probeTargetTimes();
+      if (changes === null) {
+        // 服务端明确说「你得被禁止使用聊天」时，这不是网络故障：别弹「未连接/重连中」，
+        // 也别退避重试得像是网断了 —— 展示原话，轮询继续（禁言到期会自动恢复）。
+        if (serverNotice.value) {
+          failCount = 0;
+          store.netError = false;
+        } else {
+          failCount++;
+          store.netError = true;
+        }
+      } else {
+        failCount = 0;
+        store.netError = false;
+        store.online = true;
+        for (const c of changes) {
+          if (!infoLoopRunning) break;
+          try {
+            const pulled = await pullConversation(c.kind, c.id, c.fresh);
+            // 拉成功、且确实见到了「探针报的这个时间戳」才推进基线：失败就留在旧值，
+            // 下一轮自动重试。只判 ok 不判 maxSeen 是不够的 —— 请求成功但服务端还没
+            // 把那条消息吐出来时（秒级边界），推了基线就永久补不回来了。
+            // 这里千万不能清 sameSecondRechecked 的标记：它的语义是「这个秒已经补查过」。
+            // 清掉的话下一轮 `sec === prev` 又成立、标记又没了 → 每个会话每秒都被重拉一次，
+            // 空闲状态下就是每分钟上千个请求（用户报的「没有新消息也一通猛抓」）。
+            if (pulled.ok && pulled.maxSeen >= c.sec) lastSendTimes.set(c.key, c.sec);
+            // 没接上（单轮页数用完、但还有更旧的新消息）：记下来，下一轮继续往前补，
+            // 不能因为基线已经推到最新就把这段缺口当成已同步。
+            if (pulled.ok && !pulled.done) backfillKeys.add(c.key);
+          } catch (e) { console.error(e); }
+        }
+        // 注意：这里**不要**再「每轮把当前打开的会话直接拉一次」。
+        // 探针的 MAX(send_time) 只有整秒精度，同一秒的第二条消息靠上面 sameSecondRechecked
+        // 补查一次即可；每轮都拉会让空闲状态下每秒固定多出 1~2 个请求（私聊两个视图），
+        // 而收益只是「同一秒的第三条以后能早 1 秒看到」，不值得。
+        // 上一轮没补完的缺口：每轮各补一页，直到「本页没有任何未出现过的消息」为止。
+        // 这里不依赖探针时间戳（它可能早就不变了），否则缺口会永远留在那里。
+        if (infoLoopRunning && backfillKeys.size) {
+          let budget = 3; // 每轮最多补 3 个会话，避免一次拉太多把带宽打满
+          for (const key of Array.from(backfillKeys)) {
+            if (!infoLoopRunning || budget-- <= 0) break;
+            const kind = key.startsWith('g:') ? 'group' : 'user';
+            const id = Number(key.slice(2));
+            if (!id) { backfillKeys.delete(key); continue; }
+            try {
+              const pulled = await pullConversation(kind, id, false);
+              if (!pulled.ok || pulled.done) backfillKeys.delete(key);
+              else if (pulled.maxSeen > (lastSendTimes.get(key) || 0)) lastSendTimes.set(key, pulled.maxSeen);
+            } catch (e) { console.error(e); }
+          }
+        }
       }
-    } catch {}
+      if (!infoLoopRunning) break;
+      if (failCount >= 3) {
+        // 连续失败（如无法访问 jx）：退避到 10s，避免高频空转；保持"未连接"横幅直到恢复
+        store.online = false;
+        await new Promise(r => setTimeout(r, 10000));
+        continue;
+      }
+      // 会话集合兜底：新好友 / 新群只能由 /chat/info 发现（探针只回显已知 id）
+      if (round % INFO_EVERY_ROUNDS === 0) {
+        try {
+          const res = await safeFetch('/chat/info');
+          if (res && res._html) noteSessionExpired();
+          else {
+            const result = await res.json();
+            if (infoLoopRunning && result.success) await update(result);
+          }
+        } catch {}
+        if (!infoLoopRunning) break;
+      }
+      // token 余额：60 B，每轮查
+      if (round === 1 || round % TOKEN_EVERY_ROUNDS === 0) {
+        try {
+          const tr = await (await safeFetch('/chat/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'none' }) })).json();
+          if (tr.success && tr.remain_token_count !== undefined) {
+            if (inputFooterRef.value) inputFooterRef.value.tokenInfo = { remain: tr.remain_token_count, total: tr.remain_token_count + tr.used_token_count };
+          }
+        } catch {}
+      }
+    } catch (e) {
+      // 单轮抛错绝不能杀死整个轮询：这里以前是裸露的循环体，任何一处异常
+      // （例如热更新中途拿到的半成品模块、字段缺失）都会让 while 直接退出，
+      // 表现就是「target-times 还在跳，但再也不发 /chat/chat、新消息永远不出现」。
+      console.error('[poll] 本轮出错，2s 后继续：', e);
+      failCount++;
+    }
     await new Promise(r => setTimeout(r, setting.value.pollInterval || 1000));
   }
 }

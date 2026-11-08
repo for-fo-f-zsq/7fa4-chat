@@ -55,7 +55,8 @@
 }
 .title-close:hover {
     background: var(--status-danger);
-    color: var(--on-brand);
+    /* 危险色填充上用自己的前景色（--on-danger），不用品牌墨色 */
+    color: var(--on-danger);
 }
 
 /* ---------- 1. 页面骨架与品牌氛围 ---------- */

@@ -73,9 +73,9 @@
     color var(--motion-dur-fast) var(--motion-ease-standard);
 }
 
+/* hover 只加深背景，文字保持 --fg 不变 —— --brand 墨色比 --fg 浅，用它上色等于「变浅」 */
 .new-convo-item:hover {
   background: var(--surface-hover);
-  color: var(--brand);
 }
 
 .new-convo-item i {
@@ -145,9 +145,7 @@
     transform: scaleY(1);
   }
 
-  .conversation-item:hover .conv-name {
-    color: var(--brand);
-  }
+  /* 会话名 hover 不改色：--brand 墨色比 --fg 浅，上色会造成「hover 变浅」 */
 }
 
 .conversation-item:active {

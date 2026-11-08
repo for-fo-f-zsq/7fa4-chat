@@ -59,7 +59,7 @@
 }
 
 .ui-btn--primary {
-  background: var(--brand);
+  background: var(--brand-fill);
   border-color: transparent;
   color: var(--on-brand);
   box-shadow: var(--elev-brand);
@@ -101,7 +101,7 @@
 }
 
 .ui-btn--primary:active:not(.is-disabled) {
-  background: var(--brand-active);
+  background: var(--brand-fill-active);
   box-shadow: var(--elev-brand-press);
 }
 
@@ -155,7 +155,7 @@
 
 @media (hover: hover) {
   .ui-btn--primary:hover:not(.is-disabled) {
-    background: var(--brand-hover);
+    background: var(--brand-fill-hover);
     box-shadow: var(--elev-brand-hover);
     transform: translateY(-1px);
   }

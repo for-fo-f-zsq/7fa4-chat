@@ -68,7 +68,7 @@
                 box-shadow var(--motion-dur-base) var(--motion-ease-standard);
 }
 .chat-header .header-watch-btn.ui-icon-btn:hover:not(.is-disabled) {
-    background: var(--brand);
+    background: var(--brand-fill);
     color: var(--on-brand);
     transform: scale(1.1);
     box-shadow: var(--elev-brand-hover);

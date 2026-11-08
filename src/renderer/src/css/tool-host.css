@@ -58,8 +58,7 @@
   gap: var(--space-2);
 }
 
-/* ChatView 以 class="ide-host" 透传到本组件根节点：与工具列表一致的页面背景。
-   与 tool-shell.css 中的同名规则保持一致（两个宿主各持一份 scoped 规则）。 */
+/* ChatView 以 class="ide-host" 透传到本组件根节点：与工具列表一致的页面背景。 */
 .ide-host {
   flex: 1;
   min-height: 0;

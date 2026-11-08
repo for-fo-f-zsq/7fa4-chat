@@ -47,7 +47,7 @@
               @contextmenu.prevent="pageType=='group'&&$emit('openGroupActionMenu', $event, item.data.sender)">{{ displayName(msgSenderUser(item.data)) }}</span>
               <span class="time">{{ gettime2(item.data.send_time) }}</span>
             </div>
-            <div class="bubble" :class="{ collapsed: isCollapsed(item.data) }"
+            <div class="bubble" :class="{ collapsed: isClamped(item.data) }"
               @contextmenu.prevent="onMsgMenu($event, item.data)">
               <!-- 投票：可交互卡片替代气泡 -->
               <PollCard
@@ -61,7 +61,14 @@
               />
               <div v-else class="bubble-content luogu-md" v-html="renderContent(item.data.content, item.data.sender)"></div>
             </div>
-            <div class="expand-btn" v-if="isCollapsed(item.data)" @click="openMsgPreview(item.data)">查看更多</div>
+            <!-- 展开/收起：只有「超过收起高度且不会被切到图」的消息才出现，点一下原地切换，不再跳弹窗 -->
+            <button
+              v-if="isExpandable(item.data)"
+              type="button"
+              class="expand-btn"
+              :aria-expanded="isExpanded(item.data) ? 'true' : 'false'"
+              @click.stop="toggleExpand(item.data)"
+            >{{ isExpanded(item.data) ? '收起' : '展开' }}</button>
           </div>
         </template>
         <template v-else>
@@ -72,7 +79,7 @@
             <div class="bubble-header">
               <span class="time">{{ gettime2(item.data.send_time) }}</span>
             </div>
-            <div class="bubble" :class="{ collapsed: isCollapsed(item.data) }"
+            <div class="bubble" :class="{ collapsed: isClamped(item.data) }"
               @contextmenu.prevent="onMsgMenu($event, item.data)">
               <PollCard
                 v-if="pollOf(item.data)"
@@ -85,7 +92,13 @@
               />
               <div v-else class="bubble-content luogu-md" v-html="renderContent(item.data.content, item.data.sender)"></div>
             </div>
-            <div class="expand-btn" v-if="isCollapsed(item.data)" @click="openMsgPreview(item.data)">查看更多</div>
+            <button
+              v-if="isExpandable(item.data)"
+              type="button"
+              class="expand-btn"
+              :aria-expanded="isExpanded(item.data) ? 'true' : 'false'"
+              @click.stop="toggleExpand(item.data)"
+            >{{ isExpanded(item.data) ? '收起' : '展开' }}</button>
           </div>
         </template>
       </div>
@@ -114,7 +127,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUpdated, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown, compressBase64Image, parsePoll, aggregatePoll, avatarTint } from '../utils.js';
+import { gettime2, parseContent, parseMsgContent, displayName, getGradeColor, getGradeLabel, getAvatarInitial, formatDateSeparator, isSameDay, renderMarkdown, compressBase64Image, parsePoll, aggregatePoll, avatarTint, isTextLikeContent, esc } from '../utils.js';
 import MsgMenu from './MsgMenu.vue';
 import PollCard from './PollCard.vue';
 import { useCurrentMessages } from '../composables/useCurrentMessages.js';
@@ -126,7 +139,7 @@ const props = defineProps({
   pageType: { type: String, required: true },
   pageId: { type: [Number, String], default: null },
   selfUid: { type: Number, default: null },
-  collapsedMsgs: { type: Object, required: true },
+  expandedMsgs: { type: Object, required: true },
   visibleCount: { type: Number, required: true }
 });
 
@@ -203,7 +216,18 @@ watch(hasOlderMessages, () => {
 
 function renderContent(msg, senderId) {
   if (!msg) return '';
-  return parseContent(msg, senderId);
+  try {
+    return parseContent(msg, senderId);
+  } catch (e) {
+    // 单条消息渲染失败不能拖垮整个会话：content 来自服务端且字段类型不受控
+    // （`{"type":"file","name":123}`、`mentions:["*"]` 之类都能让解析函数抛错），
+    // 而 v-html 的渲染函数一抛错，Vue 会中断这一整块 patch —— 表现就是该会话白屏，
+    // 且每次重渲染都再抛一次，进多少回都一样。这里降级成纯文本兜底。
+    console.error('[render] 消息渲染失败，已降级为纯文本：', e);
+    const raw = String(msg.content == null ? '' : msg.content);
+    const text = raw.length > 500 ? raw.slice(0, 500) + '…' : raw;
+    return '<div class="unknown-msg">' + esc(text || '[消息渲染失败]') + '</div>';
+  }
 }
 
 // ========== 投票 ==========
@@ -298,64 +322,300 @@ function injectCodeCopyButtons() {
   }
 }
 
-// ===== 长消息折叠 =====
-// 折叠阈值：只认渲染后的实际高度（源码字符数不可信 —— markdown、base64 图片、公式都会改变渲染高度）。
-// 与 .bubble.collapsed 的 max-height 保持一致：只有真正超过 300px 才折叠，不会白切一点。
-const COLLAPSE_MAX_H = 300;
-const measuredMsgIds = new Set();
+// ===== 长消息展开 / 收起 =====
+// 设计见 tmp/design/msg-expand-collapse.md。两个概念必须分开：
+//   expandableIds —— 系统测量结果：这条消息「能不能收」。纯内部状态，不进 store。
+//   expandedMsgs  —— 用户点击产物：这条消息「现在是展开的吗」。由 ChatView 持有，
+//                    切会话时清空（沿用原 collapsedMsgs 的位置与清理时机）。
+// 系统只判断能不能收，绝不主动收起用户内容 —— 显示与否完全交给用户。
+const CLAMP_LINES = 13;      // 收起后保留的整行数（与 CSS 的 --msg-clamp-lines 同源）
+const BUBBLE_PAD_Y = 20;     // .bubble 的上下 padding 之和（10px × 2），见 message-list.css
+// 未经测量就直接按「能收起」渲染的字符数门槛（乐观渲染，见 isExpandable 注释）。
+// 取值依据：13 行 × 每行约 40 个中文字符 ≈ 520 字符，这里给 1.6 倍余量，
+// 保证「短消息被误判成可收起」的概率极低，而超大消息首帧就能收起、不会跳。
+const OPTIMISTIC_CHARS = 800;
+const expandableIds = ref(new Set());
+// 测量结果版本号：measureExpandableOnce 改了结论就 +1，让 isExpandable 所在的模板重算。
+// 没有它的话，乐观判定为「可收起」的行在测量确认「其实不长」之后不会自动展开。
+const measureTick = ref(0);
 
-/** 媒体消息：整条就是图片/表情/文件/投票，自身已限高，不需要「查看更多」 */
+/**
+ * 收起高度：按「整行」算，不用魔法数字。
+ * 1.6 是 .bubble-content 的 line-height，与 CSS 的 calc(1.6em * var(--msg-clamp-lines) + 20px)
+ * 严格对应 —— 两边必须同时改，否则收口会切在半行字上。
+ */
+function clampPx(bubble) {
+  const fs = parseFloat(getComputedStyle(bubble).fontSize) || 14;
+  return 1.6 * fs * CLAMP_LINES + BUBBLE_PAD_Y;
+}
+
+/**
+ * 媒体消息：整条就是图片/表情/文件/投票，自身已限高，不需要展开按钮。
+ * 注意 .chat-image 不带 data-image-msg 也在此判断范围内 —— 那是「图文混排」里的插图。
+ */
 function isMediaRow(row) {
   return !!row.querySelector(
     '.chat-image[data-image-msg="1"], .sticker-msg, .emoji-msg, .file-msg, .poll-card, video, iframe'
   );
 }
 
-/** 是否折叠：只按测量结果，投票卡片恒不折叠 */
-function isCollapsed(msg) {
-  if (!msg || pollOf(msg)) return false;
-  return !!props.collapsedMsgs[msg.id];
+/**
+ * 收起线（气泡顶部往下 clampPx）如果正好穿过某张图，收起就会把图从中间切开，
+ * 露出半张图 —— 比不收更难看。这种消息保留完整显示、不给按钮。
+ */
+function foldLineCutsImage(row, bubble) {
+  const line = bubble.getBoundingClientRect().top + clampPx(bubble);
+  return Array.from(row.querySelectorAll('.chat-image')).some((img) => {
+    const r = img.getBoundingClientRect();
+    return r.top < line && r.bottom > line;
+  });
+}
+
+/**
+ * 能否收起。
+ * 只有「文本类」消息才有这个概念：图片 / 贴纸 / 文件 / 表情 / 拍了拍 / 投票本身就是定高的一块，
+ * 内容再长也不是被截断的文字。这条必须放在最前面 —— 否则图片消息会先按「内容很长」乐观
+ * 闪出一次展开按钮，等测量确认是媒体行再收回，用户看到的就是「打开瞬间按钮闪一下」。
+ */
+function isExpandable(msg) {
+  if (!msg) return false;
+  if (!isTextLikeContent(msg.content)) return false;
+  if (pollOf(msg)) return false;
+  measureTick.value;   // 订阅测量结果：测量完成后要重算，否则会一直停在乐观判定上
+  if (expandableIds.value.has(msg.id)) return true;
+  if (measuredMsgIds.has(msg.id)) return false;
+  // 还没测出结论时的乐观判定 —— 这段是关键，别删：
+  // 37KB 这类大消息渲染要 1-2 秒，等测量出来才算「可收起」的话，用户会先看到完整长文，
+  // 然后整条突然被压缩、滚动位置被掀到底部（scrollHeight 骤减后 scrollTop 被夹到最底）。
+  // 所以内容明显很长的消息首帧就按收起渲染；测量若确认「其实不长 / 收起线会切图」，
+  // 再自动展开回去（那种情况只会多露内容，不会把用户甩到底部）。
+  return String(msg.content || '').length > OPTIMISTIC_CHARS;
+}
+
+/** 用户是否已展开（只有能收的消息才有意义） */
+function isExpanded(msg) {
+  if (!msg) return false;
+  return !!props.expandedMsgs[msg.id];
+}
+
+/** 收起态 = 能收 + 用户没展开 */
+function isClamped(msg) {
+  return isExpandable(msg) && !isExpanded(msg);
 }
 
 let measureRaf = 0;
-function measureCollapseOnce() {
+let debugRound = 0;
+// 每条消息「第一次被看到」的时刻。测量必须等它渲染完（字体、公式、代码高亮、表格列宽、
+// 图片解码都会继续改变高度），所以：首见后 SETTLE_MS 内得出的高度只写结果、不锁定，
+// 之后还要「连续两轮高度一致」才允许锁定。只测一次就锁死，是 37KB 大消息
+// 「被默认展开且没有按钮」的成因（第一次量到的高度偏小 → 判成不需要收起 → 永久记住）。
+const firstSeenAt = new Map();
+const SETTLE_MS = 1200;
+// 上一轮量到的自然高度，用于判断「连续两轮一致」
+const lastHeights = new Map();
+const measuredMsgIds = new Set();
+// 结算期到期后再自动复核一次：没有新的 DOM 变化时 onUpdated 不会再触发，
+// 只靠它会让「首轮测早了」的行永远停在错误结论上。
+let settleTimer = 0;
+const RETRY_MS = 300;          // 复核节流
+const MAX_WAIT_MS = 15000;     // 兜底：超过这个时长还锁不住的行（比如懒加载图始终不加载）不再重试
+let lockedCount = -1;          // 上一轮已锁定行数，用于判断要不要通知模板重算
+
+function measureExpandableOnce() {
   measureRaf = 0;
   const area = messageAreaEl.value;
   if (!area) return;
+  // 临时诊断：控制台执行 localStorage.setItem('debug_expand','1') 后刷新，
+  // 即可看到每一行的判定过程；测完 localStorage.removeItem('debug_expand') 恢复安静。
+  const DBG = (() => { try { return localStorage.getItem('debug_expand') === '1' } catch (e) { return false } })();
+  const now = performance.now();
+  const next = new Set(expandableIds.value);
   const rows = area.querySelectorAll('.msg-row');
-  const hits = [];
+  if (DBG) console.log('[expand] 第 ' + (++debugRound) + ' 轮测量，共 ' + rows.length +
+    ' 行，已锁定 ' + measuredMsgIds.size);
   for (const row of rows) {
     const id = Number(row.dataset.msgId);
-    if (!id || measuredMsgIds.has(id)) continue;
+    // 消息 id 必须是数字：拿不到 id 的行会被整轮跳过，且不会有任何可见症状
+    // （表现就是「这条消息没有展开按钮」）。诊断时把它打出来，避免这种静默失败。
+    if (!id) {
+      if (DBG) console.log('[expand] 跳过一行：data-msg-id=' + row.dataset.msgId + ' 不是有效数字');
+      continue;
+    }
+    if (measuredMsgIds.has(id)) continue;
     const bubble = row.querySelector('.bubble');
-    if (!bubble) continue;
-    if (isMediaRow(row)) { measuredMsgIds.add(id); continue; }
-    // 图片解码前高度为 0，先不判定，等 load 事件重新调度
-    if (Array.from(row.querySelectorAll('img')).some((img) => !img.complete)) continue;
-    measuredMsgIds.add(id);
-    if (!props.collapsedMsgs[id] && bubble.scrollHeight > COLLAPSE_MAX_H) hits.push(id);
+    if (!bubble) {
+      if (DBG) console.log('[expand] ' + id + ' 跳过：行内没有 .bubble');
+      continue;
+    }
+    if (!firstSeenAt.has(id)) firstSeenAt.set(id, now);
+    const settled = now - firstSeenAt.get(id) >= SETTLE_MS;
+    if (isMediaRow(row)) {
+      if (settled) measuredMsgIds.add(id);
+      continue;
+    }
+    // 有图还没解码完：高度还不可信，本轮先不判定（load 事件会再次调度）。
+    // 但结算期过后不能一直等 —— 懒加载 / 加载失败的图（表情图、外链图）可能永远不 complete，
+    // 一直等下去这行就永远没有结论，用户看到的就是「默认展开且没有按钮」。
+    // 所以：结算期后照常测量，图片高度由 .chat-image 的 max-height 兜住，不会失控。
+    const pendingImgs = Array.from(row.querySelectorAll('img')).filter((img) => !img.complete);
+    if (pendingImgs.length && !settled) {
+      if (DBG) console.log('[expand] ' + id + ' 跳过：' + pendingImgs.length + ' 张图未解码完（结算期内，等下轮）');
+      continue;
+    }
+    const scrollH = bubble.scrollHeight;
+    const limit = clampPx(bubble);
+    const cut = foldLineCutsImage(row, bubble);
+    const expandable = !cut && scrollH > limit + 1;
+    if (expandable) next.add(id); else next.delete(id);
+    // 高度稳定（与上一轮相同）且已过结算期，才允许锁定 —— 否则下一轮继续复核。
+    // 还有图没解码完时先不锁（图加载完高度会再变），但最多等到 MAX_WAIT_MS，
+    // 免得一张永远加载不出来的图让这一行永远没有结论。
+    const stable = lastHeights.get(id) === scrollH;
+    lastHeights.set(id, scrollH);
+    // 已经等够 MAX_WAIT_MS 还不稳定（超大 Markdown 的公式/高亮/字体可能一直在二三十秒里缓慢收缩），
+    // 也必须结案：不结案就会一直重测、永远没有结论 —— 用户看到的就是「没有展开按钮」。
+    // 结案时用当前这一轮的高度下判断，之后不再改。
+    const giveUp = now - firstSeenAt.get(id) >= MAX_WAIT_MS;
+    if ((settled && stable) || giveUp) measuredMsgIds.add(id);
+    if (DBG) {
+      console.log('[expand] ' + id + ' ' + (expandable ? '可收起' : '不需要收起') +
+        ' scrollH=' + scrollH + ' 阈值=' + Math.round(limit) +
+        ' 稳定=' + stable + ' 锁定=' + measuredMsgIds.has(id) +
+        (pendingImgs.length ? ' 未解码图=' + pendingImgs.length : '') +
+        (cut ? ' （收起线穿图）' : ''));
+    }
   }
-  for (const id of hits) props.collapsedMsgs[id] = true;
+  // 只有集合真变了才写回，避免每轮测量都触发一次模板重渲染。
+  // 必须比「内容」而不是比 size：一条从可收变不可收、另一条反过来时 size 不变，比 size 会漏更新。
+  const prev = expandableIds.value;
+  let changed = next.size !== prev.size;
+  if (!changed) {
+    for (const id of next) { if (!prev.has(id)) { changed = true; break; } }
+  }
+  if (changed) expandableIds.value = next;
+  // 本轮有新行结案（或结论变化）时通知模板：乐观判定为「可收起」的行要靠这个重算回真实结论。
+  if (changed || measuredMsgIds.size !== lockedCount) {
+    lockedCount = measuredMsgIds.size;
+    measureTick.value++;
+  }
+  if (DBG) {
+    console.log('[expand] 本轮结论：可收起=[' + Array.from(next).join(',') + '] 锁定 ' +
+      measuredMsgIds.size + '/' + rows.length);
+  }
 }
 
-function scheduleMeasureCollapse() {
+function scheduleMeasureExpandable() {
   if (measureRaf) return;
   // rAF 里再 nextTick：确保 DOM 已更新且仍在绘制前，避免「先铺满再收起」的跳动
-  measureRaf = requestAnimationFrame(() => nextTick(measureCollapseOnce));
+  measureRaf = requestAnimationFrame(() => nextTick(measureExpandableOnce));
+  scheduleSettleRecheck();
+}
+
+/**
+ * 复核调度：结算期（SETTLE_MS）到了之后必须再量一次。
+ * onUpdated 只在 DOM 变化时触发 —— 一条已经在页面上的大消息，等它彻底渲染完
+ * 可能再也没有 DOM 变化，不主动复核的话「首轮测早了」的错误结论就会一直挂着。
+ * 节流 300ms、最长重试 15 秒，避免给不加载的图死循环。
+ */
+function scheduleSettleRecheck() {
+  if (settleTimer) return;
+  settleTimer = setTimeout(() => {
+    settleTimer = 0;
+    const area = messageAreaEl.value;
+    if (!area) return;
+    const now = performance.now();
+    let pending = false;
+    for (const row of area.querySelectorAll('.msg-row')) {
+      const id = Number(row.dataset.msgId);
+      if (!id || measuredMsgIds.has(id)) continue;
+      const seen = firstSeenAt.get(id);
+      // 多给 1 秒：MAX_WAIT_MS 到点那次测量要能跑（它负责给「图永远加载不完」的行结案）
+      if (seen === undefined || now - seen > MAX_WAIT_MS + 1000) continue;
+      pending = true;
+      break;
+    }
+    if (!pending) return;
+    measureExpandableOnce();
+    scheduleSettleRecheck();
+  }, RETRY_MS);
+}
+
+/**
+ * 展开 / 收起 + 滚动锚定。
+ * 不做锚定的话：展开后按钮可能被推到视口外（用户失去「收起」入口），
+ * 收起后视口可能停在被砍掉的中间位置（用户看到的是半截）。两种都只滚必要的距离。
+ */
+function toggleExpand(msg) {
+  if (!msg) return;
+  const area = messageAreaEl.value;
+  const id = msg.id;
+  const wasExpanded = isExpanded(msg);
+  const btn = area && area.querySelector(`.msg-row[data-msg-id="${id}"] .expand-btn`);
+
+  if (wasExpanded) delete props.expandedMsgs[id];
+  else props.expandedMsgs[id] = true;
+
+  nextTick(() => {
+    if (!area) return;
+    const areaRect = area.getBoundingClientRect();
+    if (!wasExpanded) {
+      // 刚展开：气泡变高，按钮可能跑到视口下方 —— 只补差值
+      const br = btn && btn.getBoundingClientRect();
+      if (br && br.bottom > areaRect.bottom) {
+        area.scrollTop += br.bottom - areaRect.bottom + 8;
+      }
+    } else {
+      // 刚收起：气泡顶部若已滚出视口上方，视口会停在被砍掉的中间 —— 拉回来
+      const bubble = area.querySelector(`.msg-row[data-msg-id="${id}"] .bubble`);
+      const bubRect = bubble && bubble.getBoundingClientRect();
+      if (bubRect && bubRect.top < areaRect.top) {
+        area.scrollTop += bubRect.top - areaRect.top - 8;
+      }
+    }
+  });
 }
 
 // 图片解码完成会派发 load（不冒泡，用捕获监听），解码后高度才可信，重新调度一次测量
 function onMessageAreaLoad() {
-  scheduleMeasureCollapse();
+  scheduleMeasureExpandable();
 }
+
+// 容器尺寸变化（窗口缩放、侧栏折叠、字号设置）会让已经测过的结论失效，全部重测
+let areaResizeObserver = null;
+function resetMeasure() {
+  measuredMsgIds.clear();
+  firstSeenAt.clear();
+  lastHeights.clear();
+  expandableIds.value = new Set();
+  scheduleMeasureExpandable();
+}
+
 onMounted(() => {
-  scheduleMeasureCollapse();
+  scheduleMeasureExpandable();
   messageAreaEl.value?.addEventListener('load', onMessageAreaLoad, true);
+  if (messageAreaEl.value && typeof ResizeObserver !== 'undefined') {
+    let lastW = 0;
+    areaResizeObserver = new ResizeObserver((entries) => {
+      const w = Math.round(entries[0].contentRect.width);
+      if (w === lastW) return;   // 只关心宽度变化：高度变化是我们自己展开/收起造成的，重测会死循环
+      lastW = w;
+      resetMeasure();
+    });
+    areaResizeObserver.observe(messageAreaEl.value);
+  }
 });
-watch(() => [props.pageType, props.pageId], () => { measuredMsgIds.clear(); });
+
+onUnmounted(() => {
+  if (areaResizeObserver) { areaResizeObserver.disconnect(); areaResizeObserver = null; }
+  if (settleTimer) { clearTimeout(settleTimer); settleTimer = 0; }
+  const area = messageAreaEl.value;
+  if (area) area.removeEventListener('load', onMessageAreaLoad, true);
+});
+
+watch(() => [props.pageType, props.pageId], () => { resetMeasure(); });
 
 onUpdated(() => {
-  scheduleMeasureCollapse();
+  scheduleMeasureExpandable();
   injectCodeCopyButtons();
 });
 
@@ -431,6 +691,8 @@ function scrollToBottomInstant() {
 function jumpToMessage(msgId) {
   const item = props.pageType === 'user' ? targetUser.value : targetGroup.value;
   if (!item) return;
+  // 目标消息可能正收着：先展开，否则跳过去只能看到被截断的前 13 行
+  if (expandableIds.value.has(msgId)) props.expandedMsgs[msgId] = true;
   const idx = currentMessages.value.findIndex(m => m.id === msgId);
   if (idx >= 0 && idx < currentMessages.value.length - props.visibleCount) {
     emit('scrollToTop', 0, true);
@@ -560,14 +822,8 @@ function startForward() {
 }
 
 // --- 预览 ---
-function openMsgPreview(msg) {
-  emit('openPreview', {
-    type: 'html',
-    title: '消息详情',
-    src: '',
-    text: parseContent(msg.content)
-  });
-}
+// 长消息不再走「消息详情」弹窗：原地展开即可看全文（见 toggleExpand）。
+// openPreview 只服务图片 / 文件 / PDF 自己的预览通道。
 
 function openPreview(obj) {
   if (obj.type === 'image') {

@@ -50,8 +50,8 @@
 }
 
 .ui-checkbox.is-checked .ui-checkbox-box {
-  border-color: var(--brand);
-  background: var(--brand);
+  border-color: var(--brand-fill);
+  background: var(--brand-fill);
 }
 
 .ui-checkbox.is-checked .ui-checkbox-mark {
@@ -59,8 +59,8 @@
 }
 
 .ui-checkbox.is-indeterminate .ui-checkbox-box {
-  border-color: var(--brand);
-  background: var(--brand);
+  border-color: var(--brand-fill);
+  background: var(--brand-fill);
 }
 
 .ui-checkbox.is-indeterminate .ui-checkbox-dash {

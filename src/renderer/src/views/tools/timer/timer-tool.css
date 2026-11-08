@@ -156,6 +156,8 @@
 .tm-panel {
   position: relative;
   z-index: var(--z-raised);
+  /* 每格的配色（同时用于数字墨色与进度条/色带填充）；真实值由模板内联样式按格覆盖，这里只是兜底 */
+  --c: var(--brand);
   min-width: 0;
   min-height: 0;
   /* 尺寸容器：内部数字按格宽/格高（cqw / cqh）等比缩放 */
@@ -486,7 +488,12 @@
   line-height: 1;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+  /* 墨色：--c 是每格一个的「配色」（同时给进度条/色带当填充用），填浅色没问题，
+     但当大字文字就必须压暗才看得清 —— 与 --brand（墨色）/ --brand-fill（浅填充）同一口径。
+     60% 是实测取的值：default 主题 #6D93C9 对白底只有 3.06:1，混 60% 后到 5.19:1，
+     六套主题最低 4.20（sand 橙），深色主题因 --text-primary 翻白会自动变亮。 */
   color: var(--c, var(--brand));
+  color: color-mix(in srgb, var(--c, var(--brand)) 60%, var(--text-primary));
   filter: drop-shadow(0 0 0.08em currentColor);
   user-select: none;
 }
@@ -579,11 +586,13 @@
 }
 
 .tm-panel.done .tm-time {
-  color: var(--status-danger);
+  /* --status-danger 是「状态色填充」（UiButton/UiIconButton 拿它当底色），对白底只有 2.2:1，
+     当文字太浅；文字用配套的墨色派生 --status-danger-ink（tokens.css 里 color-mix 50% + --fg）。 */
+  color: var(--status-danger-ink, var(--status-danger));
 }
 
 .tm-panel.done::before {
-  /* 填充用主题原始 --danger（饱和状态色）；文字仍用为可读性派生的 --status-danger */
+  /* 填充用主题原始 --danger（饱和状态色）；文字用墨色派生 --status-danger-ink */
   background: var(--danger);
 }
 

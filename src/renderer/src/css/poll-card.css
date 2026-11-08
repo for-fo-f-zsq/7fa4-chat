@@ -90,7 +90,7 @@
   font-size: var(--text-2xs);
   color: var(--on-brand);
 }
-.poll-opt--picked .poll-opt-check { background: var(--brand); border-color: var(--brand); }
+.poll-opt--picked .poll-opt-check { background: var(--brand-fill); border-color: var(--brand-fill); }
 /* 自拟行未选中时显示一支笔（区别于内置选项的「空方框」） */
 .poll-opt-check--custom:not(.poll-opt-check--on) { color: var(--fg-muted); }
 

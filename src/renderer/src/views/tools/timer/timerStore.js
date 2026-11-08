@@ -111,7 +111,8 @@ export function panelUser(p) {
   // 自定义名字优先：未登录 / 名单里没有的人也能计时（且不依赖任何远端数据）
   const custom = String(p.customName || '').trim()
   if (custom) {
-    return { name: custom, initial: custom.charAt(0), color: 'var(--accent)' }
+    // --brand 是墨色（--accent 是浅填充色），这个色值用于头像上的首字母，必须深一点才看得清
+    return { name: custom, initial: custom.charAt(0), color: 'var(--brand)' }
   }
   if (!p.uid) return null
   const u = store.users ? store.users[p.uid] : null

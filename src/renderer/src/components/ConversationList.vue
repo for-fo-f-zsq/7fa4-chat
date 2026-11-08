@@ -93,7 +93,7 @@
           <div class="conv-meta">
             <span class="conv-time">{{ lastTime(item) }}</span>
             <i v-if="isMuted(item.type, item.id)" class="fas fa-bell-slash conv-muted-icon"></i>
-            <UiBadge v-if="item.unread > 0" size="md" :count="item.unread" color="var(--brand)" />
+            <UiBadge v-if="item.unread > 0" size="md" :count="item.unread" color="var(--brand-fill)" />
           </div>
         </div>
       </TransitionGroup>

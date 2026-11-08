@@ -2,7 +2,7 @@
   "id": "timer",
   "name": "计时器",
   "desc": "四宫格倒计时：每格可选一名用户并搜索，按「时长」或「目标时刻」计时；支持 1/2/4 格切换、全部开始/暂停、快捷时长、归零提示音",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "minAppVersion": "3.7.0",
   "entry": "index.html",
   "icon": "fas fa-stopwatch"

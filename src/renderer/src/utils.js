@@ -76,7 +76,14 @@ const DEFAULT_PALETTE = {
 export { COLOR_KEYS, GRADE_LABELS, DEFAULT_PALETTE }
 
 // ========== 消息长度限制 ==========
+// 与服务端 syzoj.config.chat.length_limit 一致：服务端校验的是整条 content 字符串
+// （modules/chat.js:162 `chat.content.length > length_limit`），所以这里的「可用 payload」
+// 必须扣掉 JSON 信封（{"type":"file","name":"…","size":…,"data":"…"}）—— 见 MEDIA_ENVELOPE_MARGIN。
 export const MAX_MSG_LENGTH = 102400;
+// 图片/表情/文件压缩时给 JSON 信封留的余量。网页版留 512（chat.ejs:567-578），这里留 1024：
+// 之前默认 maxB64=102200 只留 200 字符，长文件名 + 满尺寸图会被判「消息过长」，而图片本身是合格的。
+const MEDIA_ENVELOPE_MARGIN = 1024;
+const DEFAULT_MAX_B64 = MAX_MSG_LENGTH - MEDIA_ENVELOPE_MARGIN;
 
 // ========== 图片/表情 media URL 缓存（治本：避免 100KB+ base64 内联进 HTML/一次性解码） ==========
 // 把 base64 → Blob objectURL，DOM 只挂一个短 URL。按 base64 字符串缓存，同一数据复用同一 URL，避免泄漏。
@@ -107,14 +114,18 @@ export function mediaUrlFromData(base64, mime) {
 // 供消息渲染层缓存解析结果（同一 content 字符串只解析一次，避免每次 v-html 重算超大 HTML）
 const parseContentCache = new Map()
 const PARSE_CACHE_MAX = 300
+// 「是不是文本类消息」的分类缓存。判定入口在 isExpandable()，模板每次渲染都会问一次，
+// 而图片消息的 content 是 base64（几十到上百 KB），每次都 JSON.parse 会白白拖慢滚动。
+const textKindCache = new Map()
+const TEXT_KIND_CACHE_MAX = 600
 
 // ========== 图片压缩 (Canvas) ==========
-// opts 可选：maxDim 最长边（默认 1920）、maxB64 base64 字符数上限（默认 102200）。
+// opts 可选：maxDim 最长边（默认 1920）、maxB64 base64 字符数上限（默认 MAX_MSG_LENGTH 减去信封余量）。
 // 不传时行为与历史完全一致（聊天/表情/反馈沿用默认档）。
 // 返回值附加 width/height（压缩后的实际尺寸），供投稿时上报图片规格。
 export function compressImage(file, opts = {}) {
   const maxDim = Number(opts.maxDim) > 0 ? Number(opts.maxDim) : 1920;
-  const maxB64 = Number(opts.maxB64) > 0 ? Number(opts.maxB64) : 102200;
+  const maxB64 = Number(opts.maxB64) > 0 ? Number(opts.maxB64) : DEFAULT_MAX_B64;
   return new Promise((resolve) => {
     if (!file || !file.type?.startsWith('image/')) {
       // 非图片：直接读 base64 不压缩
@@ -175,7 +186,7 @@ export function compressImage(file, opts = {}) {
 // opts 同 compressImage：maxDim / maxB64（不传则走历史默认档）
 export function compressBase64Image(base64Data, mime, opts = {}) {
   const maxDim = Number(opts.maxDim) > 0 ? Number(opts.maxDim) : 1920;
-  const maxB64 = Number(opts.maxB64) > 0 ? Number(opts.maxB64) : 102200;
+  const maxB64 = Number(opts.maxB64) > 0 ? Number(opts.maxB64) : DEFAULT_MAX_B64;
   return new Promise((resolve) => {
     if (!mime?.startsWith('image/')) { resolve({ data: base64Data, size: Math.round(base64Data.length * 3 / 4) }); return; }
     const img = new Image();
@@ -243,7 +254,9 @@ function gradeToColorKey(grade) {
     '初一': 'c1', '初二': 'c2', '初三': 'c3',
     '高一': 'g1', '高二': 'g2', '高三': 'g3',
     '大一': 'd1', '大二': 'd2', '大三': 'd3', '大四': 'd4',
-    '毕业': 'by', '教练': 'jl'
+    // '学前' 是后端 models/user.ts grade() 的真会返回值（graduate_delta > 15）：
+    // 漏掉它会让这类用户拿不到 gradeKey —— 年级色、年级标签都是空。
+    '毕业': 'by', '教练': 'jl', '学前': 'uk'
   }
   return map[String(grade == null ? '' : grade).trim()] || ''
 }
@@ -253,7 +266,7 @@ function gradeToColorKey(grade) {
 // 因此同一份库每年自动升一级，无需重建（与 Asterveil src/shared/user-grade-year.ts 一致）。
 const USER_GRADE_PROGRESSION = ['x4', 'x5', 'x6', 'c1', 'c2', 'c3', 'g1', 'g2', 'g3', 'd1', 'd2', 'd3', 'd4', 'by']
 const FIRST_GRADE_ACADEMIC_YEAR = 2025
-const GRADE_STATUS_MAP = { '教练': 'jl', '毕业': 'by', '其他': 'uk' }
+const GRADE_STATUS_MAP = { '教练': 'jl', '毕业': 'by', '学前': 'uk', '其他': 'uk' }
 
 export function currentGradeAcademicYear() {
   const now = new Date()
@@ -381,20 +394,34 @@ export async function tryLogin(user, pwd) {
   return data
 }
 
+// 注意：s 可能不是字符串（content 来自服务端，字段类型不受控：{"type":"file","name":123}），
+// 直接 s?.replace 会在数字/对象上抛 TypeError，渲染整条消息都会失败 —— 所以先 String() 归一。
 export function esc(s) {
-  return s?.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])) || ''
+  if (s == null) return ''
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 }
 
-// 反转义 HTML 实体（消息内容存储前已转义，读取时需还原）
+// 反转义 HTML 实体。
+// ⚠️ 仅用于「历史脏数据」兜底：线上发送端（桌面端 InputFooter、网页版 chat.ejs）都原样存明文，
+// 服务端也不转义（modules/chat.js:157 直接赋 content）。所以正常流程禁止先反转义再 JSON.parse ——
+// 用户正文里只要出现 `&quot;` 这类实体序列，反转义后 JSON 就坏了，整条消息会退化成「JSON 原文」。
 export function unescapeHtml(s) {
   if (!s) return ''
-  return s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+  return String(s).replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
 }
 
-// 解析消息内容为对象，失败返回 null
+// 解析消息内容为对象，失败返回 null。
+// 先按原样解析；只有解析失败时才回退「先反转义再解析」，兼容早期被转义过的历史数据。
+// ⚠️ 只认「JSON 对象」：纯文本消息恰好长得像 JSON 字面量时（用户发 "123" / "null" / "true"）
+// JSON.parse 会成功但结果是数字/null/布尔，那些不是结构化消息，必须让调用方走纯文本分支。
 export function parseMsgContent(content) {
   if (!content) return null
-  try { return JSON.parse(unescapeHtml(content)) } catch { return null }
+  if (typeof content === 'object') return content
+  const raw = String(content)
+  const asObject = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null)
+  try { const v = JSON.parse(raw); if (asObject(v)) return v } catch {}
+  try { const v = JSON.parse(unescapeHtml(raw)); if (asObject(v)) return v } catch {}
+  return null
 }
 
 // ========== 投票（poll / vote） ==========
@@ -892,16 +919,15 @@ export function applyChatToStore(r, pageType, pageId) {
 export async function sendChatMessage({ type, targetId, msgObj }) {
   let content = JSON.stringify(msgObj);
   if (content.length > MAX_MSG_LENGTH) {
+    // 文本不再「静默截断」：截断后消息看着发出去了、后半段内容静默丢失，用户毫无感知；
+    // 而且 slice 按 UTF-16 索引切，切在 emoji 的代理对中间还会产生乱码。
+    // 与网页版（chat.ejs:1313）一致：直接报错，输入框内容保留，由用户自己删减。
     if (msgObj.type === 'text') {
-      // 文本消息截断
-      msgObj.content = msgObj.content.slice(0, msgObj.content.length - (content.length - MAX_MSG_LENGTH) - 10);
-      content = JSON.stringify(msgObj);
+      return { success: false, err: { message: `消息过长（${content.length}/${MAX_MSG_LENGTH} 字符），请删减后重发` } };
     }
     // 文件/sticker 消息不应截断 data，应该在进入前就压缩好了
     // 如果仍然超出，说明压缩不够，返回错误
-    if (content.length > MAX_MSG_LENGTH) {
-      return { success: false, err: { message: `消息过长 (${content.length}/${MAX_MSG_LENGTH})` } };
-    }
+    return { success: false, err: { message: `消息过长 (${content.length}/${MAX_MSG_LENGTH})` } };
   }
   return await (await safeFetch('/chat/chat', {
     method: 'POST',
@@ -995,8 +1021,11 @@ export function displayName(user) {
 }
 
 // ========== 用户信息爬取（ranklist） ==========
+// 后台慢爬：与聊天无关，登录后由 ChatView 在「首次聊天爬取完成」之后启动，
+// 翻页间隔故意放宽到 1.2s，避免和消息轮询抢带宽（整轮爬完 ≈ 页数 × 1.2s）。
 let _ranklistFetching = false
 let _ranklistTimer = null
+const RANKLIST_PAGE_DELAY = 1200
 export const ranklistOrder = [] // 按 ranklist 顺序存储 uid
 
 export function startRanklistFetch() {
@@ -1041,18 +1070,23 @@ async function _doFetchRanklist() {
       if (rows.length === 0) break
       let firstUid = null
       for (const row of rows) {
-        const tds = row.querySelectorAll('td')
-        if (tds.length < 6) continue
-        const link = tds[1].querySelector('a')
+        // 按 class 取单元格，绝不按 td 序号取 ——
+        // ranklist 模板（views/ranklist.ejs:166-180）里「姓名」「学校」两列是
+        // `<% if(curUser.is_admin){ %>` 条件渲染的，admin 登录时列序整体后移两位，
+        // 索引法会把「学校」当成「年级」写进用户档（年级配色、年级标签全错）；
+        // 而且线上部署版本与源码快照的列数并不一致（实测线上多一列「通过数量」）。
+        // class 定位与列数、列序都无关。
+        const link = row.querySelector('td.cell.username a[href]')
         if (!link) continue
-        const uid = Number(link.getAttribute('href')?.replace('/user/', ''))
+        const uid = Number(String(link.getAttribute('href') || '').replace('/user/', ''))
         if (!uid) continue
         if (firstUid === null) firstUid = uid
-        const nickname = tds[2]?.textContent.trim() || ''
-        const username = tds[3]?.textContent.trim() || ''
+        const pick = (cls) => row.querySelector('td.cell.' + cls)
+        const nickname = pick('nickname')?.textContent.trim() || ''
+        const username = pick('uid')?.textContent.trim() || ''
         if (!nickname && !username) continue
-        // 年级列：tds[5]（如"高二"），tds[4] 为入学年份
-        const gradeText = tds[5]?.textContent.trim() || ''
+        // 年级列：td.cell.graduate_year（如「高二」，另有 data-graduate_year 数字属性）
+        const gradeText = pick('graduate_year')?.textContent.trim() || ''
         ranklistOrder.push(uid)
         const old = store.users[uid]
         const newData = {
@@ -1082,7 +1116,7 @@ async function _doFetchRanklist() {
       if (firstUid !== null && firstUid === lastFirstUid) break
       lastFirstUid = firstUid
       page++
-      await new Promise(r => setTimeout(r, 300))
+      await new Promise(r => setTimeout(r, RANKLIST_PAGE_DELAY))
     }
   } catch (e) { console.error('[ranklist] fetch error:', e) }
   _ranklistFetching = false
@@ -1101,8 +1135,10 @@ export function getLastMessage(messageIds, messages) {
   }
   if (!lastId) return ''
   const msg = messages[lastId]
-  try {
-    const parsed = typeof msg.content === 'string' ? JSON.parse(msg.content) : msg.content
+  // 在这里也要走 parseMsgContent（而不是裸 JSON.parse）：否则 `&quot;` 之类实体会让列表摘要
+  // 与气泡里显示不一致；未知类型也不能把整段 JSON 当摘要（尤其是带 base64 的图片消息）。
+  const parsed = parseMsgContent(msg.content)
+  if (parsed) {
     if (parsed.type === 'text') return parsed.content || ''
     if (parsed.type === 'file') {
       let s = '📄 ' + (parsed.name || '')
@@ -1114,8 +1150,13 @@ export function getLastMessage(messageIds, messages) {
     if (parsed.type === 'pat') return '👋 拍了拍'
     // 投票：会话列表/摘要里显示可读文字（不暴露 JSON）
     if (parsed.type === 'poll') return pollPlainText(parsed)
-  } catch { return msg.content || '' }
-  return msg.content || ''
+    if (parsed.type === 'vote') return '🗳️ 投票'
+    // 未知类型（别家客户端的新类型）：给一句占位，绝不把 JSON 原文当摘要
+    return '[消息]'
+  }
+  // 解析失败 = 纯文本消息（网页版/其它客户端发的裸字符串）。若它长得像 JSON，截断后再显示。
+  const raw = String(msg.content || '')
+  return raw.startsWith('{') ? '[消息]' : raw
 }
 
 export function getLastMessageTime(messageIds, messages) {
@@ -1146,10 +1187,12 @@ export function renderMarkdownPreview(text) {
 }
 
 export function formatSize(bytes) {
-  if (!bytes || bytes === 0) return '0 B'
+  // size 同样来自服务端且类型不受控（字符串/负数/NaN 都可能），统一先转数字
+  const n = Number(bytes)
+  if (!Number.isFinite(n) || n <= 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(1024))
-  return (bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 2) + ' ' + units[i]
+  const i = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1024)))
+  return (n / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 2) + ' ' + units[i]
 }
 
 // 文件后缀 → 图标 + 颜色（微信风格文件卡片）
@@ -1219,7 +1262,9 @@ const FILE_EXT_ICONS = {
   log: { icon: 'fa-file-alt', color: '#8a8f98' }
 }
 function getFileIconInfo(name) {
-  const ext = (name.split('.').pop() || '').toLowerCase()
+  // content 来自服务端、字段类型不受控：name 可能是数字（`{"type":"file","name":123}`），
+  // 直接 name.split 会抛 TypeError，整条消息就只能退化成纯文本。
+  const ext = (String(name == null ? '' : name).split('.').pop() || '').toLowerCase()
   return FILE_EXT_ICONS[ext] || { icon: 'fa-file', color: '#8a8f98' }
 }
 
@@ -1250,10 +1295,70 @@ function parseSoloImages(raw) {
   const urls = []
   for (const line of lines) {
     const m = SOLO_IMAGE_LINE_RE.exec(line)
-    if (!m || !SAFE_IMG_SRC_RE.test(m[1])) return null
+    if (!m || !SAFE_IMG_SRC_RE.test(m[1])) {
+      urls.length = 0
+      break
+    }
     urls.push(m[1])
   }
-  return urls
+  if (urls.length) return urls
+  // 兜底：base64 被按列折成多行的图片消息（部分客户端会这么发，网页版 chat.ejs 也显式去换行：
+  // 正则里带 [\r\n]+ 再 .replace(/[\r\n]/g,'')）。这里等价处理：把整个 content 的换行抹掉后，
+  // 再看它是不是「整条一个图片」。`hello\n![x]` 这种抹平后不以 ! 开头，不会被误判。
+  const flat = String(raw).replace(/[\r\n]+/g, '').trim()
+  const one = SOLO_IMAGE_LINE_RE.exec(flat)
+  if (one && SAFE_IMG_SRC_RE.test(one[1])) return [one[1]]
+  return null
+}
+
+/**
+ * 这条消息是不是「文本类」消息（决定它能不能被展开/收起）。
+ *
+ * 只有文本类才需要展开：图片、贴纸、文件卡片、表情、拍了拍、投票本身就是定高的一块，
+ * 内容再长也不是「被截断的文字」。判断必须和 MessageList 里的锚点选择器一致，
+ * 否则会出现「图片消息先闪出展开按钮、测量完再消失」的抖动 —— 因为图片 content 只是
+ * 一个（可能很长的 base64）URL，既不能按字符数判断长短，也不能按渲染高度判断。
+ */
+export function isTextLikeContent(raw) {
+  if (!raw) return false
+  const s = String(raw)
+  // 只缓存短内容：图片消息的 content 是一整段 base64（几十到上百 KB），
+  // 把它当缓存键会白占几十 MB 内存，直接算反而更划算。
+  const cacheable = s.length <= 4096
+  if (cacheable) {
+    const cached = textKindCache.get(s)
+    if (cached !== undefined) return cached
+  }
+  const result = computeTextLike(s)
+  if (cacheable) {
+    if (textKindCache.size >= TEXT_KIND_CACHE_MAX) {
+      const firstKey = textKindCache.keys().next().value
+      textKindCache.delete(firstKey)
+    }
+    textKindCache.set(s, result)
+  }
+  return result
+}
+
+function computeTextLike(raw) {
+  const s = String(raw)
+  const head = s.trimStart()
+  const c = head.charCodeAt(0)
+  // 快速路径（必须留）：isExpandable 在模板里每条消息每次渲染都要问一次，
+  // 37KB 的 Markdown 文档若每帧都做 split/JSON.parse，滚动会明显卡。
+  // 不以 { 开头也不是 ![]() 开头的，就是普通 Markdown 文本 —— 直接判定，零解析成本。
+  if (c !== 123 /* { */ && c !== 33 /* ! */) return true
+  // 整条都是 ![]() 的图片消息
+  if (c === 33 && parseSoloImages(head)) return false
+  const obj = parseMsgContent(s)
+  if (!obj) return true            // 不是 JSON → 普通 Markdown 文本
+  if (obj.type === 'file') return false
+  if (obj.type === 'sticker') return false
+  if (obj.type === 'emoji') return false
+  if (obj.type === 'pat') return false
+  if (obj.type === 'poll') return false
+  // type: 'text' 以及历史消息（无 type）都按文本处理
+  return true
 }
 
 function _parseContentImpl(raw, senderId) {
@@ -1266,7 +1371,16 @@ function _parseContentImpl(raw, senderId) {
       .join('')
   }
   const obj = parseMsgContent(raw)
-  if (!obj) return renderMarkdown(raw)
+  if (!obj) {
+    // 解析失败：正常情况是「网页版/其它客户端发来的纯文本」（服务端只存字符串），照常当 Markdown。
+    // 但如果是被截断/损坏的 JSON（以 { 开头），把几十 KB 的原文（含 base64）平铺进气泡就是灾难 →
+    // 截断后按纯文本显示，至少不卡死、可读。
+    if (String(raw).trim().startsWith('{')) {
+      const t = String(raw)
+      return '<div class="unknown-msg">' + esc(t.length > 2000 ? t.slice(0, 2000) + '…' : t) + '</div>'
+    }
+    return renderMarkdown(raw)
+  }
   if (obj.type === 'file') {
     const isImage = /^image\//.test(obj.mime || '') || /\.(jpg|jpeg|png|gif|bmp|webp|ico)$/i.test(obj.name || '')
     let fileHtml = ''
@@ -1345,7 +1459,15 @@ function _parseContentImpl(raw, senderId) {
     let html = ''
     if (obj.reply_to) {
       const replyContent = esc(obj.reply_content || '').slice(0, 80)
-      html += '<div class="reply-quote" data-reply-id="' + obj.reply_to + '"><i class="fas fa-quote-left reply-quote-icon"></i><span class="reply-quote-text">' + replyContent + '</span></div>'
+      // reply_to 会被拼进 HTML 属性、再经 v-html 注入：必须是纯数字 id。
+      // 服务端对 content 零校验（modules/chat.js:157），任何客户端都能塞
+      // `" onmouseover="…` 这种串进来 —— 不校验就是可执行脚本（Electron 下还能摸到 window.api）。
+      const replyId = String(obj.reply_to)
+      if (/^\d+$/.test(replyId)) {
+        html += '<div class="reply-quote" data-reply-id="' + replyId + '"><i class="fas fa-quote-left reply-quote-icon"></i><span class="reply-quote-text">' + replyContent + '</span></div>'
+      } else {
+        html += '<div class="reply-quote"><i class="fas fa-quote-left reply-quote-icon"></i><span class="reply-quote-text">' + replyContent + '</span></div>'
+      }
     }
     // fmt: 'txt' = 纯文本消息（只做转义与换行保留，不做任何 Markdown / 表情码渲染）；
     // 无 fmt 或 fmt: 'md' = Markdown（历史消息全部归 md）
@@ -1354,22 +1476,28 @@ function _parseContentImpl(raw, senderId) {
     } else {
       html += renderMarkdown(obj.content || '')
     }
-    // @提及 渲染：文本中是 @UID（输入框插入），渲染时补全为 昵称(姓名) 标签
-    if (obj.mentions && obj.mentions.length) {
+    // @提及 渲染：文本中是 @UID（输入框插入），渲染时补全为 昵称(姓名) 标签。
+    // mentions 同样来自不可信 content，必须逐层校验：
+    //  - 不是数组（比如字符串）→ 直接忽略，否则 .filter 抛 TypeError 让整条消息渲染失败；
+    //  - 非数字 id（比如 "*"）会被拼进正则 → `@(*)(?![0-9])` 抛 SyntaxError，同样整条失败。
+    if (Array.isArray(obj.mentions) && obj.mentions.length) {
       if (obj.mentions.includes('all')) {
         html = html.replace(/@所有人/g, '<span class="mention-tag mention-all" data-uid="all">@所有人</span>')
       }
-      const ids = obj.mentions.filter((u) => u !== 'all')
+      const ids = obj.mentions.filter((u) => u !== 'all' && /^\d+$/.test(String(u)))
       if (ids.length) {
-        const pattern = new RegExp('@(' + ids.map(String).join('|') + ')(?![0-9])', 'g')
-        html = html.replace(pattern, (match, uid) => {
-          return '<span class="mention-tag" data-uid="' + uid + '">@' + getUsername(Number(uid), store.users) + '</span>'
-        })
+        try {
+          const pattern = new RegExp('@(' + ids.map(String).join('|') + ')(?![0-9])', 'g')
+          html = html.replace(pattern, (match, uid) => {
+            return '<span class="mention-tag" data-uid="' + uid + '">@' + esc(getUsername(Number(uid), store.users)) + '</span>'
+          })
+        } catch {}
       }
     }
     return html
   }
-  return renderMarkdown(raw)
+  // 已知 JSON 但类型不认识（别家客户端的新类型）：给一句可读占位，绝不把 JSON 原文吐进气泡。
+  return '<div class="unknown-msg">[不支持的消息类型：' + esc(obj && obj.type ? String(obj.type) : '?') + ']</div>'
 }
 
 // ========== 会话标识与免打扰 ==========

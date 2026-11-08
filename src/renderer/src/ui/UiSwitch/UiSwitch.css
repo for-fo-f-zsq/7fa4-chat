@@ -53,7 +53,7 @@
 }
 
 .ui-switch.is-checked .ui-switch-track {
-  background: var(--brand);
+  background: var(--brand-fill);
 }
 
 .ui-switch.is-checked .ui-switch-knob {
@@ -81,7 +81,7 @@
   }
 
   .ui-switch.is-checked:hover:not(.is-disabled) .ui-switch-track {
-    background: var(--brand-hover);
+    background: var(--brand-fill-hover);
   }
 }
 

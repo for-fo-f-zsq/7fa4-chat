@@ -8,6 +8,15 @@
 }
 
 .message-area {
+  /* 图片消息的尺寸上限：图片规则与「整条就是图片」的气泡规则共用同一组值，
+     否则两处各写一份，改一处就会出现气泡比图片宽的错位。 */
+  --chat-image-max-w: 360px;
+  --chat-image-max-h: 240px;
+  /* 长消息收起后保留的整行数。收起高度 = calc(1.6em * 此处 + 20px)，
+     1.6em 是 .bubble-content 的 line-height，20px 是 .bubble 的上下 padding。
+     JS 侧 MessageList.vue 的 CLAMP_LINES / clampPx() 必须与此严格一致。 */
+  --msg-clamp-lines: 13;
+
   position: relative;
   z-index: var(--z-base);
   display: flex;
@@ -256,6 +265,20 @@
   color: var(--message-self-text);
 }
 
+/* 兜底占位：渲染失败的消息、别家客户端发来的未知类型。
+   必须存在，否则这些内容会裸着继承正文样式，看起来像「正常的聊天内容」。 */
+.unknown-msg {
+  padding: var(--space-2) var(--space-3);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--surface-2);
+  border: var(--border-width) dashed var(--line);
+  border-radius: var(--radius-sm);
+}
+
 /* 仅作用于「普通的裸 pre」。洛谷渲染器产出的 .luogu-code-pre 自带外壳
    （.luogu-code-block-wrapper：底色 + 边框 + 圆角 + 顶栏），再套这层会变成
    "框里套框"：多出 4px 外边距、10px 圆角、又叠一层底色。 */
@@ -335,25 +358,23 @@
   margin: var(--space-1) 0;
 }
 
+/* 收起态：按整行收口，而不是写死像素 —— 写死会切在半行字中间。
+   1.6em 跟着 .bubble-content 的 line-height 走，20px 是 .bubble 上下 padding，
+   --msg-clamp-lines 与 MessageList.vue 的 CLAMP_LINES 同源。 */
 .bubble.collapsed {
-  max-height: 300px;
+  max-height: calc(1.6em * var(--msg-clamp-lines) + 20px);
   overflow: hidden;
 }
 
+/* 底部渐隐：只暗示「下面还有」，不再画省略号（避免和正文标点混淆）。
+   32px ≈ 1.4 行，够看出渐隐但不吞掉整行内容。 */
 .bubble.collapsed::after {
-  content: '···';
+  content: '';
   position: absolute;
   right: 0;
   bottom: 0;
   left: 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  height: 60px;
-  padding-bottom: var(--space-1);
-  color: var(--fg-muted);
-  font-size: var(--text-base);
-  letter-spacing: 2px;
+  height: 32px;
   background: linear-gradient(transparent, var(--message-other-bg));
   pointer-events: none;
 }
@@ -362,16 +383,29 @@
   background: linear-gradient(transparent, var(--message-self-bg));
 }
 
+/* 展开 / 收起按钮：真 button（键盘可达），透明度克制，不抢正文。 */
 .expand-btn {
-  padding: var(--space-1) 0;
+  margin-top: var(--space-1);
+  padding: 2px var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--brand);
   font-size: var(--text-sm);
+  line-height: 1.4;
   cursor: pointer;
-  transition: color var(--motion-dur-fast) var(--motion-ease-standard);
+  transition: color var(--motion-dur-fast) var(--motion-ease-standard),
+              background var(--motion-dur-fast) var(--motion-ease-standard);
 }
 
 .expand-btn:hover {
   color: var(--brand-hover);
+  background: var(--surface-hover);
+}
+
+.expand-btn:focus-visible {
+  outline: 2px solid var(--focus-color);
+  outline-offset: 2px;
 }
 
 .load-more-hint-row {
@@ -487,11 +521,33 @@
   background: var(--surface-code-inline-self);
 }
 
+/* 整条就是图片的消息：气泡上限必须和图片上限一致。
+   .bubble 是 width: fit-content，它的 max-content 很有讲究 —— 图片 max-width 里的百分比
+   在内在尺寸计算阶段无法解析，只能退回「按 max-height 反推的宽度」（1000x520 会推出 461px），
+   而实际渲染时图片又被 max-width 夹到 360px，于是气泡比图宽出 101px，
+   自己发的消息因为气泡贴右，图看起来就「飘在中间」。把气泡上限对齐到图片上限即可。 */
+.msg-row:has(.chat-image[data-image-msg="1"]) .bubble {
+  max-width: min(100%, var(--chat-image-max-w));
+}
+
+/* 文中插图（图文混排）：图片外面还套着一条 luogu-img-wrapper（inline-block）。
+   它的宽度同样在内在尺寸计算阶段把 img 的百分比 max-width 当作 auto，于是按
+   「max-height 反推」涨到 461px，把整条消息的 max-content 撑宽，图片实际只渲染 360px，
+   自己发的消息就会出现「图缩在气泡左边、离右边界很远」。
+   注意这里必须写 px 上限而不是 min(100%, …)：百分比在内在尺寸计算里同样无效，
+   而 px 上限会参与 shrink-to-fit，窄窗口下仍然按可用宽度收缩，不会溢出。 */
+.bubble-content :deep(.luogu-img-wrapper) {
+  max-width: var(--chat-image-max-w);
+}
+
+/* 图片消息 / 文中插图：等比缩放到 max-width × max-height 这个框里（取最大值显示）。
+   宽高都必须有绝对上限 —— 只写百分比会让图在宽窗口里被 85% 行宽撑到近千像素，
+   比普通消息还大。360×240 保证图片块始终小于一条普通文字消息，小图不放大。 */
 .bubble-content :deep(.chat-image) {
   width: auto;
-  max-width: min(240px, 100%);
+  max-width: min(100%, var(--chat-image-max-w));
   height: auto;
-  max-height: 320px;
+  max-height: var(--chat-image-max-h);
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
@@ -693,8 +749,8 @@
 }
 
 .msg-checkbox.checked {
-  background: var(--brand);
-  border-color: var(--brand);
+  background: var(--brand-fill);
+  border-color: var(--brand-fill);
   box-shadow: var(--elev-brand);
 }
 

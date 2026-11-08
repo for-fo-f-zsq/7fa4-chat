@@ -57,7 +57,7 @@
 }
 
 .ui-icon-btn--solid {
-  background: var(--brand);
+  background: var(--brand-fill);
   color: var(--on-brand);
   box-shadow: var(--elev-brand);
 }
@@ -138,7 +138,7 @@
   }
 
   .ui-icon-btn--solid:hover:not(.is-disabled) {
-    background: var(--brand-hover);
+    background: var(--brand-fill-hover);
   }
 
   .ui-icon-btn--danger:hover:not(.is-disabled) {

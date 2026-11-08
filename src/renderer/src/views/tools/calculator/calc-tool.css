@@ -158,18 +158,18 @@
 /* 等号：末行占 3 格 + 实心 accent + 轻投影，主操作一眼可见 */
 .calc-key.wide {
   grid-column: span 3;
-  background: var(--brand);
-  border-color: var(--brand);
+  background: var(--brand-fill);
+  border-color: var(--brand-fill);
   color: var(--on-brand);
   font-weight: var(--weight-semibold);
   box-shadow: var(--elev-1);
 }
 
+/* hover 只加深填充，不用 filter:brightness —— 那会把前景文字一起提亮变浅 */
 .calc-key.wide:hover {
-  background: var(--brand);
-  border-color: var(--brand);
+  background: var(--brand-fill-hover);
+  border-color: var(--brand-fill-hover);
   color: var(--on-brand);
-  filter: brightness(1.08);
 }
 
 /* ---------- 历史 ---------- */
@@ -264,7 +264,7 @@
   padding: 0;
   border: 0;
   border-radius: var(--radius-md) 0 0 var(--radius-md);
-  background: var(--brand);
+  background: var(--brand-fill);
   color: var(--on-brand);
   display: flex;
   align-items: center;

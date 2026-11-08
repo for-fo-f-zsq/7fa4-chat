@@ -60,7 +60,7 @@
   width: var(--control-h-md);
   height: var(--control-h-md);
   padding: 0;
-  color: var(--on-brand);
+  color: var(--on-overlay);
   font-size: var(--text-base);
   background: transparent;
   border: 0;
@@ -71,7 +71,7 @@
 }
 
 .image-toolbar button:hover {
-  background: var(--surface-hover);
+  background: var(--overlay-hover);
 }
 
 .image-toolbar button:disabled {
@@ -81,7 +81,7 @@
 
 .image-zoom-label {
   min-width: 44px;
-  color: var(--on-brand);
+  color: var(--on-overlay);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
   text-align: center;

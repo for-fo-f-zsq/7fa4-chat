@@ -165,7 +165,9 @@
 }
 
 .sticker-del-btn:hover {
-  color: var(--on-brand);
+  /* 危险色实心填充上取页面底色作前景（6 套主题实测均 ≥4.5:1）；
+     不能借用 --on-brand：那是「品牌浅填充」配的深墨色，压在这块深红上会糊掉 */
+  color: var(--surface-0);
   background: var(--fg-danger);
 }
 

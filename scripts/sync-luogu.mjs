@@ -76,10 +76,14 @@ const VAR_MAP = {
   '--code-bg': 'var(--bg-code-block)',
   '--code-fg': 'var(--text-primary)',
   '--font-mono': '"Cascadia Code","Fira Code",Consolas,"Courier New",monospace',
-  // 品牌色一律落到应用主题变量：21 套主题（含暗色）自动生效，不再固定洛谷蓝
-  '--luogu-blue': 'var(--accent)',
-  '--luogu-blue-dark': 'var(--accent-hover)',
-  '--luogu-blue-light': 'var(--accent-light)',
+  // 品牌色一律落到应用主题变量：21 套主题（含暗色）自动生效，不再固定洛谷蓝。
+  // 注意取的是「品牌墨色」--brand / --brand-hover，不是浅填充 --brand-fill：
+  // 上游把 --luogu-blue 同时用在链接文字、表格/提示框边框、焦点环和表头底色上，
+  // 只有墨色能把「浅底深字」这一侧的用法压到看得清；表头底色那处落在深墨底上
+  // 配 #fff 恰好也读得清（暗色主题另有 #1f6feb 覆盖）。
+  '--luogu-blue': 'var(--brand)',
+  '--luogu-blue-dark': 'var(--brand-hover)',
+  '--luogu-blue-light': 'var(--brand-soft)',
   '--luogu-green': 'var(--success)',
   '--luogu-green-light': 'color-mix(in srgb, var(--success) 14%, transparent)',
   '--luogu-orange': 'var(--warning)',
@@ -484,9 +488,17 @@ ${tokenCss}
 const output = header + picked.join('\n\n') + '\n' + footer
 
 // 3) 自检：抽取结果里每个 var(--x) 都必须能解析到——要么在映射层，要么在本文件内定义，
-//    要么是 7fa4-chat 自己的主题变量。上游变量搬家或改名时这里会直接报错，而不是静默退化。
+//    要么是 7fa4-chat 自己的变量。上游变量搬家或改名时这里会直接报错，而不是静默退化。
+//    可解析的来源有两层：主题文件（--accent/--text-primary 等）与语义层 tokens.css
+//    （--brand/--brand-hover/--brand-soft 等），映射层现在引用的是语义层墨色令牌。
+const projectVarSources = [
+  path.join(THEMES_DIR, 'default.css'),
+  path.join(ROOT, 'src', 'renderer', 'src', 'css', 'tokens.css'),
+]
 const projectVars = new Set(
-  [...fs.readFileSync(path.join(THEMES_DIR, 'default.css'), 'utf8').matchAll(/^\s*(--[a-z0-9-]+):/gm)].map((m) => m[1])
+  projectVarSources.flatMap((file) => [
+    ...fs.readFileSync(file, 'utf8').matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm),
+  ]).map((m) => m[1])
 )
 const definedInFile = new Set([...output.matchAll(/(?:^|[;{\s>])(--[a-zA-Z0-9_-]+)\s*:/g)].map((m) => m[1]))
 const unresolved = new Set()

@@ -41,8 +41,11 @@
   cursor: pointer;
 }
 
+/* hover 提示可编辑：只加下划线，不改色（--brand 墨色比 --fg 浅，上色等于变浅） */
 .editable-name.editable:hover {
-  color: var(--brand);
+  text-decoration: underline;
+  text-decoration-color: var(--brand);
+  text-underline-offset: 3px;
 }
 
 .edit-icon {

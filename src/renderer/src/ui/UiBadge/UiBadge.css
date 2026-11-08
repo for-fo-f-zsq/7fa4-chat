@@ -2,7 +2,7 @@
   --badge-h: var(--badge-h-md);
   --badge-fs: var(--text-sm);
   --badge-dot: var(--badge-dot-md);
-  --badge-accent: var(--brand);
+  --badge-accent: var(--brand-fill);
   display: inline-flex;
   align-items: center;
   justify-content: center;

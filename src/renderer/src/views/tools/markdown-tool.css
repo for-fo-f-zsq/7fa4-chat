@@ -179,7 +179,10 @@
   user-select: none;
 }
 
-.md-gutter-num {
+/* 行号是 scroll-sync.js 用 innerHTML 直接塞进 gutter 的，拿不到本组件的 scoped
+   属性（data-v-*），写成 .md-gutter-num 会编译成 .md-gutter-num[data-v-*] 而永不命中 ——
+   表现为所有行号退化成行内文本，挤成一排「1234」。必须用 :deep 绕过作用域。 */
+.md-gutter :deep(.md-gutter-num) {
   position: absolute;
   right: var(--space-2);
   font-family: Consolas, Monaco, monospace;
@@ -292,60 +295,63 @@
 }
 
 /* ── 预览内容排版 ───────────────────────────────────────────────────────── */
+/* 预览正文是 patchPreview() 用 innerHTML 注入的，节点上**没有**本组件的 data-v-* 属性，
+   所以这些后代规则必须过一层 :deep —— 直接写 `.md-preview h1` 会被编译成
+   `.md-preview h1[data-v-*]`，对注入内容永远不命中（3.8.0 把本文件改成 scoped 后的静默回归）。 */
 
-.md-preview h1,
-.md-preview h2,
-.md-preview h3,
-.md-preview h4,
-.md-preview h5,
-.md-preview h6 {
+.md-preview :deep(h1),
+.md-preview :deep(h2),
+.md-preview :deep(h3),
+.md-preview :deep(h4),
+.md-preview :deep(h5),
+.md-preview :deep(h6) {
   margin: 1em 0 0.5em;
   line-height: 1.3;
   color: var(--fg);
 }
 
-.md-preview h1 {
+.md-preview :deep(h1) {
   font-size: 1.7em;
   border-bottom: 1px solid var(--line);
   padding-bottom: 0.3em;
 }
 
-.md-preview h2 {
+.md-preview :deep(h2) {
   font-size: 1.4em;
   border-bottom: 1px solid var(--line);
   padding-bottom: 0.25em;
 }
 
-.md-preview h3 {
+.md-preview :deep(h3) {
   font-size: 1.2em;
 }
 
-.md-preview p {
+.md-preview :deep(p) {
   margin: 0.6em 0;
 }
 
-.md-preview ul,
-.md-preview ol {
+.md-preview :deep(ul),
+.md-preview :deep(ol) {
   padding-left: 1.6em;
   margin: 0.6em 0;
 }
 
-.md-preview li {
+.md-preview :deep(li) {
   margin: 0.2em 0;
 }
 
-.md-preview a {
+.md-preview :deep(a) {
   color: var(--fg-link);
 }
 
-.md-preview blockquote {
+.md-preview :deep(blockquote) {
   border-left: 3px solid var(--line-subtle);
   padding-left: var(--space-3);
   margin: 0.8em 0;
   color: var(--fg-muted);
 }
 
-.md-preview code {
+.md-preview :deep(code) {
   background: var(--surface-code-inline);
   padding: 2px 6px;
   border-radius: var(--radius-xs);
@@ -353,7 +359,7 @@
   font-size: 0.9em;
 }
 
-.md-preview pre {
+.md-preview :deep(pre) {
   background: var(--bg-code-block);
   padding: var(--space-3) 14px;
   border-radius: var(--radius-md);
@@ -361,32 +367,32 @@
   margin: 0.8em 0;
 }
 
-.md-preview pre code {
+.md-preview :deep(pre code) {
   background: transparent;
   padding: 0;
 }
 
-.md-preview table {
+.md-preview :deep(table) {
   border-collapse: collapse;
   margin: 0.8em 0;
 }
 
-.md-preview th,
-.md-preview td {
+.md-preview :deep(th),
+.md-preview :deep(td) {
   border: 1px solid var(--line-subtle);
   padding: 6px var(--space-3);
 }
 
-.md-preview th {
+.md-preview :deep(th) {
   background: var(--surface-table-head);
 }
 
-.md-preview img {
+.md-preview :deep(img) {
   max-width: 100%;
   border-radius: var(--radius-sm);
 }
 
-.md-preview hr {
+.md-preview :deep(hr) {
   border: none;
   border-top: 1px solid var(--line);
   margin: 1.2em 0;
@@ -633,7 +639,8 @@
   overflow: hidden;
 }
 
-.mdm-math-preview .katex {
+/* 公式 SVG/HTML 是 v-html 注入的，不带本组件 scoped 属性，必须 :deep */
+.mdm-math-preview :deep(.katex) {
   font-size: 0.95rem;
 }
 

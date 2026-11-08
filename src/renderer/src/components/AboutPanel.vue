@@ -102,7 +102,7 @@ function openLink(url) {
 const features = [
   { icon: 'fas fa-comment-dots', name: '即时通讯', desc: '私聊与群聊、@ 提醒与拍一拍；消息置顶、自定义表情、图片与文件消息，历史记录完整拉取。' },
   { icon: 'fas fa-file-alt', name: '消息渲染', desc: 'Markdown 富文本与代码高亮，行内、块级 KaTeX 数学公式，图片按原始比例显示并支持全屏预览。' },
-  { icon: 'fas fa-wrench', name: '内置工具箱', desc: 'Markdown 编辑与预览、图片编辑、交互式 Graph Editor、科学计算器与 GeoGebra 数学画板，开箱即用。' },
+  { icon: 'fas fa-wrench', name: '在线工具箱', desc: 'Markdown 编辑与预览、图片编辑、交互式 Graph Editor、科学计算器与 GeoGebra 数学画板，按需下载、即装即用。' },
   { icon: 'fas fa-calculator', name: '科学计算', desc: '科学计算器支持表达式、模运算与质因数分解；GeoGebra 数学画板提供完整的绘图体验。' },
   { icon: 'fas fa-shield-alt', name: '数据与隐私', desc: '聊天数据本地 SQLite + AES-256 加密存储，无遥测、无广告。' },
   { icon: 'fas fa-laptop', name: '跨平台体验', desc: '支持 Windows、Linux 与 macOS，多套主题、可自定义快捷键与字体大小，窄窗自动单列布局。' }

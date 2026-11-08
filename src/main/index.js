@@ -9,23 +9,14 @@ const { pathToFileURL } = require('url');
 let autoUpdater;
 try { ({ autoUpdater } = require('electron-updater')); } catch { autoUpdater = null; }
 
-// —— 本地资源特权协议（geo:// GeoGebra 资源、tool:// 已安装的在线工具）——
-// 必须在 app ready 之前注册 scheme 特权；两者都按标准安全源处理，iframe/fetch 才能正常加载。
+// —— 本地资源特权协议（tool:// 已安装的在线工具）——
+// 必须在 app ready 之前注册 scheme 特权；按标准安全源处理，iframe/fetch 才能正常加载。
 protocol.registerSchemesAsPrivileged([
-  {
-    scheme: 'geo',
-    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
-  },
   {
     scheme: 'tool',
     privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true }
   }
 ]);
-// 资源根：打包后 resources/geogebra，开发时项目 resources/geogebra
-function geogebraRoot() {
-  if (app.isPackaged) return path.join(process.resourcesPath, 'geogebra');
-  return path.resolve(__dirname, '../../resources/geogebra');
-}
 
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const { UserStore, migrateLegacy, importLegacyData } = require('./storage');
@@ -438,23 +429,8 @@ if (!gotTheLock) {
 
     app.whenReady().then(async () => {
         try {
-            // 注册 geo:// 协议：映射到本地 GeoGebra 资源（防路径穿越）
-            protocol.handle('geo', (request) => {
-                try {
-                    const url = new URL(request.url);
-                    const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
-                    const root = geogebraRoot();
-                    const resolved = path.resolve(root, rel);
-                    if (resolved !== root && !resolved.startsWith(root + path.sep)) {
-                        return new Response('Forbidden', { status: 403 });
-                    }
-                    return net.fetch(pathToFileURL(resolved).toString());
-                } catch (err) {
-                    return new Response('Not Found', { status: 404 });
-                }
-            });
             // 注册 tool:// 协议：tool://<id>/<relpath> → userData/tools/<id>/<当前版本>/<relpath>
-            // 版本号以 installed.json 为准（版本目录不可变，升级只改 installed.json 指向）；防路径穿越同 geo://
+            // 版本号以 installed.json 为准（版本目录不可变，升级只改 installed.json 指向）；防路径穿越
             protocol.handle('tool', async (request) => {
                 try {
                     const url = new URL(request.url);

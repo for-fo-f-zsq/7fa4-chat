@@ -4,25 +4,25 @@
    头像色板：--avatar-tint-1..8 为 8 组浅底，--avatar-tint-text 为统一深墨字。 */
 :root {
   /* ---------- 背景（浅蓝层次） ---------- */
-  --bg-app: #F1F6FD;
-  --bg-sidebar: #E7EFFA;
-  --bg-sidebar-hover: #DDE8F7;
-  --bg-sidebar-active: #D2E0F3;
-  --bg-conversation-hover: #E9F1FB;
-  --bg-conversation-active: #DCE8F8;
-  --bg-conversation-press: #D0DFF4;
-  --bg-input: #E9F1FA;
-  --bg-input-focus: #E1EBF8;
-  --bg-input-footer-focus: #F5F9FF;
+  --bg-app: #F5F9FE;
+  --bg-sidebar: #EDF3FC;
+  --bg-sidebar-hover: #E3EDF9;
+  --bg-sidebar-active: #D9E5F6;
+  --bg-conversation-hover: #EFF5FC;
+  --bg-conversation-active: #E2EDFA;
+  --bg-conversation-press: #D7E4F7;
+  --bg-input: #EFF5FC;
+  --bg-input-focus: #E8F0FB;
+  --bg-input-footer-focus: #F9FCFF;
   --bg-code-block: rgba(96, 134, 184, 0.08);
   --bg-code-inline: rgba(96, 134, 184, 0.10);
   --bg-code-inline-self: rgba(40, 80, 140, 0.12);
-  --bg-token-badge: #E4EEFA;
-  --bg-token-badge-hover: #D9E6F7;
-  --bg-settings-info: #F5F9FF;
-  --bg-about-content: #F5F9FF;
-  --bg-action-panel: #EDF3FB;
-  --bg-table-header: #EAF2FC;
+  --bg-token-badge: #EAF2FC;
+  --bg-token-badge-hover: #DFEAF9;
+  --bg-settings-info: #F9FCFF;
+  --bg-about-content: #F9FCFF;
+  --bg-action-panel: #F2F7FD;
+  --bg-table-header: #F0F6FD;
   --bg-role-owner: #FDEFE1;
   --bg-role-admin: #E4EDF9;
   --bg-role-member: #EFF4FA;
@@ -30,8 +30,8 @@
   --bg-role-admin-hover: #D8E5F6;
   --bg-role-member-hover: #E6EDF7;
   --bg-modal-overlay: rgba(42, 62, 92, 0.38);
-  --bg-group-detail: #F5F9FF;
-  --bg-gradient-end: #E3EDFA;
+  --bg-group-detail: #F9FCFF;
+  --bg-gradient-end: #E9F2FB;
 
   /* ---------- 边框 ---------- */
   --border-light: #D5E0EE;

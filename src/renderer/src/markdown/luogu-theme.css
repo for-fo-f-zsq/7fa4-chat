@@ -18,9 +18,9 @@
   --lg-code-bg: var(--bg-code-block);
   --lg-code-fg: var(--text-primary);
   --lg-font-mono: "Cascadia Code","Fira Code",Consolas,"Courier New",monospace;
-  --lg-luogu-blue: var(--accent);
-  --lg-luogu-blue-dark: var(--accent-hover);
-  --lg-luogu-blue-light: var(--accent-light);
+  --lg-luogu-blue: var(--brand);
+  --lg-luogu-blue-dark: var(--brand-hover);
+  --lg-luogu-blue-light: var(--brand-soft);
   --lg-luogu-green: var(--success);
   --lg-luogu-green-light: color-mix(in srgb, var(--success) 14%, transparent);
   --lg-luogu-orange: var(--warning);
