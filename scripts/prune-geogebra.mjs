@@ -1,6 +1,6 @@
-// GeoGebra 离线包裁剪（resources/geogebra）
+// GeoGebra 离线包裁剪（tools/math/geogebra）
 //
-// 背景：resources/geogebra 原始体积 48MB，其中两块对本项目完全无用：
+// 背景：GeoGebra 原始包体积 48MB，其中两块对本项目完全无用：
 //
 //   1) js/properties_keys_<lang>.js —— 90 个语言的「属性名翻译表」，合计 23MB。
 //      GeoGebra 只在运行时按「当前界面语言」动态拼出文件名去加载一个语言包
@@ -14,11 +14,11 @@
 //      在「有」和「无」这两个分包时结果逐字节一致，且 init 阶段从不请求它们。
 //
 // 用法：node scripts/prune-geogebra.mjs
-// 幂等，可重复执行。裁剪后 resources/geogebra ≈ 14MB。
+// 幂等，可重复执行。裁剪后 tools/math/geogebra ≈ 14MB。
 import fs from 'node:fs';
 import path from 'node:path';
 
-const ROOT = path.resolve(import.meta.dirname, '../resources/geogebra');
+const ROOT = path.resolve(import.meta.dirname, '../tools/math/geogebra');
 const WEB = path.join(ROOT, 'HTML5/5.0/web');
 
 // 保留的语言包：中文（简/繁）+ 英文（含 en-US / en-GB 兜底）。
