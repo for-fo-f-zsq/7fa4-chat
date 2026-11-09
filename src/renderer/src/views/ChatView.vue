@@ -1788,6 +1788,7 @@ async function saveAll() {
   const uid = store.self.uid
   if (!uid || savingNow) return
   savingNow = true
+  let dirtyKeys = null
   try {
     // 会话元数据（JSON 深拷贝，防 Vue Proxy 无法克隆）
     const convos = []
@@ -1797,8 +1798,8 @@ async function saveAll() {
     for (const [id, g] of Object.entries(store.groups || {})) {
       if (g && g.gid != null) convos.push({ kind: 'group', cid: Number(id), meta: JSON.parse(JSON.stringify(g)) })
     }
-    // 脏区消息：仅上传有变化的会话，按会话原子替换
-    const dirtyKeys = takeDirtyMsgKeys()
+    // 先取走本轮标记；保存期间的新变化继续独立累计，失败时再合并回去。
+    dirtyKeys = takeDirtyMsgKeys()
     const messages = {}
     if (dirtyKeys) {
       for (const key of dirtyKeys) {
@@ -1821,8 +1822,15 @@ async function saveAll() {
       hiddenConvos: store.hiddenConvos || {},
       stickers: store.stickers || []
     }))
-    await window.api.storeSaveAll(uid, { convos, messages, prefs })
-  } catch {} finally {
+    const result = await window.api.storeSaveAll(uid, { convos, messages, prefs })
+    if (!result?.success) throw new Error(result?.error || '存储未确认保存成功')
+  } catch (error) {
+    for (const key of dirtyKeys || []) {
+      const [kind, cid] = key.split(':')
+      markMsgDirty(kind, cid)
+    }
+    console.error('[Store] 保存失败，保留待保存消息以便重试:', error)
+  } finally {
     savingNow = false
   }
 }
