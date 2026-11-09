@@ -356,11 +356,11 @@ export async function safeFetch(url, options = {}, timeout = 10000) {
       res = await fetch(url, options)
     }
     // 检测到返回 HTML（通常会话失效被服务端重定向到登录页）：不再强制退出登录，
-    // 改为标记网络异常（"未连接"横幅），由调用方/轮询层决定是否继续。历史消息仍可读。
+    // 响应对象和 JSON 结果都保留标记，供轮询层识别登录失效；历史消息仍可读。
     const _ctype = (res.headers.get('content-type') || '').toLowerCase()
     if (_ctype.includes('text/html')) {
       store.netError = true
-      return { json: async () => ({ success: false, _html: true, err: { message: '未连接，正在重新连接…' } }) }
+      return { _html: true, json: async () => ({ success: false, _html: true, err: { message: '未连接，正在重新连接…' } }) }
     }
     if (!res.ok) return { json: async () => ({ success: false, err: { message: res.statusText } }) }
     try {
@@ -371,7 +371,7 @@ export async function safeFetch(url, options = {}, timeout = 10000) {
     } catch {
       // 非 JSON（即 HTML，会话失效）：标记网络异常，不退出登录
       store.netError = true
-      return { json: async () => ({ success: false, _html: true, err: { message: '未连接，正在重新连接…' } }) }
+      return { _html: true, json: async () => ({ success: false, _html: true, err: { message: '未连接，正在重新连接…' } }) }
     }
   } catch (e) {
     // 网络层错误（断网/超时）：标记网络异常，不退出登录；online 交由 navigator 事件

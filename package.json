@@ -8,6 +8,7 @@
     "dev": "electron-vite dev -- --no-sandbox",
     "build": "electron-vite build && node scripts/sync-katex-assets.mjs && node scripts/prune-renderer-assets.mjs && node scripts/build-jsc.mjs",
     "test:md": "node scripts/test-markdown.mjs && node scripts/test-typora-input.mjs && node scripts/test-input-footer.mjs && node scripts/test-markdown-tool.mjs && node scripts/test-msg-fmt.mjs",
+    "test:chat": "node scripts/test-chat-reliability.mjs",
     "sync:luogu": "node scripts/sync-luogu.mjs",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
