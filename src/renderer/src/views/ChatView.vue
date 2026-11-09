@@ -1590,12 +1590,13 @@ const INFO_EVERY_ROUNDS = 2;
 const TOKEN_EVERY_ROUNDS = 1; // token 查询只有 60 B，每轮查
 const INCR_TAKE_START = 5; // 起手 5 条：同一秒可能有多条消息，take=1/2 容易漏，5 是实测折中
 const INCR_TAKE_MAX = 16;
-const INCR_MAX_PAGES = 4; // 单轮最多往前翻 4 页；还没接上就记进 backfillKeys，下一轮继续
-// 「还有更旧的新消息没拉完」的会话 key 集合。
+const INCR_MAX_PAGES = 4; // 单轮最多往前翻 4 页；未完成的游标交给下一轮
+// 会话 key → 各消息方向的补拉队列（私聊 user / send_user 必须分别续拉）。
+// 新消息可能在旧缺口补完前到达，因此保留多个游标，不能用新一轮覆盖旧进度。
 // 判定口径（用户定的）：只有「这一页里没有任何未出现过的消息」才算接上；
 // 只要还有没出现的消息，就必须继续往前翻 —— 单轮页数用完就留到下一轮，
 // 绝不能因为「本轮页数到顶」或「时间戳没变」就把这段缺口当成已同步。
-const backfillKeys = new Set();
+const backfillJobs = new Map();
 
 // 各会话「最后一条消息的时间戳」（秒），key = 'g:<gid>' / 'u:<uid>'。
 // 探针靠它判断谁有新消息；只在内存里，冷启动首爬会重新建立基线。
@@ -1727,27 +1728,25 @@ async function probeTargetTimes(seed = false) {
 }
 
 /**
- * 定向增量拉取一个会话。take 从小到大倍增，靠「本页出现本地已有消息」判断已接上；
- * 整页都是新消息才继续往前翻。
- * 返回 { ok, maxSeen }：maxSeen = 本页见到的最新 send_time（秒），调用方据此决定基线能不能推进
+ * 定向增量拉取一个消息方向。没有新消息的页表示已接上，否则继续向前翻。
+ * 返回 { ok, maxSeen, done, cursor }，cursor 是下一页（失败时为当前页）的游标。
+ * maxSeen = 本轮见到的最新 send_time（秒），调用方据此决定基线能不能推进
  * —— 服务端可能还没把「探针看到的那条」吐出来（秒级边界 / 主从延迟），没见到就不能推进。
  */
-async function pullOne(type, targetId, fresh) {
-  if (fresh) {
-    // 新会话：本地没有历史，按首次爬取的做法整段拉（100 条 + 翻页）
-    const r = await fetchMessages(type, Date.now(), 100, true, targetId);
-    return { ok: !!r, maxSeen: r ? r.maxSendTime : 0, done: true };
-  }
-  let end = Date.now();
-  let take = INCR_TAKE_START;
+async function pullOne(type, targetId, fresh, cursor = null) {
+  let end = cursor?.end ?? Date.now();
+  let take = cursor?.take ?? (fresh ? 100 : INCR_TAKE_START);
   let maxSeen = 0;
+  const pending = (ok) => ({ ok, maxSeen, done: false, cursor: { end, take } });
   for (let page = 0; page < INCR_MAX_PAGES; page++) {
     const res = await fetchMessages(type, end, take, false, targetId);
-    if (!res) return { ok: false, maxSeen, done: false }; // 请求失败：让调用方保留旧基线、下一轮重试
+    if (!res) return pending(false); // 失败必须保留当前页，不能从已经入库的第一页重新开始
     if (res.maxSendTime > maxSeen) maxSeen = res.maxSendTime;
     // caughtUp = 这一页里没有一条未出现过的消息。只有这种情况才算真的接上了；
     // 「本页出现过已知消息」不算（翻页游标按秒重叠，第 2 页必然含上一页最旧那条）。
-    if (res.caughtUp || res.oldestSendTime === null) return { ok: true, maxSeen, done: true };
+    // 若一整页都塞在游标所在秒内，即使全是已知消息，也可能还藏着同秒的更早消息。
+    const saturatedSecond = res.oldestSendTime !== null && res.oldestSendTime * 1000 >= end && res.count >= take;
+    if ((res.caughtUp && !saturatedSecond) || res.oldestSendTime === null) return { ok: true, maxSeen, done: true };
     // 往前翻的游标 = 本页最旧那一秒。fetchMessages 内部会 +1（服务端 `send_time < end_time`
     // 是开区间），所以传 `oldest * 1000` 实际查的是 `send_time <= oldest`：同一秒里
     // 剩下的消息仍会被取到。**不能传 (oldest + 1) * 1000** —— 那等于把上界又抬高 1 秒，
@@ -1761,21 +1760,59 @@ async function pullOne(type, targetId, fresh) {
         page--; // 同一个时间窗口重试，不占页数
         continue;
       }
-      return { ok: true, maxSeen, done: res.count < take };
+      return res.count < take ? { ok: true, maxSeen, done: true } : pending(true);
     }
     end = nextEnd;
-    take = Math.min(take * 2, INCR_TAKE_MAX);
+    take = Math.min(take * 2, Math.max(take, INCR_TAKE_MAX));
   }
   // 页数用完了但还没接上：这一轮先到这里，把会话记下来，下一轮继续往前补。
-  return { ok: true, maxSeen, done: false };
+  return pending(true);
 }
 
 /** 拉一个会话的新消息：群只有 group 一个视图；私聊要 user（对方发的）+ send_user（自己发的） */
-async function pullConversation(kind, id, fresh) {
-  if (kind === 'group') return pullOne('group', id, fresh);
-  const a = await pullOne('user', id, fresh);
-  const b = await pullOne('send_user', id, fresh);
-  return { ok: a.ok && b.ok, maxSeen: Math.max(a.maxSeen, b.maxSeen), done: a.done && b.done };
+async function pullConversation(kind, id, fresh, resume = false) {
+  const key = (kind === 'group' ? 'g:' : 'u:') + id;
+  const jobs = backfillJobs.get(key) || { group: [], user: [], send_user: [] };
+  let ok = true;
+  let maxSeen = 0;
+  for (const type of kind === 'group' ? ['group'] : ['user', 'send_user']) {
+    const queue = jobs[type];
+    if (resume && !queue.length) continue;
+    const pulled = await pullOne(type, id, fresh, resume ? queue[0] : null);
+    // 退出后不把在途请求的游标重新放回队列。
+    if (!infoLoopRunning) return { ok: false, maxSeen, done: false };
+    ok = ok && pulled.ok;
+    maxSeen = Math.max(maxSeen, pulled.maxSeen);
+    if (resume) {
+      queue.shift();
+      // 同一方向也轮转：旧缺口暂时不可补时，新缺口仍有机会继续。
+      if (!pulled.done) queue.push(pulled.cursor);
+    } else if (!pulled.done) {
+      // 同一页的重试只保留一个任务；不同缺口分别保留，避免新消息覆盖旧缺口。
+      if (!queue.some(c => c.end === pulled.cursor.end && c.take === pulled.cursor.take)) queue.push(pulled.cursor);
+    }
+  }
+  const done = !Object.values(jobs).some(queue => queue.length);
+  if (done) backfillJobs.delete(key);
+  else backfillJobs.set(key, jobs);
+  return { ok, maxSeen, done };
+}
+
+/** 每轮最多续拉三个会话；失败任务保留，并轮转到队尾以免阻塞其它会话。 */
+async function resumeBackfills() {
+  for (const key of Array.from(backfillJobs.keys()).slice(0, 3)) {
+    if (!infoLoopRunning) break;
+    const kind = key.startsWith('g:') ? 'group' : 'user';
+    const id = Number(key.slice(2));
+    try {
+      await pullConversation(kind, id, false, true);
+    } catch (e) { console.error(e); }
+    if (backfillJobs.has(key)) {
+      const jobs = backfillJobs.get(key);
+      backfillJobs.delete(key);
+      backfillJobs.set(key, jobs);
+    }
+  }
 }
 
 // ===== SQLite 存储：唯一快照保存通道 =====
@@ -1930,7 +1967,7 @@ async function logout(toLogin = false, clearCred = false) {
   stopRanklistFetch(); // 停止 ranklist 轮询（退登结束，重新登录后自动重启）
   lastSendTimes.clear(); // 探针基线属于当前账号，换账号必须清掉
   sameSecondRechecked.clear();
-  backfillKeys.clear(); // 未补完的缺口也属于当前账号
+  backfillJobs.clear(); // 未补完的缺口也属于当前账号
   // 等待可能正在执行的异步操作完成
   await new Promise(r => setTimeout(r, 100));
   // 退出前先保存当前数据（立即落盘，不等节流）
@@ -2027,31 +2064,16 @@ async function startInfoLoop() {
             // 清掉的话下一轮 `sec === prev` 又成立、标记又没了 → 每个会话每秒都被重拉一次，
             // 空闲状态下就是每分钟上千个请求（用户报的「没有新消息也一通猛抓」）。
             if (pulled.ok && pulled.maxSeen >= c.sec) lastSendTimes.set(c.key, c.sec);
-            // 没接上（单轮页数用完、但还有更旧的新消息）：记下来，下一轮继续往前补，
-            // 不能因为基线已经推到最新就把这段缺口当成已同步。
-            if (pulled.ok && !pulled.done) backfillKeys.add(c.key);
+            // pullConversation 已保存未完成或失败的游标；推进探针基线不会丢掉这些缺口。
           } catch (e) { console.error(e); }
         }
         // 注意：这里**不要**再「每轮把当前打开的会话直接拉一次」。
         // 探针的 MAX(send_time) 只有整秒精度，同一秒的第二条消息靠上面 sameSecondRechecked
         // 补查一次即可；每轮都拉会让空闲状态下每秒固定多出 1~2 个请求（私聊两个视图），
         // 而收益只是「同一秒的第三条以后能早 1 秒看到」，不值得。
-        // 上一轮没补完的缺口：每轮各补一页，直到「本页没有任何未出现过的消息」为止。
+        // 从上一轮留下的游标继续补拉，不能从最新页重新开始并误判「已经接上」。
         // 这里不依赖探针时间戳（它可能早就不变了），否则缺口会永远留在那里。
-        if (infoLoopRunning && backfillKeys.size) {
-          let budget = 3; // 每轮最多补 3 个会话，避免一次拉太多把带宽打满
-          for (const key of Array.from(backfillKeys)) {
-            if (!infoLoopRunning || budget-- <= 0) break;
-            const kind = key.startsWith('g:') ? 'group' : 'user';
-            const id = Number(key.slice(2));
-            if (!id) { backfillKeys.delete(key); continue; }
-            try {
-              const pulled = await pullConversation(kind, id, false);
-              if (!pulled.ok || pulled.done) backfillKeys.delete(key);
-              else if (pulled.maxSeen > (lastSendTimes.get(key) || 0)) lastSendTimes.set(key, pulled.maxSeen);
-            } catch (e) { console.error(e); }
-          }
-        }
+        await resumeBackfills();
       }
       if (!infoLoopRunning) break;
       if (failCount >= 3) {
