@@ -1,28 +1,28 @@
 /* ========== 默认主题：浅蓝（雾蓝）==========
-   低饱和浅蓝底：应用底色、侧栏、输入框都带蓝调，避免大面积纯白。
+   底色收成极低饱和的蓝灰（近中性），把蓝调留给按钮与链接，避免整页同一个蓝。
    约定：浅色填充统一配深墨色文字（--text-on-accent），不出现深色实心块。
    头像色板：--avatar-tint-1..8 为 8 组浅底，--avatar-tint-text 为统一深墨字。 */
 :root {
-  /* ---------- 背景（浅蓝层次） ---------- */
-  --bg-app: #F5F9FE;
-  --bg-sidebar: #EDF3FC;
-  --bg-sidebar-hover: #E3EDF9;
-  --bg-sidebar-active: #D9E5F6;
-  --bg-conversation-hover: #EFF5FC;
-  --bg-conversation-active: #E2EDFA;
-  --bg-conversation-press: #D7E4F7;
-  --bg-input: #EFF5FC;
-  --bg-input-focus: #E8F0FB;
-  --bg-input-footer-focus: #F9FCFF;
+  /* ---------- 背景（蓝灰层次） ---------- */
+  --bg-app: #F7F9FC;
+  --bg-sidebar: #F1F4F8;
+  --bg-sidebar-hover: #E8EDF3;
+  --bg-sidebar-active: #E0E6EF;
+  --bg-conversation-hover: #F2F5F9;
+  --bg-conversation-active: #E8EDF4;
+  --bg-conversation-press: #DFE6EF;
+  --bg-input: #F2F5F9;
+  --bg-input-focus: #EDF1F6;
+  --bg-input-footer-focus: #FBFCFE;
   --bg-code-block: rgba(96, 134, 184, 0.08);
   --bg-code-inline: rgba(96, 134, 184, 0.10);
   --bg-code-inline-self: rgba(40, 80, 140, 0.12);
-  --bg-token-badge: #EAF2FC;
-  --bg-token-badge-hover: #DFEAF9;
-  --bg-settings-info: #F9FCFF;
-  --bg-about-content: #F9FCFF;
-  --bg-action-panel: #F2F7FD;
-  --bg-table-header: #F0F6FD;
+  --bg-token-badge: #EEF2F8;
+  --bg-token-badge-hover: #E5EBF3;
+  --bg-settings-info: #FBFCFE;
+  --bg-about-content: #FBFCFE;
+  --bg-action-panel: #F5F7FA;
+  --bg-table-header: #F3F6FA;
   --bg-role-owner: #FDEFE1;
   --bg-role-admin: #E4EDF9;
   --bg-role-member: #EFF4FA;
@@ -30,13 +30,13 @@
   --bg-role-admin-hover: #D8E5F6;
   --bg-role-member-hover: #E6EDF7;
   --bg-modal-overlay: rgba(42, 62, 92, 0.38);
-  --bg-group-detail: #F9FCFF;
-  --bg-gradient-end: #E9F2FB;
+  --bg-group-detail: #FBFCFE;
+  --bg-gradient-end: #EDF2F6;
 
   /* ---------- 边框 ---------- */
-  --border-light: #D5E0EE;
-  --border-table: #D9E3F0;
-  --border-row: #E3EBF5;
+  --border-light: #DBE1E8;
+  --border-table: #DFE4EA;
+  --border-row: #E7EBF1;
   --border-conversation-bottom: rgba(70, 100, 140, 0.06);
   --border-3d-light: rgba(255, 255, 255, 0.85);
   --border-3d-dark: rgba(52, 80, 120, 0.10);
@@ -60,13 +60,14 @@
   --text-idle: #6C7E94;
 
   /* ---------- 品牌色（低饱和蓝，浅填充＋深墨字） ---------- */
-  --accent: #A3BFE3;
-  --accent-hover: #93B2DB;
-  --accent-active: #87A8D3;
-  --accent-light: rgba(140, 175, 225, 0.16);
-  --accent-outline: rgba(140, 175, 225, 0.36);
-  --gradient-accent: rgba(140, 175, 225, 0.26);
-  --gradient-subtle: rgba(140, 175, 225, 0.09);
+  /* 比底色深一档，主按钮才与页面分得开；仍配深墨字，不出现深色实心块 */
+  --accent: #7C9CD0;
+  --accent-hover: #7292C8;
+  --accent-active: #6A8AC2;
+  --accent-light: rgba(124, 156, 208, 0.16);
+  --accent-outline: rgba(124, 156, 208, 0.36);
+  --gradient-accent: rgba(124, 156, 208, 0.26);
+  --gradient-subtle: rgba(124, 156, 208, 0.09);
 
   /* ---------- 消息气泡 ---------- */
   --message-self-bg: #CBE1FA;
@@ -74,7 +75,7 @@
   --message-other-bg: #FAFCFF;
 
   /* ---------- 头像 ---------- */
-  --avatar-grad-default: #DCE8F7;
+  --avatar-grad-default: #E3E9F0;
   --avatar-icon-color: #4E6076;
   --avatar-shadow: 0 2px 8px rgba(50, 80, 120, 0.12), 0 1px 3px rgba(50, 80, 120, 0.06);
   --avatar-msg-shadow: 0 2px 6px rgba(50, 80, 120, 0.10), 0 1px 2px rgba(50, 80, 120, 0.04);
@@ -101,14 +102,17 @@
   --shadow-input-focus: 0 0 0 3px rgba(140, 175, 225, 0.16), 0 4px 12px rgba(120, 160, 210, 0.12), inset 0 1px 2px rgba(50, 80, 120, 0.04);
 
   /* ---------- 滚动条 ---------- */
-  --scrollbar-thumb: #B9C8DB;
-  --scrollbar-thumb-hover: #9FB1C8;
+  --scrollbar-thumb: #C2C9D3;
+  --scrollbar-thumb-hover: #A9B2BE;
 
   /* ---------- 气泡箭头 ---------- */
   --arrow-border-left: 6px solid var(--message-other-bg);
   --arrow-border-right: 6px solid var(--message-self-bg);
 
   /* ---------- 其他 ---------- */
+  /* @提及单独用暖褐，避免和链接/按钮挤在同一个蓝里；未定义该变量的主题走 --brand 兜底 */
+  --mention-color: #7A5B40;
+  --mention-soft: rgba(160, 125, 90, 0.16);
   --border-self-bubble: rgba(30, 60, 100, 0.12);
   --border-self-blockquote: rgba(30, 60, 100, 0.20);
   --btn-ripple: rgba(255, 255, 255, 0.35);

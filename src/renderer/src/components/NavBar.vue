@@ -1,6 +1,6 @@
 <template>
   <div class="navbar" :class="{ narrow, 'fx-off': fxOff }">
-    <div class="nav-logo" title="前往项目主页" @click="openSite">
+    <div class="nav-logo" title="前往官网" @click="openSite">
       <img src="../../icon/icon.ico" class="nav-logo-img" />
     </div>
     <!-- 导航项：UiIconButton（ghost + lg）承载图标按钮语义，尺寸由 scoped .nav-icon 的自定义属性覆盖为 44×44 -->
@@ -20,10 +20,11 @@
           <i class="fas fa-comment-dots" aria-hidden="true"></i>
           <span class="nav-icon-label">消息</span>
         </span>
-        <UiBadge v-if="chatUnread" class="nav-badge motion-pulse" dot variant="danger" />
+        <UiBadge v-if="chatUnread && !isWeb" class="nav-badge motion-pulse" dot variant="danger" />
       </template>
     </UiIconButton>
     <UiIconButton
+      v-if="!isWeb"
       class="nav-icon"
       icon="fas fa-toolbox"
       size="lg"
@@ -137,7 +138,7 @@ import { ref, computed } from 'vue'
 import { UiAvatar, UiBadge, UiIconButton } from '../ui'
 import { vClickOutside } from '../composables/vClickOutside.js'
 import { store } from '../store.js'
-import { isUserHiddenBySetting, isWebBrowser, gitlabProjectUrl, gitlabIssuesUrl, gitlabPackagesUrl, avatarTint } from '../utils.js'
+import { isUserHiddenBySetting, isWebBrowser, officialSiteUrl, officialDownloadUrl, gitlabIssuesUrl, avatarTint } from '../utils.js'
 
 const props = defineProps({
   pageType: String,
@@ -204,9 +205,9 @@ function openFeedback() {
   try { window.api.openExternal(gitlabIssuesUrl()) } catch {}
 }
 
-// 左上角标识：点击打开 GitLab 项目主页
+// 左上角标识：点击打开官网
 function openSite() {
-  try { window.api.openExternal(gitlabProjectUrl()) } catch {}
+  try { window.api.openExternal(officialSiteUrl()) } catch {}
 }
 
 // 纯网页浏览器端：客户端下载入口（引导下载完整客户端）
@@ -215,7 +216,7 @@ function openSite() {
 const isWeb = isWebBrowser()
 function openDownload() {
   userMenu.value = false
-  try { window.api.openExternal(gitlabPackagesUrl()) } catch {}
+  try { window.api.openExternal(officialDownloadUrl()) } catch {}
 }
 </script>
 

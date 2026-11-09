@@ -1,5 +1,7 @@
 // QQ 系统表情（275 个，含新版/超级表情），来源 koishijs/QFace（MIT）
 // code=中文快捷码（/惊讶）、pinyin/alias=拼音快捷码（/jingya /jy）
+import { assetUrl } from './platform/asset-base.js'
+
 export const QQFACES = [
   { id: 0, code: "/惊讶", name: "惊讶", pinyin: "jingya", alias: ["jy"], file: "s0.gif" },
   { id: 1, code: "/撇嘴", name: "撇嘴", pinyin: "piezui", alias: ["pz"], file: "s1.gif" },
@@ -385,7 +387,7 @@ for (const f of QQFACES) {
   for (const a of f.alias) { const k = ("/" + a).toLowerCase(); if (!QUANCODE.has(k)) QUANCODE.set(k, f) }
 }
 
-export function qqfaceUrl(file) { return "/qqface/" + file }
+export function qqfaceUrl(file) { return assetUrl('qqface/' + file) }
 
 /**
  * 取表情的最短快捷码（用于点击表情时默认插入的文本）。

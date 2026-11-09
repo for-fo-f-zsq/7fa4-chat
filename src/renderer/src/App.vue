@@ -4,7 +4,7 @@
     <Transition name="page" mode="out-in">
       <div class="app-view" :key="viewKey">
         <LoginView
-          v-if="!store.logined && !store.guestMode"
+          v-if="!isWeb && !store.logined && !store.guestMode"
           @login="onLogin"
           @guest="onGuest"
         />
@@ -38,8 +38,12 @@ import LoginView from './views/LoginView.vue';
 import ChatView from './views/ChatView.vue';
 import Announcement from './components/Announcement.vue';
 import Onboarding from './components/Onboarding.vue';
-import { loadUsersDb, compareVersion, checkAppUpdate } from './utils.js';
+import { loadUsersDb, compareVersion, checkAppUpdate, isWebBrowser } from './utils.js';
 import { prefersReducedMotion } from './utils/motion.js';
+
+// 网页版：没有自带登录页，登录态完全由 OJ 的 cookie 决定（同源）。
+// 这里先按「已登录」启动；ChatView 用 /chat/info 探测，拿到 HTML 就整页跳 /login?url=…
+const isWeb = isWebBrowser()
 
 const canvasEl = ref(null)
 let animId = 0
@@ -54,11 +58,12 @@ const loginSeq = ref(0)
 const viewKey = computed(() => ((store.logined || store.guestMode) ? 'chat' : 'login') + '-' + loginSeq.value)
 const reducedMotion = ref(prefersReducedMotion())
 
-// --- 新用户引导：只在首次启动（本地无标记）时展示一次 ---
+// --- 新用户引导：只在首次启动（本地无标记）时展示一次；网页版不弹 ---
+// 网页版没有「登录页」「工具」这些桌面端的引导步骤，弹出来反而误导（第一页就让人去输 OJ 密码）
 const showOnboarding = ref(false)
 const ONBOARDING_KEY = 'onboarding-seen'
 try {
-  if (localStorage.getItem(ONBOARDING_KEY) !== '1') showOnboarding.value = true
+  if (!isWeb && localStorage.getItem(ONBOARDING_KEY) !== '1') showOnboarding.value = true
 } catch {}
 function closeOnboarding() {
   showOnboarding.value = false
@@ -94,7 +99,13 @@ window.addEventListener('open-onboarding', () => { showOnboarding.value = true }
 
 // #2 登录持久化：localStorage 有登录标记 → 直接进入已登录主界面（重启/reload 不退出登录）
 try {
-  if (localStorage.getItem('7fa4_logined') === '1') {
+  // 网页版：登录态完全由 OJ 的 cookie 决定（同源），本地没有登录标记可读。
+  // 先按「已登录」启动，ChatView 用 /chat/info 探测：拿到登录页 HTML 就整页跳 /login?url=…
+  // （未登录直接渲染错误页是 OJ 的既有行为，不是 302，所以只能由前端探测）
+  if (isWeb) {
+    store.guestMode = false;
+    store.logined = true;
+  } else if (localStorage.getItem('7fa4_logined') === '1') {
     store.guestMode = false;
     store.logined = true;
   }

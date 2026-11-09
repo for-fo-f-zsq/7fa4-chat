@@ -147,8 +147,9 @@
     </div>
     </Transition>
     <!-- 工具入口页（仅列表）；各工具在外层独立渲染：返回时按打开来源回到工具列表或对应会话 -->
+    <!-- 网页版不提供工具列表：工具依赖本地文件系统/原生能力，浏览器里跑不了 -->
     <ToolsView
-      v-if="pageType==='tools' && currentTool==='list'"
+      v-if="!isWeb && pageType==='tools' && currentTool==='list'"
       @open-tool="onOpenTool"
     />
     <!-- 工具全部来自远端清单（iframe 嵌入）。客户端不再内置任何工具页：
@@ -156,7 +157,7 @@
          又内置进主包，会导致「改了 src 但用户点开的是下载包」的错配，故只保留远端这一条路径。
          返回按钮 / 工具内 closeTool 都回到工具列表。 -->
     <ToolHost
-      v-else-if="pageType==='tools' && currentTool && currentTool.remote"
+      v-else-if="!isWeb && pageType==='tools' && currentTool && currentTool.remote"
       :tool="currentTool"
       class="ide-host"
       @back="onToolBack"
@@ -288,7 +289,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '../store.js';
-import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, ingestMessage, clearPendingVotes, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys, isUserHiddenBySetting, makeVoteContent } from '../utils.js';
+import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, ingestMessage, clearPendingVotes, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys, isUserHiddenBySetting, makeVoteContent, isWebBrowser } from '../utils.js';
 
 import { UiBanner, UiButton } from '../ui';
 
@@ -324,6 +325,13 @@ import { NARROW_ASPECT, THEMES } from '../composables/constants.js';
 // --- 页面状态 ---
 const pageType = ref('chat');
 const pageId = ref(null);
+// 网页版（纯浏览器）：没有本地消息库，也不做首屏全量爬取。
+// 列表顺序与「有新消息」由 target-times 探针驱动，只有点开的会话才真正拉消息。
+const isWeb = isWebBrowser();
+// 网页版 /chat/info（~51KB）降频：探针只能回显已知 id，新好友/新群还得靠它发现，60 秒一次
+//（≈3MB/h；桌面端是每 2 轮 ≈ 90MB/h）。不要调太快，51KB 是探针 542B 的一百倍。
+const WEB_INFO_EVERY_MS = 60 * 1000;
+let lastInfoAt = 0;
 const currentTool = ref('list');
 // 工具打开来源：'list'=从工具列表进入（返回回列表）；chat 会话=记住来源会话（返回回到对应消息界面）
 let toolOrigin = { type: 'list' };
@@ -361,11 +369,80 @@ watch(() => store.logined, (logged) => {
   }
 }, { immediate: true });
 
-// 返回登录页（游客模式"去登录"）：退出游客，回到登录界面
+// 返回登录页（游客模式"去登录"）：桌面端退出游客回登录界面；网页版交给 OJ 的 /login
+// 注意：模板里 @click="gotoLogin" 会把 MouseEvent 当第一个实参传进来，所以这里不能带形参
 function gotoLogin() {
+  if (isWeb) {
+    // 网页版没有自带登录表单：跳 OJ 登录页，登录成功后由 ?url= 原路返回当前子路径。
+    // 注意必须排在 `if (store.logined) return` 之前：网页版启动时 store.logined 恒为 true
+    // （登录态由 OJ cookie 决定），否则会话失效时永远跳不过去。
+    const here = location.pathname + location.search;
+    location.href = '/login?url=' + encodeURIComponent(here);
+    return;
+  }
   if (store.logined) return;
   store.guestMode = false;
   store.logined = false;
+}
+
+// --- 网页版：点开才拉（懒加载） ---
+// 桌面端靠本地 SQLite 缓存历史，网页端没有；进入会话时向服务端要最近 30 条，
+// 上滑时再以「内存里最早一条」为时间上界往前翻。列表顺序/未读提示不依赖这些消息。
+const webExhausted = new Set(); // 该会话已翻到最早（或服务端明确没更多）
+
+function webTarget(kind, id) {
+  return kind === 'group' ? store.groups[id] : store.users[id];
+}
+
+/** 把探针记下的最后消息时间回填到会话对象（网页版没有本地消息可算 _sortTime） */
+function applyLastSendTimesToList() {
+  for (const [key, sec] of lastSendTimes) {
+    const t = webTarget(key.startsWith('g:') ? 'group' : 'user', Number(key.slice(2)));
+    // 取较大值：排行榜等外部刷新可能把 lastSendTime 覆盖成空，这里只补不回退
+    if (t && sec > (t.lastSendTime || 0)) t.lastSendTime = sec;
+  }
+}
+
+function isCurrentConvo(kind, id) {
+  return pageId.value != null && Number(pageId.value) === Number(id) && pageType.value === kind;
+}
+
+/** 某会话内存里最早一条消息的秒级时间（0 = 还没有任何消息） */
+function oldestKnownSec(kind, id) {
+  const t = webTarget(kind, id);
+  if (!t || !Array.isArray(t.message_ids)) return 0;
+  let min = 0;
+  for (const mid of t.message_ids) {
+    const m = store.messages[mid];
+    const sec = m && (m.send_time || m.time);
+    if (sec && (!min || sec < min)) min = sec;
+  }
+  return min;
+}
+
+/** 打开会话：只拉最近 30 条（群 1 个视图，私聊 user + send_user 两个视图） */
+async function loadConversationLite(kind, id) {
+  const end = Date.now();
+  if (kind === 'group') { await fetchMessages('group', end, 30, false, id); return; }
+  await fetchMessages('user', end, 30, false, id);
+  await fetchMessages('send_user', end, 30, false, id);
+}
+
+/** 上滑加载更早的 30 条；返回是否还可能有更早的消息 */
+async function loadOlderLite(kind, id) {
+  const key = (kind === 'group' ? 'g:' : 'u:') + id;
+  if (webExhausted.has(key)) return false;
+  const oldest = oldestKnownSec(kind, id);
+  if (!oldest) { webExhausted.add(key); return false; }
+  const end = oldest * 1000;
+  const results = kind === 'group'
+    ? [await fetchMessages('group', end, 30, false, id)]
+    : [await fetchMessages('user', end, 30, false, id), await fetchMessages('send_user', end, 30, false, id)];
+  // 请求失败（null）不能当成「取完了」，否则一次网络抖动就再也翻不了历史
+  if (results.some(r => r === null)) return true;
+  const got = results.some(r => r && r.inserted);
+  if (!got) webExhausted.add(key);
+  return got;
 }
 
 // --- 顶部状态横幅的「本次忽略」 ---
@@ -536,6 +613,8 @@ function switchPage(type) {
   if (!store.logined && type === 'chat') return;
   // “工具”入口：点击时进入工具列表；已在工具页（可能正打开某个工具）则回到列表
   if (type === 'tools') {
+    // 网页版不提供工具列表（工具依赖本地文件系统，浏览器里跑不了）
+    if (isWeb) return;
     if (pageType.value === 'tools') {
       if (currentTool.value !== 'list') { currentTool.value = 'list'; toolOrigin = { type: 'list' }; }
       return;
@@ -568,9 +647,9 @@ function switchPage(type) {
 
 // 从头像菜单子页（设置/关于/更新/赞助）返回消息列表
 function backToChatList() {
-  // 未登录（游客）无消息列表可回：返回按钮始终可用，回到游客可用的工具列表；
-  // 登录用户则回到消息列表。switchPage('tools') 会把 currentTool 置 'list' 回到工具列表。
-  if (!store.logined) { switchPage('tools'); return; }
+  // 未登录（游客）无消息列表可回：桌面端回到游客可用的工具列表（网页版没有工具，直接去登录）；
+  // 登录用户则回到消息列表。
+  if (!store.logined) { if (isWeb) { gotoLogin(); return; } switchPage('tools'); return; }
   switchPage('chat');
 }
 
@@ -637,6 +716,11 @@ function onSelectConversation({ type, id }) {
     updateBadgeCount();
     // 懒加载：从 SQLite 补拉该会话的历史消息到内存（缺失内容）
     ensureConvoMessages(type, id);
+    // 网页版没有本地库：点开才向服务端要该会话最近的消息
+    if (isWeb) {
+      webExhausted.delete((type === 'group' ? 'g:' : 'u:') + id);
+      loadConversationLite(type, id);
+    }
   };
   // 切换动作立即执行：淡出/淡入由 chat-main 的 <Transition name="fade"> leave/enter 成对完成；
   // 新会话首帧滚动定位在 chat-main 的 @enter 钩子里做（见 onChatMainEnter），JS 不再手写 opacity 定时器。
@@ -661,6 +745,24 @@ function onNewConversationFromList(type) {
 
 // --- 消息列表事件 ---
 function onMessageAreaScrollToTop(height, loadAll) {
+  if (isWeb) {
+    // 网页版：内存里的消息就是全部已加载内容，上滑一律向服务端再要 30 条更早的
+    if (loadAll) { visibleCount.value = currentMessagesLength.value; return; }
+    const kind = pageType.value === 'group' ? 'group' : 'user';
+    const key = (kind === 'group' ? 'g:' : 'u:') + pageId.value;
+    if (webExhausted.has(key)) { visibleCount.value = currentMessagesLength.value; return; }
+    visibleCount.value += 20;
+    const el = messageListRef.value?.messageAreaEl;
+    loadOlderLite(kind, pageId.value).then(() => {
+      if (!el) return;
+      // DOM 更新后第一时间修正滚动位置，缩短插入消息导致的闪烁窗口
+      nextTick(() => {
+        const target = el.scrollHeight - height;
+        el.scrollTop = target > 0 ? target : 0;
+      });
+    });
+    return;
+  }
   if (loadAll) {
     visibleCount.value = currentMessagesLength.value;
   } else {
@@ -874,21 +976,29 @@ async function sendPat(targetUid) {
 
 /**
  * 用户对某个投票选项投票 → 发一条 vote 回复消息。
- * ⚠️ 投票只用于群聊（私聊投票无意义，且结果无处聚合展示）。
+ * ⚠️ 群聊与私信都必须能投：投票就是一条普通消息，聚合完全在客户端做（见 utils.aggregatePoll），
+ *    「投票只用于群聊」是过时的假设 —— 私信里投票卡片照样渲染、选项照样能勾，
+ *    只有这里被 `pageType !== 'group'` 一刀切掉，表现是点「确认投票」毫无反应、也没有任何报错
+ *    （用户报障：「私信的投票好像无法回复」）。
  * ⚠️ 同一人重复投票：直接再发一条 vote 即可；客户端聚合按「uid + 选项」去重，
  *    因此「改票」表现为旧选项不再被他计入（无需撤回旧消息）。
  */
 async function onPollVote({ poll, pick, custom }) {
-  if (pageType.value !== 'group') return;
+  // 能点到投票卡片就一定是会话页（MessageList 只在 isChatPage && pageId 时渲染），
+  // pageType 在这里天然是 'user' 或 'group'，不必再校验，直接当消息类型发。
   if (inputFooterRef.value?.sending) return;
   inputFooterRef.value.sending = true;
+  // 会话标识要在 await 之前定住：请求期间用户可能已经切走，回复只能落到发起的那个会话
+  const type = pageType.value;
+  const targetId = pageId.value;
   // 开放题（自拟选项）会带 custom；普通投票为空串 → makeVoteContent 不写该字段
   const msgObj = JSON.parse(makeVoteContent(poll, pick, custom));
   try {
-    const r = await sendChatMessage({ type: 'group', targetId: pageId.value, msgObj });
+    const r = await sendChatMessage({ type, targetId, msgObj });
     if (r.success) {
+      // 请求期间可能已切走会话（组件卸载、ref 置空），await 之后都要重新确认
       if (inputFooterRef.value) inputFooterRef.value.errorMessage = '';
-      const { tokenInfo } = applyChatToStore(r, 'group', pageId.value);
+      const { tokenInfo } = applyChatToStore(r, type, targetId);
       if (inputFooterRef.value) inputFooterRef.value.tokenInfo = tokenInfo;
     } else {
       if (inputFooterRef.value) inputFooterRef.value.errorMessage = r.err?.message || '投票失败';
@@ -896,7 +1006,7 @@ async function onPollVote({ poll, pick, custom }) {
   } catch {
     if (inputFooterRef.value) inputFooterRef.value.errorMessage = '投票失败';
   }
-  inputFooterRef.value.sending = false;
+  if (inputFooterRef.value) inputFooterRef.value.sending = false;
 }
 
 // --- 批量操作 ---
@@ -1326,7 +1436,7 @@ function handleGlobalShortcuts(e) {
     return true;
   }
   if (matchShortcut(e, getShortcutValue('switchToChat'))) { e.preventDefault(); switchPage('chat'); return true; }
-  if (matchShortcut(e, getShortcutValue('switchToTools'))) { e.preventDefault(); switchPage('tools'); return true; }
+  if (!isWeb && matchShortcut(e, getShortcutValue('switchToTools'))) { e.preventDefault(); switchPage('tools'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToSettings'))) { e.preventDefault(); switchPage('settings'); return true; }
   if (matchShortcut(e, getShortcutValue('switchToAbout'))) { e.preventDefault(); switchPage('about'); return true; }
   if (matchShortcut(e, getShortcutValue('newConversation'))) { e.preventDefault(); showAddFriendModal.value = true; return true; }
@@ -1360,7 +1470,9 @@ async function clearCacheAndReload() {
     const result = await (await safeFetch('/chat/info')).json();
     if (result.success) await update(result);
     store.fetchNewCount = 0;
-    await updateMessagesData(100, true);
+    // 网页版不首爬历史：重连后只重新探一次基线，列表顺序随之刷新
+    if (isWeb) { try { await probeTargetTimes(true); } catch {} applyLastSendTimesToList(); }
+    else await updateMessagesData(100, true);
   } catch {} finally {
     store.initializing = false;
   }
@@ -1407,14 +1519,14 @@ async function update(result) {
     .filter(f => f.watchee === true || f.watcher === true) // 既非我关注、也非关注我的关系条目不显示
     .map(f => {
       const old = store.users[f.id];
-      return [f.id, { uid: f.id, realname: f.real_name, username: f.username, nickname: f.nickname, grade: f.grade, grade_class: f.grade_class, seat: f.seat, watchee: f.watchee === true, watcher: f.watcher === true, note: old ? old.note : '', message_ids: old ? old.message_ids : [], unread: old ? old.unread : 0, pinned: old ? old.pinned : false, _fetchedAt: old ? old._fetchedAt : undefined }];
+      return [f.id, { uid: f.id, realname: f.real_name, username: f.username, nickname: f.nickname, grade: f.grade, grade_class: f.grade_class, seat: f.seat, watchee: f.watchee === true, watcher: f.watcher === true, note: old ? old.note : '', message_ids: old ? old.message_ids : [], unread: old ? old.unread : 0, pinned: old ? old.pinned : false, lastSendTime: old ? old.lastSendTime : 0, _fetchedAt: old ? old._fetchedAt : undefined }];
     }));
   const hiddenUsers = Object.fromEntries(Object.entries(store.users).filter(([, u]) => u.show === false && !friendsMap[u.uid]));
   store.users = { ...friendsMap, ...hiddenUsers };
   const newGroupIds = new Set(result.groups.map(g => g.id));
   const newGroups = Object.fromEntries(result.groups.map(g => {
     const old = store.groups[g.id];
-    return [g.id, { gid: g.id, name: g.title, mute: g.mute, users: g.users.map(({ user_id, type, mute }) => ({ user_id, type, mute })), message_ids: old ? old.message_ids : [], unread: old ? old.unread : 0, pinned: old ? old.pinned : false, mentioned: old ? old.mentioned : false, exited: false, blocked: old ? old.blocked : false }];
+    return [g.id, { gid: g.id, name: g.title, mute: g.mute, users: g.users.map(({ user_id, type, mute }) => ({ user_id, type, mute })), message_ids: old ? old.message_ids : [], unread: old ? old.unread : 0, pinned: old ? old.pinned : false, mentioned: old ? old.mentioned : false, exited: false, blocked: old ? old.blocked : false, lastSendTime: old ? old.lastSendTime : 0 }];
   }));
   for (const [gid, oldGroup] of Object.entries(store.groups)) { if (!newGroupIds.has(Number(gid))) { oldGroup.exited = true; newGroups[gid] = oldGroup; } }
   for (const [gid, newGroup] of Object.entries(newGroups)) {
@@ -1710,9 +1822,9 @@ async function probeTargetTimes(seed = false) {
     let r;
     try {
       const res = await safeFetch('/chat/target-times?' + qs);
-      // safeFetch 遇到 HTML 响应（登录失效被重定向到登录页）会带 _html 标记
-      if (res && res._html) { noteSessionExpired(); return null; }
       r = await res.json();
+      // safeFetch 遇到 HTML 响应（登录失效被重定向到登录页）时，_html 标记在解析出的 body 上
+      if (r && r._html) { noteSessionExpired(); return null; }
     } catch {
       return null;
     }
@@ -1789,6 +1901,20 @@ async function saveAll() {
   if (!uid || savingNow) return
   savingNow = true
   try {
+    // 偏好（三端都存：网页版只存这一份到 localStorage，会话/消息一律不落盘）
+    const prefs = JSON.parse(JSON.stringify({
+      drafts: store.drafts || {},
+      mutedConvos: store.mutedConvos || {},
+      hiddenConvos: store.hiddenConvos || {},
+      stickers: store.stickers || []
+    }))
+    // 网页版（纯浏览器）：没有本地会话/消息缓存，刷新页面等于像 OJ /chat 一样全量重拉。
+    // 存下上一轮的本地索引会把「有消息的会话」挤到无消息区（旧索引没有 target-times 时间戳），
+    // 所以这里只交偏好设置。
+    if (isWeb) {
+      await window.api.storeSaveAll(uid, { prefs })
+      return
+    }
     // 会话元数据（JSON 深拷贝，防 Vue Proxy 无法克隆）
     const convos = []
     for (const [id, u] of Object.entries(store.users || {})) {
@@ -1814,13 +1940,6 @@ async function saveAll() {
         if (list.length) messages[key] = list
       }
     }
-    // 偏好
-    const prefs = JSON.parse(JSON.stringify({
-      drafts: store.drafts || {},
-      mutedConvos: store.mutedConvos || {},
-      hiddenConvos: store.hiddenConvos || {},
-      stickers: store.stickers || []
-    }))
     await window.api.storeSaveAll(uid, { convos, messages, prefs })
   } catch {} finally {
     savingNow = false
@@ -1832,6 +1951,8 @@ const idsHydrated = new Set()
 
 /** 懒加载：进入会话时从 SQLite 补拉历史消息到内存，并把这些消息的 id 补回 message_ids 索引 */
 async function ensureConvoMessages(kind, cid) {
+  // 网页版没有本地库：进入会话时按需向服务端拉（loadConversationLite），无需补索引
+  if (isWeb) return
   const uid = store.self.uid
   if (!uid || cid == null) return
   const target = kind === 'group' ? store.groups[cid] : store.users[cid]
@@ -1872,6 +1993,21 @@ async function flushData() {
 async function loadData() {
   const uid = store.self.uid
   if (!uid) return
+  // 网页版：没有任何本地会话/消息缓存，只把偏好设置（草稿/静音/隐藏/表情收藏）读回来。
+  // 列表、消息全部由本轮网络的 /chat/info + /chat/target-times 决定（刷新 = 像 OJ /chat 一样重来）。
+  if (isWeb) {
+    try {
+      const pr = await window.api.storeLoadPrefs(uid)
+      if (pr && pr.success && pr.data) {
+        const d = pr.data
+        if (d.drafts) store.drafts = d.drafts
+        if (d.mutedConvos) store.mutedConvos = d.mutedConvos
+        if (d.hiddenConvos) store.hiddenConvos = d.hiddenConvos
+        if (d.stickers) store.stickers = d.stickers
+      }
+    } catch {}
+    return
+  }
   try { await window.api.storeInit(uid) } catch {}
   try {
     const [cr, pr, lr] = await Promise.all([
@@ -1961,6 +2097,8 @@ async function logout(toLogin = false, clearCred = false) {
   store.online = navigator.onLine;
   // toLogin=true：重新登录 → 回登录页（guestMode=false）；否则退出登录 → 回游客主界面（guestMode=true）
   store.guestMode = !toLogin;
+  // 网页版没有本地登录页：cookie 已销毁，直接整页回 OJ 登录页
+  if (isWeb) location.href = '/login';
 }
 
 async function startInfoLoop() {
@@ -1969,31 +2107,41 @@ async function startInfoLoop() {
   infoLoopRunning = true;
   let failCount = 0;
 
-  // ① 启动首爬（保持原有行为，一次把历史取尽）
+  // ① 启动：先 /chat/info 填充会话集合
   // 首次进入：onMounted 里的 update(initialInfo) 因 infoLoopRunning 未置真，会被 update 自身的
   // `if (!infoLoopRunning) return` 守卫跳过，此时 store.users/groups 为空。若直接全量爬取，
   // fetchMessages 会因 `if (!t) continue`（t 取不到会话）把历史全部丢弃，只剩轮询的 10 条。
-  // 因此置真后先 /chat/info 填充会话，再执行 100 条 + 翻页爬取历史。
+  // 因此置真后先 /chat/info 填充会话，再执行 100 条 + 翻页爬取历史（网页版跳过这一步）。
   try {
-    const r = await (await safeFetch('/chat/info')).json();
+    const res = await safeFetch('/chat/info');
+    const r = await res.json();
+    if (r && r._html) { noteSessionExpired(); if (isWeb) gotoLogin(); return; }
     if (!infoLoopRunning) return;
     if (r.success) { await update(r); failCount = 0; store.netError = false; store.online = true; }
     else { failCount++; store.netError = true; }
   } catch { failCount++; store.netError = true; }
+  lastInfoAt = Date.now();
   // 先把「各会话最后消息时间」记成基线：必须排在首爬之前，
   // 否则首爬结束到记基线之间到达的消息会被当成基线、再也不会被拉取。
   // 记完基线再爬，这段时间来的消息既在爬取结果里、下一轮探针又会看到新时间戳（拉到已知 id 就停）。
   try { await probeTargetTimes(true); } catch {}
   store.fetchNewCount = 0;
-  let initialOk = false;
-  try { initialOk = await updateMessagesData(100, true); } catch {}
-  // 首爬没成功就别信上面记的基线：那些「刚好在这段时间到达」的消息会被当成基线永久跳过。
-  // 清空基线后下一轮探针会把有消息的会话全部当作「未接上」重新拉一遍（幂等，靠 id 去重）。
-  if (!initialOk) { console.warn('[poll] 首爬未完成，清空探针基线并重试'); lastSendTimes.clear(); }
-  // 首次历史爬取（无论成败）结束：隐藏"正在加载消息…"提示，进入常规轮询
-  store.initializing = false;
-  // ranklist 与聊天无关，放在首爬之后、后台慢慢爬，不占首屏时间
-  startRanklistFetch();
+  if (isWeb) {
+    // 网页版：不首爬历史（那正是「全量爬取」）。列表顺序由探针时间戳决定，点开会话才拉消息。
+    applyLastSendTimesToList();
+    store.initializing = false;
+    startRanklistFetch();
+  } else {
+    let initialOk = false;
+    try { initialOk = await updateMessagesData(100, true); } catch {}
+    // 首爬没成功就别信上面记的基线：那些「刚好在这段时间到达」的消息会被当成基线永久跳过。
+    // 清空基线后下一轮探针会把有消息的会话全部当作「未接上」重新拉一遍（幂等，靠 id 去重）。
+    if (!initialOk) { console.warn('[poll] 首爬未完成，清空探针基线并重试'); lastSendTimes.clear(); }
+    // 首次历史爬取（无论成败）结束：隐藏"正在加载消息…"提示，进入常规轮询
+    store.initializing = false;
+    // ranklist 与聊天无关，放在首爬之后、后台慢慢爬，不占首屏时间
+    startRanklistFetch();
+  }
 
   // ② 常规轮询：探针 → 定向增量拉取（详见上面「轮询：target-times 探针」一节）
   let round = 0;
@@ -2002,6 +2150,8 @@ async function startInfoLoop() {
     try {
       // 探针（542 B）：只问「谁有新消息」，命中的会话才发定向请求
       const changes = await probeTargetTimes();
+      // 网页版：排行榜等外部刷新可能把 lastSendTime 覆盖成空，每轮用探针基线补一次
+      if (isWeb) applyLastSendTimesToList();
       if (changes === null) {
         // 服务端明确说「你得被禁止使用聊天」时，这不是网络故障：别弹「未连接/重连中」，
         // 也别退避重试得像是网断了 —— 展示原话，轮询继续（禁言到期会自动恢复）。
@@ -2018,6 +2168,19 @@ async function startInfoLoop() {
         store.online = true;
         for (const c of changes) {
           if (!infoLoopRunning) break;
+          if (isWeb) {
+            // 网页版：只推进「列表顺序用的最后消息时间」，不替没打开的会话拉消息（省流量）。
+            // 当前打开的会话才真正拉一条增量。基线推进规则与桌面端一致（见到该秒才算接上）。
+            const t = webTarget(c.kind, c.id);
+            if (t) t.lastSendTime = c.sec;
+            lastSendTimes.set(c.key, c.sec);
+            if (!isCurrentConvo(c.kind, c.id)) continue;
+            try {
+              const pulled = await pullConversation(c.kind, c.id, c.fresh);
+              if (pulled.ok && !pulled.done) backfillKeys.add(c.key);
+            } catch (e) { console.error(e); }
+            continue;
+          }
           try {
             const pulled = await pullConversation(c.kind, c.id, c.fresh);
             // 拉成功、且确实见到了「探针报的这个时间戳」才推进基线：失败就留在旧值，
@@ -2038,7 +2201,7 @@ async function startInfoLoop() {
         // 而收益只是「同一秒的第三条以后能早 1 秒看到」，不值得。
         // 上一轮没补完的缺口：每轮各补一页，直到「本页没有任何未出现过的消息」为止。
         // 这里不依赖探针时间戳（它可能早就不变了），否则缺口会永远留在那里。
-        if (infoLoopRunning && backfillKeys.size) {
+        if (!isWeb && infoLoopRunning && backfillKeys.size) {
           let budget = 3; // 每轮最多补 3 个会话，避免一次拉太多把带宽打满
           for (const key of Array.from(backfillKeys)) {
             if (!infoLoopRunning || budget-- <= 0) break;
@@ -2060,14 +2223,17 @@ async function startInfoLoop() {
         await new Promise(r => setTimeout(r, 10000));
         continue;
       }
-      // 会话集合兜底：新好友 / 新群只能由 /chat/info 发现（探针只回显已知 id）
-      if (round % INFO_EVERY_ROUNDS === 0) {
+      // 会话集合兜底：新好友 / 新群只能由 /chat/info 发现（探针只回显已知 id）。
+      // 网页版没有本地缓存可依赖，但 51KB 的 /chat/info 也没必要每 2 轮拉一次 → 5 分钟一次。
+      if (isWeb ? (Date.now() - lastInfoAt >= WEB_INFO_EVERY_MS) : (round % INFO_EVERY_ROUNDS === 0)) {
+        lastInfoAt = Date.now();
         try {
           const res = await safeFetch('/chat/info');
-          if (res && res._html) noteSessionExpired();
-          else {
-            const result = await res.json();
-            if (infoLoopRunning && result.success) await update(result);
+          const result = await res.json();
+          if (result && result._html) { noteSessionExpired(); if (isWeb) { gotoLogin(); return; } }
+          else if (infoLoopRunning && result.success) {
+            await update(result);
+            if (isWeb) applyLastSendTimesToList();
           }
         } catch {}
         if (!infoLoopRunning) break;
@@ -2095,7 +2261,8 @@ async function startInfoLoop() {
 // --- 全局事件 ---
 function onDocKeydown(e) {
   // 拦截 Ctrl/Cmd+R 与 F5 刷新（渲染层兜底；主进程 before-input-event 已拦）
-  if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R'))) {
+  // 网页版不能拦：浏览器刷新是用户的正常操作（桌面端有主进程兜底，网页端没有）
+  if (!isWeb && (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R')))) {
     e.preventDefault();
     return;
   }
@@ -2203,7 +2370,10 @@ onMounted(async () => {
     return;
   }
   try {
-    const initialInfo = await (await safeFetch('/chat/info')).json();
+    const infoRes = await safeFetch('/chat/info');
+    const initialInfo = await infoRes.json();
+    // 网页版：cookie 失效时 OJ 会直接回登录页 HTML（不是 302），这里整页跳登录
+    if (initialInfo && initialInfo._html) { noteSessionExpired(); if (isWeb) { gotoLogin(); return; } }
     if (initialInfo.success) Object.assign(store.self, { uid: initialInfo.user.id, username: initialInfo.user.uid, nickname: initialInfo.user.nickname, realname: initialInfo.user.real_name });
     await loadData();
     if (initialInfo.success) await update(initialInfo);

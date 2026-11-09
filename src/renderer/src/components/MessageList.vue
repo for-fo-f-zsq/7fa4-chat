@@ -620,7 +620,12 @@ onUpdated(() => {
 });
 
 let lastMsgCount = 0;
-let lastPageId = null;
+// 初值必须是「当前会话 id」而不是 null：null 会让挂载后的第一批数据（懒加载补历史 / 首轮轮询）
+// 被当成「切换了会话」，走 pageChanged 分支无条件瞬移到底部，把用户的滚动位置直接覆盖掉
+// —— 表现就是「打开会话后往上翻，约 2s 又被弹回最下面」。
+let lastPageId = props.pageId;
+// 首批数据是否还没到位（挂载时列表还是空的，enter 钩子里的 scrollToBottomInstant 量的是空列表）
+let pendingInitialPosition = true;
 let scrollTimer = null;
 // 统一走 utils/motion.js：默认 slow(260ms)+standard，reduced-motion / fx-lite 瞬时定位
 function smoothScrollTo(el, targetTop, duration) {
@@ -663,8 +668,12 @@ watch(currentMessages, (msgs) => {
     const wasAtBottom = isAtBottom.value;
     const last = msgs[msgs.length - 1];
     const mineJustSent = !!(last && props.selfUid != null && Number(last.sender) === Number(props.selfUid));
-    if (wasAtBottom || mineJustSent) doScrollToBottom(false);
+    // 首批数据到达（打开会话时列表还是空的）：用户没动过滚动条就瞬时落底，
+    // 避免「先停在顶部、再动画滑下来」。用户已经开始上翻则一律不打断。
+    if (pendingInitialPosition && wasAtBottom) doScrollToBottom(true);
+    else if (wasAtBottom || mineJustSent) doScrollToBottom(false);
   }
+  if (grew) pendingInitialPosition = false;
   lastMsgCount = msgs.length;
 });
 

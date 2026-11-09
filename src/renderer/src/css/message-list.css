@@ -265,6 +265,15 @@
   color: var(--message-self-text);
 }
 
+/* 纯文本消息（fmt: 'txt'）必须逐字还原：换行、连续空格、行首缩进一律保留。
+   HTML 默认 white-space: normal 会把 "a\nb" 渲染成 "a b"，和输入框预览
+   （input-footer.css:499 已设 pre-wrap）对不上，用户看到的就不再是他打的字。
+   只作用于纯文本块，Markdown 分支不受影响。 */
+.bubble-content :deep(.plain-msg) {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* 兜底占位：渲染失败的消息、别家客户端发来的未知类型。
    必须存在，否则这些内容会裸着继承正文样式，看起来像「正常的聊天内容」。 */
 .unknown-msg {
@@ -427,7 +436,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-width: min(180px, 100%);
+  /* 固定卡片宽度：名字短的时候不至于缩成一条窄条，窄窗口下靠 max-width 收窄 */
+  width: 280px;
   max-width: 100%;
   padding: 10px 14px;
   background: var(--surface-hover);
@@ -656,7 +666,7 @@
 
 .bubble-content :deep(.mention-tag) {
   padding: 0 2px;
-  color: var(--brand);
+  color: var(--mention-color, var(--brand));
   font-weight: 500;
   border-radius: 3px;
   cursor: pointer;
@@ -664,7 +674,7 @@
 }
 
 .bubble-content :deep(.mention-tag:hover) {
-  background: var(--brand-soft);
+  background: var(--mention-soft, var(--brand-soft));
   text-decoration: underline;
 }
 

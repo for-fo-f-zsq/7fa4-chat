@@ -1,6 +1,6 @@
 {
   "name": "7fa4-chat",
-  "version": "3.8.1",
+  "version": "3.8.2",
   "description": "7FA4 Chat",
   "main": "./out/main/index.js",
   "desktopName": "7fa4-chat.desktop",
@@ -11,6 +11,7 @@
     "sync:luogu": "node scripts/sync-luogu.mjs",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
+    "build:web": "node scripts/build-web-app.mjs",
     "build:tools": "node scripts/build-tools.mjs",
     "install:tools:local": "node scripts/install-tools-local.mjs",
     "tools:local": "node scripts/build-tools.mjs && node scripts/install-tools-local.mjs",

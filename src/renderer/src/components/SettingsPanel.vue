@@ -6,7 +6,8 @@
     <div class="settings-card">
       <div class="options-grid">
         <div class="options-col">
-          <div class="option-row">
+          <!-- 网页版固定走当前站点（同源），没有 jx/in 可切，整行隐藏 -->
+          <div class="option-row" v-if="!isWeb">
             <span class="option-label">API 地址<i class="fas fa-circle-info option-info" title="选择连接的服务器：jx.7fa4.cn 为默认站点，in.7fa4.cn 为校内备用入口"></i></span>
             <UiDropdown
               class="settings-select"
@@ -78,16 +79,16 @@
           </div>
         </div>
       </div>
-      <div class="settings-divider"></div>
-      <div class="option-row shortcut-entry" role="button" tabindex="0" @click="exportData" @keydown.enter="exportData" @keydown.space.prevent="exportData">
+      <div class="settings-divider" v-if="!isWeb"></div>
+      <div class="option-row shortcut-entry" v-if="!isWeb" role="button" tabindex="0" @click="exportData" @keydown.enter="exportData" @keydown.space.prevent="exportData">
         <span class="option-label">备份聊天数据<i class="fas fa-circle-info option-info" title="把本机的聊天记录、群与设置全部导出为一个文件" @click.stop></i></span>
         <div class="shortcut-entry-right"><span class="shortcut-entry-hint">导出到文件</span><i class="fas fa-download theme-row-arrow"></i></div>
       </div>
-      <div class="option-row shortcut-entry" role="button" tabindex="0" @click="importData" @keydown.enter="importData" @keydown.space.prevent="importData">
+      <div class="option-row shortcut-entry" v-if="!isWeb" role="button" tabindex="0" @click="importData" @keydown.enter="importData" @keydown.space.prevent="importData">
         <span class="option-label">恢复聊天数据<i class="fas fa-circle-info option-info" title="从备份文件恢复聊天记录与设置；会写入并覆盖本机对应数据" @click.stop></i></span>
         <div class="shortcut-entry-right"><span class="shortcut-entry-hint">从文件导入</span><i class="fas fa-upload theme-row-arrow"></i></div>
       </div>
-      <div class="option-row shortcut-entry" v-if="cacheSize !== null" role="button" tabindex="0" @click="clearCache" @keydown.enter="clearCache" @keydown.space.prevent="clearCache">
+      <div class="option-row shortcut-entry" v-if="!isWeb && cacheSize !== null" role="button" tabindex="0" @click="clearCache" @keydown.enter="clearCache" @keydown.space.prevent="clearCache">
         <span class="option-label">缓存管理<i class="fas fa-circle-info option-info" title="本机聊天数据的占用空间；点击清理会删除本地缓存并从服务器重新拉取" @click.stop></i></span>
         <div class="shortcut-entry-right"><span class="shortcut-entry-hint">{{ formatSize(cacheSize) }} · 点击清理</span><i class="fas fa-trash theme-row-arrow"></i></div>
       </div>
@@ -101,7 +102,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { store } from '../store.js'
 import { THEMES } from '../composables/constants.js'
-import { applyFontSize, formatSize } from '../utils.js'
+import { applyFontSize, formatSize, isWebBrowser } from '../utils.js'
 import { UiBadge, UiDropdown, UiSwitch } from '@/ui'
 
 const props = defineProps({
@@ -111,13 +112,15 @@ const props = defineProps({
 
 const emit = defineEmits(['logout', 'settingChange', 'openThemeModal', 'openShortcutModal'])
 
-onMounted(() => { loadCacheSize() })
+onMounted(() => { if (!isWeb) loadCacheSize() })
 
 const cacheSize = ref(null)
 
 // 是否 Electron 桌面端：直接读 __7FA4_WEB__（= 「非 Electron」）。
 // 不要用 isWebBrowser()——它对 Electron 和 Android 都返回 false，会把安卓也算成桌面端。
 const isElectron = !window.__7FA4_WEB__
+// 网页版：API 与页面同源，不提供 jx / in 切换
+const isWeb = isWebBrowser()
 
 const themes = THEMES
 

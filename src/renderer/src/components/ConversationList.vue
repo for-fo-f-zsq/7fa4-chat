@@ -93,7 +93,7 @@
           <div class="conv-meta">
             <span class="conv-time">{{ lastTime(item) }}</span>
             <i v-if="isMuted(item.type, item.id)" class="fas fa-bell-slash conv-muted-icon"></i>
-            <UiBadge v-if="item.unread > 0" size="md" :count="item.unread" color="var(--brand-fill)" />
+            <UiBadge v-if="!isWeb && item.unread > 0" size="md" :count="item.unread" color="var(--brand-fill)" />
           </div>
         </div>
       </TransitionGroup>
@@ -117,7 +117,10 @@
 import { computed, ref, watch, nextTick, onMounted } from 'vue'
 import { store } from '../store.js'
 import { UiAvatar, UiBadge, UiEmptyState, UiIconButton, UiSearchInput } from '../ui/index.js'
-import { getLastMessage, getLastMessageSender, getLastMessageTime, gettime1, displayName, getGradeColor, getGradeLabel, getAvatarInitial, getConvoKey, isConvoMuted, isUserHiddenBySetting, avatarTint } from '../utils.js'
+import { getLastMessage, getLastMessageSender, getLastMessageTime, gettime1, displayName, getGradeColor, getGradeLabel, getAvatarInitial, getConvoKey, isConvoMuted, isUserHiddenBySetting, avatarTint, isWebBrowser } from '../utils.js'
+
+// 网页版不显示未读：消息本身按需拉取，未读数没有可靠来源，显示出来只会误导
+const isWeb = isWebBrowser()
 
 const props = defineProps({
   pageType: String,
@@ -216,7 +219,8 @@ const sortedConversations = computed(() => {
       mentioned: false,
       exited: false,
       blocked: false,
-      _sortTime: getLastMessageTime(u.message_ids, props.messages),
+      lastSendTime: u.lastSendTime || 0,
+      _sortTime: Math.max(getLastMessageTime(u.message_ids, props.messages), u.lastSendTime || 0),
       _hasWatcher: u.watcher === true ? 1 : 0,
       _exited: 0
     }))
@@ -237,7 +241,8 @@ const sortedConversations = computed(() => {
       mentioned: g.mentioned || false,
       exited: g.exited || false,
       blocked: g.blocked || false,
-      _sortTime: getLastMessageTime(g.message_ids, props.messages),
+      lastSendTime: g.lastSendTime || 0,
+      _sortTime: Math.max(getLastMessageTime(g.message_ids, props.messages), g.lastSendTime || 0),
       _exited: g.exited ? 1 : 0
     }))
 
@@ -365,7 +370,8 @@ watch(() => props.pageType, () => {
 
 // --- 原有逻辑 ---
 function lastTime(item) {
-  const t = getLastMessageTime(item.message_ids, props.messages)
+  // 网页版没有本地消息可算，用 target-times 探针回填的 lastSendTime（同为秒级）兜底
+  const t = Math.max(getLastMessageTime(item.message_ids, props.messages), item.lastSendTime || 0)
   return t ? gettime1(t) : ''
 }
 

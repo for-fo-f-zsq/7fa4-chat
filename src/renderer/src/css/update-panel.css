@@ -1,4 +1,4 @@
-/* 版本更新页（D 域：UpdatePanel.vue scoped）
+﻿/* 版本更新页（D 域：UpdatePanel.vue scoped）
    - 状态卡/进度/按钮/错误条/空态交给 UiCard / UiProgress / UiButton / UiIconButton / UiBanner / UiEmptyState / UiSpinner。
    - changelog 由 v-html 注入，内容节点没有 scoped 属性，故对 .changelog-body 内部统一用 :deep()。
    - 颜色/阴影/圆角/时长全部走 tokens / motion 语义令牌。 */
@@ -205,24 +205,24 @@
   white-space: nowrap;
 }
 .changelog-body :deep(.change-tag.new) {
-  background: var(--brand-soft);
-  color: var(--status-success);
+  background: var(--tag-soft-success);
+  color: var(--tag-ink-success);
 }
 .changelog-body :deep(.change-tag.improve) {
-  background: var(--brand-soft);
+  background: var(--tag-soft);
   color: var(--brand);
 }
 .changelog-body :deep(.change-tag.fix) {
-  background: var(--brand-soft);
-  color: var(--status-warning);
+  background: var(--tag-soft-warning);
+  color: var(--tag-ink-warning);
 }
 .changelog-body :deep(.change-tag.base) {
   background: var(--surface-hover);
   color: var(--fg-muted);
 }
 .changelog-body :deep(.change-tag.notice) {
-  background: var(--brand-soft);
-  color: var(--status-notice);
+  background: var(--tag-soft-notice);
+  color: var(--tag-ink-notice);
 }
 .changelog-body :deep(li:has(.change-tag.notice)) {
   background: var(--brand-soft);
@@ -230,3 +230,4 @@
   padding: 4px var(--space-2);
   margin: 2px 0;
 }
+

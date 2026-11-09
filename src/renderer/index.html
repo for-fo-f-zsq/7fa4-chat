@@ -5,6 +5,9 @@
     <!-- viewport-fit=cover 必须保留：Android 15 靠它让 env(safe-area-inset-*) 生效 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>7FA4 Chat</title>
+    <!-- 图标：public/icon.png。写成根绝对路径，Vite 会按 base 补成 /7fa4-chat/web/icon.png；
+         不写这条浏览器会去请求 /favicon.ico（站点根），在子路径部署下必然 404 -->
+    <link rel="icon" type="image/png" href="/icon.png" />
 </head>
 <body>
     <div id="app"></div>

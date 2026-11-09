@@ -72,7 +72,7 @@
 
 import { computed, ref, onMounted } from 'vue'
 import BackButton from './BackButton.vue'
-import { compareVersion, checkAppUpdate, gitlabPackagesUrl } from '../utils.js'
+import { compareVersion, checkAppUpdate, officialDownloadUrl } from '../utils.js'
 import { store } from '../store.js'
 import { renderChangelogMarkdown } from '../changelog-md.js'
 import { UiBanner, UiButton, UiCard, UiEmptyState, UiIconButton, UiProgress, UiSpinner } from '@/ui'
@@ -145,9 +145,9 @@ const apkSizeText = computed(() => {
   return b ? `（${(b / 1024 / 1024).toFixed(1)}MB）` : ''
 })
 
-// 非桌面端：跳转 GitLab 包下载页（含 Android/桌面各平台安装包）
+// 非桌面端：跳官网下载区（含 Android/桌面各平台安装包）
 function gotoDownloadPage() {
-  window.api.openExternal?.(gitlabPackagesUrl())
+  window.api.openExternal?.(officialDownloadUrl())
 }
 
 // 非桌面端：优先直接下 APK，拿不到直链才退回下载页

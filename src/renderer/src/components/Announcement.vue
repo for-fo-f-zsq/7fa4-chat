@@ -6,7 +6,7 @@
             <!-- 页 1：欢迎 -->
             <div v-if="page === 0" key="welcome" class="announcement-page announcement-welcome">
               <div class="announcement-logo">
-                <img src="/icon.png" alt="7FA4 Chat" class="announcement-logo-img" />
+                <img :src="iconUrl" alt="7FA4 Chat" class="announcement-logo-img" />
               </div>
               <p class="announcement-sub">全新版本发布</p>
               <h1>{{ appVersion ? 'V' + appVersion : '' }}</h1>
@@ -16,10 +16,12 @@
             <div v-else-if="page === 1" key="update" class="announcement-page">
               <h2><i class="fas fa-star"></i> 本次更新</h2>
               <ul class="announcement-list">
-                <li>全新主题体系：默认雾蓝，另有暖沙、鼠尾草、暗夜、石墨、高对比 5 套主题，头像配色随主题变化</li>
-                <li>全局界面与动效统一优化，长消息即时折叠、输入区预览默认收起，界面更清爽</li>
-                <li>群设置、成员列表与窄窗口显示细节修复，消息区不再出现多余横向滚动</li>
-                <li>Markdown 工具公式排版修复，工具更新更顺畅</li>
+                <li>网页版上线：浏览器打开 jx.7fa4.cn:8888/7fa4-chat/web 就能聊天，账号沿用 OJ 登录</li>
+                <li>网页版按会话懒加载：列表只探时间戳，点开才拉消息，上翻按需补历史，首屏更快、流量更省</li>
+                <li>默认主题主色加深、底色转中性蓝灰，按钮图标与 @提醒更清楚</li>
+                <li>姓名库按最新 OJ 数据重建，年级显示更准；文件卡片固定宽度</li>
+                <li>下载与官网入口统一指向官网，侧栏、更新面板、关于面板都能直达</li>
+                <li>修复性能档全白、纯文本换行被吞、上翻被弹回底部、列表丢标记、私信投票无反应等问题</li>
               </ul>
             </div>
             <!-- 页 3：更新日志 -->
@@ -89,8 +91,11 @@
 
 import { ref, computed, watch, onMounted } from 'vue'
 import { gitlabRawUrl } from '../utils.js'
+import { assetUrl } from '../platform/asset-base.js'
 import { renderChangelogMarkdown } from '../changelog-md.js'
 import { UiBanner, UiButton, UiCard, UiEmptyState, UiModal, UiSpinner } from '@/ui'
+
+const iconUrl = assetUrl('icon.png')
 
 const DONATE_URL = computed(() => gitlabRawUrl('assets/donate-qr.jpg'))
 const props = defineProps({

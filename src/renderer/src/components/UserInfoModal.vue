@@ -79,7 +79,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { store } from '../store.js'
-import { displayName, getGradeColor, getGradeLabel, usersJson, localGradeColorKey } from '../utils.js'
+import { displayName, getGradeColor, getGradeLabel, usersJson, localGradeColorKey, isWebBrowser } from '../utils.js'
 import UiModal from '../ui/UiModal/UiModal.vue'
 import UiIconButton from '../ui/UiIconButton/UiIconButton.vue'
 
@@ -124,6 +124,8 @@ onMounted(async () => {
     modalOpen.value = true
   })
   try {
+    // 网页版与 OJ 同源：主页链接就是当前站点，不能拼 :8888（那是客户端连 API 的端口）
+    if (isWebBrowser()) { apiUrl.value = location.origin; return }
     const setting = await window.api.loadSetting()
     apiUrl.value = ((setting.apiUrl || 'https://jx.7fa4.cn').replace(/^http:\/\//, 'https://')) + ':8888'
   } catch (err) {

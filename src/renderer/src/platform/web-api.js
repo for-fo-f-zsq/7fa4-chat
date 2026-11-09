@@ -9,6 +9,7 @@ import { Browser } from '@capacitor/browser'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
 import { LocalNotifications } from '@capacitor/local-notifications'
+import { assetUrl } from './asset-base.js'
 
 const IS_NATIVE = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform?.()
 // 自建后端已全部下线：更新检查、更新日志、赞助名单都直接读公开的 GitLab 项目 886。
@@ -52,6 +53,10 @@ function loadSettingObj() {
   try { return JSON.parse(localStorage.getItem(SETTING_KEY) || '{}') } catch { return {} }
 }
 function apiBase() {
+  // 纯浏览器（网页版）跟随当前站点：从 in.7fa4.cn 打开就访问 in、从 jx.7fa4.cn 打开就访问 jx。
+  // 网页版没有「服务器切换」入口，localStorage 里可能残留桌面端写下的 jx 默认值，
+  // 按设置走会把 9080 上的 GitLab 请求（更新日志、赞助名单、工具包）指到另一台镜像。
+  if (!IS_NATIVE) return location.protocol + '//' + location.hostname
   return (loadSettingObj().apiUrl || 'https://jx.7fa4.cn').replace(/^http:\/\//, 'https://').replace(/\/+$/, '')
 }
 
@@ -148,7 +153,9 @@ window.fetch = (input, init = {}) => {
   let url = ''
   if (typeof input === 'string') url = input
   else if (input && typeof input.url === 'string') url = input.url
-  if (!url.startsWith('/') || !isApiPath(url)) return origFetch(input, init)
+  // 纯浏览器（网页版）与页面同源：相对路径直接交给原生 fetch，不能改写成 apiBase()+':8888'
+  // （那会跨域并丢 cookie）。只有原生外壳才需要拼绝对地址走 CapacitorHttp。
+  if (!IS_NATIVE || !url.startsWith('/') || !isApiPath(url)) return origFetch(input, init)
   return nativeHttp(apiBase() + ':8888' + url, init)
 }
 
@@ -510,6 +517,27 @@ const DB_VERSION = 1
 const LOCAL_KEY_VER = 2
 let dbPromise = null
 
+/**
+ * 网页版（纯浏览器）**不做任何本地会话/消息缓存**：刷新页面等于从服务端全量重拉，
+ * 与 OJ 的 /chat 页行为一致 —— 列表顺序、会话集合、消息都只来自这一次的网络请求，
+ * 不会掺入上一次访问留下的旧索引（旧索引没有 target-times 时间戳，会把有消息的
+ * 会话挤到「无消息」区）。
+ *
+ * 唯一落本地的是「用户设置」类偏好（草稿 / 静音 / 隐藏 / 表情收藏），放 localStorage。
+ * 安卓（IS_NATIVE）仍走 IndexedDB：那边要离线可用，语义与桌面端一致。
+ */
+const WEB_PREFS_KEY = '7fa4_web_prefs'
+function loadWebPrefs() {
+  try {
+    const raw = localStorage.getItem(WEB_PREFS_KEY)
+    const o = raw ? JSON.parse(raw) : null
+    return o && typeof o === 'object' ? o : {}
+  } catch { return {} }
+}
+function saveWebPrefs(prefs) {
+  try { if (prefs && typeof prefs === 'object') localStorage.setItem(WEB_PREFS_KEY, JSON.stringify(prefs)) } catch {}
+}
+
 /** 本地缓存版本校验（幂等）：kv 中无版本标记即为旧版数据 → 清空 convos/messages/prefs */
 function resetIfStale(db) {
   return new Promise((resolve) => {
@@ -581,10 +609,12 @@ function storeAll(request) {
 }
 const store = {
   async init() {
+    if (!IS_NATIVE) return { success: true }
     await openDB()
     return { success: true }
   },
   async loadConvos(uid) {
+    if (!IS_NATIVE) return { success: true, users: {}, groups: {} }
     const rows = await tx(['convos'], 'readonly', (t, out) => {
       out.value = storeAll(t.objectStore('convos').index('byUid').getAll(IDBKeyRange.only(Number(uid))))
     })
@@ -616,6 +646,8 @@ const store = {
   },
   /** 全量快照：与桌面 saveAll 相同语义（INSERT OR REPLACE 增量合并，不做会话级 DELETE） */
   async saveAll(uid, { convos, prefs, messages } = {}) {
+    // 网页版不落会话/消息，只把偏好设置存进 localStorage（刷新即重新从服务端拉）
+    if (!IS_NATIVE) { saveWebPrefs(prefs); return { success: true } }
     const u = Number(uid)
     await tx(['convos', 'messages', 'prefs'], 'readwrite', (t) => {
       if (Array.isArray(convos)) {
@@ -641,6 +673,7 @@ const store = {
     return { success: true }
   },
   async loadMessages(uid, kind, cid, limit = 500, before = null) {
+    if (!IS_NATIVE) return { success: true, data: [] }
     const rows = await tx(['messages'], 'readonly', (t, out) => {
       out.value = storeAll(t.objectStore('messages').index('byConvo').getAll(IDBKeyRange.only([Number(uid), kind, Number(cid)])))
     })
@@ -652,6 +685,7 @@ const store = {
     return { success: true, data: list }
   },
   async loadLastMessages(uid) {
+    if (!IS_NATIVE) return { success: true, data: [] }
     const rows = await tx(['messages'], 'readonly', (t, out) => {
       out.value = storeAll(t.objectStore('messages').index('byUid').getAll(IDBKeyRange.only(Number(uid))))
     })
@@ -688,6 +722,7 @@ const store = {
     return { success: true, removed }
   },
   async loadPrefs(uid) {
+    if (!IS_NATIVE) return { success: true, data: loadWebPrefs() }
     const rows = await tx(['prefs'], 'readonly', (t, out) => {
       out.value = storeAll(t.objectStore('prefs').getAll())
     })
@@ -702,6 +737,7 @@ const store = {
     }).then(() => ({ success: true }))
   },
   async exportAll(uid) {
+    if (!IS_NATIVE) return { success: false, unsupported: true }
     const u = Number(uid)
     const [convos, msgs, prefs] = await Promise.all([
       tx(['convos'], 'readonly', (t, out) => { out.value = storeAll(t.objectStore('convos').getAll()) }),
@@ -723,6 +759,7 @@ const store = {
   },
   /** 恢复备份（importLegacyData 语义：按 message_ids 归属会话） */
   async importAll(uid, data) {
+    if (!IS_NATIVE) return { success: false, unsupported: true }
     if (!data || typeof data !== 'object') return { success: false, error: '数据格式异常' }
     const u = Number(uid)
     const convoMap = new Map()
@@ -1004,6 +1041,11 @@ window.api = {
     } catch (e) { return { success: false, error: e.message } }
   },
   clearCache: async () => {
+    // 网页版没有本地会话/消息缓存，清缓存 = 清掉 localStorage 里的偏好设置
+    if (!IS_NATIVE) {
+      try { localStorage.removeItem(WEB_PREFS_KEY) } catch {}
+      return { success: true }
+    }
     try {
       await tx(['messages'], 'readwrite', (t) => { t.objectStore('messages').clear() })
       return { success: true }
@@ -1021,7 +1063,7 @@ window.api = {
   // --- 工具 ---
   loadUsersDb: async () => {
     try {
-      const payload = await (await origFetch('/users.7c')).json()
+      const payload = await (await origFetch(assetUrl('users.7c'))).json()
       const text = await aesDecrypt('7fa4-chat::users-db::v1', payload)
       return { success: true, data: JSON.parse(text) }
     } catch (e) {

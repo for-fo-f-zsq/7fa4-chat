@@ -8,7 +8,7 @@
     <UiCard class="about-card about-hero" size="lg">
       <div class="about-hero-center">
         <div class="about-logo-wrap">
-          <img src="/icon.png" alt="7FA4 Chat" class="about-logo" />
+          <img :src="iconUrl" alt="7FA4 Chat" class="about-logo" />
         </div>
         <div class="about-name">7FA4 Chat</div>
         <UiBadge class="about-version" variant="brand" size="sm">v{{ version }}</UiBadge>
@@ -35,7 +35,7 @@
       </div>
       <div class="about-links">
         <UiButton variant="secondary" size="sm" icon="fab fa-github" @click="openLink('https://github.com/for-fo-f-zsq/7fa4-chat')">GitHub</UiButton>
-        <UiButton variant="secondary" size="sm" icon="fab fa-gitlab" @click="openLink(gitlabProjectUrl())">GitLab</UiButton>
+        <UiButton variant="secondary" size="sm" icon="fas fa-house" @click="openLink(officialSiteUrl())">官网</UiButton>
       </div>
     </UiCard>
 
@@ -74,8 +74,11 @@
 
 import { ref, onMounted } from 'vue'
 import BackButton from './BackButton.vue'
-import { gitlabProjectUrl } from '../utils.js'
+import { officialSiteUrl } from '../utils.js'
+import { assetUrl } from '../platform/asset-base.js'
 import { UiBadge, UiButton, UiCard } from '@/ui'
+
+const iconUrl = assetUrl('icon.png')
 
 const props = defineProps({ version: { type: String, default: '' } })
 const emit = defineEmits(['back'])

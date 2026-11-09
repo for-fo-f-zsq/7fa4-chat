@@ -321,7 +321,7 @@
 
 .conv-mention {
   margin-right: var(--space-1);
-  color: var(--brand);
+  color: var(--mention-color, var(--brand));
   font-weight: var(--weight-medium);
 }
 

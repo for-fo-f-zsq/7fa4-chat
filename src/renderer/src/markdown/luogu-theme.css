@@ -360,6 +360,15 @@
   margin-bottom: 1em;
 }
 
+/* base.css 的全局 reset 把 ul/ol 的标记清成了 none，Markdown 内容必须自己恢复，
+   否则列表只剩缩进、圆点与序号全丢（消息气泡、输入框预览、Markdown 工具预览同此） */
+.luogu-md ul.luogu-list { list-style-type: disc; }
+.luogu-md ol.luogu-list { list-style-type: decimal; }
+.luogu-md ul.luogu-list ul.luogu-list { list-style-type: circle; }
+.luogu-md ul.luogu-list ul.luogu-list ul.luogu-list { list-style-type: square; }
+.luogu-md ol.luogu-list ol.luogu-list { list-style-type: lower-alpha; }
+.luogu-md ul.luogu-task-list { list-style-type: none; }
+
 .luogu-md li {
   margin-bottom: 0.35em;
 }

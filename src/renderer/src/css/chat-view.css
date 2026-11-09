@@ -34,8 +34,11 @@
 .app.no-mouse-gradient::after {
     display: none;
 }
-/* performance 档（html.fx-lite）同样关闭鼠标光晕（W2），不依赖组件 attrs 透传 */
-:global(html.fx-lite) .app::after {
+/* performance 档（html.fx-lite）同样关闭鼠标光晕（W2），不依赖组件 attrs 透传。
+   注意：本文件是 scoped 样式（ChatView.vue:287 以 <style scoped> 引入），
+   `:global(...)` 必须包住整条选择器；写成 `:global(html.fx-lite) .app::after` 会被
+   Vue 的 scoped 编译器编译成 `html.fx-lite{display:none}`，性能档直接把整页隐藏（白屏）。 */
+html.fx-lite .app::after {
     display: none;
 }
 @media (prefers-reduced-motion: reduce) {

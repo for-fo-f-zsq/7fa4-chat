@@ -1099,6 +1099,8 @@ async function _doFetchRanklist() {
           seat: old?.seat || '',
           note: old?.note || '',
           message_ids: old?.message_ids || [],
+          // 网页版列表排序靠 target-times 回填的 lastSendTime，这里必须继承，否则排行榜一刷新就把时间抹成空、会话沉底
+          lastSendTime: old?.lastSendTime || 0,
           unread: old?.unread || false,
           pinned: old?.pinned || false,
           show: old ? old.show : false,
@@ -1531,6 +1533,9 @@ const GITLAB_PROJECT_PATH = 'student-archive/7fa4-chat';
 
 /** 当前选择的 API 源站（含协议，去掉末尾斜杠） */
 function currentApiOrigin() {
+  // 网页版跟随当前站点：in.7fa4.cn 打开就用 in、jx.7fa4.cn 打开就用 jx（两台是独立镜像，不能交叉混用）。
+  // 网页版没有服务器切换入口，设置里可能留着桌面端的 jx 默认值，那会把 GitLab / 官网链接指错。
+  if (isWebBrowser() && typeof location !== 'undefined') return location.protocol + '//' + location.hostname;
   return String(store.setting?.apiUrl || DEFAULT_API_URL)
     .replace(/^http:\/\//, 'https://')
     .replace(/\/+$/, '');
@@ -1555,6 +1560,22 @@ export function gitlabPackagesUrl() {
 /** GitLab 仓库 raw 文件（如 assets/donate-qr.jpg） */
 export function gitlabRawUrl(path) {
   return `${gitlabWebBase()}/${GITLAB_PROJECT_PATH}/-/raw/master/${String(path).replace(/^\/+/, '')}`;
+}
+
+// ========== 官网 ==========
+// 官网就是聊天服务的同一台机器（jx/in 的 8888 端口）上的 /7fa4-chat/，下载区是 #downloads。
+// 网页版本身就挂在官网上，直接用当前 origin，避免任何端口假设。
+const OFFICIAL_SITE_PATH = '/7fa4-chat/';
+
+/** 官网首页 */
+export function officialSiteUrl() {
+  if (isWebBrowser()) return `${location.origin}${OFFICIAL_SITE_PATH}`;
+  return `${currentApiOrigin()}:8888${OFFICIAL_SITE_PATH}`;
+}
+
+/** 官网下载区（各平台安装包都在这里） */
+export function officialDownloadUrl() {
+  return `${officialSiteUrl()}#downloads`;
 }
 
 /**

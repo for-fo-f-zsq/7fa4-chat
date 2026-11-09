@@ -1,7 +1,7 @@
 // 主题清单：default 为浅蓝（雾蓝）默认主题，其余 5 套由设计子智能体产出；
 // 顺序即主题面板展示顺序，cache 键（html.theme-<value>）不可随意改名。
 export const THEMES = [
-  { value: 'default', label: '雾蓝（Default）', color: '#A3BFE3', original: true },
+  { value: 'default', label: '雾蓝（Default）', color: '#7C9CD0', original: true },
   { value: 'sand', label: '暖沙（Sand）', color: '#D8C3A5' },
   { value: 'sage', label: '鼠尾草（Sage）', color: '#A3B79B' },
   { value: 'midnight', label: '暗夜（Midnight）', color: '#6F86A8' },

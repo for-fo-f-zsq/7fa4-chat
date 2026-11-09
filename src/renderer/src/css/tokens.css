@@ -132,6 +132,17 @@
   --overlay-hover: rgba(255, 255, 255, 0.14);
   --brand-gradient: var(--gradient-accent, rgba(60,140,231,.25));
   --brand-glow: var(--gradient-subtle, rgba(60,140,231,.08));
+  /* 更新日志分类标签（新功能/优化/修复/通知）的成块底色：
+     --brand-soft 只有 16% 透明度，长列表里几乎看不出是「标签」，这里用主题原色直接调粉彩底
+     （与面板底色混合，浅色主题得亮粉彩、深色主题自动得深底），保证既醒目又不压字 */
+  --tag-soft: color-mix(in srgb, var(--accent, #3C8CE7) 22%, var(--surface-raised, #FFFFFF));
+  --tag-soft-success: color-mix(in srgb, var(--success, #4caf50) 24%, var(--surface-raised, #FFFFFF));
+  --tag-soft-warning: color-mix(in srgb, var(--warning, #ff9800) 22%, var(--surface-raised, #FFFFFF));
+  --tag-soft-notice: color-mix(in srgb, var(--notice, #e91e63) 20%, var(--surface-raised, #FFFFFF));
+  /* 标签文字：主题原色与 --fg 混成墨色，才压得住上面的粉彩底（纯原色做文字对比度只有 1.8:1） */
+  --tag-ink-success: color-mix(in srgb, var(--success, #4caf50) 38%, var(--fg));
+  --tag-ink-warning: color-mix(in srgb, var(--warning, #ff9800) 38%, var(--fg));
+  --tag-ink-notice: color-mix(in srgb, var(--notice, #e91e63) 38%, var(--fg));
 
   --fg: var(--text-primary, #1A1A2E);
   --fg-muted: var(--text-secondary, #7C7E8A);
