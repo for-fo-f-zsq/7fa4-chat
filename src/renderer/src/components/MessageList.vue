@@ -140,7 +140,10 @@ const props = defineProps({
   pageId: { type: [Number, String], default: null },
   selfUid: { type: Number, default: null },
   expandedMsgs: { type: Object, required: true },
-  visibleCount: { type: Number, required: true }
+  visibleCount: { type: Number, required: true },
+  // null = 由本组件按内存内容判断（桌面端：历史都在本地库里）
+  // 布尔 = 由父级按服务端游标判断「还有没有更早的消息」（网页版：内存里只有已加载的部分）
+  canLoadOlder: { type: Boolean, default: null }
 });
 
 const emit = defineEmits([
@@ -173,9 +176,19 @@ const currentMessages = _allMessages;
 // 「锚在末尾」的窗口会整体向上滑一格：已看到的那条被挤出窗口，画面就跳一下。
 // 所以一旦用户在非底部位置，把窗口起点钉住 —— 新消息进来时窗口跟着一起变长。
 const pinnedGrow = ref(0);
-const windowSize = computed(() => props.visibleCount + pinnedGrow.value);
+// 只在网页版（父级给了 canLoadOlder）启用「钉住窗口起点」。
+// 桌面端的历史在本地库里，窗口大小直接参与「还有没有更早的」判断，
+// 让窗口自己变长会把 hasOlderMessages 提前判成 false，反而翻不动历史 —— 所以桌面端保持原样。
+const windowSize = computed(() => (
+  props.canLoadOlder === null ? props.visibleCount : props.visibleCount + pinnedGrow.value
+));
 
-const hasOlderMessages = computed(() => currentMessages.value.length > windowSize.value);
+const hasOlderMessages = computed(() => {
+  // 网页版：内存里只有「已经拉下来的那部分」，用内存条数判断「还有没有更早的」永远是 false
+  // （窗口一放全就相等），结果就是翻一次以后再也翻不动。所以网页版由父级按服务端游标给结论。
+  if (props.canLoadOlder !== null) return props.canLoadOlder && currentMessages.value.length > 0;
+  return currentMessages.value.length > windowSize.value;
+});
 
 const visibleMessages = computed(() => {
   const all = currentMessages.value;
@@ -221,6 +234,13 @@ watch(() => props.visibleCount, () => {
 });
 watch(hasOlderMessages, () => {
   if (!hasOlderMessages.value) loadingMore.value = false;
+});
+// 上翻加载的超时兜底：请求失败/被并发丢弃时必须把 loadingMore 放掉，
+// 否则用户停在顶部再也触发不了下一次 emit，看起来就是「上滑没反应」。
+let loadingMoreTimer = null;
+watch(loadingMore, (v) => {
+  if (loadingMoreTimer) { clearTimeout(loadingMoreTimer); loadingMoreTimer = null; }
+  if (v) loadingMoreTimer = setTimeout(() => { loadingMore.value = false; loadingMoreTimer = null; }, 8000);
 });
 
 function renderContent(msg, senderId) {
@@ -677,8 +697,8 @@ watch(currentMessages, (msgs) => {
   if (pageChanged) {
     pinnedGrow.value = 0;
     lastTailId = null;
-  } else if (grew && !isAtBottom.value && lastMsgCount > 0) {
-    // 用户正上翻看历史，尾部又来了新消息：窗口起点保持不动（pinnedGrow 注释）
+  } else if (grew && !isAtBottom.value && lastMsgCount > 0 && props.canLoadOlder !== null) {
+    // 网页版用户正上翻看历史、尾部又来了新消息：窗口起点保持不动（见 pinnedGrow 注释）
     pinnedGrow.value += msgs.length - lastMsgCount;
   }
   // 自动滚动：只有「插入前就在底部」才跟随滚到最新，上翻看历史时保持不动；例外：自己刚发的总滚到底

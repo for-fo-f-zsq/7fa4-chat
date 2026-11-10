@@ -124,6 +124,7 @@
         :selfUid="store.self.uid"
         :expandedMsgs="expandedMsgs"
         :visibleCount="visibleCount"
+        :canLoadOlder="canLoadOlder"
         @sendPat="sendPat"
         @openGroupActionMenu="openGroupActionMenu"
         @scrollToTop="onMessageAreaScrollToTop"
@@ -388,7 +389,11 @@ function gotoLogin() {
 // --- 网页版：点开才拉（懒加载） ---
 // 桌面端靠本地 SQLite 缓存历史，网页端没有；进入会话时向服务端要最近 30 条，
 // 上滑时再以「内存里最早一条」为时间上界往前翻。列表顺序/未读提示不依赖这些消息。
-const webExhausted = new Set(); // 该会话已翻到最早（或服务端明确没更多）
+// reactive：MessageList 的「还有没有更早的」提示与加载闸门要跟着它变，
+// 普通 Set 改了不算依赖，会一直显示/一直不消失。
+const webExhausted = reactive(new Set()); // 该会话已翻到最早（或服务端明确没更多）
+// 上翻的单飞锁：同一个会话同一时刻只允许一个「取更早 30 条」在飞
+const webLoadingOlder = new Set();
 
 function webTarget(kind, id) {
   return kind === 'group' ? store.groups[id] : store.users[id];
@@ -519,6 +524,15 @@ const listWidth = ref(260);
 // 用户点过「展开」的消息 id → true。命名与语义看 MessageList.vue 的 expandableIds / expandedMsgs 注释。
 const expandedMsgs = reactive({});
 const visibleCount = ref(20);
+// 网页版「还能不能往上翻」的唯一判定：由服务端游标状态（webExhausted）决定，
+// 不能拿内存条数去减 visibleCount —— 内存里只有已加载片段，减出来永远是「没有更早的」。
+// 桌面端返回 null，让 MessageList 按本地库/内存自己判断。
+const canLoadOlder = computed(() => {
+  if (!isWeb) return null;
+  if (pageId.value == null) return false;
+  const prefix = pageType.value === 'group' ? 'g:' : 'u:';
+  return !webExhausted.has(prefix + pageId.value);
+});
 const setting = ref({});
 const version = ref('');
 const showCreateGroupModal = ref(false);
@@ -746,25 +760,43 @@ function onNewConversationFromList(type) {
 // --- 消息列表事件 ---
 function onMessageAreaScrollToTop(height, loadAll) {
   if (isWeb) {
-    // 网页版：内存里的消息就是全部已加载内容，上滑一律向服务端再要 30 条更早的。
-    // 关键顺序：先取数、再一次性放窗口。旧写法先 visibleCount += 20 再等网络，
-    // 会让「已加载但被窗口挡住的那几条」先冒出来、30 条到货后再顶一次 —— 一次上滑跳两下。
+    // 网页版：内存里的消息只是已加载片段，上滑一律向服务端再要 30 条更早的。
+    // 三条硬规则（否则表现就是「有时跳回底部、有时再也翻不动」）：
+    //   ① 单飞：同一会话同时只能有一个上翻请求在飞。并发两个会以同一个「最旧时间」为游标
+    //      拿到同一页，后到的那份一条都没新增 → 被误判成「历史取完了」→ 从此再也翻不动。
+    //   ② 先取数、再一次性放窗口（见下），避免「先冒出被挡住的几条、30 条到货后再顶一次」。
+    //   ③ 还原用锚点消息，不用 scrollHeight 差值：请求期间轮询可能追加新消息，
+    //      差值法会把这段增量也算进去，一次就把视口甩到底部。
     if (loadAll) { visibleCount.value = currentMessagesLength.value; return; }
     const kind = pageType.value === 'group' ? 'group' : 'user';
     const key = (kind === 'group' ? 'g:' : 'u:') + pageId.value;
     if (webExhausted.has(key)) { visibleCount.value = currentMessagesLength.value; return; }
+    if (webLoadingOlder.has(key)) return; // ① 已有请求在飞
+    webLoadingOlder.add(key);
+    const forPage = pageId.value; // 请求期间用户可能切走：回包只能作用在原会话上
     const el = messageListRef.value?.messageAreaEl;
-    const prevTop = el ? el.scrollTop : 0;
-    // height 是滚动事件那一刻的 scrollHeight：新内容插到上方后 scrollHeight 的增量
-    // 正好等于内容被顶下来的像素数，补回 scrollTop 视口就停在原处（锚定）。
-    loadOlderLite(kind, pageId.value).then(() => {
-      visibleCount.value = currentMessagesLength.value;
-      if (!el) return;
+    // 锚点 = 视口里第一条消息（含它相对视口顶部的偏移），DOM 更新后按它还原
+    const anchor = el ? (() => {
+      const areaTop = el.getBoundingClientRect().top;
+      for (const row of el.querySelectorAll('.msg-row')) {
+        const r = row.getBoundingClientRect();
+        if (r.bottom > areaTop + 1) return { id: row.getAttribute('data-msg-id'), top: r.top - areaTop };
+      }
+      return null;
+    })() : null;
+    loadOlderLite(kind, forPage).then(() => {
+      webLoadingOlder.delete(key);
+      // 请求期间切走了会话：回包只留在 store 里，别去撑新会话的窗口、更别动它的滚动位置
+      if (pageId.value !== forPage) return;
+      visibleCount.value = currentMessagesLength.value; // ② 一次性放出
+      if (!el || !anchor) return;
       nextTick(() => {
-        const target = el.scrollHeight - height + prevTop;
-        el.scrollTop = target > 0 ? target : 0;
+        const row = el.querySelector('[data-msg-id="' + anchor.id + '"]');
+        if (!row) return;
+        const delta = (row.getBoundingClientRect().top - el.getBoundingClientRect().top) - anchor.top;
+        el.scrollTop = Math.max(0, el.scrollTop + delta); // ③ 锚点还原
       });
-    });
+    }, () => { webLoadingOlder.delete(key); });
     return;
   }
   if (loadAll) {
