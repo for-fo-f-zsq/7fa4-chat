@@ -746,18 +746,22 @@ function onNewConversationFromList(type) {
 // --- 消息列表事件 ---
 function onMessageAreaScrollToTop(height, loadAll) {
   if (isWeb) {
-    // 网页版：内存里的消息就是全部已加载内容，上滑一律向服务端再要 30 条更早的
+    // 网页版：内存里的消息就是全部已加载内容，上滑一律向服务端再要 30 条更早的。
+    // 关键顺序：先取数、再一次性放窗口。旧写法先 visibleCount += 20 再等网络，
+    // 会让「已加载但被窗口挡住的那几条」先冒出来、30 条到货后再顶一次 —— 一次上滑跳两下。
     if (loadAll) { visibleCount.value = currentMessagesLength.value; return; }
     const kind = pageType.value === 'group' ? 'group' : 'user';
     const key = (kind === 'group' ? 'g:' : 'u:') + pageId.value;
     if (webExhausted.has(key)) { visibleCount.value = currentMessagesLength.value; return; }
-    visibleCount.value += 20;
     const el = messageListRef.value?.messageAreaEl;
+    const prevTop = el ? el.scrollTop : 0;
+    // height 是滚动事件那一刻的 scrollHeight：新内容插到上方后 scrollHeight 的增量
+    // 正好等于内容被顶下来的像素数，补回 scrollTop 视口就停在原处（锚定）。
     loadOlderLite(kind, pageId.value).then(() => {
+      visibleCount.value = currentMessagesLength.value;
       if (!el) return;
-      // DOM 更新后第一时间修正滚动位置，缩短插入消息导致的闪烁窗口
       nextTick(() => {
-        const target = el.scrollHeight - height;
+        const target = el.scrollHeight - height + prevTop;
         el.scrollTop = target > 0 ? target : 0;
       });
     });

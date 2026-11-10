@@ -168,12 +168,19 @@ const _allMessages = useCurrentMessages(() => props.pageType, () => props.pageId
 
 const currentMessages = _allMessages;
 
-const hasOlderMessages = computed(() => currentMessages.value.length > props.visibleCount);
+// 渲染窗口锚在「最新一条」，窗口外的都是更早的消息。
+// 上翻看历史时如果顶部又来了新消息（网页版轮询本会话 / 桌面端轮询补齐），
+// 「锚在末尾」的窗口会整体向上滑一格：已看到的那条被挤出窗口，画面就跳一下。
+// 所以一旦用户在非底部位置，把窗口起点钉住 —— 新消息进来时窗口跟着一起变长。
+const pinnedGrow = ref(0);
+const windowSize = computed(() => props.visibleCount + pinnedGrow.value);
+
+const hasOlderMessages = computed(() => currentMessages.value.length > windowSize.value);
 
 const visibleMessages = computed(() => {
   const all = currentMessages.value;
-  if (all.length <= props.visibleCount) return all;
-  return all.slice(all.length - props.visibleCount);
+  if (all.length <= windowSize.value) return all;
+  return all.slice(all.length - windowSize.value);
 });
 
 // 日期分组：在跨日消息间插入分隔线。
@@ -209,6 +216,8 @@ function onScroll() {
 // 加载完成（visibleCount 增加）或没有更早消息时，兜底隐藏加载指示
 watch(() => props.visibleCount, () => {
   loadingMore.value = false;
+  // 父级重新给了窗口大小（上翻加载完成），钉住的增量作废，避免窗口无限变长
+  pinnedGrow.value = 0;
 });
 watch(hasOlderMessages, () => {
   if (!hasOlderMessages.value) loadingMore.value = false;
@@ -626,6 +635,10 @@ let lastMsgCount = 0;
 let lastPageId = props.pageId;
 // 首批数据是否还没到位（挂载时列表还是空的，enter 钩子里的 scrollToBottomInstant 量的是空列表）
 let pendingInitialPosition = true;
+// 尾部锚点：用来区分「新消息追加在末尾」和「历史消息插到前面」。
+// 上滑加载更早的消息时长度也会变长，但最后一条的 id 不变 —— 旧实现只看 grew，
+// 再配合「最后一条是自己发的」就误判成「我刚发了一条」，于是把用户从历史里拉回底部。
+let lastTailId = null;
 let scrollTimer = null;
 // 统一走 utils/motion.js：默认 slow(260ms)+standard，reduced-motion / fx-lite 瞬时定位
 function smoothScrollTo(el, targetTop, duration) {
@@ -661,13 +674,23 @@ watch(currentMessages, (msgs) => {
   const pageChanged = props.pageId !== lastPageId;
   lastPageId = props.pageId;
   const grew = msgs.length > lastMsgCount;
+  if (pageChanged) {
+    pinnedGrow.value = 0;
+    lastTailId = null;
+  } else if (grew && !isAtBottom.value && lastMsgCount > 0) {
+    // 用户正上翻看历史，尾部又来了新消息：窗口起点保持不动（pinnedGrow 注释）
+    pinnedGrow.value += msgs.length - lastMsgCount;
+  }
   // 自动滚动：只有「插入前就在底部」才跟随滚到最新，上翻看历史时保持不动；例外：自己刚发的总滚到底
   if (pageChanged) {
     doScrollToBottom(true);
   } else if (grew) {
     const wasAtBottom = isAtBottom.value;
     const last = msgs[msgs.length - 1];
-    const mineJustSent = !!(last && props.selfUid != null && Number(last.sender) === Number(props.selfUid));
+    const tailId = last ? last.id : null;
+    // 只有「末尾真的多了一条」才算收到新消息；末尾 id 没变说明是历史消息插到了前面
+    const tailGrew = tailId !== lastTailId;
+    const mineJustSent = tailGrew && !!(last && props.selfUid != null && Number(last.sender) === Number(props.selfUid));
     // 首批数据到达（打开会话时列表还是空的）：用户没动过滚动条就瞬时落底，
     // 避免「先停在顶部、再动画滑下来」。用户已经开始上翻则一律不打断。
     if (pendingInitialPosition && wasAtBottom) doScrollToBottom(true);
@@ -675,6 +698,7 @@ watch(currentMessages, (msgs) => {
   }
   if (grew) pendingInitialPosition = false;
   lastMsgCount = msgs.length;
+  lastTailId = msgs.length ? msgs[msgs.length - 1].id : null;
 });
 
 watch(() => props.pageId, () => {
