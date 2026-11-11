@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="about-panel">
     <!-- 返回条 -->
     <div class="about-topbar">
@@ -34,6 +34,7 @@
         </div>
       </div>
       <div class="about-links">
+        <UiButton variant="secondary" size="sm" icon="fab fa-gitlab" @click="openLink(gitlabProjectUrl())">GitLab</UiButton>
         <UiButton variant="secondary" size="sm" icon="fab fa-github" @click="openLink('https://github.com/for-fo-f-zsq/7fa4-chat')">GitHub</UiButton>
         <UiButton variant="secondary" size="sm" icon="fas fa-house" @click="openLink(officialSiteUrl())">官网</UiButton>
       </div>
@@ -62,7 +63,8 @@
         <UiBadge v-for="tech in techStack" :key="tech" variant="brand" size="sm">{{ tech }}</UiBadge>
       </div>
       <div class="about-footer">
-        © 2026 for_fo_f 独立开发维护 · 问题反馈请到 GitLab Issues
+        © 2026 for_fo_f 独立开发维护 · 问题请点「意见反馈」
+        <UiButton class="about-guide-link" variant="text" size="sm" icon="fas fa-comment-dots" @click="openFeedback">意见反馈</UiButton>
         <UiButton class="about-guide-link" variant="text" size="sm" icon="fas fa-book-open" @click="openGuide">重新查看新手指引</UiButton>
       </div>
     </UiCard>
@@ -74,7 +76,7 @@
 
 import { ref, onMounted } from 'vue'
 import BackButton from './BackButton.vue'
-import { officialSiteUrl } from '../utils.js'
+import { officialSiteUrl, gitlabProjectUrl, feedbackPageUrl, isWebBrowser } from '../utils.js'
 import { assetUrl } from '../platform/asset-base.js'
 import { UiBadge, UiButton, UiCard } from '@/ui'
 
@@ -86,6 +88,15 @@ const emit = defineEmits(['back'])
 // 关于页入口：让 App 重新打开新手指引（已看过的用户也能回看）
 function openGuide() {
   window.dispatchEvent(new Event('open-onboarding'))
+}
+
+// 意见反馈：桌面端弹内置表单；网页版没有弹窗，直接开官网反馈页
+function openFeedback() {
+  if (isWebBrowser()) {
+    window.api.openExternal(feedbackPageUrl('web', version.value || ''))
+    return
+  }
+  window.dispatchEvent(new Event('open-feedback'))
 }
 
 // 兜底：外层异步传入可能为空，面板自身再拉一次版本号

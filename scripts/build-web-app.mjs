@@ -39,9 +39,12 @@ console.log('[build-web] index.html ' + statSync(index).size + ' B')
 
 // 可选：直接把产物同步进官网静态目录（本地预览/部署前准备用，不涉及任何远端操作）
 //   node scripts/build-web-app.mjs --copy-to-site
-//   或设 SITE_PUBLIC_WEB 指定目标目录（默认 D:/projects/7fa4-chat-site/public/web）
+//   或设 SITE_PUBLIC_WEB 指定目标目录（默认 site/public/web）
 if (process.argv.includes('--copy-to-site')) {
-  const target = resolve(process.env.SITE_PUBLIC_WEB || 'D:/projects/7fa4-chat-site/public/web')
+  const defaultTarget = existsSync(resolve(root, 'site/public'))
+    ? resolve(root, 'site/public/web')
+    : 'D:/projects/7fa4-chat-site/public/web'
+  const target = resolve(process.env.SITE_PUBLIC_WEB || defaultTarget)
   if (!existsSync(resolve(target, '..'))) {
     console.warn('[build-web] 跳过复制：目标父目录不存在 -> ' + target)
   } else {

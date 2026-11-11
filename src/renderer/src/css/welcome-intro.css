@@ -1,0 +1,179 @@
+/* 首次打开的应用介绍（D 域：WelcomeIntro.vue scoped）
+   - 全屏数页介绍，最后一页让用户选择是否进入新手教程（Onboarding.vue）。
+   - 颜色/间距/圆角/动效全部走 tokens 与 motion 语义令牌；翻页复用 motion.css 的 fade-left，整体淡入复用 overlay。
+   - html.fx-lite 与 reduced-motion 下的动效压制由 motion.css 统一处理。 */
+
+/* 首次打开的介绍是最高优先级的全屏层：必须压过首屏加载遮罩（.init-loading）、粒子画布
+   （.particle-canvas）与新手引导（.ob-layer）——这三者都用 --z-max，同值时按「后挂载者在上」
+   排序，而它们在 App.vue 里排在 WelcomeIntro 之后，会把介绍层盖住（白屏只看到加载圈）。
+   故单独用 --z-top（10000）置于一切之上。 */
+.welcome-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-top);
+    display: flex;
+    flex-direction: column;
+    background: var(--surface-0);
+    background-image: radial-gradient(900px 460px at 50% -8%, var(--brand-soft), transparent 72%);
+}
+
+.welcome-skip {
+    position: absolute;
+    top: var(--space-4);
+    right: var(--space-5);
+    z-index: var(--z-raised);
+    opacity: var(--opacity-muted);
+}
+.welcome-skip:hover {
+    opacity: 1;
+}
+
+/* ---------- 正文 ---------- */
+.welcome-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-6) var(--space-6) var(--space-5);
+}
+
+.welcome-page {
+    width: 100%;
+    max-width: 560px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.welcome-icon {
+    width: 96px;
+    height: 96px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--space-5);
+    border-radius: var(--radius-2xl);
+    background: var(--brand-soft);
+    color: var(--brand);
+    font-size: 36px;
+    box-shadow: var(--elev-2);
+}
+.welcome-icon--app {
+    width: 132px;
+    height: 132px;
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+}
+.welcome-icon--final {
+    background: var(--tag-soft-success, var(--brand-soft));
+    color: var(--tag-ink-success, var(--brand));
+}
+.welcome-logo {
+    width: 132px;
+    height: 132px;
+    object-fit: contain;
+}
+
+.welcome-page h1 {
+    margin: 0 0 var(--space-3);
+    font-size: var(--text-3xl);
+    font-weight: var(--weight-semibold);
+    color: var(--fg);
+    letter-spacing: -0.01em;
+}
+
+.welcome-desc {
+    margin: 0;
+    max-width: 460px;
+    font-size: var(--text-md);
+    line-height: 1.7;
+    color: var(--fg-muted);
+}
+
+.welcome-points {
+    list-style: none;
+    padding: 0;
+    margin: var(--space-5) 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    text-align: left;
+}
+.welcome-points li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    font-size: var(--text-md);
+    color: var(--fg);
+    background: var(--surface-1);
+    border-radius: var(--radius-base);
+    padding: var(--space-2) var(--space-3);
+}
+.welcome-points li::before {
+    content: '✦';
+    color: var(--brand);
+    flex-shrink: 0;
+}
+
+.welcome-hint {
+    margin: var(--space-4) 0 0;
+    font-size: var(--text-sm);
+    color: var(--fg-subtle);
+}
+
+/* ---------- 底部导航 ---------- */
+.welcome-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-4) var(--space-6) var(--space-6);
+    max-width: 720px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.welcome-dots {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+}
+.welcome-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--line-strong);
+    transition: width var(--motion-dur-base) var(--motion-ease-standard),
+                background-color var(--motion-dur-base) var(--motion-ease-standard),
+                border-radius var(--motion-dur-base) var(--motion-ease-standard);
+}
+.welcome-dot.active {
+    width: 20px;
+    border-radius: var(--radius-xs);
+    background: var(--brand);
+}
+
+.welcome-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+@media (max-width: 560px) {
+    .welcome-page h1 {
+        font-size: var(--text-2xl);
+    }
+    .welcome-nav {
+        flex-direction: column-reverse;
+        align-items: stretch;
+    }
+    .welcome-dots {
+        justify-content: center;
+    }
+    .welcome-actions {
+        justify-content: stretch;
+    }
+}

@@ -1,6 +1,6 @@
 {
   "name": "7fa4-chat",
-  "version": "3.8.2",
+  "version": "3.8.3",
   "description": "7FA4 Chat",
   "main": "./out/main/index.js",
   "desktopName": "7fa4-chat.desktop",
@@ -12,6 +12,8 @@
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "build:web": "node scripts/build-web-app.mjs",
+    "site:dev": "node site/server.js",
+    "site:test": "node site/test/local-check.js",
     "build:tools": "node scripts/build-tools.mjs",
     "install:tools:local": "node scripts/install-tools-local.mjs",
     "tools:local": "node scripts/build-tools.mjs && node scripts/install-tools-local.mjs",
@@ -21,7 +23,7 @@
     "name": "for_fo_f",
     "email": "15982878810@163.com"
   },
-  "homepage": "https://jx.7fa4.cn:9080/projects/886",
+  "homepage": "https://jx.7fa4.cn:8888/7fa4-chat",
   "license": "MIT",
   "devDependencies": {
     "@capacitor/android": "^7.6.8",

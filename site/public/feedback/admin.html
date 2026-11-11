@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>反馈管理 · 7FA4 Chat</title>
+<style>
+  :root {
+    --bg: #f2f6fc;
+    --card: #ffffff;
+    --line: #dbe6f4;
+    --fg: #24324a;
+    --muted: #5f7089;
+    --brand: #4b73a6;
+    --brand-fill: #a3bfe3;
+    --danger: #a35e56;
+    --ok: #3f7d5c;
+    --warn: #9a6b32;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161b24;
+      --card: #1d232f;
+      --line: #2b3444;
+      --fg: #e8edf6;
+      --muted: #98a5bb;
+      --brand: #8fb0dd;
+      --brand-fill: #37506f;
+      --danger: #e08c84;
+      --ok: #7cc39b;
+      --warn: #d6a86a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.65 "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 26px 20px 60px; }
+  .login {
+    max-width: 380px;
+    margin: 14vh auto 0;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 26px 24px 22px;
+    box-shadow: 0 4px 18px rgba(35, 55, 90, .08);
+  }
+  .login h1 { margin: 0 0 4px; font-size: 19px; }
+  .login p { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+  input[type="password"], input[type="search"] {
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 9px 12px;
+    outline: none;
+  }
+  input[type="password"]:focus, input[type="search"]:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 20%, transparent);
+  }
+  button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--fg);
+    padding: 7px 14px;
+  }
+  button:hover { border-color: var(--brand); color: var(--brand); }
+  button.primary {
+    background: var(--brand-fill);
+    border: 0;
+    color: #1f2c42;
+    font-weight: 600;
+  }
+  button.primary:hover { filter: brightness(.95); color: #1f2c42; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  .login-msg { margin-top: 12px; font-size: 13px; color: var(--danger); min-height: 20px; }
+
+  /* ---- 顶部工具条 ---- */
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .bar h1 { margin: 0; font-size: 19px; }
+  .stats { display: flex; gap: 8px; margin-left: 4px; }
+  .stat {
+    font-size: 12.5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--muted);
+  }
+  .stat b { color: var(--fg); }
+  .stat.new b { color: var(--danger); }
+  .bar .spacer { flex: 1; }
+  .bar input[type="search"] { max-width: 240px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .tabs button.on { border-color: var(--brand); color: var(--brand); font-weight: 600; }
+
+  /* ---- 列表 ---- */
+  .list { display: flex; flex-direction: column; gap: 12px; }
+  .item {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--line);
+    border-radius: 12px;
+    padding: 15px 17px;
+    box-shadow: 0 1px 6px rgba(35, 55, 90, .04);
+  }
+  .item.is-new { border-left-color: var(--brand); }
+  .item.is-handled { opacity: .72; }
+  .item-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .tag {
+    font-size: 11.5px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    background: var(--bg);
+  }
+  .tag.platform { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
+  .tag.new { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+  .tag.handled { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
+  .item-head time { margin-left: auto; }
+  .content {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 14px;
+    margin: 0 0 10px;
+  }
+  .meta { font-size: 12.5px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
+  .shots { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .shots a { display: block; }
+  .shots img {
+    width: 108px;
+    height: 108px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    cursor: zoom-in;
+    display: block;
+  }
+  .item-foot { display: flex; gap: 8px; align-items: center; }
+  .item-foot .id { font-size: 12px; color: var(--muted); margin-left: auto; font-family: ui-monospace, Consolas, monospace; }
+  .empty { text-align: center; color: var(--muted); padding: 60px 0; }
+
+  .zoom {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 14, 22, .82);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    cursor: zoom-out;
+    padding: 24px;
+  }
+  .zoom img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+  @media (max-width: 640px) {
+    .bar input[type="search"] { max-width: 100%; width: 100%; }
+    .item-foot .id { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="login" id="login" hidden>
+    <h1>反馈管理</h1>
+    <p>需要管理密码才能查看全部反馈。</p>
+    <form id="loginForm">
+      <input type="password" id="password" placeholder="管理密码" autocomplete="current-password" />
+      <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
+        <button type="submit" class="primary" id="loginBtn">进入</button>
+        <span class="login-msg" id="loginMsg"></span>
+      </div>
+    </form>
+  </div>
+
+  <div id="panel" hidden>
+    <div class="bar">
+      <h1>用户反馈</h1>
+      <div class="stats">
+        <span class="stat">全部 <b id="statTotal">0</b></span>
+        <span class="stat new">待处理 <b id="statNew">0</b></span>
+      </div>
+      <span class="spacer"></span>
+      <input type="search" id="q" placeholder="搜索内容 / 联系方式 / 编号" />
+      <button id="reload">刷新</button>
+      <button id="logout">退出</button>
+    </div>
+
+    <div class="tabs">
+      <button data-tab="all" class="on">全部</button>
+      <button data-tab="new">待处理</button>
+      <button data-tab="handled">已处理</button>
+    </div>
+
+    <div class="list" id="list"></div>
+    <div class="empty" id="empty" hidden>没有符合条件的反馈</div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var items = [];
+  var tab = 'all';
+  var query = '';
+
+  // 站点可能被反代挂在子路径下（例如 /7fa4-chat/feedback/admin），
+  // 前缀只存在于浏览器侧，必须由页面自己算出来再拼接口地址。
+  var BASE = location.pathname.replace(/\/feedback\/admin\/?$/, '');
+
+  function absolute(path) {
+    return path && path.charAt(0) === '/' ? BASE + path : path;
+  }
+
+  function api(path, opts) {
+    return fetch(BASE + '/api/feedback/admin' + path, Object.assign({ credentials: 'same-origin' }, opts || {}))
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (data) {
+          return { status: r.status, data: data };
+        });
+      });
+  }
+
+  function platformLabel(p) {
+    var map = { windows: 'Windows', linux: 'Linux', web: '网页版', macos: 'macOS', android: 'Android', unknown: '未知' };
+    return map[p] || p || '未知';
+  }
+
+  function fmtTime(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso || '';
+    var pad = function (n) { return String(n).padStart(2, '0'); };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) +
+      ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function render() {
+    var q = query.trim().toLowerCase();
+    var shown = items.filter(function (it) {
+      if (tab === 'new' && it.status === 'handled') return false;
+      if (tab === 'handled' && it.status !== 'handled') return false;
+      if (!q) return true;
+      return (it.content + ' ' + (it.contact || '') + ' ' + it.id).toLowerCase().indexOf(q) >= 0;
+    });
+
+    $('statTotal').textContent = items.length;
+    $('statNew').textContent = items.filter(function (it) { return it.status !== 'handled'; }).length;
+    $('empty').hidden = shown.length > 0;
+
+    var list = $('list');
+    list.innerHTML = '';
+    shown.forEach(function (it) {
+      var el = document.createElement('div');
+      el.className = 'item ' + (it.status === 'handled' ? 'is-handled' : 'is-new');
+
+      var shots = (it.attachments || []).map(function (a) {
+        var src = absolute(a.url);
+        return '<a href="' + esc(src) + '" data-zoom="' + esc(src) + '"><img src="' + esc(src) +
+          '" alt="' + esc(a.name || '截图') + '" loading="lazy" /></a>';
+      }).join('');
+
+      var metaBits = [];
+      if (it.version) metaBits.push('版本 ' + esc(it.version));
+      if (it.contact) metaBits.push('联系 ' + esc(it.contact));
+      if (it.page) metaBits.push('来源 ' + esc(it.page));
+      if (it.ip) metaBits.push('IP ' + esc(it.ip));
+
+      el.innerHTML =
+        '<div class="item-head">' +
+          '<span class="tag platform">' + esc(platformLabel(it.platform)) + '</span>' +
+          '<span class="tag ' + (it.status === 'handled' ? 'handled' : 'new') + '">' +
+            (it.status === 'handled' ? '已处理' : '待处理') + '</span>' +
+          '<time>' + esc(fmtTime(it.createdAt)) + '</time>' +
+        '</div>' +
+        '<p class="content">' + esc(it.content) + '</p>' +
+        (metaBits.length ? '<div class="meta">' + metaBits.map(function (m) { return '<span>' + m + '</span>'; }).join('') + '</div>' : '') +
+        (shots ? '<div class="shots">' + shots + '</div>' : '') +
+        '<div class="item-foot">' +
+          '<button data-toggle="' + esc(it.id) + '" data-to="' + (it.status === 'handled' ? 'new' : 'handled') + '">' +
+            (it.status === 'handled' ? '标记待处理' : '标记已处理') + '</button>' +
+          '<span class="id">' + esc(it.id) + '</span>' +
+        '</div>';
+
+      list.appendChild(el);
+    });
+  }
+
+  function load() {
+    return api('/list').then(function (r) {
+      if (r.status === 401) {
+        $('panel').hidden = true;
+        $('login').hidden = false;
+        return;
+      }
+      items = (r.data && r.data.items) || [];
+      $('login').hidden = true;
+      $('panel').hidden = false;
+      render();
+    });
+  }
+
+  $('loginForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    $('loginMsg').textContent = '';
+    $('loginBtn').disabled = true;
+    api('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: $('password').value })
+    }).then(function (r) {
+      $('loginBtn').disabled = false;
+      if (r.status === 200) {
+        $('password').value = '';
+        load();
+      } else {
+        $('loginMsg').textContent = (r.data && r.data.error) || '登录失败';
+      }
+    });
+  });
+
+  document.querySelectorAll('.tabs button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      tab = b.dataset.tab;
+      document.querySelectorAll('.tabs button').forEach(function (x) { x.classList.toggle('on', x === b); });
+      render();
+    });
+  });
+
+  $('q').addEventListener('input', function () {
+    query = $('q').value;
+    render();
+  });
+
+  $('reload').addEventListener('click', load);
+
+  $('logout').addEventListener('click', function () {
+    api('/logout', { method: 'POST' }).then(function () {
+      items = [];
+      $('panel').hidden = true;
+      $('login').hidden = false;
+    });
+  });
+
+  $('list').addEventListener('click', function (e) {
+    var zoom = e.target.closest('[data-zoom]');
+    if (zoom) {
+      e.preventDefault();
+      showZoom(zoom.dataset.zoom);
+      return;
+    }
+    var toggle = e.target.closest('[data-toggle]');
+    if (toggle) {
+      var id = toggle.dataset.toggle;
+      toggle.disabled = true;
+      api('/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: id, status: toggle.dataset.to })
+      }).then(function (r) {
+        toggle.disabled = false;
+        if (r.status === 200) {
+          var it = items.find(function (x) { return x.id === id; });
+          if (it) it.status = toggle.dataset.to;
+          render();
+        }
+      });
+      return;
+    }
+    if (e.target.classList.contains('zoom')) e.target.remove();
+  });
+
+  function showZoom(url) {
+    var z = document.createElement('div');
+    z.className = 'zoom';
+    var img = document.createElement('img');
+    img.src = url;
+    z.appendChild(img);
+    z.addEventListener('click', function () { z.remove(); });
+    document.body.appendChild(z);
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>

@@ -11,7 +11,7 @@
         <template #header><i class="fas fa-heart donate-card-icon" aria-hidden="true"></i>扫码支持</template>
         <p class="donate-desc">7FA4 Chat 由 for_fo_f 独立开发维护，没有任何商业团队与广告，你的每一份赞赏都是持续更新的动力。</p>
         <div class="donate-qr-wrap">
-          <img v-if="!qrError" :src="DONATE_URL" alt="赞赏码" class="donate-qr-img" title="点击放大" @click="donateZoom = true" @error="qrError = true">
+          <img v-if="!qrError" :src="donateSrc" alt="赞赏码" class="donate-qr-img" title="点击放大" @click="donateZoom = true" @error="onQrImgError">
           <p v-if="qrError" class="donate-qr-tip">赞赏码加载失败，请稍后刷新重试</p>
           <p v-else class="donate-qr-tip">微信扫码赞赏 · 点击可放大</p>
         </div>
@@ -36,7 +36,7 @@
 
     <!-- 赞赏码放大弹层（图片加载失败时不再提供放大） -->
     <UiModal :open="donateZoom && !qrError" size="lg" @close="donateZoom = false">
-      <img :src="DONATE_URL" alt="赞赏码" class="donate-zoom-img" @click="donateZoom = false">
+      <img :src="donateSrc" alt="赞赏码" class="donate-zoom-img" @click="donateZoom = false">
     </UiModal>
   </div>
 </template>
@@ -45,17 +45,28 @@
 // 用法：<DonatePanel @back="view='chat'" />
 
 import { ref, computed, onMounted } from 'vue'
-import { gitlabRawUrl } from '../utils.js'
+import { gitlabRawUrl, officialSiteUrl } from '../utils.js'
 import BackButton from './BackButton.vue'
 import { UiCard, UiEmptyState, UiModal } from '@/ui'
 
 const emit = defineEmits(['back'])
 
-// 赞赏码：托管在 GitLab 仓库（assets/donate-qr.jpg）
-const DONATE_URL = computed(() => gitlabRawUrl('assets/donate-qr.jpg'))
+// 赞赏码：优先用官网同源静态资源（8888 端口），失败时回退 GitLab 仓库（assets/donate-qr.jpg）
+const useFallbackQr = ref(false)
+const donateSrc = computed(() => (
+  useFallbackQr.value ? gitlabRawUrl('assets/donate-qr.jpg') : `${officialSiteUrl()}donate-qr.jpg`
+))
 const donateZoom = ref(false)
 const qrError = ref(false) // 图片加载失败时优雅降级：隐藏图片与放大层，只留一行提示
 const sponsors = ref([])
+
+function onQrImgError() {
+  if (!useFallbackQr.value) {
+    useFallbackQr.value = true
+    return
+  }
+  qrError.value = true
+}
 
 async function loadSponsors() {
   try {

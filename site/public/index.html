@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>7FA4 Chat — 面向学术交流的即时通讯客户端</title>
+<meta name="description" content="7FA4 Chat 是面向课程学习与学术讨论的跨平台即时通讯客户端：Markdown 与 LaTeX 公式、文件互传、群组协作。Windows / macOS / Linux / Android，开源免费。">
+<meta name="theme-color" content="#05060a">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="assets/icon.png">
+<link rel="stylesheet" href="style.css">
+<meta property="og:type" content="website">
+<meta property="og:title" content="7FA4 Chat — 面向学术交流的即时通讯客户端">
+<meta property="og:description" content="跨平台学术交流客户端：Markdown、LaTeX 公式、文件互传与群组协作。">
+<meta property="og:image" content="assets/icon.png">
+</head>
+<body>
+
+<div class="aurora" aria-hidden="true">
+  <span class="aurora-a"></span>
+  <span class="aurora-b"></span>
+  <span class="aurora-c"></span>
+</div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#top" aria-label="7FA4 Chat 首页">
+      <img src="assets/icon.png" alt="" width="30" height="30" class="brand-mark">
+      <span class="brand-name">7FA4<span class="brand-light">Chat</span></span>
+      <span class="brand-tag" id="nav-version" hidden></span>
+    </a>
+    <nav class="nav" aria-label="页面导航">
+      <a href="#about">介绍</a>
+      <a href="#downloads">下载</a>
+      <a href="#changelog">更新日志</a>
+      <a href="#sponsors">赞助</a>
+      <a href="#faq">常见问题</a>
+    </nav>
+    <div class="topbar-side">
+      <button class="icon-btn" id="theme-toggle" type="button" aria-label="切换深浅色主题" title="切换深浅色主题">
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="ico-sun"><circle cx="12" cy="12" r="4"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.6 5.6l1.7 1.7M16.7 16.7l1.7 1.7M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="ico-moon"><path d="M20.6 14.9A8.8 8.8 0 1 1 9.1 3.4a7.1 7.1 0 0 0 11.5 11.5Z"/></svg>
+      </button>
+      <a class="btn btn-primary btn-sm" id="hero-download" href="#downloads">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4.2-4.2M12 14l-4.2-4.2M4.5 17.2v2.3A1.5 1.5 0 0 0 6 21h12a1.5 1.5 0 0 0 1.5-1.5v-2.3"/></svg>
+        <span id="hero-download-label">下载客户端</span>
+      </a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ============ Hero ============ -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow" data-reveal><span class="pulse"></span> 学术交流用途 · 开源 · 跨平台</p>
+        <h1 data-reveal>为学术交流而生的<br><span class="grad">即时通讯客户端</span></h1>
+        <p class="lede" data-reveal>
+          7FA4 Chat 由 for_fo_f 维护，面向课程学习与学术讨论。
+          Markdown 与 LaTeX 公式开箱即用，文件与图片随手互传，群组消息井然有序。
+        </p>
+        <div class="hero-actions" data-reveal>
+          <a class="btn btn-primary btn-lg" href="#downloads">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4.2-4.2M12 14l-4.2-4.2M4.5 17.2v2.3A1.5 1.5 0 0 0 6 21h12a1.5 1.5 0 0 0 1.5-1.5v-2.3"/></svg>
+            选择你的平台
+          </a>
+          <a class="btn btn-ghost btn-lg" href="web/">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18"/></svg>
+            网页版
+          </a>
+        </div>
+        <ul class="hero-meta" data-reveal>
+          <li><strong id="meta-version">—</strong><span>最新版本</span></li>
+          <li><strong id="meta-date">—</strong><span>发布日期</span></li>
+          <li><strong>4</strong><span>支持平台</span></li>
+          <li><strong>MIT</strong><span>开源许可</span></li>
+        </ul>
+      </div>
+
+      <div class="hero-art" data-reveal aria-hidden="true">
+        <div class="hero-halo"></div>
+        <div class="app-window">
+          <div class="app-bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="app-url">7FA4&nbsp;Chat · 数学分析 2026 秋</span>
+            <span class="app-bar-ico"></span>
+          </div>
+          <img class="hero-shot shot-dark" src="assets/hero-dark.webp" width="1600" height="1000" alt="" decoding="async">
+          <img class="hero-shot shot-light" src="assets/hero-light.webp" width="1600" height="1000" alt="" decoding="async">
+        </div>
+      </div>
+    </div>
+
+    <div class="wrap"><div class="marquee" aria-hidden="true">
+      <div class="marquee-track">
+        <span>Markdown</span><span>·</span><span>LaTeX 公式</span><span>·</span><span>文件互传</span><span>·</span><span>群组协作</span><span>·</span><span>@ 提醒</span><span>·</span><span>本地缓存</span><span>·</span><span>开源可审计</span><span>·</span>
+        <span>Markdown</span><span>·</span><span>LaTeX 公式</span><span>·</span><span>文件互传</span><span>·</span><span>群组协作</span><span>·</span><span>@ 提醒</span><span>·</span><span>本地缓存</span><span>·</span><span>开源可审计</span><span>·</span>
+      </div>
+    </div></div>
+  </section>
+
+  <!-- ============ 介绍 / 特性 ============ -->
+  <section class="section" id="about">
+    <div class="wrap">
+      <header class="section-head" data-reveal>
+        <p class="section-kicker">应用介绍</p>
+        <h2>讨论需要的，<span class="grad-soft">这里都有</span></h2>
+        <p class="section-sub">
+          功能围绕真实的教学场景设计：公式、代码、文件、群组与检索，
+          界面简洁，专注内容本身。
+        </p>
+      </header>
+
+      <div class="bento">
+        <article class="cell cell-wide" data-reveal>
+          <div class="cell-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h13"/><path d="M18.5 11.5 20 13l2.5-2.5"/></svg></div>
+          <h3>Markdown 与 LaTeX 公式</h3>
+          <p>消息内直接书写 Markdown 与数学公式，渲染效果与 OJ 文章一致，推导过程不必再截图。</p>
+          <div class="cell-demo">
+            <div class="demo-line"><span class="demo-tag">md</span><code>**收敛**：由 Weierstrass 判别法…</code></div>
+            <div class="demo-line"><span class="demo-tag">tex</span><code>\sum_{n=1}^{\infty} a_n</code></div>
+          </div>
+        </article>
+
+        <article class="cell" data-reveal>
+          <div class="cell-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
+          <h3>一份代码，四个平台</h3>
+          <p>Windows、macOS、Linux 与 Android 共用同一套界面与交互，换设备不用重新适应。</p>
+          <div class="cell-chips"><span>Windows</span><span>macOS</span><span>Linux</span><span>Android</span></div>
+        </article>
+
+        <article class="cell" data-reveal>
+          <div class="cell-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5"/></svg></div>
+          <h3>文件与图片互传</h3>
+          <p>课件、代码、实验报告直接拖进对话框；图片与附件在本地缓存，断网也能回看。</p>
+          <div class="cell-demo">
+            <div class="demo-line"><span class="demo-tag">file</span><code>实验报告-3.xlsx · 36 KB</code></div>
+            <div class="demo-line"><span class="demo-tag">img</span><code>板演-第3题.png · 1.2 MB</code></div>
+          </div>
+        </article>
+
+        <article class="cell cell-tall" data-reveal>
+          <div class="cell-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3.2 20a5.8 5.8 0 0 1 11.6 0"/><circle cx="17.5" cy="9.5" r="2.4"/><path d="M15.5 20a5 5 0 0 1 5.3-4.6"/></svg></div>
+          <h3>群组与 @ 提醒</h3>
+          <p>按课程或讨论组建群，@ 提醒与未读计数清晰可见，重要消息不会被刷走。</p>
+          <ul class="cell-list">
+            <li>按课程分组，公告置顶</li>
+            <li>@ 与关键词高亮</li>
+            <li>未读计数跨设备一致</li>
+          </ul>
+        </article>
+
+        <article class="cell" data-reveal>
+          <div class="cell-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6.4v5.2c0 4.3 3 7.3 7.5 9.4 4.5-2.1 7.5-5.1 7.5-9.4V6.4Z"/><path d="m9 12 2.2 2.2L15.5 10"/></svg></div>
+          <h3>本地优先，隐私可控</h3>
+          <p>消息与附件保存在本机，登录凭据本地加密存放；只在需要时连接服务器。</p>
+        </article>
+
+        <article class="cell" data-reveal>
+          <div class="cell-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg></div>
+          <h3>开源、可审计</h3>
+          <p>客户端与更新包全部公开，构建来源可查；每一行代码都可以被审阅。</p>
+          <div class="cell-chips"><span>MIT</span><span>GitLab</span><span>可复现构建</span></div>
+        </article>
+      </div>
+
+      <div class="note-card" data-reveal>
+        <div class="note-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2 3.6 19.4A1 1 0 0 0 4.5 21h15a1 1 0 0 0 .9-1.6Z"/><path d="M12 9v5M12 17.4v.2"/></svg></div>
+        <div>
+          <h3>关于用途的说明</h3>
+          <p>
+            7FA4 Chat 面向校内课程学习与学术交流：讨论题目、共享资料、交流协作。
+            请勿在考试时使用或上课期间发表学习无关言论。
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 下载 ============ -->
+  <section class="section section-alt" id="downloads">
+    <div class="wrap">
+      <header class="section-head" data-reveal>
+        <p class="section-kicker">下载</p>
+        <h2>选择你的平台</h2>
+        <p class="section-sub">
+          当前最新版本 <span class="pill" id="dl-version">—</span>，全平台同步发布，支持断点续传。
+        </p>
+      </header>
+
+      <div class="download-grid" id="download-grid" aria-live="polite">
+        <div class="dl-col">
+        <article class="dl-card" data-platform="windows" data-reveal>
+          <div class="dl-head">
+            <span class="dl-badge"><svg viewBox="0 0 24 24" class="dl-ico ico-stroke" aria-hidden="true"><rect x="3.6" y="3.6" width="7.2" height="7.2" rx="1.1"/><rect x="13.2" y="3.6" width="7.2" height="7.2" rx="1.1"/><rect x="3.6" y="13.2" width="7.2" height="7.2" rx="1.1"/><rect x="13.2" y="13.2" width="7.2" height="7.2" rx="1.1"/></svg></span>
+            <div class="dl-title"><h3>Windows</h3><p>Windows 10 及以上</p></div>
+          </div>
+          <div class="dl-links" data-links="windows"><span class="skeleton">正在获取版本信息…</span></div>
+        </article>
+
+        <article class="dl-card" data-platform="macos" data-reveal>
+          <div class="dl-head">
+            <span class="dl-badge"><svg viewBox="0 0 24 24" class="dl-ico ico-stroke" aria-hidden="true"><path d="M16.2 12.7c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.7-1.8-3.3-1.8-1.4-.1-2.7.8-3.4.8-.7 0-1.8-.8-3-.8-1.5 0-3 .9-3.8 2.3-1.6 2.8-.4 7 1.2 9.3.8 1.1 1.7 2.3 2.9 2.2 1.2 0 1.6-.7 3-.7s1.8.7 3 .7c1.2 0 2-1.1 2.8-2.2.9-1.3 1.3-2.6 1.3-2.7-.1 0-2.7-1-2.7-3.6Z"/><path d="M14 5.4c.6-.8 1.1-1.9 1-3-1 .1-2.1.6-2.8 1.4-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.8-1.4Z"/></svg></span>
+            <div class="dl-title"><h3>macOS</h3><p>macOS 11 及以上 · Apple Silicon / Intel</p></div>
+          </div>
+          <div class="dl-links" data-links="macos"><span class="skeleton">正在获取版本信息…</span></div>
+        </article>
+        </div>
+
+        <div class="dl-col">
+        <article class="dl-card" data-platform="linux" data-reveal>
+          <div class="dl-head">
+            <span class="dl-badge"><svg viewBox="0 0 24 24" class="dl-ico ico-stroke" aria-hidden="true"><circle cx="12" cy="6.7" r="2.7"/><path d="M8.2 10.4c-1.7 1.6-2.8 3.4-2.8 5.5 0 2.5 2 4.3 6.6 4.3s6.6-1.8 6.6-4.3c0-2.1-1.1-3.9-2.8-5.5"/><path d="M10.5 6.3v.02M13.5 6.3v.02"/></svg></span>
+            <div class="dl-title"><h3>Linux</h3><p>AppImage 与 deb 包</p></div>
+          </div>
+          <div class="dl-links" data-links="linux"><span class="skeleton">正在获取版本信息…</span></div>
+        </article>
+
+        <article class="dl-card" data-platform="android" data-reveal>
+          <div class="dl-head">
+            <span class="dl-badge"><svg viewBox="0 0 24 24" class="dl-ico ico-stroke" aria-hidden="true"><path d="M5 10.5h14v7.2a1.8 1.8 0 0 1-1.8 1.8H6.8A1.8 1.8 0 0 1 5 17.7Z"/><path d="M7.6 10.5C7.6 7.6 9.6 5.3 12 5.3s4.4 2.3 4.4 5.2"/><path d="m7.2 4.6 1.5 2M16.8 4.6l-1.5 2"/><path d="M9.6 15.4h.01M14.4 15.4h.01"/></svg></span>
+            <div class="dl-title"><h3>Android</h3><p>Android 8.0 及以上 · arm64</p></div>
+          </div>
+          <div class="dl-links" data-links="android"><span class="skeleton">正在获取版本信息…</span></div>
+        </article>
+
+        <p class="dl-note" id="dl-note" hidden></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 更新日志 ============ -->
+  <section class="section" id="changelog">
+    <div class="wrap wrap-narrow">
+      <header class="section-head" data-reveal>
+        <p class="section-kicker">更新日志</p>
+        <h2>每一次改动，都写在这里</h2>
+        <p class="section-sub">完整记录每个版本的新增、优化与修复。</p>
+      </header>
+      <div class="changelog" id="changelog-body" aria-live="polite">
+        <p class="skeleton">正在获取更新日志…</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 赞助 ============ -->
+  <section class="section section-alt" id="sponsors">
+    <div class="wrap">
+      <header class="section-head" data-reveal>
+        <p class="section-kicker">赞助</p>
+        <h2>谢谢这些老师和同学</h2>
+        <p class="section-sub">
+          客户端免费、无广告。构建、签名与分发产生的开销来自下面的赞助名单。
+        </p>
+      </header>
+
+      <div class="sponsor-layout">
+        <div class="sponsor-main">
+          <div class="sponsor-list" id="sponsor-list" aria-live="polite">
+            <p class="skeleton">正在获取赞助名单…</p>
+          </div>
+          <div class="sponsor-uses" data-reveal>
+            <h3>赞助用在哪些地方</h3>
+            <ul>
+              <li><span>构建与签名</span><em>Windows / macOS / Linux 安装包打包</em></li>
+              <li><span>发布与分发</span><em>全平台安装包与更新的存储、带宽</em></li>
+              <li><span>维护与更新</span><em>客户端适配、问题响应与使用文档</em></li>
+            </ul>
+          </div>
+        </div>
+        <aside class="qr-card" data-reveal>
+          <div class="qr-frame"><img id="donate-qr" alt="赞赏码" width="200" height="200" loading="lazy"></div>
+          <h3>请我喝一杯</h3>
+          <p>金额随意，不会解锁任何功能。</p>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 常见问题 ============ -->
+  <section class="section" id="faq">
+    <div class="wrap wrap-narrow">
+      <header class="section-head" data-reveal>
+        <p class="section-kicker">常见问题</p>
+        <h2>下载、安装与使用</h2>
+        <p class="section-sub">装之前值得先看一眼的几件事。</p>
+      </header>
+
+      <div class="faq" data-reveal>
+        <details id="faq-verify">
+          <summary>如何校验下载的文件？</summary>
+          <div class="faq-body">
+            <p>
+              每个安装包都有固定的 SHA-256，下面按文件名列出。下载完成后先在终端算一遍，
+              再和列表里的值逐字比对。
+            </p>
+            <ul>
+              <li>Windows（PowerShell 或 CMD）：<code>certutil -hashfile 7FA4-Chat-3.8.0-x64.exe SHA256</code></li>
+              <li>macOS / Linux：<code>shasum -a 256 或 sha256sum</code> 后接文件名</li>
+            </ul>
+            <p class="faq-hint">
+              比对时只看到大小写不同是正常的；只要有一个字符不同，就说明文件在传输中被截断或替换，
+              请删掉重新下载。<span id="faq-verify-version"></span>
+            </p>
+            <div class="hash-list" id="hash-list" aria-live="polite">
+              <p class="skeleton">正在获取校验值…</p>
+            </div>
+          </div>
+        </details>
+
+        <details>
+          <summary>支持哪些系统？</summary>
+          <div class="faq-body">
+            <ul>
+              <li>Windows 10 及以上（x64 / arm64，安装版与便携版）</li>
+              <li>macOS 11 及以上（Intel 与 Apple Silicon）</li>
+              <li>Linux：AppImage 与 deb，x64 / arm64</li>
+              <li>Android 8.0 及以上（arm64 APK）</li>
+            </ul>
+            <p>桌面端用 Electron 构建，Android 端复用同一套界面，功能保持一致。</p>
+          </div>
+        </details>
+
+        <details>
+          <summary>需要单独注册账号吗？</summary>
+          <div class="faq-body">
+            <p>
+              不需要。客户端直接使用 7FA4 的账号登录，用户名与密码就是平时上站用的那套，
+              登录后能看到的会话、群组与网页端一致。
+            </p>
+            <p>登录页的「API 网址」保持默认即可；只有在校内等其他入口访问时才需要切换到对应线路。</p>
+          </div>
+        </details>
+
+        <details>
+          <summary>收费吗？会不会有广告？</summary>
+          <div class="faq-body">
+            <p>
+              完全免费，没有广告，也没有需要付费才能解锁的功能。项目以 MIT 协议开源，
+              源码在 GitLab 与 GitHub 上都能看到。
+            </p>
+            <p>服务器的构建、签名与分发开销由赞助名单里的老师和同学分担，自愿参与，不影响任何功能。</p>
+          </div>
+        </details>
+
+        <details>
+          <summary>聊天记录存在哪里？换设备会丢吗？</summary>
+          <div class="faq-body">
+            <p>
+              记录保存在本机（客户端的本地数据目录里），不会打包上传到别处。
+              换一台设备需要重新登录，历史消息会按会话重新拉取。
+            </p>
+            <p>客户端内置聊天记录备份与恢复，可以导出成文件带走，再在新设备上导入。</p>
+          </div>
+        </details>
+
+        <details>
+          <summary>有网页版吗？能自己搭服务器吗？</summary>
+          <div class="faq-body">
+            <p>
+              有网页版，
+              <a href="web/" rel="noopener">点这里直接在浏览器里使用</a>，
+              功能和客户端基本一致，适合临时换设备或者不方便安装的时候。同样用 7FA4 的账号登录，
+              只是会话不会缓存在浏览器里，每次打开都从服务端重新拉取。
+            </p>
+            <p>
+              不需要自建后端——客户端和网页版连的都是现有的 7FA4 服务。
+              源码以 MIT 协议开源，想自己编译也可以，但服务端不在这个仓库里。
+            </p>
+          </div>
+        </details>
+
+        <details>
+          <summary>遇到问题或者想提建议？</summary>
+          <div class="faq-body">
+            <p>
+              可以直接通过本站的
+              <a href="feedback/">在线意见反馈</a>
+              提交（支持直接粘贴截图，无需额外登录账号），也可以在
+              <a href="https://github.com/for-fo-f-zsq/7fa4-chat/issues" rel="noopener" target="_blank">GitHub Issues</a>
+              或
+              <a href="https://jx.7fa4.cn:9080/student-archive/7fa4-chat/-/issues" rel="noopener" target="_blank">GitLab 议题</a>
+              反馈。描述问题时附上系统版本、客户端版本和复现步骤，会更好定位。
+            </p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <div class="footer-brand">
+      <img src="assets/icon.png" alt="" width="28" height="28">
+      <div>
+        <strong>7FA4 Chat</strong>
+        <p>面向学术交流的即时通讯客户端 · 开源免费</p>
+      </div>
+    </div>
+    <div class="footer-links">
+      <a href="web/">网页版</a>
+      <a href="feedback/">意见反馈</a>
+      <a href="https://github.com/for-fo-f-zsq/7fa4-chat" rel="noopener" target="_blank">GitHub 仓库</a>
+      <a href="https://jx.7fa4.cn:9080/student-archive/7fa4-chat" rel="noopener" target="_blank">GitLab 镜像</a>
+      <a href="#downloads">下载</a>
+      <a href="#changelog">更新日志</a>
+    </div>
+  </div>
+  <div class="wrap footer-fine">
+    <p>本站仅用于发布与说明该客户端。请遵守学校规定与学术诚信要求使用软件。</p>
+    <p id="footer-version"></p>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,156 @@
+﻿/* 意见反馈弹窗（D 域：FeedbackModal.vue scoped）
+   - 外壳/输入/按钮/横幅全部交 UiModal / UiTextarea / UiInput / UiButton / UiBanner；
+     本文件只留字段间距、平台选择 chip 与截图缩略图。
+   - 颜色、间距、圆角、动效一律走 tokens / motion 语义令牌。 */
+
+.fb {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.fb-lead {
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+}
+
+.fb-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.fb-label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--fg);
+}
+
+.fb-hint {
+    font-weight: var(--weight-regular);
+    font-size: var(--text-xs);
+    color: var(--fg-subtle);
+}
+
+.fb-count {
+    font-weight: var(--weight-regular);
+    font-size: var(--text-xs);
+    color: var(--fg-subtle);
+    font-variant-numeric: tabular-nums;
+}
+.fb-count.over {
+    color: var(--fg-danger);
+}
+
+/* ---------- 平台 chip ---------- */
+.fb-platforms {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+.fb-chip {
+    font: inherit;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+    background: var(--surface-1);
+    border: var(--border-width) solid var(--line);
+    border-radius: var(--radius-pill);
+    padding: 5px 14px;
+    cursor: pointer;
+    transition: border-color var(--motion-dur-base) var(--motion-ease-standard),
+                color var(--motion-dur-base) var(--motion-ease-standard),
+                background-color var(--motion-dur-base) var(--motion-ease-standard);
+}
+.fb-chip:hover {
+    color: var(--fg);
+    border-color: var(--line-strong);
+}
+.fb-chip.on {
+    color: var(--brand);
+    border-color: var(--brand);
+    background: var(--brand-soft);
+    font-weight: var(--weight-semibold);
+}
+
+/* ---------- 截图 ---------- */
+.fb-shots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+.fb-shot {
+    position: relative;
+    width: 84px;
+    height: 84px;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    border: var(--border-width) solid var(--line);
+    background: var(--surface-1);
+}
+.fb-shot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.fb-shot-del {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--surface-scrim);
+    color: var(--on-overlay);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+}
+.fb-shot-add {
+    width: 84px;
+    height: 84px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    font: inherit;
+    font-size: var(--text-xs);
+    color: var(--fg-subtle);
+    background: transparent;
+    border: var(--border-width) dashed var(--line-strong);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: border-color var(--motion-dur-base) var(--motion-ease-standard),
+                color var(--motion-dur-base) var(--motion-ease-standard);
+}
+.fb-shot-add:hover {
+    color: var(--brand);
+    border-color: var(--brand);
+}
+
+.fb-done {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--fg);
+}
+.fb-done i {
+    color: var(--status-success);
+}
+.fb-done code {
+    font-family: var(--font-mono, ui-monospace, Consolas, monospace);
+    font-size: var(--text-xs);
+    background: var(--surface-1);
+    border-radius: var(--radius-xs);
+    padding: 1px 6px;
+}

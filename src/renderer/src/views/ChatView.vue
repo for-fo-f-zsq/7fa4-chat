@@ -10,44 +10,51 @@
         <button class="title-btn title-close" @click="windowClose"><i class="fas fa-times"></i></button>
       </div>
     </div>
-    <!-- 服务端明确拒绝（如被禁止使用聊天）：原样展示后端文案，不要伪装成断网 -->
-    <UiBanner
-      v-if="store.logined && serverNotice && !serverNoticeMuted"
-      class="network-banner"
-      variant="danger"
-      closable
-      @close="serverNoticeMuted = true"
-    >
-      <template #icon><i class="fas fa-comment-slash" aria-hidden="true"></i></template>
-      {{ serverNotice }}
-    </UiBanner>
-    <!-- 网络/登录状态横幅：UiBanner（danger=连接断开 / warning=未登录），位于 app-body 外，全宽横条 -->
-    <UiBanner
-      v-if="store.logined && store.netError && !netBannerMuted"
-      class="network-banner"
-      variant="danger"
-      closable
-      @close="netBannerMuted = true"
-    >
-      <template #icon><i class="fas fa-wifi" aria-hidden="true"></i></template>
-      未连接<template v-if="netDownText">，已断线 {{ netDownText }}</template>，正在尝试重新连接…
-      <template #action>
-        <UiButton class="banner-login-btn" variant="ghost" size="sm" @click="onUserAction('relogin')">重新登录</UiButton>
-      </template>
-    </UiBanner>
-    <UiBanner
-      v-if="!store.logined && !guestBannerMuted"
-      class="network-banner"
-      variant="warning"
-      closable
-      @close="guestBannerMuted = true"
-    >
-      <template #icon><i class="fas fa-user-lock" aria-hidden="true"></i></template>
-      您还未登录，聊天暂不可用。
-      <template #action>
-        <UiButton class="banner-login-btn" variant="ghost" size="sm" @click="gotoLogin">去登录</UiButton>
-      </template>
-    </UiBanner>
+    <!-- 顶部浮层横幅层：绝对定位、零高、脱离 .app 的 flex 布局流。
+         出现/关闭都不改变 title-bar 以下任何内容的尺寸与位置（列表、会话、输入栏恒定），
+         只在顶部居中悬浮一条圆角横幅；z-index 高于页头，浮在内容之上。
+         三类横幅共用同一层：服务端拒绝 / 连接断开 / 未登录（游客）。 -->
+    <div class="banner-stack">
+      <!-- 服务端明确拒绝（如被禁止使用聊天）：原样展示后端文案，不要伪装成断网 -->
+      <UiBanner
+        v-if="store.logined && serverNotice && !serverNoticeMuted"
+        class="network-banner"
+        variant="danger"
+        closable
+        @close="serverNoticeMuted = true"
+      >
+        <template #icon><i class="fas fa-comment-slash" aria-hidden="true"></i></template>
+        {{ serverNotice }}
+      </UiBanner>
+      <!-- 网络/登录状态横幅（danger=连接断开） -->
+      <UiBanner
+        v-if="store.logined && store.netError && !netBannerMuted"
+        class="network-banner"
+        variant="danger"
+        closable
+        @close="netBannerMuted = true"
+      >
+        <template #icon><i class="fas fa-wifi" aria-hidden="true"></i></template>
+        未连接<template v-if="netDownText">，已断线 {{ netDownText }}</template>，正在尝试重新连接…
+        <template #action>
+          <UiButton class="banner-login-btn" variant="ghost" size="sm" @click="onUserAction('relogin')">重新登录</UiButton>
+        </template>
+      </UiBanner>
+      <!-- 未登录（游客）横幅（warning=未登录） -->
+      <UiBanner
+        v-if="!store.logined && !guestBannerMuted"
+        class="network-banner"
+        variant="warning"
+        closable
+        @close="guestBannerMuted = true"
+      >
+        <template #icon><i class="fas fa-user-lock" aria-hidden="true"></i></template>
+        您还未登录，聊天暂不可用。
+        <template #action>
+          <UiButton class="banner-login-btn" variant="ghost" size="sm" @click="gotoLogin">去登录</UiButton>
+        </template>
+      </UiBanner>
+    </div>
     <div class="app-body" :class="{ narrow: isNarrowLayout }">
     <NavBar
       v-if="showNavBar"
@@ -289,8 +296,9 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import md5 from 'md5';
 import { store } from '../store.js';
-import { safeFetch, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, ingestMessage, clearPendingVotes, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys, isUserHiddenBySetting, makeVoteContent, isWebBrowser } from '../utils.js';
+import { safeFetch, tryLogin, gettime2, getUsername, parseContent, parseMsgContent, applyChatToStore, ingestMessage, clearPendingVotes, sendChatMessage, displayName, getGradeColor, getGradeLabel, getAvatarInitial, startRanklistFetch, stopRanklistFetch, shouldNotify, getNotifContent, playNotificationSound, getConvoKey, applyFontSize, compressImage, compressBase64Image, markMsgDirty, takeDirtyMsgKeys, isUserHiddenBySetting, makeVoteContent, isWebBrowser } from '../utils.js';
 
 import { UiBanner, UiButton } from '../ui';
 
@@ -1485,14 +1493,22 @@ function onSettingChange(changes) {
     clearCacheAndReload();
     return;
   }
+  const apiUrlChanged = changes.apiUrl !== undefined && changes.apiUrl !== setting.value?.apiUrl;
   Object.assign(setting.value, changes);
   store.setting = setting.value;
   if (changes.fontSize !== undefined) applyFontSize(changes.fontSize);
   window.api.saveSetting(JSON.parse(JSON.stringify(setting.value)));
+  if (apiUrlChanged) {
+    // 切换服务器线路（jx ↔ in）后立即唤醒轮询并触发重连/鉴权
+    lastInfoAt = 0;
+    lastAutoReloginAt = 0;
+    wakePoll?.();
+  }
 }
 
 async function clearCacheAndReload() {
   store.initializing = true;
+  loadedDataUid = null;
   try {
     // 清空内存中的聊天数据
     store.users = {};
@@ -1517,11 +1533,41 @@ async function clearCacheAndReload() {
 // --- 数据层 ---
 let pollTimer = null;
 let infoLoopRunning = false;
+let wakePoll = null;
+let lastAutoReloginAt = 0;
+let loadedDataUid = null;
 let autoSaveTimer = null;
 let unsubscribeNotifClick = null;
 let unsubscribeUploadProgress = null;
 let unsubscribeFlush = null;
 let unsubscribeAndroidBack = null;
+
+function pollSleep(ms) {
+  return new Promise((resolve) => {
+    const t = setTimeout(() => { wakePoll = null; resolve(); }, ms);
+    wakePoll = () => { clearTimeout(t); wakePoll = null; resolve(); };
+  });
+}
+
+/**
+ * 桌面/安卓端：当会话 cookie 过期或切换了 jx/in 线路导致返回 _html 时，
+ * 若用户开启了「保持登录」且存有明文凭据，静默重登一次以续期 cookie。
+ */
+async function tryAutoRelogin() {
+  if (isWeb) return false;
+  const s = setting.value;
+  if (!s || !s.keepLogin || !s.loginUsername || !s.loginPassword) return false;
+  const now = Date.now();
+  if (now - lastAutoReloginAt < 15000) return false;
+  lastAutoReloginAt = now;
+  try {
+    const hashed = md5(String(s.loginPassword) + 'syzoj2_xxx');
+    const r = await tryLogin(s.loginUsername, hashed);
+    return !!(r && r.error_code === 1);
+  } catch {
+    return false;
+  }
+}
 
 // Android 系统返回键：进入会话→回列表；其它页→回聊天；聊天列表→退出应用
 function onAndroidBack() {
@@ -1551,6 +1597,14 @@ async function update(result) {
     school: result.user.school,
     seat: result.user.seat
   });
+  try {
+    localStorage.setItem('7fa4_self', JSON.stringify({
+      uid: result.user.id,
+      username: result.user.uid,
+      nickname: result.user.nickname,
+      realname: result.user.real_name
+    }));
+  } catch {}
   const friendsMap = Object.fromEntries(result.friends
     .filter(f => f.watchee === true || f.watcher === true) // 既非我关注、也非关注我的关系条目不显示
     .map(f => {
@@ -1788,42 +1842,11 @@ function targetTimesBatches() {
  * 返回 null 表示这次请求失败（调用方据此做退避计数）。
  */
 /**
- * 登录态失效：服务端把请求重定向到登录页，返回的是 HTML 而不是 JSON。
- * 以前这种响应会被当成「网络异常」→ 一直显示「未连接，正在尝试重新连接…」，
- * 用户永远等不到恢复（cookie 已经没了，重试多少次都没用）。这里直接告诉他重新登录。
- */
-function noteSessionExpired() {
-  if (serverNotice.value) return;
-  serverNotice.value = '登录状态已失效，请重新登录';
-  serverNoticeMuted.value = false;
-  store.netError = false;
-}
-
-/**
  * 服务端「明确拒绝」类响应（封禁/禁言）要原样告诉用户。
  * 以前所有失败一律当网络故障处理，于是后端返回的
  * 「你被禁止使用聊天功能直到…」被压成「未连接，正在尝试重新连接…」，
  * 用户完全不知道是自己被禁言了，只看到聊天一直不动。
  */
-/**
- * 登录态失效的统一收口。桌面端以前只挂一句提示、然后从启动序列里 `return`，
- * `store.initializing` 永远停在 true —— 遮罩「正在加载消息…」盖住整个界面，
- * 用户重开应用（cookie 早在退出期间过期）就只能看到这个死界面，点哪都没反应。
- * 正确做法：停止轮询、收起加载遮罩、清掉「已登录」标记，直接回登录页
- * （LoginView 会用 keepLogin 存下的账号密码预填，点一下就能重新登录）。
- */
-function handleSessionExpired() {
-  noteSessionExpired();
-  if (isWeb) { gotoLogin(); return; }
-  infoLoopRunning = false;
-  stopRanklistFetch();
-  store.initializing = false;
-  store.netError = false;
-  store.logined = false;
-  store.guestMode = false; // App.vue 的 LoginView 条件是 !logined && !guestMode
-  try { localStorage.removeItem('7fa4_logined'); } catch {}
-}
-
 function noteServerFailure(r) {
   if (!r || r.success) return false;
   const msg = (r.err && r.err.message) || '';
@@ -1878,8 +1901,9 @@ async function probeTargetTimes(seed = false) {
     try {
       const res = await safeFetch('/chat/target-times?' + qs);
       r = await res.json();
-      // safeFetch 遇到 HTML 响应（登录失效被重定向到登录页）时，_html 标记在解析出的 body 上
-      if (r && r._html) { handleSessionExpired(); return null; }
+      // safeFetch 遇到 HTML 响应（登录失效被重定向到登录页）时，_html 标记在解析出的 body 上；
+      // 与断网同样处理：算一次失败，让调用方退避并挂「未连接」横幅
+      if (r && r._html) return null;
     } catch {
       return null;
     }
@@ -2047,7 +2071,8 @@ async function flushData() {
 
 async function loadData() {
   const uid = store.self.uid
-  if (!uid) return
+  if (!uid || loadedDataUid === uid) return
+  loadedDataUid = uid
   // 网页版：没有任何本地会话/消息缓存，只把偏好设置（草稿/静音/隐藏/表情收藏）读回来。
   // 列表、消息全部由本轮网络的 /chat/info + /chat/target-times 决定（刷新 = 像 OJ /chat 一样重来）。
   if (isWeb) {
@@ -2116,6 +2141,8 @@ async function loadData() {
 async function logout(toLogin = false, clearCred = false) {
   // 先停止轮询与后台任务，防止异步操作继续往 store 写数据
   infoLoopRunning = false;
+  wakePoll?.();
+  loadedDataUid = null;
   if (pollTimer) clearInterval(pollTimer);
   if (autoSaveTimer) clearInterval(autoSaveTimer);
   stopRanklistFetch(); // 停止 ranklist 轮询（退登结束，重新登录后自动重启）
@@ -2144,6 +2171,7 @@ async function logout(toLogin = false, clearCred = false) {
   // 让下次启动老老实实回登录页（keepLogin 的账号密码仍在，重新登录不用重输）。
   try {
     localStorage.removeItem('7fa4_logined');
+    localStorage.removeItem('7fa4_self');
   } catch {}
   Object.assign(store, { self: { uid: null, username: null, nickname: null, realname: null }, users: {}, groups: {}, messages: {}, stickers: [], drafts: {}, mutedConvos: {}, hiddenConvos: {} });
   clearPendingVotes(); // 清空待落地投票缓冲，避免串到下一个账号
@@ -2156,62 +2184,110 @@ async function logout(toLogin = false, clearCred = false) {
   if (isWeb) location.href = '/login';
 }
 
-async function startInfoLoop() {
-  if (!store.logined) return;
-  if (infoLoopRunning) return; // 互斥：防止重复调用导致多个并发轮询循环（疯狂连续获取、不守间隔）
-  infoLoopRunning = true;
-  let failCount = 0;
-
-  // ① 启动：先 /chat/info 填充会话集合
-  // 首次进入：onMounted 里的 update(initialInfo) 因 infoLoopRunning 未置真，会被 update 自身的
-  // `if (!infoLoopRunning) return` 守卫跳过，此时 store.users/groups 为空。若直接全量爬取，
-  // fetchMessages 会因 `if (!t) continue`（t 取不到会话）把历史全部丢弃，只剩轮询的 10 条。
-  // 因此置真后先 /chat/info 填充会话，再执行 100 条 + 翻页爬取历史（网页版跳过这一步）。
-  try {
-    const res = await safeFetch('/chat/info');
-    const r = await res.json();
-    if (r && r._html) { handleSessionExpired(); return; }
-    if (!infoLoopRunning) return;
-    if (r.success) { await update(r); failCount = 0; store.netError = false; store.online = true; }
-    else { failCount++; store.netError = true; }
-  } catch { failCount++; store.netError = true; }
+async function runInitialSync(infoResult) {
+  await update(infoResult);
   lastInfoAt = Date.now();
   // 先把「各会话最后消息时间」记成基线：必须排在首爬之前，
   // 否则首爬结束到记基线之间到达的消息会被当成基线、再也不会被拉取。
-  // 记完基线再爬，这段时间来的消息既在爬取结果里、下一轮探针又会看到新时间戳（拉到已知 id 就停）。
   try { await probeTargetTimes(true); } catch {}
-  // 探针里可能已判定「登录失效」并收口（这时 logined / infoLoopRunning 都已复位）：
-  // 绝不能继续往下首爬历史、启动后台 ranklist —— 那只会拿没有 cookie 的会话空转。
-  if (!infoLoopRunning || !store.logined) return;
   store.fetchNewCount = 0;
   if (isWeb) {
-    // 网页版：不首爬历史（那正是「全量爬取」）。列表顺序由探针时间戳决定，点开会话才拉消息。
     applyLastSendTimesToList();
     store.initializing = false;
     startRanklistFetch();
   } else {
     let initialOk = false;
     try { initialOk = await updateMessagesData(100, true); } catch {}
-    // 首爬没成功就别信上面记的基线：那些「刚好在这段时间到达」的消息会被当成基线永久跳过。
-    // 清空基线后下一轮探针会把有消息的会话全部当作「未接上」重新拉一遍（幂等，靠 id 去重）。
     if (!initialOk) { console.warn('[poll] 首爬未完成，清空探针基线并重试'); lastSendTimes.clear(); }
-    // 首次历史爬取（无论成败）结束：隐藏"正在加载消息…"提示，进入常规轮询
     store.initializing = false;
-    // ranklist 与聊天无关，放在首爬之后、后台慢慢爬，不占首屏时间
     startRanklistFetch();
   }
+}
 
-  // ② 常规轮询：探针 → 定向增量拉取（详见上面「轮询：target-times 探针」一节）
+async function startInfoLoop(prefetchedInfo = null) {
+  if (!store.logined) return;
+  if (infoLoopRunning) return; // 互斥：防止重复调用导致多个并发轮询循环（疯狂连续获取、不守间隔）
+  infoLoopRunning = true;
+  let failCount = 0;
+  let initialSynced = false;
+
+  // ① 启动：优先复用 onMounted 已经拉回的 /chat/info（避免首屏重复请求 51KB），
+  // 若会话失效（_html）且开启了「保持登录」，自动静默续期一次 cookie。
+  let r = prefetchedInfo;
+  try {
+    if (!r) {
+      const res = await safeFetch('/chat/info');
+      r = await res.json();
+    }
+    if (r && r._html) {
+      if (isWeb) { gotoLogin(); return; }
+      if (await tryAutoRelogin()) {
+        const retryRes = await safeFetch('/chat/info');
+        r = await retryRes.json();
+      }
+    }
+    if (!infoLoopRunning) return;
+    if (r && r.success) {
+      failCount = 0;
+      store.netError = false;
+      store.online = true;
+      await runInitialSync(r);
+      initialSynced = true;
+    } else {
+      // 首屏 /chat/info 失败（断网 / 线路不通 / 会话失效）：
+      // 立即收起「正在加载消息…」遮罩，跳过断网下的无意义首爬，直接进入下方轮询循环等待重连！
+      failCount = 1;
+      store.netError = true;
+      store.initializing = false;
+    }
+  } catch {
+    failCount = 1;
+    store.netError = true;
+    store.initializing = false;
+  }
+
+  // ② 常规轮询：探针 → 定向增量拉取（若首屏尚未同步成功，先重试 /chat/info 完成首屏同步）
   let round = 0;
   while (infoLoopRunning && store.logined) {
     round++;
     try {
+      if (!initialSynced) {
+        const res = await safeFetch('/chat/info');
+        let result = await res.json();
+        if (result && result._html) {
+          if (isWeb) { gotoLogin(); return; }
+          if (await tryAutoRelogin()) {
+            const retryRes = await safeFetch('/chat/info');
+            result = await retryRes.json();
+          }
+        }
+        if (!infoLoopRunning) break;
+        if (result && result.success) {
+          failCount = 0;
+          store.netError = false;
+          store.online = true;
+          await runInitialSync(result);
+          initialSynced = true;
+        } else {
+          failCount++;
+          store.netError = true;
+        }
+        if (!infoLoopRunning) break;
+        if (failCount >= 3) {
+          store.online = false;
+          await pollSleep(10000);
+        } else {
+          await pollSleep(setting.value.pollInterval || 1000);
+        }
+        continue;
+      }
+
       // 探针（542 B）：只问「谁有新消息」，命中的会话才发定向请求
       const changes = await probeTargetTimes();
       // 网页版：排行榜等外部刷新可能把 lastSendTime 覆盖成空，每轮用探针基线补一次
       if (isWeb) applyLastSendTimesToList();
       if (changes === null) {
-        // 服务端明确说「你得被禁止使用聊天」时，这不是网络故障：别弹「未连接/重连中」，
+        // 服务端明确说「你被禁止使用聊天」时，这不是网络故障：别弹「未连接/重连中」，
         // 也别退避重试得像是网断了 —— 展示原话，轮询继续（禁言到期会自动恢复）。
         if (serverNotice.value) {
           failCount = 0;
@@ -2253,12 +2329,7 @@ async function startInfoLoop() {
             if (pulled.ok && !pulled.done) backfillKeys.add(c.key);
           } catch (e) { console.error(e); }
         }
-        // 注意：这里**不要**再「每轮把当前打开的会话直接拉一次」。
-        // 探针的 MAX(send_time) 只有整秒精度，同一秒的第二条消息靠上面 sameSecondRechecked
-        // 补查一次即可；每轮都拉会让空闲状态下每秒固定多出 1~2 个请求（私聊两个视图），
-        // 而收益只是「同一秒的第三条以后能早 1 秒看到」，不值得。
         // 上一轮没补完的缺口：每轮各补一页，直到「本页没有任何未出现过的消息」为止。
-        // 这里不依赖探针时间戳（它可能早就不变了），否则缺口会永远留在那里。
         if (!isWeb && infoLoopRunning && backfillKeys.size) {
           let budget = 3; // 每轮最多补 3 个会话，避免一次拉太多把带宽打满
           for (const key of Array.from(backfillKeys)) {
@@ -2278,18 +2349,25 @@ async function startInfoLoop() {
       if (failCount >= 3) {
         // 连续失败（如无法访问 jx）：退避到 10s，避免高频空转；保持"未连接"横幅直到恢复
         store.online = false;
-        await new Promise(r => setTimeout(r, 10000));
+        await pollSleep(10000);
         continue;
       }
       // 会话集合兜底：新好友 / 新群只能由 /chat/info 发现（探针只回显已知 id）。
-      // 网页版没有本地缓存可依赖，但 51KB 的 /chat/info 也没必要每 2 轮拉一次 → 5 分钟一次。
       if (isWeb ? (Date.now() - lastInfoAt >= WEB_INFO_EVERY_MS) : (round % INFO_EVERY_ROUNDS === 0)) {
         lastInfoAt = Date.now();
         try {
           const res = await safeFetch('/chat/info');
-          const result = await res.json();
-          if (result && result._html) { handleSessionExpired(); return; }
-          else if (infoLoopRunning && result.success) {
+          let result = await res.json();
+          if (result && result._html) {
+            if (isWeb) { gotoLogin(); return; }
+            if (await tryAutoRelogin()) {
+              const retryRes = await safeFetch('/chat/info');
+              result = await retryRes.json();
+            }
+          }
+          if (result && result._html) {
+            store.netError = true;
+          } else if (infoLoopRunning && result && result.success) {
             await update(result);
             if (isWeb) applyLastSendTimesToList();
           }
@@ -2306,13 +2384,11 @@ async function startInfoLoop() {
         } catch {}
       }
     } catch (e) {
-      // 单轮抛错绝不能杀死整个轮询：这里以前是裸露的循环体，任何一处异常
-      // （例如热更新中途拿到的半成品模块、字段缺失）都会让 while 直接退出，
-      // 表现就是「target-times 还在跳，但再也不发 /chat/chat、新消息永远不出现」。
+      // 单轮抛错绝不能杀死整个轮询
       console.error('[poll] 本轮出错，2s 后继续：', e);
       failCount++;
     }
-    await new Promise(r => setTimeout(r, setting.value.pollInterval || 1000));
+    await pollSleep(setting.value.pollInterval || 1000);
   }
 }
 
@@ -2355,7 +2431,7 @@ function onDocClick(e) {
 }
 
 // --- 网络状态 ---
-function onOnline() { store.online = true; }
+function onOnline() { store.online = true; wakePoll?.(); }
 function onOffline() { store.online = false; }
 
 // 窗口重新获得焦点时清空各会话的待通知计数
@@ -2427,22 +2503,37 @@ onMounted(async () => {
     store.initializing = false;
     return;
   }
+  // 先从本地恢复上次登录的账号标识，保证即使离线启动 / 首屏请求失败也能先加载本地 SQLite 历史消息
+  if (!isWeb && !store.self.uid) {
+    try {
+      const cachedSelf = JSON.parse(localStorage.getItem('7fa4_self') || 'null');
+      if (cachedSelf && cachedSelf.uid) Object.assign(store.self, cachedSelf);
+    } catch {}
+  }
+  await loadData();
+
+  let initialInfo = null;
   try {
     const infoRes = await safeFetch('/chat/info');
-    const initialInfo = await infoRes.json();
-    // 网页版：cookie 失效时 OJ 会直接回登录页 HTML（不是 302），这里整页跳登录
-    if (initialInfo && initialInfo._html) { handleSessionExpired(); return; }
-    if (initialInfo.success) Object.assign(store.self, { uid: initialInfo.user.id, username: initialInfo.user.uid, nickname: initialInfo.user.nickname, realname: initialInfo.user.real_name });
-    await loadData();
-    if (initialInfo.success) await update(initialInfo);
-    else store.netError = true; // /chat/info 失败（网络断/会话失效）→ 未连接横幅，但本地历史仍可读
+    initialInfo = await infoRes.json();
+    // 返回 HTML（登录态失效被重定向到登录页）与断网同一种状态：桌面端挂「未连接」横幅、本地历史照读；
+    // 网页版没有本地登录页，整页回 OJ 登录
+    if (initialInfo && initialInfo._html) {
+      store.netError = true;
+      if (isWeb) { gotoLogin(); return; }
+    }
+    if (initialInfo && initialInfo.success) {
+      Object.assign(store.self, { uid: initialInfo.user.id, username: initialInfo.user.uid, nickname: initialInfo.user.nickname, realname: initialInfo.user.real_name });
+      await loadData();
+    } else {
+      store.netError = true; // /chat/info 失败（网络断/会话失效）→ 未连接横幅，但本地历史仍可读
+    }
     updateBadgeCount();
     nextTick(() => { messageListRef.value?.scrollToBottomInstant(); });
-  } finally {
-    // 加载提示的收尾移入 startInfoLoop：首次历史爬取完成后再隐藏，
-    // 否则会在爬取仍在进行时提前消失（"提示闪一下就没了，消息还在加载"）。
+  } catch {
+    store.netError = true;
   }
-  if (store.logined) startInfoLoop();
+  if (store.logined) startInfoLoop(initialInfo);
   document.addEventListener('keydown', onDocKeydown);
   document.addEventListener('click', onDocClick);
   document.addEventListener('mousemove', (e) => { lastMouseX.value = e.clientX; lastMouseY.value = e.clientY; });
@@ -2450,6 +2541,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   infoLoopRunning = false;
+  wakePoll?.();
   if (pollTimer) clearInterval(pollTimer);
   if (autoSaveTimer) clearInterval(autoSaveTimer);
   if (downTicker) clearInterval(downTicker);

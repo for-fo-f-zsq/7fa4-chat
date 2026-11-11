@@ -18,7 +18,7 @@
             />
           </div>
           <div class="option-row theme-row" role="button" tabindex="0" @click="$emit('openThemeModal')" @keydown.enter="$emit('openThemeModal')" @keydown.space.prevent="$emit('openThemeModal')">
-            <span class="option-label">主题<i class="fas fa-circle-info option-info" title="切换界面配色，内置 22 套预设主题与「自定义」；自定义可逐项调整颜色"></i></span>
+            <span class="option-label">主题<i class="fas fa-circle-info option-info" title="切换界面配色，内置 6 套预设主题与「自定义」；自定义可逐项调整颜色"></i></span>
             <div class="theme-current"><UiBadge dot :color="currentThemeColor" :title="currentThemeLabel" /><span>{{ currentThemeLabel }}</span><i class="fas fa-chevron-right theme-row-arrow"></i></div>
           </div>
           <div class="option-row">
@@ -132,7 +132,7 @@ const apiUrlOptions = [
 const currentTheme = computed(() => props.setting?.theme || 'default')
 const currentThemeLabel = computed(() => {
   if (currentTheme.value === 'custom') return '自定义（Custom）'
-  return themes.find(t => t.value === currentTheme.value)?.label || 'QQ'
+  return themes.find(t => t.value === currentTheme.value)?.label || '雾蓝（Default）'
 })
 const currentThemeColor = computed(() => {
   if (currentTheme.value === 'custom') return 'var(--accent)'

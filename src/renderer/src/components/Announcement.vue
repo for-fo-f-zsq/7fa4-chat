@@ -16,12 +16,12 @@
             <div v-else-if="page === 1" key="update" class="announcement-page">
               <h2><i class="fas fa-star"></i> 本次更新</h2>
               <ul class="announcement-list">
-                <li>网页版上线：浏览器打开 jx.7fa4.cn:8888/7fa4-chat/web 就能聊天，账号沿用 OJ 登录</li>
-                <li>网页版按会话懒加载：列表只探时间戳，点开才拉消息，上翻按需补历史，首屏更快、流量更省</li>
-                <li>默认主题主色加深、底色转中性蓝灰，按钮图标与 @提醒更清楚</li>
-                <li>姓名库按最新 OJ 数据重建，年级显示更准；文件卡片固定宽度</li>
-                <li>下载与官网入口统一指向官网，侧栏、更新面板、关于面板都能直达</li>
-                <li>修复性能档全白、纯文本换行被吞、上翻被弹回底部、列表丢标记、私信投票无反应等问题</li>
+                <li>全新官网上线（jx.7fa4.cn:8888/7fa4-chat/）：聚合多平台安装包下载、更新日志、常见问题与赞助名单</li>
+                <li>内置意见反馈系统：应用内直接提交问题或建议（支持粘贴最多 3 张截图），无需另外跳转登录 GitLab</li>
+                <li>桌面端新增首次启动欢迎介绍，最后一页可自主选择进入功能教程或直接开始使用</li>
+                <li>顶部状态横幅改为居中悬浮胶囊，出现或关闭时不再挤压会话列表与聊天区</li>
+                <li>图片与表情发送压缩对齐 OJ 后端（1280px + 消息体自适应降质），解决大图「消息过长」发送失败</li>
+                <li>修复网页版上滑历史只能翻一页或被弹回底部、以及断线或会话失效时卡在加载遮罩的问题</li>
               </ul>
             </div>
             <!-- 页 3：更新日志 -->
@@ -40,7 +40,7 @@
             <div v-else-if="page === 3" key="thanks" class="announcement-page announcement-thanks">
               <h2><i class="fas fa-heart"></i> 喜欢这个应用吗？</h2>
               <p>由 for_fo_f 独立开发维护，你的每一份赞赏都是持续更新的动力</p>
-              <img v-if="!qrError" :src="DONATE_URL" alt="赞赏码" class="announcement-donate" @error="qrError = true" @click="donateZoom = true" />
+              <img v-if="!qrError" :src="donateSrc" alt="赞赏码" class="announcement-donate" @error="onQrImgError" @click="donateZoom = true" />
               <p v-else class="announcement-donate-tip">赞赏码加载失败，请稍后刷新重试</p>
               <p v-if="!qrError" class="announcement-donate-tip">点击二维码可放大</p>
               <!-- #18 赞助者列表（表格） -->
@@ -79,7 +79,7 @@
 
       <!-- 二维码放大 -->
       <UiModal :open="donateZoom && !qrError" size="lg" @close="donateZoom = false">
-        <img :src="DONATE_URL" alt="赞赏码" class="announcement-zoom-img" @click="donateZoom = false" />
+        <img :src="donateSrc" alt="赞赏码" class="announcement-zoom-img" @click="donateZoom = false" />
       </UiModal>
     </div>
   </Transition>
@@ -90,14 +90,24 @@
 // 组件常驻（不再由父级 v-if 卸载）：根节点 overlay 的 v-if="visible" 让 <Transition name="overlay"> 的 leave 真正执行。
 
 import { ref, computed, watch, onMounted } from 'vue'
-import { gitlabRawUrl } from '../utils.js'
+import { gitlabRawUrl, officialSiteUrl } from '../utils.js'
 import { assetUrl } from '../platform/asset-base.js'
 import { renderChangelogMarkdown } from '../changelog-md.js'
 import { UiBanner, UiButton, UiCard, UiEmptyState, UiModal, UiSpinner } from '@/ui'
 
 const iconUrl = assetUrl('icon.png')
 
-const DONATE_URL = computed(() => gitlabRawUrl('assets/donate-qr.jpg'))
+const useFallbackQr = ref(false)
+const donateSrc = computed(() => (
+  useFallbackQr.value ? gitlabRawUrl('assets/donate-qr.jpg') : `${officialSiteUrl()}donate-qr.jpg`
+))
+function onQrImgError() {
+  if (!useFallbackQr.value) {
+    useFallbackQr.value = true
+    return
+  }
+  qrError.value = true
+}
 const props = defineProps({
   visible: { type: Boolean, default: false },
 })

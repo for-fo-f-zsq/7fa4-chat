@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>意见反馈 · 7FA4 Chat</title>
+<style>
+  :root {
+    --bg: #f5f9fe;
+    --card: #ffffff;
+    --line: #dde7f5;
+    --fg: #24324a;
+    --muted: #5f7089;
+    --brand: #4b73a6;
+    --brand-fill: #a3bfe3;
+    --danger: #a35e56;
+    --ok: #3f7d5c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #171c26;
+      --card: #1e2432;
+      --line: #2c3547;
+      --fg: #e8edf6;
+      --muted: #9aa7bd;
+      --brand: #8fb0dd;
+      --brand-fill: #37506f;
+      --danger: #e08c84;
+      --ok: #7cc39b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.7 "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 32px 18px 56px;
+  }
+  .wrap { width: 100%; max-width: 620px; }
+  .head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: .2px; }
+  .head a { margin-left: auto; font-size: 13px; color: var(--muted); text-decoration: none; }
+  .head a:hover { color: var(--brand); text-decoration: underline; }
+  .sub { margin: 0 0 22px; font-size: 13.5px; color: var(--muted); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 22px 22px 18px;
+    box-shadow: 0 2px 10px rgba(35, 55, 90, .05);
+  }
+  label { display: block; font-size: 13.5px; font-weight: 600; margin: 0 0 7px; }
+  .hint { font-weight: 400; color: var(--muted); font-size: 12.5px; }
+  textarea, input[type="text"] {
+    width: 100%;
+    font: inherit;
+    color: inherit;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  textarea { min-height: 168px; resize: vertical; line-height: 1.65; }
+  textarea:focus, input[type="text"]:focus {
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 20%, transparent);
+  }
+  .row { margin-top: 18px; }
+  .count { float: right; font-weight: 400; font-size: 12px; color: var(--muted); }
+  .count.over { color: var(--danger); }
+  .platforms { display: flex; flex-wrap: wrap; gap: 8px; }
+  .platforms label {
+    margin: 0;
+    font-weight: 400;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 13px;
+    background: var(--bg);
+    transition: border-color .15s, background-color .15s;
+  }
+  .platforms input { accent-color: var(--brand); margin: 0; }
+  .platforms label:has(input:checked) {
+    border-color: var(--brand);
+    background: color-mix(in srgb, var(--brand) 10%, var(--bg));
+    font-weight: 600;
+  }
+  .shots { display: flex; flex-wrap: wrap; gap: 10px; }
+  .shot {
+    position: relative;
+    width: 92px;
+    height: 92px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background: var(--bg);
+  }
+  .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .shot button {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 22px;
+    height: 22px;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, .55);
+    color: #fff;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+  }
+  .shot-add {
+    width: 92px;
+    height: 92px;
+    border-radius: 10px;
+    border: 1px dashed var(--line);
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .shot-add:hover { border-color: var(--brand); color: var(--brand); }
+  .shot-add b { font-size: 20px; line-height: 1; font-weight: 400; }
+  .actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; }
+  button.primary {
+    font: inherit;
+    font-weight: 600;
+    color: #1f2c42;
+    background: var(--brand-fill);
+    border: 0;
+    border-radius: 10px;
+    padding: 10px 22px;
+    cursor: pointer;
+    transition: filter .15s;
+  }
+  button.primary:hover:not(:disabled) { filter: brightness(.95); }
+  button.primary:disabled { opacity: .55; cursor: not-allowed; }
+  .msg { font-size: 13.5px; }
+  .msg.err { color: var(--danger); }
+  .msg.ok { color: var(--ok); }
+  .done { text-align: center; padding: 30px 10px 20px; }
+  .done h2 { margin: 0 0 8px; font-size: 19px; }
+  .done p { margin: 0 0 18px; color: var(--muted); font-size: 13.5px; }
+  .done code {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-size: 13px;
+  }
+  .link-btn {
+    font: inherit;
+    font-size: 13px;
+    color: var(--brand);
+    background: none;
+    border: 0;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+  }
+  footer { margin-top: 18px; font-size: 12.5px; color: var(--muted); text-align: center; }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>意见反馈</h1>
+    <a href="../">返回官网</a>
+  </div>
+  <p class="sub">遇到问题、想要新功能，都可以在这里说。截图可选，最多 3 张。</p>
+
+  <div class="card" id="card">
+    <form id="form" novalidate>
+      <div>
+        <label for="content">反馈内容 <span class="hint">必填，最多 4000 字</span><span class="count" id="count">0/4000</span></label>
+        <textarea id="content" maxlength="4000" placeholder="描述你遇到的问题：做了什么、期望什么、实际发生了什么。能复现的步骤越具体越好。"></textarea>
+      </div>
+
+      <div class="row">
+        <label>平台 <span class="hint">会自动识别，可手动改</span></label>
+        <div class="platforms" id="platforms">
+          <label><input type="radio" name="platform" value="windows" /> Windows</label>
+          <label><input type="radio" name="platform" value="linux" /> Linux</label>
+          <label><input type="radio" name="platform" value="web" /> 网页版</label>
+          <label><input type="radio" name="platform" value="macos" /> macOS</label>
+          <label><input type="radio" name="platform" value="android" /> Android</label>
+          <label><input type="radio" name="platform" value="unknown" /> 其它/不清楚</label>
+        </div>
+      </div>
+
+      <div class="row">
+        <label>截图 <span class="hint">可选，最多 3 张，单张 ≤ 3MB</span></label>
+        <div class="shots" id="shots">
+          <button type="button" class="shot-add" id="addShot"><b>+</b>添加截图</button>
+        </div>
+        <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
+      </div>
+
+      <div class="row">
+        <label for="contact">联系方式 <span class="hint">可选，方便回复你</span></label>
+        <input type="text" id="contact" maxlength="120" placeholder="OJ 用户名 / 邮箱 / QQ，任选其一" />
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="primary" id="submit">提交反馈</button>
+        <span class="msg" id="msg"></span>
+      </div>
+    </form>
+
+    <div class="done" id="done" hidden>
+      <h2>已收到，谢谢！</h2>
+      <p>反馈编号 <code id="doneId"></code>，我看过之后会在后续版本里处理。</p>
+      <button type="button" class="link-btn" id="again">再提交一条</button>
+    </div>
+  </div>
+
+  <footer>7FA4 Chat · <a href="../">官网</a></footer>
+</div>
+
+<script>
+(function () {
+  var MAX_SHOTS = 3;
+  var MAX_SHOT = 3 * 1024 * 1024;
+  var MAX_CONTENT = 4000;
+  var shots = [];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var contentEl = $('content');
+  var countEl = $('count');
+  var msgEl = $('msg');
+  var submitEl = $('submit');
+  var fileEl = $('file');
+
+  // 站点可能被反代挂在子路径下（例如 /7fa4-chat/feedback），前缀只存在于浏览器侧
+  var BASE = location.pathname.replace(/\/feedback(?:\/(?:index\.html)?)?$/, '');
+  var submitUrl = BASE + '/api/feedback';
+  document.querySelectorAll('a[href="../"]').forEach(function (a) {
+    a.href = (BASE || '') + '/';
+  });
+
+  // 自动识别平台：桌面端反馈按钮会带 ?platform=windows 之类；否则按 UA 猜
+  function detectPlatform() {
+    var p = new URLSearchParams(location.search).get('platform');
+    if (p) return p.toLowerCase();
+    var ua = navigator.userAgent;
+    if (/Android/i.test(ua)) return 'android';
+    if (/Windows/i.test(ua)) return 'windows';
+    if (/Linux/i.test(ua) && !/Android/i.test(ua)) return 'linux';
+    if (/Mac OS X/i.test(ua)) return 'macos';
+    return 'web';
+  }
+  var detected = detectPlatform();
+  var radio = document.querySelector('input[name="platform"][value="' + detected + '"]');
+  if (!radio) radio = document.querySelector('input[name="platform"][value="unknown"]');
+  if (radio) radio.checked = true;
+
+  contentEl.addEventListener('input', function () {
+    var n = contentEl.value.length;
+    countEl.textContent = n + '/' + MAX_CONTENT;
+    countEl.classList.toggle('over', n > MAX_CONTENT);
+  });
+
+  var addEl = $('addShot');
+  addEl.addEventListener('click', function () {
+    if (shots.length >= MAX_SHOTS) return;
+    fileEl.value = '';
+    fileEl.click();
+  });
+
+  function addShotFiles(fileList) {
+    var list = Array.prototype.slice.call(fileList || []);
+    var room = MAX_SHOTS - shots.length;
+    if (room <= 0 && list.length > 0) {
+      setMsg('最多只能添加 ' + MAX_SHOTS + ' 张截图', true);
+      return;
+    }
+    list.slice(0, room).forEach(function (f) {
+      if (!/^image\//.test(f.type)) { setMsg('只能上传图片', true); return; }
+      if (f.size > MAX_SHOT) { setMsg('单张截图不能超过 3MB', true); return; }
+      var reader = new FileReader();
+      reader.onload = function () {
+        shots.push({ type: f.type, data: String(reader.result), name: f.name || 'screenshot.png' });
+        setMsg('');
+        renderShots();
+      };
+      reader.readAsDataURL(f);
+    });
+  }
+
+  fileEl.addEventListener('change', function () {
+    addShotFiles(fileEl.files);
+  });
+
+  document.addEventListener('paste', function (e) {
+    var items = Array.prototype.slice.call((e.clipboardData && e.clipboardData.items) || []);
+    var imgFiles = items
+      .filter(function (it) { return it.kind === 'file' && /^image\//.test(it.type); })
+      .map(function (it) { return it.getAsFile(); })
+      .filter(Boolean);
+    if (!imgFiles.length) return;
+    e.preventDefault();
+    addShotFiles(imgFiles);
+  });
+
+  function renderShots() {
+    var box = $('shots');
+    box.querySelectorAll('.shot').forEach(function (n) { n.remove(); });
+    shots.forEach(function (s, i) {
+      var d = document.createElement('div');
+      d.className = 'shot';
+      var img = document.createElement('img');
+      img.src = s.data;
+      img.alt = '截图 ' + (i + 1);
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.textContent = '×';
+      del.title = '移除';
+      del.addEventListener('click', function () {
+        shots.splice(i, 1);
+        renderShots();
+      });
+      d.appendChild(img);
+      d.appendChild(del);
+      box.insertBefore(d, addEl);
+    });
+    addEl.style.display = shots.length >= MAX_SHOTS ? 'none' : '';
+  }
+
+  function setMsg(text, isErr) {
+    msgEl.textContent = text || '';
+    msgEl.className = 'msg' + (text ? (isErr ? ' err' : ' ok') : '');
+  }
+
+  function fail(text) {
+    setMsg(text, true);
+    submitEl.disabled = false;
+    submitEl.textContent = '提交反馈';
+  }
+
+  $('form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var content = contentEl.value.trim();
+    if (!content) { setMsg('先写点内容吧', true); contentEl.focus(); return; }
+    if (content.length > MAX_CONTENT) { setMsg('内容超出 ' + MAX_CONTENT + ' 字', true); return; }
+
+    var checked = document.querySelector('input[name="platform"]:checked');
+    var payload = {
+      content: content,
+      platform: checked ? checked.value : 'unknown',
+      contact: $('contact').value.trim(),
+      page: location.href,
+      version: new URLSearchParams(location.search).get('version') || '',
+      screenshots: shots.map(function (s) { return { type: s.type, data: s.data, name: s.name }; })
+    };
+
+    submitEl.disabled = true;
+    submitEl.textContent = '提交中…';
+    setMsg('');
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', submitUrl, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.timeout = 60000;
+    xhr.onload = function () {
+      var data = null;
+      try { data = JSON.parse(xhr.responseText || '{}'); } catch (err) {}
+      if (xhr.status === 200 && data && data.ok) {
+        $('doneId').textContent = data.id || '—';
+        $('form').hidden = true;
+        $('done').hidden = false;
+      } else {
+        fail((data && data.error) || ('提交失败（HTTP ' + xhr.status + '）'));
+      }
+    };
+    xhr.onerror = function () { fail('网络错误，检查一下连接后重试'); };
+    xhr.ontimeout = function () { fail('提交超时，请重试'); };
+    xhr.send(JSON.stringify(payload));
+  });
+
+  $('again').addEventListener('click', function () {
+    contentEl.value = '';
+    countEl.textContent = '0/' + MAX_CONTENT;
+    shots = [];
+    renderShots();
+    $('contact').value = '';
+    $('done').hidden = true;
+    $('form').hidden = false;
+    submitEl.disabled = false;
+    submitEl.textContent = '提交反馈';
+    setMsg('');
+    contentEl.focus();
+  });
+
+  contentEl.focus();
+})();
+</script>
+</body>
+</html>

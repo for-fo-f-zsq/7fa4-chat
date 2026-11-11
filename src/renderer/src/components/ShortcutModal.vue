@@ -37,6 +37,7 @@
 // 用法：<ShortcutModal v-if="shortcutModal" :setting="setting" @close="shortcutModal=false" @settingChange="save" />
 
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { isWebBrowser } from '../utils.js'
 import { UiButton, UiIconButton, UiModal } from '@/ui'
 
 const props = defineProps({
@@ -44,6 +45,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'settingChange'])
+const isWeb = isWebBrowser()
 
 // 编号严格跟随 NavBar 主导航顺序：消息 / 工具 / 设置；关于排在其后
 const defaultShortcuts = {
@@ -60,7 +62,7 @@ const shortcutItems = [
   { action: 'sendMessage', label: '发送消息' },
   { action: 'search', label: '搜索' },
   { action: 'switchToChat', label: '切换到消息' },
-  { action: 'switchToTools', label: '切换到工具' },
+  ...(!isWeb ? [{ action: 'switchToTools', label: '切换到工具' }] : []),
   { action: 'switchToSettings', label: '切换到设置' },
   { action: 'switchToAbout', label: '切换到关于' },
   { action: 'newConversation', label: '新建会话' }

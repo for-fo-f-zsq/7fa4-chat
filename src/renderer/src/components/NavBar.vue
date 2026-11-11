@@ -138,7 +138,7 @@ import { ref, computed } from 'vue'
 import { UiAvatar, UiBadge, UiIconButton } from '../ui'
 import { vClickOutside } from '../composables/vClickOutside.js'
 import { store } from '../store.js'
-import { isUserHiddenBySetting, isWebBrowser, officialSiteUrl, officialDownloadUrl, gitlabIssuesUrl, avatarTint } from '../utils.js'
+import { isUserHiddenBySetting, isWebBrowser, officialSiteUrl, officialDownloadUrl, feedbackPageUrl, avatarTint } from '../utils.js'
 
 const props = defineProps({
   pageType: String,
@@ -199,10 +199,16 @@ function openAnnouncement() {
   window.dispatchEvent(new CustomEvent('open-announcement'))
 }
 
-// 意见反馈：直接跳转 GitLab Issues（不再走客户端内置表单）
-function openFeedback() {
+// 意见反馈：桌面端弹内置表单（直接提交到官网后端），网页版开官网反馈页
+async function openFeedback() {
   userMenu.value = false
-  try { window.api.openExternal(gitlabIssuesUrl()) } catch {}
+  if (isWeb) {
+    let ver = ''
+    try { ver = String((await window.api.getVersion()) || '') } catch {}
+    try { window.api.openExternal(feedbackPageUrl('web', ver)) } catch {}
+    return
+  }
+  window.dispatchEvent(new CustomEvent('open-feedback'))
 }
 
 // 左上角标识：点击打开官网

@@ -179,7 +179,8 @@ html.fx-lite .app::after {
     flex-shrink: 0;
 }
 
-/* ---------- 7. 网络/登录状态横幅（UiBanner + UiButton；全宽条覆盖，位于 title-bar 与 app-body 之间） ---------- */
+/* ---------- 7. 网络/登录状态横幅（UiBanner + UiButton）
+   外观与配色在本段；定位在下方 .banner-stack（顶部浮层，不占布局高度）。 ---------- */
 .network-banner.ui-banner {
     border-radius: 0;
     border: none;
@@ -217,6 +218,53 @@ html.fx-lite .app::after {
     color: var(--banner-action-fg);
     background: color-mix(in srgb, var(--banner-action-fg) 35%, transparent);
 }
+/* 顶部横幅浮层：绝对定位、脱离 .app 的 flex 布局流 —— 出现/关闭都不挤压 title-bar
+   以下的任何内容（列表/会话/输入栏位置恒定），只在顶部居中悬浮圆角横幅。
+   serverNotice / 连接断开 / 未登录 三类横幅共用这一层，同时最多叠一条（互斥），
+   故无须处理多条堆叠间距，仅留 gap 兜底。 */
+.banner-stack {
+    position: absolute;
+    top: 40px; /* 32px 桌面标题栏 + 8px 间距 */
+    left: 0;
+    right: 0;
+    z-index: var(--z-float);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    pointer-events: none; /* 整条浮层不挡交互，只有横幅本体可点 */
+}
+/* 无桌面标题栏（网页版/移动端 body.web 隐藏 .title-bar）时贴顶 */
+body.web .banner-stack {
+    top: var(--space-2);
+}
+/* 浮层内的横幅：覆盖 §7 的「全宽贴边条」外观，改为居中圆角胶囊 + 阴影 */
+.banner-stack .network-banner.ui-banner {
+    pointer-events: auto;
+    width: fit-content;
+    max-width: min(560px, calc(100% - 2 * var(--space-6)));
+    border-radius: var(--radius-pill);
+    border: var(--border-width) solid color-mix(in srgb, var(--banner-action-fg) 32%, transparent);
+    box-shadow: var(--elev-2);
+    padding: var(--space-2) var(--space-3);
+    align-items: center;
+    flex: 0 0 auto;
+    font-size: var(--text-sm);
+    /* 浮层压在正文之上：variant 原本的 *-soft 是半透明色（danger .12 / warning .14），
+       贴在全宽条上时看不出来，改成浮层后会透出下面的聊天内容、和横幅文字重叠成乱码。
+       故一律以不透明的表面色打底（见下方按 variant 覆盖），既保留配色倾向又完全遮住底下的字。 */
+    background: var(--surface-0);
+}
+.banner-stack .network-banner.ui-banner--danger {
+    background: color-mix(in srgb, var(--status-danger) 12%, var(--surface-0));
+}
+.banner-stack .network-banner.ui-banner--warning {
+    background: color-mix(in srgb, var(--status-warning) 14%, var(--surface-0));
+}
+.banner-stack .network-banner.ui-banner--notice {
+    background: color-mix(in srgb, var(--status-notice) 12%, var(--surface-0));
+}
+
 /* 单方面关注提示条（UiBanner warning）：紧凑居中的窄条，保留底部分隔线 */
 .chat-watch-warn.ui-banner {
     border-radius: 0;

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <!-- 视图舞台：ChatView 为多根 Fragment，Transition 子节点必须是单元素，故用 keyed 包装层承载页面切换 -->
   <div class="app-stage">
     <Transition name="page" mode="out-in">
@@ -15,11 +15,18 @@
       </div>
     </Transition>
   </div>
+  <!-- 首次打开的应用介绍：全屏数页，最后一页让用户选择是否进入新手教程。
+       appear 让它在「启动即挂载」时也走一次淡入（默认只在后续插入时才有进场过渡）。 -->
+  <Transition name="overlay" appear>
+    <WelcomeIntro v-if="showWelcome" @finish="finishWelcome" />
+  </Transition>
   <Transition name="fade">
     <Onboarding v-if="showOnboarding" @close="closeOnboarding" />
   </Transition>
   <!-- 公告常驻：父级只切 visible，组件内部 overlay Transition 负责进出场（M-1，避免 v-if 卸载导致关闭硬切） -->
   <Announcement :visible="showAnnouncement" @close="closeAnnouncement" />
+  <!-- 意见反馈：桌面端用内置表单直接 POST 官网后端；网页版由 NavBar 直接开 /feedback 页面 -->
+  <FeedbackModal :open="showFeedback" @close="showFeedback = false" />
   <Transition name="fade">
     <div v-if="store.initializing && store.logined" class="init-loading">
       <div class="init-spinner motion-spin"></div>
@@ -38,6 +45,8 @@ import LoginView from './views/LoginView.vue';
 import ChatView from './views/ChatView.vue';
 import Announcement from './components/Announcement.vue';
 import Onboarding from './components/Onboarding.vue';
+import WelcomeIntro from './components/WelcomeIntro.vue';
+import FeedbackModal from './components/FeedbackModal.vue';
 import { loadUsersDb, compareVersion, checkAppUpdate, isWebBrowser } from './utils.js';
 import { prefersReducedMotion } from './utils/motion.js';
 
@@ -58,31 +67,47 @@ const loginSeq = ref(0)
 const viewKey = computed(() => ((store.logined || store.guestMode) ? 'chat' : 'login') + '-' + loginSeq.value)
 const reducedMotion = ref(prefersReducedMotion())
 
-// --- 新用户引导：只在首次启动（本地无标记）时展示一次；网页版不弹 ---
-// 网页版没有「登录页」「工具」这些桌面端的引导步骤，弹出来反而误导（第一页就让人去输 OJ 密码）
+// --- 首次打开的应用介绍：全屏数页功能介绍，最后一页让用户自己选择是否进入新手教程 ---
+// 只在桌面端首次启动出现（本地无标记）；网页版没有这些桌面步骤，且登录页由 OJ 负责，不展示
+const showWelcome = ref(false)
+const WELCOME_KEY = 'welcome-seen'
+try {
+  if (!isWeb && localStorage.getItem(WELCOME_KEY) !== '1') showWelcome.value = true
+} catch {}
+function finishWelcome({ tutorial }) {
+  showWelcome.value = false
+  try { localStorage.setItem(WELCOME_KEY, '1') } catch {}
+  if (tutorial) showOnboarding.value = true
+  // 首次启动不弹版本公告（没有旧版本可比），这里只在挂起过时才放行
+  else if (announcementPending.value) showAnnouncement.value = true
+}
+
+// --- 新手教程：不再自动弹出，只从介绍最后一页或「关于」入口进入 ---
 const showOnboarding = ref(false)
 const ONBOARDING_KEY = 'onboarding-seen'
-try {
-  if (!isWeb && localStorage.getItem(ONBOARDING_KEY) !== '1') showOnboarding.value = true
-} catch {}
 function closeOnboarding() {
   showOnboarding.value = false
   try { localStorage.setItem(ONBOARDING_KEY, '1') } catch {}
-  // 首次启动两件事都有：引导关掉后再弹版本公告，避免两层叠在一起
+  // 教程关掉后再弹版本公告，避免两层叠在一起
   if (announcementPending.value) showAnnouncement.value = true
 }
 
-// --- 版本公告：本地记录已看过的最高版本，首次打开新版本时展示 ---
+// --- 版本公告：只在「上次登录时的版本比当前旧」时展示；首次使用（本地无记录）不弹 ---
 const showAnnouncement = ref(false)
 const announcementPending = ref(false)
 const SEEN_VERSION_KEY = 'announcement-seen-version'
 async function checkAnnouncement() {
   try {
     const v = await window.api.getVersion()
-    const seen = localStorage.getItem(SEEN_VERSION_KEY) || '0'
+    const seen = localStorage.getItem(SEEN_VERSION_KEY) || ''
+    // 首次使用：只记下当前版本，不弹公告（首次打开的说明由 WelcomeIntro 承担）
+    if (!seen) {
+      localStorage.setItem(SEEN_VERSION_KEY, v)
+      return
+    }
     if (compareVersion(v, seen) > 0) {
-      // 新用户引导还开着就先挂起，等引导关掉再弹
-      if (showOnboarding.value) announcementPending.value = true
+      // 介绍/教程还开着就先挂起，等它们关掉再弹
+      if (showWelcome.value || showOnboarding.value) announcementPending.value = true
       else showAnnouncement.value = true
     }
   } catch {}
@@ -96,6 +121,9 @@ checkAnnouncement()
 window.addEventListener('open-announcement', () => { showAnnouncement.value = true })
 // 关于页"新手指引"入口：全局事件重新打开引导（看完不改写已看标记，可随时回看）
 window.addEventListener('open-onboarding', () => { showOnboarding.value = true })
+// 意见反馈弹窗（NavBar 头像菜单 / 设置面板触发）
+const showFeedback = ref(false)
+window.addEventListener('open-feedback', () => { showFeedback.value = true })
 
 // #2 登录持久化：localStorage 有登录标记 → 直接进入已登录主界面（重启/reload 不退出登录）
 try {

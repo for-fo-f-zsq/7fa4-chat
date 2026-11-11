@@ -39,4 +39,18 @@ website-dev/
 .env
 .env.local
 
+# 临时运行与日志文件
+tmp-*
+*.log
+*.err
+
+# 官网与反馈服务运行时产生的数据（含用户反馈、会话密钥，不入库）
+/site/data/feedback/.secret
+/site/data/feedback/items.json
+/site/data/feedback/attachments/*
+!/site/data/feedback/attachments/.gitkeep
+
+# 站点本地静态托管的网页端同步产物（由 build:web --copy-to-site 生成，避免重复大文件入库）
+/site/public/web/
+
 

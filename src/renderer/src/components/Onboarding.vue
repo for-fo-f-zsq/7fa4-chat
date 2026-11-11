@@ -147,7 +147,7 @@ const STEPS = [
     type: 'free',
     icon: 'fa-palette',
     title: '挑一个喜欢的主题',
-    text: '点头像 → 设置 → 主题：20 多套预设配色还能自定义，点开就能实时预览，整个界面马上换新感觉。',
+    text: '点头像 → 设置 → 主题：6 套预设配色还能自定义，点开就能实时预览，整个界面马上换新感觉。',
     resolve: () =>
       document.querySelector('.ui-modal') ||
       document.querySelector('.theme-row') ||

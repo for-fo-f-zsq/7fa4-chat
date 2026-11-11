@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<title>7FA4 Chat 界面预览</title>
+<style>
+  :root{
+    --font: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  html[data-theme="dark"]{
+    --bg:#0b0d13; --bar:#10131b; --panel:#0f1219; --line:rgba(255,255,255,.07);
+    --ink:#e8ecf6; --ink-2:#aab3c6; --faint:#6f7a90;
+    --bubble:#181c26; --bubble-me:linear-gradient(135deg,#3f56c9,#5b6fe0);
+    --accent:#8ea6ff; --chip:rgba(142,166,255,.12); --side-active:rgba(142,166,255,.13);
+    --shadow:0 30px 80px rgba(0,0,0,.55);
+  }
+  html[data-theme="light"]{
+    --bg:#ffffff; --bar:#f7f8fc; --panel:#fbfbfe; --line:rgba(16,24,40,.09);
+    --ink:#141a26; --ink-2:#4b566b; --faint:#8a93a6;
+    --bubble:#f2f4fa; --bubble-me:linear-gradient(135deg,#5468da,#6f83f0);
+    --accent:#4b5fc7; --chip:rgba(75,95,199,.10); --side-active:rgba(75,95,199,.10);
+    --shadow:0 24px 60px rgba(20,26,38,.16);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{width:900px;height:600px;font-family:var(--font);background:transparent;-webkit-font-smoothing:antialiased}
+  .win{
+    width:900px;height:600px;border-radius:18px;overflow:hidden;display:flex;flex-direction:column;
+    background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);
+  }
+  .bar{height:42px;flex:none;display:flex;align-items:center;gap:14px;padding:0 16px;background:var(--bar);border-bottom:1px solid var(--line)}
+  .dots{display:flex;gap:7px}
+  .dots i{width:11px;height:11px;border-radius:50%;display:block}
+  .dots i:nth-child(1){background:#ff5f57}.dots i:nth-child(2){background:#febc2e}.dots i:nth-child(3){background:#28c840}
+  .bar-title{flex:1;text-align:center;font-size:12.5px;color:var(--faint);letter-spacing:.01em}
+  .bar-title b{color:var(--ink-2);font-weight:600}
+  .bar-acts{display:flex;gap:10px;color:var(--faint)}
+  .bar-acts svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.7}
+
+  .main{flex:1;display:flex;min-height:0}
+  .side{width:208px;flex:none;border-right:1px solid var(--line);background:var(--panel);padding:12px 10px;display:flex;flex-direction:column;gap:3px}
+  .side-me{display:flex;align-items:center;gap:9px;padding:6px 8px 12px}
+  .side-me .ava{width:28px;height:28px}
+  .side-me b{font-size:12.5px;color:var(--ink);font-weight:600;display:block;line-height:1.25}
+  .side-me span{font-size:10.5px;color:var(--faint)}
+  .item{display:flex;align-items:center;gap:8px;padding:8px 9px;border-radius:9px;font-size:12.5px;color:var(--ink-2)}
+  .item .tag{margin-left:auto;font-size:10px;color:var(--faint);background:var(--chip);border-radius:20px;padding:1px 6px}
+  .item.active{background:var(--side-active);color:var(--ink);font-weight:600}
+  .item.active .tag{background:var(--bubble-me);color:#fff}
+  .side-foot{margin-top:auto;padding:10px 8px 2px;font-size:10.5px;color:var(--faint);border-top:1px solid var(--line)}
+
+  .chat{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+  .chat-head{height:52px;flex:none;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+  .chat-head b{font-size:13.5px;color:var(--ink);font-weight:650}
+  .chat-head .sub{font-size:11px;color:var(--faint);margin-left:auto}
+  .pill{font-size:10px;color:var(--accent);background:var(--chip);border-radius:20px;padding:2px 8px}
+
+  .thread{flex:1;overflow:hidden;padding:16px 18px 6px;display:flex;flex-direction:column;gap:13px}
+  .msg{display:flex;gap:9px;align-items:flex-start}
+  .msg.me{flex-direction:row-reverse}
+  .ava{width:30px;height:30px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:12px;font-weight:650;color:#fff}
+  .av-a{background:linear-gradient(135deg,#4a63d8,#7a8bf0)}
+  .av-b{background:linear-gradient(135deg,#12a08a,#3fc7ae)}
+  .av-c{background:linear-gradient(135deg,#b4653c,#e0925f)}
+  .bubble{max:74%;background:var(--bubble);border:1px solid var(--line);border-radius:13px;padding:9px 12px;font-size:12.5px;line-height:1.62;color:var(--ink)}
+  .bubble.me{background:var(--bubble-me);border-color:transparent;color:#fff}
+  .who{display:flex;align-items:baseline;gap:7px;margin-bottom:3px}
+  .who b{font-size:11.5px;color:var(--ink-2);font-weight:650}
+  .who span{font-size:10px;color:var(--faint)}
+  .bubble.me .who{display:none}
+  p{font-size:12.5px;line-height:1.62}
+
+  /* 公式：用 HTML/CSS 排版，模拟客户端里的 LaTeX 渲染 */
+  .formula{display:inline-flex;align-items:center;gap:3px;font-family:"Cambria Math",Cambria,"Times New Roman",serif;font-size:15px;vertical-align:middle;padding:0 2px}
+  .lim{display:inline-flex;flex-direction:column;align-items:center;line-height:1;margin-right:1px}
+  .lim .op{font-size:12px}
+  .lim .sb{font-size:8px;opacity:.75;margin-top:1px}
+  .big{font-size:19px;line-height:1}
+  .lim2{display:inline-flex;flex-direction:column;align-items:center;line-height:1;font-size:8.5px;margin:0 1px}
+  .lim2 .up,.lim2 .dn{opacity:.85}
+  .var{font-style:italic;font-size:15px;line-height:1}
+  .sub{font-size:9.5px;vertical-align:-.28em;margin-left:.5px}
+  .frac{display:inline-flex;flex-direction:column;align-items:center;line-height:1.05;font-size:10.5px;margin:0 2px}
+  .frac .n{border-bottom:1px solid currentColor;padding:0 2px}
+  code{font-family:var(--mono);font-size:11.5px;background:var(--chip);border-radius:4px;padding:1px 5px}
+
+  .attach{display:flex;align-items:center;gap:9px;margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(127,140,170,.10);border:1px solid var(--line)}
+  .attach svg{width:16px;height:16px;stroke:var(--accent);fill:none;stroke-width:1.7;flex:none}
+  .attach .fn{font-size:11.5px;color:var(--ink);max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .attach em{font-style:normal;font-size:10px;color:var(--faint);margin-left:auto}
+  .thumb{margin-top:8px;width:180px;height:96px;border-radius:9px;border:1px solid var(--line);
+    background:
+      radial-gradient(60% 70% at 22% 26%, rgba(142,166,255,.55), transparent 65%),
+      radial-gradient(55% 65% at 78% 32%, rgba(34,211,238,.45), transparent 62%),
+      radial-gradient(70% 80% at 55% 88%, rgba(167,139,250,.42), transparent 68%),
+      linear-gradient(140deg,#111726,#1b2333);
+    position:relative;overflow:hidden}
+  .thumb:after{content:"能谱曲线";position:absolute;left:9px;bottom:7px;font-size:9.5px;color:rgba(255,255,255,.62);letter-spacing:.02em}
+  .typing{display:flex;align-items:center;gap:5px;padding:2px 0 0 39px}
+  .typing i{width:5px;height:5px;border-radius:50%;background:var(--faint);display:block;animation:b 1.2s infinite}
+  .typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+  @keyframes b{0%,60%,100%{opacity:.28;transform:translateY(0)}30%{opacity:.9;transform:translateY(-2px)}}
+
+  .composer{flex:none;padding:10px 16px 14px;display:flex;align-items:center;gap:10px;border-top:1px solid var(--line);background:var(--panel)}
+  .box{flex:1;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--bg);display:flex;align-items:center;padding:0 12px;font-size:12px;color:var(--faint)}
+  .send{height:34px;padding:0 15px;border-radius:9px;background:var(--bubble-me);color:#fff;font-size:12px;display:grid;place-items:center;font-weight:600}
+</style>
+<script>
+  (function(){var m=/[?&]theme=(dark|light)/.exec(location.search); if(m) document.documentElement.dataset.theme=m[1];})();
+</script>
+</head>
+<body>
+<div class="win">
+  <div class="bar">
+    <span class="dots"><i></i><i></i><i></i></span>
+    <span class="bar-title"><b>7FA4 Chat</b> · 数学分析 2026 秋</span>
+    <span class="bar-acts">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-2.9-1.2l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15H4.5a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.2-2.9l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 2.9-1.2V4a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 2.9 1.2l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0 1.2 2.9h.09a2 2 0 1 1 0 4h-.09"/></svg>
+    </span>
+  </div>
+
+  <div class="main">
+    <aside class="side">
+      <div class="side-me">
+        <span class="ava av-c">陈</span>
+        <div><b>陈予安</b><span>在线 · 数学系</span></div>
+      </div>
+      <div class="item active">数学分析 · 助教<span class="tag">3</span></div>
+      <div class="item">普通物理 · 讨论组</div>
+      <div class="item">线代刷题群</div>
+      <div class="item">实验报告互审</div>
+      <div class="item">结构化学 · 答疑</div>
+      <div class="side-foot">本地缓存 128 条 · 已同步</div>
+    </aside>
+
+    <section class="chat">
+      <div class="chat-head">
+        <b>数学分析 · 助教</b>
+        <span class="pill">课程群</span>
+        <span class="sub">18 位成员 · 本周讨论 42 条</span>
+      </div>
+
+      <div class="thread">
+        <div class="msg">
+          <span class="ava av-a">助</span>
+          <div class="bubble">
+            <div class="who"><b>数学分析 · 助教</b><span>10:12</span></div>
+            <p>第 3 题换序可以这样理解：若 <span class="formula"><span class="big">∑</span><span class="lim2"><span class="up">∞</span><span class="dn">n=1</span></span><span class="var">a</span><span class="sub">n</span></span> 在一致收敛下成立，逐项积分就不必再补条件。</p>
+          </div>
+        </div>
+
+        <div class="msg me">
+          <div class="bubble me">
+            <p>明白，我把推导补成 Markdown 发上来。</p>
+          </div>
+        </div>
+
+        <div class="msg">
+          <span class="ava av-b">物</span>
+          <div class="bubble">
+            <div class="who"><b>普通物理 · 讨论组</b><span>10:14</span></div>
+            <p>实验数据表格已发，注意单位换算，<code>nm</code> 要换成 <code>m</code>。</p>
+            <div class="attach">
+              <svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/></svg>
+              <span class="fn">实验报告-3.xlsx</span><em>36 KB</em>
+            </div>
+            <div class="thumb"></div>
+          </div>
+        </div>
+
+        <div class="msg me">
+          <div class="bubble me">
+            <p>表格收到，我按 <code>SI</code> 单位重算一遍再回。</p>
+          </div>
+        </div>
+
+        <div class="typing"><i></i><i></i><i></i></div>
+      </div>
+
+      <div class="composer">
+        <div class="box">输入消息，支持 Markdown 与 LaTeX…</div>
+        <div class="send">发送</div>
+      </div>
+    </section>
+  </div>
+</div>
+</body>
+</html>

@@ -9,9 +9,22 @@
 
 客户端「检查更新」读取的也是 GitLab 上的最新版本。
 
-支持 Windows / Linux / macOS 桌面端与 Android 安卓端，**不提供网页版，也不需要自建后端**。
+支持 Windows / Linux / macOS 桌面端、Android 安卓端与纯浏览器网页端。
 
 一个基于[7FA4 Chat API](https://jx.7fa4.cn:8888/article/134)，使用 [electron](https://www.electronjs.org/)+[VUE3](https://vuejs.org/)(vue+js+css) 构建的跨平台聊天软件
+
+## 多端架构与模块划分
+
+本仓库作为统一单代码库（Monorepo），维护以下四个核心业务端与模块，开发与维护时需明确区分职责与边界：
+
+| 端/模块 | 载体与核心目录 | 核心职责与边界说明 | 启动与构建方式 |
+| :--- | :--- | :--- | :--- |
+| **桌面端 (Desktop)** | Electron 应用<br>`src/main/`<br>`src/preload/`<br>`src/renderer/` | Windows / Linux / macOS 原生客户端，提供原生窗口管理、本地通知托盘、开机自启、本地存储与缓存代理能力。通过 `FeedbackModal.vue` 内置反馈弹窗。 | `npm run dev`<br>`npm run build`<br>`npm run dist` |
+| **网页端 (Web)** | 纯浏览器 SPA<br>`src/renderer/`<br>`platform/web-api.js` | 纯前端单页应用，无需安装直连使用。复用 `src/renderer` 组件与样式，通过 Web API 与 IndexedDB 抹平 Electron 差异。产物输出到 `out/web/`，部署于 `/7fa4-chat/web/`。 | `npm run build:web`<br>`npm run build:web -- --copy-to-site` |
+| **官网 (Site)** | Node 服务 + 静态站点<br>`site/`<br>`site/public/`<br>`site/server.js` | 官方主页、多端最新安装包信息聚合（`/api/downloads`）、更新日志展示（`/api/changelog`）、软件包流式转发（`/dl/`）、赞助列表展示，同时托管网页端与反馈系统。 | `npm run site:dev`<br>`npm run site:test` |
+| **反馈 (Feedback)** | 模块化后台 + 独立前端<br>`site/feedback.js`<br>`site/public/feedback/` | 用户意见反馈通道与管理后台。API（`POST /api/feedback`）向桌面端和网页端开放 CORS；网页端直跳 `/feedback`；管理员登录后台 `/feedback/admin` 处理与审查。 | 挂载于官网服务中自动运行 |
+
+---
 
 ## 下载与安装
 

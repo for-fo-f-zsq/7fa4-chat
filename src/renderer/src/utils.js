@@ -85,6 +85,33 @@ export const MAX_MSG_LENGTH = 102400;
 const MEDIA_ENVELOPE_MARGIN = 1024;
 const DEFAULT_MAX_B64 = MAX_MSG_LENGTH - MEDIA_ENVELOPE_MARGIN;
 
+/**
+ * 把画布编码成 base64，保证字符数不超过 maxB64 —— 与 OJ 网页版 chat.ejs:559-591 同一套收缩策略：
+ * 起始 quality 0.82，先降质量到 0.45，再把最长边按 0.8 缩到 520px 以下，最后仍超则返回最低档结果。
+ */
+function encodeCanvasToFit(canvas, maxB64) {
+  let current = canvas;
+  let width = canvas.width;
+  let height = canvas.height;
+  let quality = 0.82;
+  let data = current.toDataURL('image/jpeg', quality).split(',')[1];
+  for (let guard = 0; data.length > maxB64 && (quality > 0.45 || Math.max(width, height) > 520) && guard < 60; guard++) {
+    if (quality > 0.45) {
+      quality = Math.max(0.45, quality - 0.1);
+    } else {
+      width = Math.max(1, Math.round(width * 0.8));
+      height = Math.max(1, Math.round(height * 0.8));
+      const next = document.createElement('canvas');
+      next.width = width;
+      next.height = height;
+      next.getContext('2d').drawImage(current, 0, 0, width, height);
+      current = next;
+    }
+    data = current.toDataURL('image/jpeg', quality).split(',')[1];
+  }
+  return { data, width, height };
+}
+
 // ========== 图片/表情 media URL 缓存（治本：避免 100KB+ base64 内联进 HTML/一次性解码） ==========
 // 把 base64 → Blob objectURL，DOM 只挂一个短 URL。按 base64 字符串缓存，同一数据复用同一 URL，避免泄漏。
 const mediaUrlCache = new Map()
@@ -120,11 +147,11 @@ const textKindCache = new Map()
 const TEXT_KIND_CACHE_MAX = 600
 
 // ========== 图片压缩 (Canvas) ==========
-// opts 可选：maxDim 最长边（默认 1920）、maxB64 base64 字符数上限（默认 MAX_MSG_LENGTH 减去信封余量）。
+// opts 可选：maxDim 最长边（默认 1280，与 OJ 网页版一致）、maxB64 base64 字符数上限（默认 MAX_MSG_LENGTH 减去信封余量）。
 // 不传时行为与历史完全一致（聊天/表情/反馈沿用默认档）。
 // 返回值附加 width/height（压缩后的实际尺寸），供投稿时上报图片规格。
 export function compressImage(file, opts = {}) {
-  const maxDim = Number(opts.maxDim) > 0 ? Number(opts.maxDim) : 1920;
+  const maxDim = Number(opts.maxDim) > 0 ? Number(opts.maxDim) : 1280;
   const maxB64 = Number(opts.maxB64) > 0 ? Number(opts.maxB64) : DEFAULT_MAX_B64;
   return new Promise((resolve) => {
     if (!file || !file.type?.startsWith('image/')) {
@@ -154,19 +181,8 @@ export function compressImage(file, opts = {}) {
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, width, height);
-      let quality = 0.6;
-      const tryEncode = () => {
-        const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        const data = dataUrl.split(',')[1];
-        const compressedSize = Math.round(data.length * 3 / 4);
-        if (data.length > maxB64 && quality > 0.15) {
-          quality -= 0.1;
-          tryEncode();
-        } else {
-          resolve({ data, size: compressedSize, width, height });
-        }
-      };
-      tryEncode();
+      const fit = encodeCanvasToFit(canvas, maxB64);
+      resolve({ data: fit.data, size: Math.round(fit.data.length * 3 / 4), width: fit.width, height: fit.height });
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
@@ -185,7 +201,7 @@ export function compressImage(file, opts = {}) {
 // 从 base64 数据压缩图片（用于主进程返回的原始 base64）
 // opts 同 compressImage：maxDim / maxB64（不传则走历史默认档）
 export function compressBase64Image(base64Data, mime, opts = {}) {
-  const maxDim = Number(opts.maxDim) > 0 ? Number(opts.maxDim) : 1920;
+  const maxDim = Number(opts.maxDim) > 0 ? Number(opts.maxDim) : 1280;
   const maxB64 = Number(opts.maxB64) > 0 ? Number(opts.maxB64) : DEFAULT_MAX_B64;
   return new Promise((resolve) => {
     if (!mime?.startsWith('image/')) { resolve({ data: base64Data, size: Math.round(base64Data.length * 3 / 4) }); return; }
@@ -203,19 +219,8 @@ export function compressBase64Image(base64Data, mime, opts = {}) {
       canvas.height = height;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, width, height);
-      let quality = 0.6;
-      const tryEncode = () => {
-        const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        const data = dataUrl.split(',')[1];
-        const compressedSize = Math.round(data.length * 3 / 4);
-        if (data.length > maxB64 && quality > 0.15) {
-          quality -= 0.1;
-          tryEncode();
-        } else {
-          resolve({ data, size: compressedSize, width, height });
-        }
-      };
-      tryEncode();
+      const fit = encodeCanvasToFit(canvas, maxB64);
+      resolve({ data: fit.data, size: Math.round(fit.data.length * 3 / 4), width: fit.width, height: fit.height });
     };
     img.onerror = () => resolve(base64Data);
     img.src = `data:${mime};base64,${base64Data}`;
@@ -362,7 +367,24 @@ export async function safeFetch(url, options = {}, timeout = 10000) {
       store.netError = true
       return { json: async () => ({ success: false, _html: true, err: { message: '未连接，正在重新连接…' } }) }
     }
-    if (!res.ok) return { json: async () => ({ success: false, err: { message: res.statusText } }) }
+    if (!res.ok) {
+      if (_ctype.includes('application/json')) {
+        try {
+          const errData = await res.json()
+          if (errData && typeof errData === 'object') {
+            return {
+              json: async () => ({
+                success: false,
+                _status: res.status,
+                ...errData,
+                err: errData.err || { message: errData.message || res.statusText || `请求失败 (${res.status})` }
+              })
+            }
+          }
+        } catch {}
+      }
+      return { json: async () => ({ success: false, _status: res.status, err: { message: res.statusText || `请求失败 (${res.status})` } }) }
+    }
     try {
       const data = await res.json()
       store.netError = false
@@ -376,7 +398,7 @@ export async function safeFetch(url, options = {}, timeout = 10000) {
   } catch (e) {
     // 网络层错误（断网/超时）：标记网络异常，不退出登录；online 交由 navigator 事件
     store.netError = true
-    return { json: async () => ({ success: false, err: { message: e.message || '网络错误' } }) }
+    return { json: async () => ({ success: false, _netError: true, err: { message: e.message || '网络错误' } }) }
   }
 }
 
@@ -388,10 +410,16 @@ export async function tryLogin(user, pwd) {
     credentials: 'include'
   }, 10000)
   const data = await res.json()
-  // 登录接口正常响应必带 error_code（1=成功，1001~1004=各类失败）；
-  // 缺省说明是 fetch 层失败（会话失效/网络错误），回落到 -1。不再依赖 success 字段。
-  if (!data || data.error_code === undefined) return { error_code: -1 }
-  return data
+  // 登录接口正常响应必带 error_code（1=成功，1001~1005=各类失败，-1=服务端捕获的校验异常）；
+  // 若缺省则区分：网络断连/超时（_netError）、网关或排课拦截（如 403 classroom_access_denied）等。
+  if (data && data.error_code !== undefined) return data
+  if (data && data._netError) {
+    return { error_code: -2, message: '无法连接服务器，请检查网络或在顶部切换服务器线路' }
+  }
+  if (data && !data._html && (data.message || data.err?.message)) {
+    return { error_code: -3, message: data.message || data.err.message }
+  }
+  return { error_code: -1 }
 }
 
 // 注意：s 可能不是字符串（content 来自服务端，字段类型不受控：{"type":"file","name":123}），
@@ -918,12 +946,26 @@ export function applyChatToStore(r, pageType, pageId) {
 // 统一发送聊天消息：封装 fetch，返回接口响应
 export async function sendChatMessage({ type, targetId, msgObj }) {
   let content = JSON.stringify(msgObj);
+  // 图片兜底：压缩器只保证 base64 不超过「102400 − 1024」，但文件名特别长时信封会把总量顶过上限。
+  // 这里按实际信封长度重算预算再压一次，确保 base64 + {type,name,size,mime} 一定不超过 102400。
+  if (content.length > MAX_MSG_LENGTH && msgObj.type === 'file' && msgObj.data && String(msgObj.mime || '').startsWith('image/')) {
+    const overhead = content.length - msgObj.data.length;
+    const shrunk = await compressBase64Image(msgObj.data, msgObj.mime, { maxB64: Math.max(1024, MAX_MSG_LENGTH - overhead - 16) });
+    if (shrunk?.data && shrunk.data.length < msgObj.data.length) {
+      msgObj = { ...msgObj, data: shrunk.data, size: shrunk.size };
+      content = JSON.stringify(msgObj);
+    }
+  }
   if (content.length > MAX_MSG_LENGTH) {
     // 文本不再「静默截断」：截断后消息看着发出去了、后半段内容静默丢失，用户毫无感知；
     // 而且 slice 按 UTF-16 索引切，切在 emoji 的代理对中间还会产生乱码。
     // 与网页版（chat.ejs:1313）一致：直接报错，输入框内容保留，由用户自己删减。
     if (msgObj.type === 'text') {
       return { success: false, err: { message: `消息过长（${content.length}/${MAX_MSG_LENGTH} 字符），请删减后重发` } };
+    }
+    // 图片：按真实信封长度重压后仍超限（极长文件名 / 极端噪点图）→ 与 OJ 网页版同款提示
+    if (msgObj.type === 'file' && String(msgObj.mime || '').startsWith('image/')) {
+      return { success: false, err: { message: '图片压缩后仍超过发言长度限制，请换一张更小的图片。' } };
     }
     // 文件/sticker 消息不应截断 data，应该在进入前就压缩好了
     // 如果仍然超出，说明压缩不够，返回错误
@@ -1576,6 +1618,22 @@ export function officialSiteUrl() {
 /** 官网下载区（各平台安装包都在这里） */
 export function officialDownloadUrl() {
   return `${officialSiteUrl()}#downloads`;
+}
+
+// ========== 反馈系统（官网同源后端，对外路径带 /7fa4-chat/ 前缀，Caddy handle_path 会剥掉） ==========
+/** 反馈提交接口 */
+export function feedbackApiUrl() {
+  return `${officialSiteUrl()}api/feedback`;
+}
+
+/** 反馈页地址（带平台与版本，页面会自动预填；尾斜杠保证页面内相对路径 ../api/feedback 解析正确） */
+export function feedbackPageUrl(platform, version) {
+  const base = `${officialSiteUrl()}feedback/`;
+  const qs = new URLSearchParams();
+  if (platform) qs.set('platform', platform);
+  if (version) qs.set('version', version);
+  const q = qs.toString();
+  return q ? `${base}?${q}` : base;
 }
 
 /**

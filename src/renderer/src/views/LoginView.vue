@@ -129,11 +129,14 @@ async function doLogin(user, rawPwd, type) {
       case 1003: showError('您尚未设置密码'); break
       case 1004: showError('您的账号长时间没有登录，已暂停使用。如需继续使用请联系老师。'); break
       case 1005: showError('本节课你不该在教室'); break
-      // -1 是服务端捕获到的异常（modules/api.js 的 catch 分支），最常见的是「用户名或
+      case -2:
+      case -3:
+        showError(data.message || '网络异常，请检查连接后重试'); break
+      // -1 是服务端捕获到的异常（modules/user.js 的 catch 分支），最常见的是「用户名或
       // 密码长度/字符不合法」这类校验失败 —— 以前一律显示「未知错误」，用户不知道该改什么。
       case -1: showError('用户名或密码不合法，请检查后重试'); break
       case 1: onSuccess(type); return
-      default: showError('登录失败（错误码 ' + data.error_code + '）'); break
+      default: showError(data.message || ('登录失败（错误码 ' + data.error_code + '）')); break
     }
   } catch {
     loading.value = false
