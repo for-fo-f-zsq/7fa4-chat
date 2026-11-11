@@ -1805,6 +1805,25 @@ function noteSessionExpired() {
  * 「你被禁止使用聊天功能直到…」被压成「未连接，正在尝试重新连接…」，
  * 用户完全不知道是自己被禁言了，只看到聊天一直不动。
  */
+/**
+ * 登录态失效的统一收口。桌面端以前只挂一句提示、然后从启动序列里 `return`，
+ * `store.initializing` 永远停在 true —— 遮罩「正在加载消息…」盖住整个界面，
+ * 用户重开应用（cookie 早在退出期间过期）就只能看到这个死界面，点哪都没反应。
+ * 正确做法：停止轮询、收起加载遮罩、清掉「已登录」标记，直接回登录页
+ * （LoginView 会用 keepLogin 存下的账号密码预填，点一下就能重新登录）。
+ */
+function handleSessionExpired() {
+  noteSessionExpired();
+  if (isWeb) { gotoLogin(); return; }
+  infoLoopRunning = false;
+  stopRanklistFetch();
+  store.initializing = false;
+  store.netError = false;
+  store.logined = false;
+  store.guestMode = false; // App.vue 的 LoginView 条件是 !logined && !guestMode
+  try { localStorage.removeItem('7fa4_logined'); } catch {}
+}
+
 function noteServerFailure(r) {
   if (!r || r.success) return false;
   const msg = (r.err && r.err.message) || '';
@@ -1860,7 +1879,7 @@ async function probeTargetTimes(seed = false) {
       const res = await safeFetch('/chat/target-times?' + qs);
       r = await res.json();
       // safeFetch 遇到 HTML 响应（登录失效被重定向到登录页）时，_html 标记在解析出的 body 上
-      if (r && r._html) { noteSessionExpired(); return null; }
+      if (r && r._html) { handleSessionExpired(); return null; }
     } catch {
       return null;
     }
@@ -2151,7 +2170,7 @@ async function startInfoLoop() {
   try {
     const res = await safeFetch('/chat/info');
     const r = await res.json();
-    if (r && r._html) { noteSessionExpired(); if (isWeb) gotoLogin(); return; }
+    if (r && r._html) { handleSessionExpired(); return; }
     if (!infoLoopRunning) return;
     if (r.success) { await update(r); failCount = 0; store.netError = false; store.online = true; }
     else { failCount++; store.netError = true; }
@@ -2161,6 +2180,9 @@ async function startInfoLoop() {
   // 否则首爬结束到记基线之间到达的消息会被当成基线、再也不会被拉取。
   // 记完基线再爬，这段时间来的消息既在爬取结果里、下一轮探针又会看到新时间戳（拉到已知 id 就停）。
   try { await probeTargetTimes(true); } catch {}
+  // 探针里可能已判定「登录失效」并收口（这时 logined / infoLoopRunning 都已复位）：
+  // 绝不能继续往下首爬历史、启动后台 ranklist —— 那只会拿没有 cookie 的会话空转。
+  if (!infoLoopRunning || !store.logined) return;
   store.fetchNewCount = 0;
   if (isWeb) {
     // 网页版：不首爬历史（那正是「全量爬取」）。列表顺序由探针时间戳决定，点开会话才拉消息。
@@ -2266,7 +2288,7 @@ async function startInfoLoop() {
         try {
           const res = await safeFetch('/chat/info');
           const result = await res.json();
-          if (result && result._html) { noteSessionExpired(); if (isWeb) { gotoLogin(); return; } }
+          if (result && result._html) { handleSessionExpired(); return; }
           else if (infoLoopRunning && result.success) {
             await update(result);
             if (isWeb) applyLastSendTimesToList();
@@ -2409,7 +2431,7 @@ onMounted(async () => {
     const infoRes = await safeFetch('/chat/info');
     const initialInfo = await infoRes.json();
     // 网页版：cookie 失效时 OJ 会直接回登录页 HTML（不是 302），这里整页跳登录
-    if (initialInfo && initialInfo._html) { noteSessionExpired(); if (isWeb) { gotoLogin(); return; } }
+    if (initialInfo && initialInfo._html) { handleSessionExpired(); return; }
     if (initialInfo.success) Object.assign(store.self, { uid: initialInfo.user.id, username: initialInfo.user.uid, nickname: initialInfo.user.nickname, realname: initialInfo.user.real_name });
     await loadData();
     if (initialInfo.success) await update(initialInfo);
