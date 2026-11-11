@@ -364,8 +364,8 @@ async function proxyDownload(req, res, fileName) {
 async function handleApi(req, res, pathname) {
   if (pathname === '/api/downloads') {
     try {
-      const data = await cached('downloads', 120_000, buildDownloads);
-      sendJson(res, 200, data);
+      const data = await cached('downloads', 30_000, buildDownloads);
+      sendJson(res, 200, data, { 'Cache-Control': 'public, max-age=30' });
     } catch (e) {
       sendJson(res, 502, { error: 'gitlab_unavailable', message: String(e.message || e) });
     }
@@ -374,8 +374,28 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === '/api/changelog') {
     try {
-      const text = await cached('changelog', 300_000, () => glText(genericUrl('CHANGELOG')));
-      sendText(res, 200, text, 'text/markdown; charset=utf-8', { 'Cache-Control': 'public, max-age=300' });
+      const text = await cached('changelog', 30_000, async () => {
+        try {
+          const remoteText = await glText(genericUrl('CHANGELOG'));
+          // If remote package already contains 3.8.3, return it
+          if (remoteText && remoteText.includes('## 3.8.3')) {
+            return remoteText;
+          }
+          // Otherwise fallback to local CHANGELOG if available
+          const localChangelog = path.join(__dirname, 'CHANGELOG');
+          if (fs.existsSync(localChangelog)) {
+            return fs.readFileSync(localChangelog, 'utf8');
+          }
+          return remoteText;
+        } catch (glErr) {
+          const localChangelog = path.join(__dirname, 'CHANGELOG');
+          if (fs.existsSync(localChangelog)) {
+            return fs.readFileSync(localChangelog, 'utf8');
+          }
+          throw glErr;
+        }
+      });
+      sendText(res, 200, text, 'text/markdown; charset=utf-8', { 'Cache-Control': 'public, max-age=30' });
     } catch (e) {
       sendJson(res, 502, { error: 'gitlab_unavailable' });
     }
