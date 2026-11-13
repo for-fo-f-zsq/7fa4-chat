@@ -26,7 +26,10 @@ const DATA_DIR = process.env.FEEDBACK_DIR || path.join(__dirname, 'data', 'feedb
 const ITEMS_FILE = path.join(DATA_DIR, 'items.json');
 const ATTACH_DIR = path.join(DATA_DIR, 'attachments');
 const SECRET_FILE = path.join(DATA_DIR, '.secret');
-const ADMIN_PASSWORD = process.env.FEEDBACK_ADMIN_PASSWORD || 'Zsq20110810';
+const ADMIN_PASSWORD = process.env.FEEDBACK_ADMIN_PASSWORD || 'dev-admin-password';
+if (!process.env.FEEDBACK_ADMIN_PASSWORD) {
+  console.warn('[feedback] 未设置环境变量 FEEDBACK_ADMIN_PASSWORD，当前使用本地开发默认密码（生产环境请务必通过环境变量配置）');
+}
 const PUBLIC_DIR = path.join(__dirname, 'public', 'feedback');
 
 const MAX_BODY = 12 * 1024 * 1024; // 整包上限 12MB（3 张截图 x 最多约 3.5MB base64）

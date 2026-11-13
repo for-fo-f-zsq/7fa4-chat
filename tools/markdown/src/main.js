@@ -13,6 +13,6 @@ import '../../shared/tool-base.css'
 import 'katex/dist/katex.min.css'
 
 import { createApp } from 'vue'
-import MarkdownTool from '../../../src/renderer/src/views/tools/MarkdownTool.vue'
+import MarkdownTool from '../../../src/renderer/src/views/tools/markdown/MarkdownTool.vue'
 
 createApp(MarkdownTool).mount('#app')

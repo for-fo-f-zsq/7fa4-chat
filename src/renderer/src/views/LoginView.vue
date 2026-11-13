@@ -15,7 +15,7 @@
         <UiButton class="btn-guest" variant="text" size="sm" icon="fas fa-arrow-left" title="返回主界面（游客模式）" @click="emit('guest')">返回</UiButton>
         <div class="logo">
           <div class="logo-icon">
-            <img src="../../icon/icon.ico" style="width:100%">
+            <img src="../assets/icon.ico" style="width:100%">
           </div>
         </div>
         <h2>7FA4 Chat</h2>
@@ -188,4 +188,4 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped src="../css/login-view.css"></style>
+<style scoped src="../css/components/login-view.css"></style>

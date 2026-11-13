@@ -43,10 +43,10 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { store } from './store.js';
 import LoginView from './views/LoginView.vue';
 import ChatView from './views/ChatView.vue';
-import Announcement from './components/Announcement.vue';
-import Onboarding from './components/Onboarding.vue';
-import WelcomeIntro from './components/WelcomeIntro.vue';
-import FeedbackModal from './components/FeedbackModal.vue';
+import Announcement from './components/common/Announcement.vue';
+import Onboarding from './components/common/Onboarding.vue';
+import WelcomeIntro from './components/common/WelcomeIntro.vue';
+import FeedbackModal from './components/modals/FeedbackModal.vue';
 import { loadUsersDb, compareVersion, checkAppUpdate, isWebBrowser } from './utils.js';
 import { prefersReducedMotion } from './utils/motion.js';
 

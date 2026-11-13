@@ -8,6 +8,6 @@ import '../../shared/bridge-client.js'
 import '../../shared/tool-base.css'
 
 import { createApp } from 'vue'
-import ImageTool from '../../../src/renderer/src/views/tools/ImageTool.vue'
+import ImageTool from '../../../src/renderer/src/views/tools/image/ImageTool.vue'
 
 createApp(ImageTool).mount('#app')

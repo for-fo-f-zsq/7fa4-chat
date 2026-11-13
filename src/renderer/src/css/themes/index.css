@@ -1,0 +1,8 @@
+/* 主题入口：default（雾蓝）必须先加载（唯一 :root 主题），其余由 html.theme-<id> 命中。
+   新增主题：在 themes/ 下建 <id>.css（.theme-<id> 块），再登记到 constants.js 的 THEMES。 */
+@import url('default.css');
+@import url('sand.css');
+@import url('sage.css');
+@import url('midnight.css');
+@import url('graphite.css');
+@import url('contrast.css');

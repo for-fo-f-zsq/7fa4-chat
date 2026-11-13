@@ -658,4 +658,4 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped src="../css/tools.css"></style>
+<style scoped src="../css/components/tools.css"></style>

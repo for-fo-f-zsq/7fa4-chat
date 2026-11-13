@@ -22,9 +22,9 @@ on:
       - main
     paths:
       - 'tools/**'
-      - 'tools.vite.config.mjs'
-      - 'scripts/build-tools.mjs'
-      - 'scripts/publish-tools.mjs'
+      - 'config/tools.vite.config.mjs'
+      - 'scripts/tools/build-tools.mjs'
+      - 'scripts/tools/publish-tools.mjs'
       - '.github/workflows/tools.yml'
   workflow_dispatch:
 
@@ -57,7 +57,7 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
       - name: Build tool packages
-        run: node scripts/build-tools.mjs
+        run: node scripts/tools/build-tools.mjs
         env:
           NODE_OPTIONS: --max-old-space-size=4096
 
@@ -84,4 +84,4 @@ jobs:
             echo "::error::缺少 secret GITLAB_TOKEN，请在仓库 Settings→Secrets→Actions 添加后重试"
             exit 1
           fi
-          node scripts/publish-tools.mjs --apply
+          node scripts/tools/publish-tools.mjs --apply

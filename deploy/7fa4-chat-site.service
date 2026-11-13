@@ -1,0 +1,26 @@
+[Unit]
+Description=7FA4 Chat Official Site, Web Host & Feedback Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__USER__
+Group=__USER__
+WorkingDirectory=__REPO_DIR__
+Environment=NODE_ENV=production
+Environment=NODE_BIN=__NODE_BIN__
+EnvironmentFile=-/etc/7fa4-chat/site.env
+ExecStart=/bin/bash __REPO_DIR__/deploy/start-site.sh
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+# 基础安全隔离（允许写入反馈持久化目录与部署状态文件）
+NoNewPrivileges=true
+PrivateTmp=true
+ReadWritePaths=__FEEDBACK_DIR__ __REPO_DIR__/site/data __REPO_DIR__
+
+[Install]
+WantedBy=multi-user.target

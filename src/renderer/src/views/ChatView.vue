@@ -292,7 +292,7 @@
   />
 </template>
 
-<style scoped src="../css/chat-view.css"></style>
+<style scoped src="../css/components/chat-view.css"></style>
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
@@ -302,28 +302,28 @@ import { safeFetch, tryLogin, gettime2, getUsername, parseContent, parseMsgConte
 
 import { UiBanner, UiButton } from '../ui';
 
-import NavBar from '../components/NavBar.vue';
-import ConversationList from '../components/ConversationList.vue';
-import ChatHeader from '../components/ChatHeader.vue';
-import MessageList from '../components/MessageList.vue';
-import InputFooter from '../components/InputFooter.vue';
-import ForwardModal from '../components/ForwardModal.vue';
-import ContentPreviewModal from '../components/ContentPreviewModal.vue';
-import SettingsPanel from '../components/SettingsPanel.vue';
-import AboutPanel from '../components/AboutPanel.vue';
-import UpdatePanel from '../components/UpdatePanel.vue';
-import DonatePanel from '../components/DonatePanel.vue';
-import TargetMenu from '../components/TargetMenu.vue';
-import UserInfoModal from '../components/UserInfoModal.vue';
-import GroupModal from '../components/GroupModal.vue';
-import ThemeModal from '../components/ThemeModal.vue';
-import ShortcutModal from '../components/ShortcutModal.vue';
-import InputModal from '../components/InputModal.vue';
-import AddFriendModal from '../components/AddFriendModal.vue';
-import GroupActionMenu from '../components/GroupActionMenu.vue';
-import SearchPanel from '../components/SearchPanel.vue';
+import NavBar from '../components/common/NavBar.vue';
+import ConversationList from '../components/chat/ConversationList.vue';
+import ChatHeader from '../components/chat/ChatHeader.vue';
+import MessageList from '../components/chat/MessageList.vue';
+import InputFooter from '../components/chat/InputFooter.vue';
+import ForwardModal from '../components/modals/ForwardModal.vue';
+import ContentPreviewModal from '../components/modals/ContentPreviewModal.vue';
+import SettingsPanel from '../components/panels/SettingsPanel.vue';
+import AboutPanel from '../components/panels/AboutPanel.vue';
+import UpdatePanel from '../components/panels/UpdatePanel.vue';
+import DonatePanel from '../components/panels/DonatePanel.vue';
+import TargetMenu from '../components/common/TargetMenu.vue';
+import UserInfoModal from '../components/modals/UserInfoModal.vue';
+import GroupModal from '../components/modals/GroupModal.vue';
+import ThemeModal from '../components/modals/ThemeModal.vue';
+import ShortcutModal from '../components/modals/ShortcutModal.vue';
+import InputModal from '../components/modals/InputModal.vue';
+import AddFriendModal from '../components/modals/AddFriendModal.vue';
+import GroupActionMenu from '../components/common/GroupActionMenu.vue';
+import SearchPanel from '../components/chat/SearchPanel.vue';
 import ToolsView from './ToolsView.vue';
-import ToolHost from '../components/ToolHost.vue';
+import ToolHost from '../components/common/ToolHost.vue';
 import { useWindowControls } from '../composables/useWindowControls.js';
 import { useMuteConfirm } from '../composables/useMuteConfirm.js';
 import { useCurrentMessages } from '../composables/useCurrentMessages.js';

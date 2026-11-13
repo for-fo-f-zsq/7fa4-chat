@@ -5,19 +5,29 @@
   "main": "./out/main/index.js",
   "desktopName": "7fa4-chat.desktop",
   "scripts": {
-    "dev": "electron-vite dev -- --no-sandbox",
-    "build": "electron-vite build && node scripts/sync-katex-assets.mjs && node scripts/prune-renderer-assets.mjs && node scripts/build-jsc.mjs",
-    "test:md": "node scripts/test-markdown.mjs && node scripts/test-typora-input.mjs && node scripts/test-input-footer.mjs && node scripts/test-markdown-tool.mjs && node scripts/test-msg-fmt.mjs",
-    "sync:luogu": "node scripts/sync-luogu.mjs",
+    "dev": "electron-vite dev -c config/electron.vite.config.js -- --no-sandbox",
+    "dev:web": "vite --config config/vite.web.config.mjs",
+    "build": "electron-vite build -c config/electron.vite.config.js && node scripts/desktop/sync-katex-assets.mjs && node scripts/desktop/prune-renderer-assets.mjs && node scripts/desktop/build-jsc.mjs",
+    "build:web": "node scripts/web/build-web-app.mjs",
+    "build:web:site": "node scripts/web/build-web-app.mjs --copy-to-site",
+    "build:android:assets": "node scripts/android/build-android-assets.mjs",
+    "sync:android": "npm run build:android:assets && npx cap sync android",
+    "build:android": "node scripts/android/build-android.mjs",
+    "build:tools": "node scripts/tools/build-tools.mjs",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
-    "build:web": "node scripts/build-web-app.mjs",
     "site:dev": "node site/server.js",
-    "site:test": "node site/test/local-check.js",
-    "build:tools": "node scripts/build-tools.mjs",
-    "install:tools:local": "node scripts/install-tools-local.mjs",
-    "tools:local": "node scripts/build-tools.mjs && node scripts/install-tools-local.mjs",
-    "publish:tools": "node scripts/publish-tools.mjs"
+    "site:build": "node scripts/web/build-site.mjs",
+    "site:test": "node tests/site/local-check.js",
+    "install:tools:local": "node scripts/tools/install-tools-local.mjs",
+    "tools:local": "npm run build:tools && npm run install:tools:local",
+    "publish:tools": "node scripts/tools/publish-tools.mjs",
+    "check:sfc": "node tests/unit/check-sfc-bindings.mjs",
+    "test:md": "node tests/unit/test-markdown.mjs && node tests/unit/test-typora-input.mjs && node tests/unit/test-input-footer.mjs && node tests/unit/test-markdown-tool.mjs && node tests/unit/test-msg-fmt.mjs",
+    "test:store": "node tests/unit/test-store.mjs",
+    "test": "npm run check:sfc && npm run test:md && npm run test:store",
+    "sync:luogu": "node scripts/data/sync-luogu.mjs",
+    "clean": "node scripts/clean.mjs"
   },
   "author": {
     "name": "for_fo_f",
@@ -64,7 +74,7 @@
       "output": "build"
     },
     "win": {
-      "icon": "icon/icon.ico",
+      "icon": "resources/icon/icon.ico",
       "artifactName": "7FA4-Chat-${version}-${arch}.${ext}",
       "target": [
         {
@@ -88,12 +98,12 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "installerIcon": "icon/icon.ico",
-      "uninstallerIcon": "icon/icon.ico",
+      "installerIcon": "resources/icon/icon.ico",
+      "uninstallerIcon": "resources/icon/icon.ico",
       "buildUniversalInstaller": false
     },
     "linux": {
-      "icon": "icon/icon.png",
+      "icon": "resources/icon/icon.png",
       "syncDesktopName": true,
       "target": [
         {
@@ -120,7 +130,7 @@
     },
     "mac": {
       "category": "public.app-category.utilities",
-      "icon": "icon/icon.png",
+      "icon": "resources/icon/icon.png",
       "target": [
         {
           "target": "dmg",
@@ -160,7 +170,7 @@
     ],
     "extraResources": [
       {
-        "from": "icon/",
+        "from": "resources/icon/",
         "to": "icon/",
         "filter": [
           "**/*"
@@ -174,7 +184,7 @@
         ]
       }
     ],
-    "afterPack": "./scripts/after-pack.cjs",
+    "afterPack": "./scripts/desktop/after-pack.cjs",
     "publish": {
       "provider": "generic",
       "url": "https://jx.7fa4.cn:9080/api/v4/projects/886/packages/generic/7FA4-Chat/latest"

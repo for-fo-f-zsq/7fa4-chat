@@ -256,7 +256,7 @@ function serveWeb(req, res, pathname) {
   }
   fs.stat(abs, (err, st) => {
     if (!err && st.isFile()) {
-      serveStatic(req, res, abs);
+      serveStatic(req, res, abs, pathname);
       return;
     }
     // 带扩展名的当成资源，找不到就 404（不能回 index.html，否则浏览器会把 HTML 当 JS/CSS 解析）
@@ -290,26 +290,50 @@ function sendText(res, status, text, contentType, extraHeaders) {
   res.end(body);
 }
 
-function serveStatic(req, res, absPath) {
+function serveStatic(req, res, absPath, pathname) {
   fs.stat(absPath, (err, st) => {
+    if (!err && st.isDirectory()) {
+      const idx = path.join(absPath, 'index.html');
+      fs.stat(idx, (idxErr, idxSt) => {
+        if (idxErr || !idxSt.isFile()) {
+          sendText(res, 404, 'Not Found', 'text/plain; charset=utf-8');
+          return;
+        }
+        // 新增的任何子页面目录（如 /docs -> docs/），缺末尾斜杠时做相对 308 重定向，兼容反代子路径
+        if (pathname && !pathname.endsWith('/')) {
+          const base = path.posix.basename(pathname);
+          const qIdx = (req.url || '').indexOf('?');
+          const qs = qIdx >= 0 ? req.url.slice(qIdx) : '';
+          res.writeHead(308, { Location: `${base}/${qs}` });
+          res.end();
+          return;
+        }
+        serveFile(req, res, idx, idxSt);
+      });
+      return;
+    }
     if (err || !st.isFile()) {
       sendText(res, 404, 'Not Found', 'text/plain; charset=utf-8');
       return;
     }
-    const ext = path.extname(absPath).toLowerCase();
-    const type = MIME[ext] || 'application/octet-stream';
-    const isHtml = ext === '.html';
-    res.writeHead(200, {
-      'Content-Type': type,
-      'Content-Length': st.size,
-      'Cache-Control': isHtml ? 'no-cache' : 'public, max-age=86400'
-    });
-    if (req.method === 'HEAD') {
-      res.end();
-      return;
-    }
-    fs.createReadStream(absPath).pipe(res);
+    serveFile(req, res, absPath, st);
   });
+}
+
+function serveFile(req, res, absPath, st) {
+  const ext = path.extname(absPath).toLowerCase();
+  const type = MIME[ext] || 'application/octet-stream';
+  const isHtml = ext === '.html';
+  res.writeHead(200, {
+    'Content-Type': type,
+    'Content-Length': st.size,
+    'Cache-Control': isHtml ? 'no-cache' : 'public, max-age=86400'
+  });
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
+  fs.createReadStream(absPath).pipe(res);
 }
 
 /* --------------------------------------------------------- 下载流式转发 */
@@ -359,9 +383,84 @@ async function proxyDownload(req, res, fileName) {
   });
 }
 
+/* ---------------------------------------------------------- 版本比较与本地兜底 */
+
+function parseSemver(v) {
+  const m = /^v?(\d+)\.(\d+)\.(\d+)/i.exec(String(v || '').trim());
+  if (!m) return null;
+  return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+
+function compareSemver(a, b) {
+  const pa = parseSemver(a);
+  const pb = parseSemver(b);
+  if (!pa && !pb) return 0;
+  if (!pa) return -1;
+  if (!pb) return 1;
+  for (let i = 0; i < 3; i++) {
+    if (pa[i] !== pb[i]) return pa[i] - pb[i];
+  }
+  return 0;
+}
+
+function extractTopChangelogVersion(md) {
+  const m = /^#{1,6}\s+v?(\d+\.\d+\.\d+)/m.exec(String(md || ''));
+  return m ? m[1] : null;
+}
+
+function readLocalRepoFile(relParts) {
+  const candidates = [
+    path.join(__dirname, ...relParts),
+    path.join(__dirname, '..', ...relParts)
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p) && fs.statSync(p).isFile()) return fs.readFileSync(p);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
+function readDeployStatus() {
+  let version = null;
+  try {
+    const pkgBuf = readLocalRepoFile(['package.json']);
+    if (pkgBuf) version = JSON.parse(pkgBuf.toString('utf8')).version || null;
+  } catch (e) {
+    /* ignore */
+  }
+  let commit = null;
+  let deployedAt = null;
+  try {
+    const metaBuf = readLocalRepoFile(['.deploy-meta.json']);
+    if (metaBuf) {
+      const meta = JSON.parse(metaBuf.toString('utf8'));
+      commit = meta.commit || null;
+      deployedAt = meta.deployedAt || null;
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  const webReady = fs.existsSync(path.join(getWebDir(), 'index.html'));
+  return {
+    ok: true,
+    version,
+    commit,
+    deployedAt,
+    webReady,
+    uptimeSec: Math.floor(process.uptime())
+  };
+}
+
 /* -------------------------------------------------------------- 路由分发 */
 
 async function handleApi(req, res, pathname) {
+  if (pathname === '/api/status') {
+    sendJson(res, 200, readDeployStatus());
+    return;
+  }
   if (pathname === '/api/downloads') {
     try {
       const data = await cached('downloads', 30_000, buildDownloads);
@@ -375,23 +474,19 @@ async function handleApi(req, res, pathname) {
   if (pathname === '/api/changelog') {
     try {
       const text = await cached('changelog', 30_000, async () => {
+        const localBuf = readLocalRepoFile(['CHANGELOG']);
+        const localText = localBuf ? localBuf.toString('utf8') : null;
         try {
           const remoteText = await glText(genericUrl('CHANGELOG'));
-          // If remote package already contains 3.8.3, return it
-          if (remoteText && remoteText.includes('## 3.8.3')) {
-            return remoteText;
-          }
-          // Otherwise fallback to local CHANGELOG if available
-          const localChangelog = path.join(__dirname, 'CHANGELOG');
-          if (fs.existsSync(localChangelog)) {
-            return fs.readFileSync(localChangelog, 'utf8');
+          if (localText) {
+            const localVer = extractTopChangelogVersion(localText);
+            const remoteVer = extractTopChangelogVersion(remoteText);
+            // 本地仓库随 GitHub 自动拉取更新：本地版本号 >= 远端时直接用本地，避免 Actions 尚未发完版时显示旧日志
+            if (compareSemver(localVer, remoteVer) >= 0) return localText;
           }
           return remoteText;
         } catch (glErr) {
-          const localChangelog = path.join(__dirname, 'CHANGELOG');
-          if (fs.existsSync(localChangelog)) {
-            return fs.readFileSync(localChangelog, 'utf8');
-          }
+          if (localText) return localText;
           throw glErr;
         }
       });
@@ -404,13 +499,21 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === '/api/sponsors') {
     try {
-      const text = await cached('sponsors', 300_000, () => glText(rawFileUrl('assets/sponsors.json')));
-      let parsed;
-      try {
-        parsed = JSON.parse(text);
-      } catch (e) {
-        parsed = { list: [] };
-      }
+      const parsed = await cached('sponsors', 300_000, async () => {
+        let text;
+        try {
+          text = await glText(rawFileUrl('assets/sponsors.json'));
+        } catch (glErr) {
+          const localBuf = readLocalRepoFile(['assets', 'sponsors.json']);
+          if (!localBuf) throw glErr;
+          text = localBuf.toString('utf8');
+        }
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          return { list: [] };
+        }
+      });
       sendJson(res, 200, parsed);
     } catch (e) {
       sendJson(res, 502, { error: 'gitlab_unavailable' });
@@ -419,20 +522,26 @@ async function handleApi(req, res, pathname) {
   }
 
   if (pathname === '/api/donate-qr') {
-    let upstream;
+    let buf = null;
+    let contentType = 'image/jpeg';
     try {
-      upstream = await glFetch(rawFileUrl('assets/donate-qr.jpg'));
+      const upstream = await glFetch(rawFileUrl('assets/donate-qr.jpg'));
+      if (upstream.ok && upstream.body) {
+        contentType = upstream.headers.get('content-type') || 'image/jpeg';
+        buf = Buffer.from(await upstream.arrayBuffer());
+      }
     } catch (e) {
-      sendJson(res, 502, { error: 'upstream_unreachable' });
-      return;
+      /* 回退本地仓库副本 */
     }
-    if (!upstream.ok || !upstream.body) {
+    if (!buf) {
+      buf = readLocalRepoFile(['assets', 'donate-qr.jpg']);
+    }
+    if (!buf) {
       sendJson(res, 404, { error: 'not_found' });
       return;
     }
-    const buf = Buffer.from(await upstream.arrayBuffer());
     res.writeHead(200, {
-      'Content-Type': upstream.headers.get('content-type') || 'image/jpeg',
+      'Content-Type': contentType,
       'Content-Length': buf.length,
       'Cache-Control': 'public, max-age=86400'
     });
@@ -507,7 +616,7 @@ const server = http.createServer(async (req, res) => {
       sendText(res, 404, 'Not Found', 'text/plain; charset=utf-8');
       return;
     }
-    serveStatic(req, res, abs);
+    serveStatic(req, res, abs, pathname);
   } catch (e) {
     console.error('[error]', req.method, req.url, e && e.stack ? e.stack : e);
     if (!res.headersSent) sendJson(res, 500, { error: 'internal_error' });

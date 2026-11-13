@@ -43,6 +43,7 @@ website-dev/
 tmp-*
 *.log
 *.err
+.deploy-meta.json
 
 # 官网与反馈服务运行时产生的数据（含用户反馈、会话密钥，不入库）
 /site/data/feedback/.secret

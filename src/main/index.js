@@ -272,7 +272,7 @@ function createWindow() {
     if (app.isPackaged)
         iconPath = path.join(process.resourcesPath, 'icon/icon.png');
     else
-        iconPath = path.join(__dirname, '../../icon/icon.png');
+        iconPath = path.join(__dirname, '../../resources/icon/icon.png');
     mainWindow = new BrowserWindow({
         width: 1100,
         height: 830,
@@ -388,7 +388,7 @@ function createTray() {
     if (tray) return;
     const iconPath = app.isPackaged
         ? path.join(process.resourcesPath, 'icon/icon.png')
-        : path.join(__dirname, '../../icon/icon.png');
+        : path.join(__dirname, '../../resources/icon/icon.png');
 
     const icon = nativeImage.createFromPath(iconPath);
     tray = new Tray(icon);

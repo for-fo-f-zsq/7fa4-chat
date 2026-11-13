@@ -123,8 +123,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build web assets (renderer + GeoGebra)
-        run: node scripts/build-web.mjs
+      - name: Build Android renderer assets
+        run: npm run build:android:assets
         env:
           NODE_OPTIONS: --max-old-space-size=8192
 
@@ -201,7 +201,7 @@ jobs:
       - name: Build release body (Markdown)
         run: |
           set -euo pipefail
-          node scripts/build-release-body.mjs "$VERSION" > release-body.md
+          node scripts/release/build-release-body.mjs "$VERSION" > release-body.md
           echo "--- release-body.md ---"
           cat release-body.md
 
@@ -256,7 +256,7 @@ jobs:
           // 与 actions/upload-artifact 的产物过滤保持一致（扩展名比较时统一转小写）
           // 注意：yml/CHANGELOG 仍需上传（自动更新清单与客户端更新日志依赖 latest/），但**不挂** Release 资源链接
           const FILE_EXTS = ['.exe', '.zip', '.appimage', '.deb', '.dmg', '.yml', '.apk'];
-          // Release 资源链接：只挂可下载安装包，按 平台 → 格式 → 架构 → 文件名 排序（与 scripts/release-assets.mjs 同口径）
+          // Release 资源链接：只挂可下载安装包，按 平台 → 格式 → 架构 → 文件名 排序（与 scripts/release/release-assets.mjs 同口径）
           const LINK_TYPE_ORDER = ['windows', 'macos', 'linux', 'android', 'archive'];
           const LINK_TYPE_BY_EXT = {
             '.exe': 'windows', '.msi': 'windows',

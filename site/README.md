@@ -17,16 +17,16 @@ site/
 │   ├── feedback/           # 反馈系统独立页面
 │   │   ├── index.html      # 意见反馈提交页（/feedback，供网页版或浏览器直接访问）
 │   │   └── admin.html      # 反馈管理后台（/feedback/admin）
-│   └── web/                # 网页版客户端部署目录（由 npm run build:web -- --copy-to-site 同步产物）
-├── data/                   # 运行时数据存储目录（不入库）
+│   └── web/                # 网页版客户端部署目录（由 npm run build:web:site 同步产物）
+├── data/                   # 运行时数据存储目录（不入库，生产环境推荐用 FEEDBACK_DIR 指向独立目录）
 │   └── feedback/
 │       ├── items.json      # 反馈列表数据
 │       ├── .secret         # 管理员会话签名密钥（首次自动生成）
 │       └── attachments/    # 用户提交的截图附件
-├── test/
-│   └── local-check.js      # 本地联调测试套件
-└── mock/                   # 界面与预览 mock 脚本/资源
+└── README.md
 ```
+
+> 站点与反馈联调测试已统一收拢至 [tests/site/local-check.js](../tests/site/local-check.js)（通过 `npm run site:test` 运行）。
 
 ## 核心职责划分
 
@@ -52,11 +52,14 @@ site/
 在仓库根目录下执行：
 
 ```bash
+# 构建官网所需的网页版前端产物（输出至 site/public/web/）
+npm run site:build
+
 # 启动官网与反馈服务（默认监听 127.0.0.1:5300）
 npm run site:dev
 
-# 自定义端口或环境变量启动
-PORT=8080 node site/server.js
+# 自定义端口或生产密码启动
+PORT=8080 FEEDBACK_ADMIN_PASSWORD=your_password node site/server.js
 
 # 运行本地联调检查（需开放回环网络权限）
 npm run site:test

@@ -15,14 +15,17 @@
 
 ## 多端架构与模块划分
 
-本仓库作为统一单代码库（Monorepo），维护以下四个核心业务端与模块，开发与维护时需明确区分职责与边界：
+本仓库作为统一单代码库（Monorepo），维护以下五个核心端与基础设施模块，开发与维护时需明确区分职责与边界：
 
-| 端/模块 | 载体与核心目录 | 核心职责与边界说明 | 启动与构建方式 |
+| 端/模块 | 载体与核心目录 | 核心职责与边界说明 | 常用命令 |
 | :--- | :--- | :--- | :--- |
-| **桌面端 (Desktop)** | Electron 应用<br>`src/main/`<br>`src/preload/`<br>`src/renderer/` | Windows / Linux / macOS 原生客户端，提供原生窗口管理、本地通知托盘、开机自启、本地存储与缓存代理能力。通过 `FeedbackModal.vue` 内置反馈弹窗。 | `npm run dev`<br>`npm run build`<br>`npm run dist` |
-| **网页端 (Web)** | 纯浏览器 SPA<br>`src/renderer/`<br>`platform/web-api.js` | 纯前端单页应用，无需安装直连使用。复用 `src/renderer` 组件与样式，通过 Web API 与 IndexedDB 抹平 Electron 差异。产物输出到 `out/web/`，部署于 `/7fa4-chat/web/`。 | `npm run build:web`<br>`npm run build:web -- --copy-to-site` |
-| **官网 (Site)** | Node 服务 + 静态站点<br>`site/`<br>`site/public/`<br>`site/server.js` | 官方主页、多端最新安装包信息聚合（`/api/downloads`）、更新日志展示（`/api/changelog`）、软件包流式转发（`/dl/`）、赞助列表展示，同时托管网页端与反馈系统。 | `npm run site:dev`<br>`npm run site:test` |
-| **反馈 (Feedback)** | 模块化后台 + 独立前端<br>`site/feedback.js`<br>`site/public/feedback/` | 用户意见反馈通道与管理后台。API（`POST /api/feedback`）向桌面端和网页端开放 CORS；网页端直跳 `/feedback`；管理员登录后台 `/feedback/admin` 处理与审查。 | 挂载于官网服务中自动运行 |
+| **桌面端 (Desktop)** | Electron 应用<br>`src/main/`<br>`src/preload/`<br>`src/renderer/` | Windows / Linux / macOS 原生客户端，提供原生窗口管理、本地通知托盘、开机自启、SQLite 本地存储与缓存代理能力。内置 `FeedbackModal.vue` 意见反馈弹窗。 | `npm run dev`<br>`npm run build`<br>`npm run pack`<br>`npm run dist` |
+| **安卓端 (Android)** | Capacitor 7 原生壳<br>`android/`<br>`capacitor.config.json`<br>`src/renderer/src/platform/web-api.js` | 复用 `src/renderer` 与 `out/renderer` 构建产物，通过 `CapacitorHttp` 直连 API、IndexedDB 本地持久化消息、系统分享/通知等原生插件。 | `npm run build:android:assets`<br>`npm run sync:android`<br>`npm run build:android` |
+| **网页端 (Web)** | 纯浏览器 SPA<br>`src/renderer/`<br>`config/vite.web.config.mjs`<br>`src/renderer/src/platform/web-api.js` | 纯前端单页应用，无需安装直连使用（不持久化聊天记录，仅将偏好存进 `localStorage`）。产物输出到 `out/web/`，部署于 `/7fa4-chat/web/`。 | `npm run dev:web`<br>`npm run build:web`<br>`npm run build:web:site` |
+| **官网与反馈 (Site + Feedback)** | Node 服务 + 静态站点<br>`site/server.js`<br>`site/feedback.js`<br>`site/public/` | 官方主页、多端安装包聚合（`/api/downloads`）、更新日志（`/api/changelog`）、赞助信息、流式下载（`/dl/`）、意见反馈提交与后台（`/feedback`、`/feedback/admin`），并托管网页端 `/web/`。 | `npm run site:build`<br>`npm run site:dev`<br>`npm run site:test` |
+| **工具中心 (Tools)** | 独立静态工具包<br>`tools/`<br>`config/tools.vite.config.mjs` | 6 个按需下载的离线静态工具包（Markdown、图片编辑、图论编辑器、计算器、计时器、GeoGebra），源码部分复用 `src/renderer/src/views/tools/`，发布至 GitLab `TOOLS/latest`。 | `npm run build:tools`<br>`npm run tools:local`<br>`npm run publish:tools` |
+| **配置 / 脚本 / 测试** | `config/`<br>`scripts/`<br>`tests/`<br>`resources/` | 按职责划分：构建配置统一收拢在 `config/`；构建与工具脚本按 `desktop/`、`web/`、`android/`、`tools/`、`release/`、`data/` 分类；单测与联调收拢在 `tests/`；桌面图标与 KaTeX 运行资源在 `resources/`。 | `npm test`<br>`npm run clean` |
+| **服务端自动部署 (Deploy)** | systemd + 拉取脚本<br>`deploy/` | 服务器定时检测 GitHub `origin/main` 更新，自动拉取、增量构建网页端、平滑重启 `7fa4-chat-site` 并做 `/healthz` 校验与失败自动回滚。 | 详见 [deploy/README.md](deploy/README.md) |
 
 ---
 
@@ -87,29 +90,46 @@
 
 如果你有什么好的建议，请前往[议题/issues](https://jx.7fa4.cn:9080/student-archive/7fa4-chat/-/issues)提交。
 
-## 开发与构建
+## 开发、构建与自动化脚本
 
 需要 Node.js 22+，并完整安装依赖（不要加 `--omit=dev`）：
 
 ```bash
 npm install
-npm run dev      # 开发调试（electron-vite）
-npm run build    # 构建渲染层与主进程
-npm run dist     # 打包当前平台的安装包（输出到 build/）
 
-# 工具中心（独立工具包，发布到 GitLab 的 TOOLS 软件包）
-npm run build:tools    # 构建到 dist-tools/（不入库）
-npm run publish:tools                     # 发布预演（dry-run，不写远端）
-npm run publish:tools -- --apply          # 真正发布（先删旧 TOOLS 包再整包上传，需环境变量 GITLAB_TOKEN）
+# 1. 桌面端（Electron）
+npm run dev                  # 开发调试（electron-vite）
+npm run build                # 构建渲染层与主进程（含 V8 字节码与 KaTeX 资源同步）
+npm run pack                 # 本地打包免安装目录（用于测试打包产物）
+npm run dist                 # 打包当前平台的安装包（输出到 build/）
+
+# 2. 网页端（纯浏览器 SPA）
+npm run dev:web              # 本地启动网页端调试服务器
+npm run build:web            # 构建网页端产物到 out/web/
+npm run build:web:site       # 构建网页端并原子同步到 site/public/web/
+
+# 3. 安卓端（Capacitor，需要 JDK 21 与 Android SDK compileSdk 35）
+npm run build:android:assets # 仅构建渲染层产物到 out/renderer/ 并裁剪字体
+npm run sync:android         # 构建渲染层并同步至 android/
+npm run build:android        # 一键构建 + 同步 + 输出 Release APK（加 -- --debug 打 Debug 包）
+
+# 4. 官网与反馈服务
+npm run site:build           # 构建官网托管的网页端产物（等同 build:web:site）
+npm run site:dev             # 启动官网与反馈本地服务（http://127.0.0.1:5300）
+npm run site:test            # 运行官网与反馈本地联调检查（需开放回环网络）
+
+# 5. 工具中心（独立工具包，发布到 GitLab 的 TOOLS 软件包）
+npm run build:tools          # 构建到 dist-tools/（不入库）
+npm run tools:local          # 构建并安装到本机客户端 userData 目录调试
+npm run publish:tools        # 发布预演（dry-run）；加 -- --apply 真正上传（需 GITLAB_TOKEN）
+
+# 6. 测试、校验与维护
+npm test                     # 运行全部核心检查：check:sfc + test:md + test:store
+npm run check:sfc            # 静态检查所有 .vue 模板与 <script setup> 绑定
+npm run test:md              # Markdown 渲染、Typora 与输入区集成测试
+npm run test:store           # Android IndexedDB 与网页端偏好存储单测
+npm run sync:luogu           # 从上游 luogu-markdown-editor 同步模块与样式
+npm run clean                # 清理构建输出与临时目录（加 -- --all 同时清 Android Gradle 缓存）
 ```
 
-Android 端基于 Capacitor，复用同一套渲染层：
-
-```bash
-node scripts/build-web.mjs
-npx cap sync android
-cd android
-./gradlew assembleRelease   # 产物：android/app/build/outputs/apk/release/
-```
-
-Android 构建需要 JDK 21 与 Android SDK（compileSdk 35）。
+服务器自动更新与部署（无需再手动 SSH 登录改文件）详见 [deploy/README.md](deploy/README.md)。

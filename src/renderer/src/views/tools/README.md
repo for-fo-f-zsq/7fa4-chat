@@ -7,9 +7,9 @@
 
 ```
 tools/<id>/src/main.js
-  → import ... from '../../../src/renderer/src/views/tools/<...>.vue'
-  → scripts/build-tools.mjs 用 vite 打成 dist-tools/<id>/<version>/
-  → scripts/publish-tools.mjs 上传，客户端从线上拉
+  → import ... from '../../../src/renderer/src/views/tools/<id>/<...>.vue'
+  → scripts/tools/build-tools.mjs 用 vite 打成 dist-tools/<id>/<version>/
+  → scripts/tools/publish-tools.mjs 上传，客户端从线上拉
 ```
 
 所以维护方式只有一条链路：
@@ -35,5 +35,5 @@ tools/<id>/src/main.js
 ## math（GeoGebra）
 
 `tools/math/src/main.js` 不 import 任何 Vue 组件，直接把 iframe 指向构建产物里的
-`geogebra/calculator.html`（由 `scripts/build-tools.mjs` 从 `tools/math/geogebra/` 复制）。
+`geogebra/calculator.html`（由 `scripts/tools/build-tools.mjs` 从 `tools/math/geogebra/` 复制）。
 原先只为内置页存在的 `math/MathTool.vue` 已随内置页一起删除。

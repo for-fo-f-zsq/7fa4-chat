@@ -1,0 +1,13 @@
+[Unit]
+Description=7FA4 Chat GitHub Auto-Pull & Deploy Worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=__USER__
+Group=__USER__
+WorkingDirectory=__REPO_DIR__
+ExecStart=/bin/bash __REPO_DIR__/deploy/auto-deploy.sh
+StandardOutput=journal
+StandardError=journal
