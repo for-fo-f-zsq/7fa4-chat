@@ -204,7 +204,7 @@ rollback() {
   log "ERROR: 部署失败，正在自动回滚到 ${OLD_SHA:0:7} ..."
   git reset --hard "$OLD_SHA"
   if [[ "$NEED_NPM_INSTALL" -eq 1 ]]; then
-    ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --no-audit --no-fund >/dev/null 2>&1 || true
+    ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --ignore-scripts --no-audit --no-fund >/dev/null 2>&1 || true
   fi
   if [[ "$NEED_WEB_BUILD" -eq 1 ]]; then
     NODE_OPTIONS="--max-old-space-size=${NODE_MAX_MEM}" npm run site:build >/dev/null 2>&1 || true
@@ -220,8 +220,8 @@ rollback() {
 }
 
 if [[ "$NEED_NPM_INSTALL" -eq 1 ]]; then
-  log "安装依赖 (跳过 Electron 二进制下载) ..."
-  ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --no-audit --no-fund || rollback
+  log "安装依赖 (跳过 Electron 与安装脚本) ..."
+  ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --ignore-scripts --no-audit --no-fund || rollback
 fi
 
 if [[ "$NEED_WEB_BUILD" -eq 1 ]]; then
