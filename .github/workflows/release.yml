@@ -186,12 +186,12 @@ jobs:
           retention-days: 7
           path: android/app/build/outputs/apk/release/*.apk
 
-  # ============ 构建并发布：内置工具包（GitLab Generic Package TOOLS/latest）============
+  # ============ 构建工具包（产物留档 + 校验线上清单；发布由 tools.yml 负责）============
+  # 为什么这里不再发布：tools.yml 在 main 分支工具相关改动时已发布同一份产物，
+  # 两个工作流同时向 TOOLS/latest 做「删包 → 重传」会互相干扰（曾导致 v4.0.0 首发 release job 被阻塞）。
+  # 单一发布者 = tools.yml；本 job 只负责在 tag 上校验工具包可构建、并核对线上清单版本。
   build-tools:
     runs-on: ubuntu-latest
-    concurrency:
-      group: tools-publish
-      cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -221,17 +221,45 @@ jobs:
           retention-days: 7
           path: dist-tools/
 
-      - name: Publish tools to GitLab Generic Package
-        if: startsWith(github.ref, 'refs/tags/')
+      # 只读校验：确认线上 TOOLS/latest/tools.json 与本次 tag 内的工具版本一致。
+      # 不发布、不阻塞 release（tools.yml 与之并行，可能稍晚才切换清单）。
+      - name: Verify published tool manifest (read-only)
+        continue-on-error: true
         env:
-          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_TOOLS_MANIFEST: https://jx.7fa4.cn:9080/api/v4/projects/886/packages/generic/TOOLS/latest/tools.json
         run: |
-          set -euo pipefail
-          if [ -z "${GITLAB_TOKEN:-}" ]; then
-            echo "::error::缺少 secret GITLAB_TOKEN，请在仓库 Settings→Secrets→Actions 添加后重试"
-            exit 1
-          fi
-          node scripts/tools/publish-tools.mjs --apply
+          node --input-type=module - <<'NODE'
+          import { readFileSync, readdirSync, existsSync } from 'node:fs';
+          import { join } from 'node:path';
+
+          const local = {};
+          for (const id of readdirSync('tools')) {
+            const file = join('tools', id, 'tool.json');
+            if (!existsSync(file)) continue;
+            const meta = JSON.parse(readFileSync(file, 'utf8'));
+            if (meta && meta.id) local[meta.id] = String(meta.version || '');
+          }
+          const res = await fetch(process.env.GITLAB_TOOLS_MANIFEST, { headers: { 'Cache-Control': 'no-cache' } });
+          if (!res.ok) {
+            console.log(`::warning::线上工具清单不可达（HTTP ${res.status}），跳过版本核对`);
+            process.exit(0);
+          }
+          const data = await res.json();
+          const remote = {};
+          for (const item of Array.isArray(data) ? data : data.tools || []) {
+            if (item && item.id) remote[item.id] = String(item.version || '');
+          }
+          let mismatch = 0;
+          for (const [id, version] of Object.entries(local)) {
+            if (remote[id] === version) {
+              console.log(`  ok   ${id}@${version}`);
+            } else {
+              mismatch++;
+              console.log(`::warning::工具 ${id} 线上版本 ${remote[id] || '(缺失)'} != 本地 ${version}（若 tools.yml 仍在运行属正常）`);
+            }
+          }
+          console.log(mismatch ? `校验完成：${mismatch} 个工具版本待 tools.yml 切换` : '校验完成：线上工具版本与本地一致');
+          NODE
 
   # ============ 发布：仅在 tag 推送时执行 ============
   # 发布策略（2026-11 起）：
@@ -241,7 +269,7 @@ jobs:
   #     历史版本包全部删除以减小仓库体积；同时自动创建 GitLab Release（正文同上），
   #     资源链接指向 latest/ 下的绝对地址；旧 Release 的资源链接全部清除（保留 Release 本体与正文）
   release:
-    needs: [test, build, build-android, build-tools]
+    needs: [test, build, build-android]
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
