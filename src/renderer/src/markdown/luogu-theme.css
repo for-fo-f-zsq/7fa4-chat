@@ -4,7 +4,7 @@
  * 上游：wudream813/luogu-markdown-editor v1.23.1（MIT License）
  * https://github.com/wudream813/luogu-markdown-editor
  *
- * 本文件只含上游 styles.css 中 .luogu-* / .typora-* / .preview-content 相关规则
+ * 本文件只含上游 styles.css 中 .luogu-* / .preview-content 相关规则
  * （共 146 条）。上游的 :root 主题变量不在此处引入，改为下面的 --lg-* 映射层，
  * 取值全部落到 7fa4-chat 自己的主题变量上，因此自动跟随 21 套主题（含暗色）切换。
  */
@@ -43,164 +43,12 @@
   flex: 1;
   padding: 24px 32px;
   overflow-y: auto;
-  /* Positioning context for Typora's overlay editors, which are placed in the
-     scroll container's own coordinate space. */
   position: relative;
   line-height: 1.75;
   color: var(--lg-text-primary);
   word-break: break-word;
 }
 
-/* Hint that blocks are clickable, without the noise of a permanent outline. */
-.luogu-md.typora-mode > * {
-  border-radius: 4px;
-  transition: background-color 0.12s ease;
-}
-
-.luogu-md.typora-mode > *:hover {
-  cursor: text;
-}
-
-/* Only tint blocks that have no surface of their own. A code block / table / bilibili
-   card / callout paints its own background, and washing --bg-secondary over it made
-   the light theme show pale syntax colours on white. */
-.luogu-md.typora-mode > *:hover:not(.luogu-code-block-wrapper):not(.luogu-code-block-wrap):not(.luogu-table-wrapper):not(.luogu-bilibili-container):not(details.luogu-callout):not(ul):not(ol) {
-  background-color: var(--lg-bg-secondary);
-}
-
-/* A list is edited one item at a time, so the hover affordance must point at the
-   item under the pointer rather than washing over the whole list. Innermost wins:
-   on a nested list only the deepest <li> containing the pointer lights up. */
-.luogu-md.typora-mode li:hover {
-  cursor: text;
-}
-
-.luogu-md.typora-mode li:hover > :not(ul):not(ol),
-.luogu-md.typora-mode li:hover {
-  background-color: var(--lg-bg-secondary);
-  border-radius: 4px;
-}
-
-.luogu-md.typora-mode li:hover ul,
-.luogu-md.typora-mode li:hover ol,
-.luogu-md.typora-mode li:has(li:hover) {
-  background-color: transparent;
-}
-
-/* Blocks that paint their own background must not be tinted by the generic hover
-   above: a code block has a dark surface of its own, and washing --bg-secondary over
-   it (or over a table's zebra striping) produced visibly wrong colours. Highlight
-   them with a ring instead, which reads on both light and dark themes. */
-.luogu-md.typora-mode > .luogu-code-block-wrapper:hover,
-.luogu-md.typora-mode > .luogu-code-block-wrap:hover,
-.luogu-md.typora-mode > .luogu-table-wrapper:hover,
-.luogu-md.typora-mode > .luogu-bilibili-container:hover,
-.luogu-md.typora-mode > details.luogu-callout:hover {
-  /* Deliberately does NOT touch background-color. These blocks paint their own
-     surface (a code block stays dark even under the light theme); an earlier version
-     forced `transparent` here, which dropped that background and left pale syntax
-     colours on white. The ring alone is enough of a hover affordance. */
-  box-shadow: 0 0 0 2px var(--lg-luogu-blue-light, rgba(52, 152, 219, 0.35));
-}
-
-/* Inside those blocks, highlight the actual sub-target instead. */
-.luogu-md.typora-mode .luogu-table td:hover,
-.luogu-md.typora-mode .luogu-table th:hover {
-  box-shadow: inset 0 0 0 2px var(--lg-luogu-blue);
-  cursor: text;
-}
-
-/* Only the title text is editable, so it is the only part of the header that gets a
-   text cursor and an edit affordance; the rest of the summary still toggles. */
-.luogu-md.typora-mode .luogu-callout-title:hover {
-  cursor: text;
-  text-decoration: underline dashed;
-  text-underline-offset: 3px;
-  background: rgba(52, 152, 219, 0.12);
-  border-radius: 3px;
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.12);
-}
-
-.luogu-md.typora-mode .luogu-callout-summary {
-  cursor: pointer;
-}
-
-.luogu-md.typora-mode .luogu-callout-icon:hover {
-  cursor: pointer;
-  filter: brightness(1.25);
-}
-
-.luogu-md.typora-mode pre[data-code-body]:hover {
-  cursor: text;
-}
-
-/* Sub-block editors sit inside an existing block, so they must not inherit the
-   full-width block spacing the top-level editor uses. */
-.typora-partial {
-  margin: 0;
-}
-
-.typora-code-input {
-  border-radius: 0;
-  border-color: var(--lg-luogu-blue);
-  background: var(--lg-code-bg, #2d2d2d);
-  color: var(--lg-code-fg, #ccc);
-  tab-size: 4;
-}
-
-/* A cell / title editor should read as inline text, not as a block form field. */
-.typora-inline-input {
-  min-height: 0;
-  padding: 2px 6px;
-  font-family: inherit;
-  font-size: inherit;
-  line-height: inherit;
-}
-
-.luogu-md.typora-mode:focus {
-  outline: none;
-}
-
-/* The in-place source editor swapped in for the block being edited. */
-.typora-editing {
-  margin: 4px 0;
-}
-
-.typora-block-input {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  min-height: 2.4em;
-  padding: 10px 12px;
-  border: 1px solid var(--lg-luogu-blue);
-  border-radius: 4px;
-  background: var(--lg-bg-primary);
-  color: var(--lg-text-primary);
-  font-family: 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.7;
-  resize: none;
-  overflow: hidden;
-  outline: none;
-  white-space: pre-wrap;
-  word-break: break-word;
-  tab-size: 4;
-}
-
-.typora-block-input:focus {
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.18);
-}
-
-.typora-block-input::placeholder {
-  color: var(--lg-text-secondary);
-  opacity: 0.6;
-}
-
-/* A brand-new paragraph is dashed until it has content, so it reads as a draft
-   rather than as a block that already exists in the document. */
-.typora-inserting .typora-block-input {
-  border-style: dashed;
-}
 
 /* ==========================================================================
    Luogu Markdown Rendered Content Styles (预览与排版样式)
@@ -403,17 +251,6 @@
   flex: none;
 }
 
-/* The checkbox is the only place that toggles; everything else on the row edits the
-   item. Make that split visible: a pointer cursor on the box, a text caret on the
-   label text (which would otherwise inherit the label's pointer). */
-.luogu-md.typora-mode .luogu-checkbox-label { cursor: text; }
-
-.luogu-md.typora-mode .luogu-task-checkbox { cursor: pointer; }
-
-.luogu-md.typora-mode .luogu-task-checkbox:hover {
-  outline: 2px solid var(--lg-luogu-blue-light, rgba(52, 152, 219, 0.45));
-  outline-offset: 1px;
-}
 
 /* 代码块样式已统一重写到 src/renderer/src/css/code-block.css（由 main.js 引入）。
    上游这段旧规则整体删除：它用 !important 强制 pre-wrap（无法横向滚动）、写死
@@ -511,59 +348,6 @@
   margin: 1em 0;
 }
 
-.luogu-md.typora-mode [class*="luogu-align-"]::before {
-  position: absolute;
-  top: -0.75em;
-  left: 10px;
-  padding: 0 6px;
-  border-radius: 3px;
-  background: var(--lg-bg-primary);
-  color: var(--lg-text-secondary);
-  font-family: var(--lg-font-mono, monospace);
-  font-size: 11px;
-  line-height: 1.4;
-  letter-spacing: 0.02em;
-  pointer-events: none;
-}
-
-.luogu-md.typora-mode .luogu-align-left::before { content: "居左"; }
-
-.luogu-md.typora-mode .luogu-align-center::before { content: "居中"; }
-
-.luogu-md.typora-mode .luogu-align-right::before { content: "居右"; }
-
-/* The badge is the control that switches left/center/right, so make it read as
-   clickable rather than as a passive label. */
-.luogu-md.typora-mode [class*="luogu-align-"]::before { cursor: pointer; }
-
-.luogu-md.typora-mode [class*="luogu-align-"]:hover::before {
-  background: var(--lg-luogu-blue, var(--lg-luogu-blue));
-  color: #fff;
-}
-
-.luogu-md.typora-mode [class*="luogu-align-"]:hover {
-  border-color: var(--lg-luogu-blue);
-}
-
-.luogu-md.typora-mode .luogu-epigraph {
-  border: 1px dashed var(--lg-border-color);
-  border-radius: 4px;
-  margin-top: 1.6em;
-}
-
-.luogu-md.typora-mode .luogu-epigraph::after {
-  content: "引言";
-  position: absolute;
-  top: -0.75em;
-  left: 10px;
-  padding: 0 6px;
-  border-radius: 3px;
-  background: var(--lg-bg-primary);
-  color: var(--lg-text-secondary);
-  font-family: var(--lg-font-mono, monospace);
-  font-size: 11px;
-  pointer-events: none;
-}
 
 /* Epigraph (引言) */
 .luogu-epigraph {
@@ -642,8 +426,7 @@
 .luogu-callout-title {
   /* Only as wide as the text, with `margin-right:auto` keeping the arrow pinned
      right. It used to be `flex:1`, which stretched the span across the whole
-     summary — so in Typora mode a click anywhere on the header row landed on the
-     title and opened the rename editor instead of expanding the box. */
+     summary and swallowed clicks meant for the box itself. */
   flex: 0 1 auto;
   margin-right: auto;
   min-width: 0;
@@ -850,137 +633,6 @@
   border-radius: 3px;
 }
 
-/* Merged-cell hover: the cell is temporarily un-merged, and the positions it had
-   swallowed come back as real cells showing their own source text. Dashed borders
-   and a tinted background mark them as a transient preview rather than content. */
-.luogu-md.typora-mode td.typora-unmerged-origin,
-.luogu-md.typora-mode th.typora-unmerged-origin {
-  outline: 2px solid var(--lg-luogu-blue);
-  outline-offset: -2px;
-}
-
-.luogu-md.typora-mode td.typora-unmerged-cell,
-.luogu-md.typora-mode th.typora-unmerged-cell {
-  border: 1px dashed var(--lg-luogu-blue) !important;
-  background: rgba(52, 152, 219, 0.08) !important;
-  color: var(--lg-text-secondary);
-  font-family: var(--lg-font-mono, monospace);
-  text-align: center;
-  /* The revealed markers are metadata, not prose: keep them from being selected or
-     dragged while the pointer is just passing over the table. */
-  user-select: none;
-}
-
-/* An editor pinned over the element it edits, leaving the document's own layout
-   untouched. A merged table cell cannot host an inline editor without the table
-   reflowing around it, so the cell editor floats instead. */
-.luogu-md.typora-mode .typora-editing/* Cell-local editing: the marker text is replaced by the input inside the same
-   <td>, so the un-merged skeleton around it keeps its own markers on screen. */
-.luogu-md.typora-mode td.typora-host-editing,
-.luogu-md.typora-mode th.typora-host-editing {
-  padding: 0 !important;
-  /* Collapse the cell's own text nodes: the editor replaces the marker, so the
-     original glyph must not linger above the input. */
-  font-size: 0;
-  line-height: 0;
-}
-
-.luogu-md.typora-mode .typora-host-editing .typora-editing {
-  display: block;
-  font-size: 13px;
-}
-
-.luogu-md.typora-mode .typora-host-editing .typora-block-input {
-  width: 100%;
-  /* Ignore the textarea's `cols` intrinsic width so it cannot widen the column. */
-  min-inline-size: 0;
-  field-sizing: content;
-  /* No min-width in em: a wide editor forces the whole column wider and squeezes
-     the neighbouring marker cell down to nothing. The cell already reserves the
-     space it had before the edit. */
-  min-width: 0;
-  box-sizing: border-box;
-  border: 2px solid var(--lg-luogu-blue, var(--lg-luogu-blue));
-  border-radius: 3px;
-  padding: 2px 4px;
-  text-align: center;
-  background: #fff;
-}
-
-.typora-overlay {
-  position: absolute;
-  z-index: 40;
-  margin: 0;
-  padding: 0;
-}
-
-.luogu-md.typora-mode .typora-editing.typora-overlay .typora-block-input {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  margin: 0;
-  padding: 2px 6px;
-  border: 2px solid var(--lg-luogu-blue);
-  border-radius: 3px;
-  background: var(--lg-bg-primary);
-  text-align: center;
-  resize: none;
-}
-
-.luogu-md .typora-hidden,
-.luogu-md .typora-hidden code,
-.luogu-md .typora-hidden pre {
-  display: none !important;
-}
-
-/* Callout type picker (Typora mode). Appended to <body> so it is never clipped by
-   the preview pane's overflow. */
-.typora-type-menu {
-  position: fixed;
-  z-index: 9999;
-  min-width: 128px;
-  padding: 4px;
-  background: var(--lg-bg-primary);
-  border: 1px solid var(--lg-border-color);
-  border-radius: 6px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
-}
-
-.typora-type-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 7px 10px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--lg-text-primary);
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.typora-type-item:hover {
-  background: var(--lg-bg-secondary);
-}
-
-.typora-type-item.is-current {
-  font-weight: 600;
-}
-
-.typora-type-item.is-current::after {
-  content: "✓";
-  margin-left: auto;
-  color: var(--lg-luogu-blue);
-}
-
-.typora-type-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex: none;
-}
 
 
 /* ---- 根类契约：.luogu-md 只借用上游的排版，不借用外壳布局 ----
@@ -1003,18 +655,7 @@
 .luogu-md > :first-child { margin-top: 0; }
 .luogu-md > :last-child { margin-bottom: 0; }
 
-/* ---- 补丁：上游用字面量写死的少量颜色在项目主题下需要跟随 ---- */
-.typora-host-editing .typora-block-input {
-  background: var(--lg-surface);
-  color: var(--text-primary);
-}
 /* 代码块外壳 / 顶栏 / 复制按钮的主题补丁也一并删除，统一由 code-block.css 负责。 */
-
-.typora-block-input {
-  background: var(--lg-surface);
-  color: var(--text-primary);
-  border-color: var(--border-light);
-}
 
 /* ---- 暗色主题覆盖（midnight / graphite 两个深色主题）---- */
 .theme-midnight .luogu-tuack-table,

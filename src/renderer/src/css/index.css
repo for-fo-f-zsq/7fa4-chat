@@ -5,7 +5,9 @@
 @import './tokens.css';               /* 2. 设计令牌（只新增，不重声明主题变量） */
 @import './base.css';                 /* 3. reset / 排版 / 背景 / 滚动条 / #app 平台基础 */
 @import './motion.css';               /* 4. 动效令牌 / 关键帧库 / Transition 类 / reduced-motion */
-@import './utilities.css';            /* 5. 少量全局工具类 */
+@import './patterns.css';             /* 5. 共享结构模式（toolbar / panel / list / modal footer） */
+@import './chat-md.css';              /* 6. 聊天 Markdown / 引用 / 提及共享样式 */
+@import './utilities.css';            /* 7. 少量全局工具类（置后以确保可覆盖模式默认样式） */
 
 /* ↓↓↓ 第三方（font-awesome 收尾；katex 由 main.js 引入） ↓↓↓ */
 @import './vendor/font-awesome/css/all.min.css';

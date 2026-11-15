@@ -1,7 +1,8 @@
 import { createApp, nextTick } from 'vue';
-import App from './App.vue';
-// 全局样式入口：统一入口 → v-html 代码块样式（保持最后压过组件旧规则）→ 第三方数学排版。
+// 全局样式入口须先于 App.vue：确保主题、令牌与 :where() reset 先于任何组件样式加载。
 import './css/index.css';
+import App from './App.vue';
+// v-html 代码块样式（保持在组件样式之后压过旧规则）→ 第三方数学排版。
 import './css/code-block.css';
 import 'katex/dist/katex.min.css';
 

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog, session, clipboard, safeStorage, protocol, net } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog, session, clipboard, safeStorage, protocol, net, shell } = require('electron');
 const fs = require('fs').promises;
 const fsCb = require('fs');
 const os = require('os');
@@ -20,8 +20,11 @@ protocol.registerSchemesAsPrivileged([
 
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const { UserStore, migrateLegacy, importLegacyData } = require('./storage');
+const { NotificationManager } = require('./notifications');
 
 let mainWindow;
+// 通知窗管理器：提前用 let 声明（null 占位），isAllowedSender 在模块顶层就引用它也不会有 TDZ 问题
+let notificationManager = null;
 let tray = null;
 let serverStarted = false;
 let serverInstance = null;
@@ -43,6 +46,82 @@ function writeDevPortFile(port) {
 // 上次成功的端口记在 userData 里复用：页面 origin 含端口，端口一变 localStorage / OJ cookie 就清零
 const PORT_BAND_START = 20000;
 const PORT_BAND_SIZE = 20;
+
+const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
+
+// 我们自己的本地窗口页面（通知卡片 / 定时悬浮窗）。这两个页面用 loadFile 以 file:// 加载，
+// 而全局白名单只放行 http(s)/about/data/blob/devtools/tool，于是这些窗口发出的 IPC
+// （load-setting / close-notification / show-mainwindow / timer-float-*）会被 isAllowedSender 全拒。
+// 这里按「路径必须以自家页面的产物或源码路径结尾」精确放行，别的 file:// 一律继续拒绝。
+// 安全性说明：这是主进程自己 loadFile 的窗口，渲染层发起的跳转已被 web-contents-created 里的
+// will-navigate 锁死（loadFile 属于主进程 API，不触发 will-navigate），所以这里只放开 file 协议里
+// 这两页各自的两个路径（打包产物 + 源码），而不是整个 file 协议。
+const OWN_LOCAL_PAGES = [
+    'out/renderer/notification.html',
+    'src/renderer/notification.html',
+    'out/renderer/timer-float.html',
+    'src/renderer/timer-float.html'
+];
+
+function isOwnLocalPagePath(u) {
+    try {
+        // decodeURIComponent 后再比较：路径里含中文/空格时会变成 %XX；兼容 Windows 反斜杠
+        const p = decodeURIComponent(u.pathname || '').replace(/\\/g, '/');
+        return OWN_LOCAL_PAGES.some((suffix) => p.endsWith(suffix));
+    } catch {
+        return false;
+    }
+}
+
+function isAllowedAppNavigation(rawUrl) {
+    if (!rawUrl) return false;
+    try {
+        const u = new URL(String(rawUrl));
+        if (u.protocol === 'about:' || u.protocol === 'data:' || u.protocol === 'blob:' || u.protocol === 'devtools:' || u.protocol === 'tool:') {
+            return true;
+        }
+        // 自有本地页面（见上方 OWN_LOCAL_PAGES）：只放行这两页，其余 file:// 仍然拒绝
+        if (u.protocol === 'file:' && isOwnLocalPagePath(u)) return true;
+        if (u.protocol === 'http:' && (u.hostname === '127.0.0.1' || u.hostname === 'localhost' || u.hostname === '::1' || u.hostname === '[::1]')) {
+            const port = u.port || '80';
+            return (serverPort > 0 && port === String(serverPort)) || (!!devOriginPort && port === String(devOriginPort));
+        }
+    } catch { /* invalid URL */ }
+    return false;
+}
+
+function matchesAppWindow(win, event) {
+    return !!(win && !win.isDestroyed() && event.sender === win.webContents);
+}
+
+function isAllowedSender(event, targets = 'main') {
+    if (!event || !event.senderFrame || event.senderFrame !== event.sender?.mainFrame) return false;
+    const list = Array.isArray(targets) ? targets : [targets];
+    const matched = list.some((t) => {
+        if (t === 'main') return matchesAppWindow(mainWindow, event);
+        // 通知窗每次重建都是新实例，必须问 manager 要当前窗口，不能缓存引用
+        if (t === 'notification') return matchesAppWindow(notificationManager && notificationManager.getWindow(), event);
+        if (t === 'timer-float') return matchesAppWindow(timerFloatWin, event);
+        return false;
+    });
+    if (!matched) return false;
+    return isAllowedAppNavigation(event.senderFrame.url);
+}
+
+function isMainAppSender(event) {
+    return isAllowedSender(event, 'main');
+}
+
+function handleAllowedIpc(channel, targets, handler) {
+    ipcMain.handle(channel, async (event, ...args) => {
+        if (!isAllowedSender(event, targets)) return { success: false, error: '未授权的调用来源' };
+        return handler(event, ...args);
+    });
+}
+
+function handleMainIpc(channel, handler) {
+    return handleAllowedIpc(channel, 'main', handler);
+}
 function portRecordFile() { return path.join(app.getPath('userData'), 'local-port'); }
 function readRememberedPort() {
     try {
@@ -382,6 +461,16 @@ function createWindow() {
         }, 100);
     });
     mainWindow.webContents.once('did-finish-load', sendMaximizedState);
+
+    // 用户回到主窗 → 角落里的提醒卡片已经没用了，清内容但保留窗口实例
+    mainWindow.on('focus', () => {
+        if (notificationManager) notificationManager.clear();
+    });
+    // 主窗真被销毁（非托盘驻留）时，通知窗必须一起销毁：否则它会一直占着一个 BrowserWindow，
+    // 让 window-all-closed 永远等不到「所有窗口关闭」，非托盘模式的应用就退不出去。
+    mainWindow.on('closed', () => {
+        if (notificationManager) notificationManager.close();
+    });
 }
 
 function createTray() {
@@ -484,6 +573,25 @@ if (!gotTheLock) {
             }
             // 与设置面板默认值保持一致（面板默认勾选开启）
             autoUpdateEnabled = setting.autoUpdate !== false;
+            // 限制所有窗口的新窗口弹出与顶层越界跳转
+            app.on('web-contents-created', (_event, contents) => {
+                contents.setWindowOpenHandler(({ url }) => {
+                    try {
+                        const parsed = new URL(url);
+                        if (SAFE_URL_PROTOCOLS.has(parsed.protocol)) {
+                            shell.openExternal(url).catch(() => {});
+                        }
+                    } catch { /* ignore invalid external url */ }
+                    return { action: 'deny' };
+                });
+                contents.on('will-navigate', (navEvent, url) => {
+                    if (contents.getType() !== 'window') return;
+                    if (!isAllowedAppNavigation(url)) {
+                        navEvent.preventDefault();
+                    }
+                });
+            });
+
             // 先启动本地代理并取得实际端口，再创建窗口（窗口要 loadURL 到该端口）
             await startServer();
             createWindow();
@@ -495,6 +603,11 @@ if (!gotTheLock) {
         }
     });
 }
+
+app.on('before-quit', () => {
+    // 退出前销毁通知窗：它不在 window-all-closed 的退出判断里，留着会把进程吊住
+    if (notificationManager) notificationManager.destroy();
+});
 
 app.on('will-quit', () => {
     // 清掉 dev 端口握手文件，避免下次 dev 转发读到已失效的端口
@@ -509,10 +622,10 @@ app.on('window-all-closed', () => {
     if (!minimizeToTray && process.platform !== 'darwin') app.quit();
 });
 
-ipcMain.handle('get-version', () => app.getVersion());
+handleMainIpc('get-version', () => app.getVersion());
 
 // 客户端平台（反馈客户端信息按 OS 细分：windows/linux/macos；web/android 由各自适配层提供）
-ipcMain.handle('get-platform', () => {
+handleMainIpc('get-platform', () => {
   const p = process.platform;
   if (p === 'win32') return 'windows';
   if (p === 'darwin') return 'macos';
@@ -570,12 +683,18 @@ async function saveSettingToFile(data) {
     } catch { return false; }
 }
 
-ipcMain.handle('load-setting', async () => {
+handleAllowedIpc('load-setting', ['main', 'notification'], async (event) => {
     if (!cachedSetting) await loadSettingFromFile();
-    return JSON.parse(JSON.stringify(cachedSetting));
+    const copy = JSON.parse(JSON.stringify(cachedSetting));
+    // 通知弹窗只需 fontSize 等展示配置，不暴露保存的登录凭据
+    if (!matchesAppWindow(mainWindow, event)) {
+        delete copy.loginPassword;
+        delete copy.loginUsername;
+    }
+    return copy;
 });
 
-ipcMain.handle('save-setting', async (event, data) => {
+handleMainIpc('save-setting', async (event, data) => {
     const oldMinimizeToTray = minimizeToTray;
     const oldApiUrl = (cachedSetting || {}).apiUrl;
     const oldAutoUpdate = autoUpdateEnabled;
@@ -600,50 +719,81 @@ ipcMain.handle('save-setting', async (event, data) => {
             stopUpdateCheckTimer();
         }
     }
+    // 关掉「新消息提醒」→ 立刻收起正在显示的卡片（不清空的话它会一直停到倒计时结束）
+    if (data.notifDesktop === false && notificationManager) notificationManager.clear();
     return result;
 });
 
-let notificationWin = null;
-
-ipcMain.handle('notify', (e, { sender, content, chatType, targetId }) => {
-    if (notificationWin && !notificationWin.isDestroyed()) return;
-    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-    const isLinux = process.platform === 'linux';
-    notificationWin = new BrowserWindow({
-        width: 340, height: 100, frame: false, alwaysOnTop: true, transparent: true,
-        show: false, // 先隐藏创建，避免新窗口抢焦点打断其他窗口输入
-        x: isLinux ? width : width - 348,
-        y: isLinux ? height : height - 108,
-        webPreferences: {
-            preload: path.join(__dirname, '../preload/notification.js'),
-            contextIsolation: true,
-            nodeIntegration: false,
-            sandbox: true
-        }
-    });
-    notificationWin.on('closed', () => { notificationWin = null; });
-    const notifPath = app.isPackaged
+// ========== 桌面通知窗 ==========
+// 单实例复用（窗口创建/推送/尺寸/定位都在 notifications.js）：旧实现「窗口已存在就 return」
+// 会把第二条提醒直接吞掉，且位置写死在右下角。
+notificationManager = new NotificationManager({
+    preloadPath: path.join(__dirname, '../preload/notification.js'),
+    htmlPath: app.isPackaged
         ? path.join(__dirname, '../renderer/notification.html')
-        : path.join(app.getAppPath(), 'src/renderer/notification.html');
-    notificationWin.loadFile(notifPath);
-    notificationWin.webContents.on('did-finish-load', () => {
-        notificationWin.webContents.send('notif-data', { sender, content, chatType, targetId });
-        // 无焦点显示：置顶但绝不抢占当前窗口焦点
-        notificationWin.showInactive();
-    });
+        : path.join(app.getAppPath(), 'src/renderer/notification.html'),
+    // 最后一道 notifDesktop 闸门：设置里关掉桌面通知后，任何 notify 都不再弹窗
+    isEnabled: () => (cachedSetting ? cachedSetting.notifDesktop !== false : true),
+    // 卡片放到主窗所在显示器的角落（副屏用户不会被提醒拽回主屏）；主窗引用靠注入，不跨模块 require
+    getMainWindow: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null)
 });
 
-ipcMain.handle('close-notification', () => {
-    if (notificationWin && !notificationWin.isDestroyed()) notificationWin.close();
-});
+// 兼容两代调用方：旧的是 { sender, content }，新的是完整 payload（title/body/position/accent…）
+function normalizeNotifyPayload(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const payload = { ...raw };
+    if (!payload.title && payload.sender) payload.title = payload.sender;
+    if (!payload.body && payload.content) payload.body = payload.content;
+    if (!payload.position) payload.position = 'br';
+    return payload;
+}
 
-ipcMain.handle('show-mainwindow', (e, chatType, targetId) => {
+// 主窗显示并定位到目标会话：通知卡片点击与「show-mainwindow」共用同一套动作
+function showAndFocusMainWindow(chatType, targetId) {
+    if (!mainWindow || mainWindow.isDestroyed()) return { success: false };
+    // Windows 上窗口最小化时 show() 不会还原，必须先 restore，否则点通知窗口不出来。
+    if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.hide();
     mainWindow.show();
     mainWindow.focus();
     if (chatType && targetId) {
         mainWindow.webContents.send('notif-click', { chatType, targetId });
     }
+    return { success: true };
+}
+
+handleMainIpc('notify', (e, payload) => {
+    if (!notificationManager) return { success: false, error: '通知服务未就绪' };
+    const normalized = normalizeNotifyPayload(payload);
+    if (!normalized) return { success: false, error: '通知内容无效' };
+    try {
+        notificationManager.notify(normalized);
+        return { success: true };
+    } catch (err) {
+        return { success: false, error: String((err && err.message) || err) };
+    }
+});
+
+// 渲染层实测卡片高度后回传（0 或负数 = 收起，窗口只隐藏不销毁，留着下次复用）
+handleAllowedIpc('notification-resize', ['notification'], (e, height) => notificationManager.resize(Number(height) || 0));
+
+// 点卡片：拉起主窗并跳到对应会话，然后收起通知窗
+handleAllowedIpc('notification-action', ['notification'], (e, chatType, targetId) => {
+    const result = showAndFocusMainWindow(chatType, targetId);
+    notificationManager.close();
+    return result;
+});
+
+handleAllowedIpc('close-notification', ['main', 'notification'], () => {
+    notificationManager.close();
+    return { success: true };
+});
+
+handleAllowedIpc('show-mainwindow', ['main', 'notification'], (e, chatType, targetId) => {
+    const result = showAndFocusMainWindow(chatType, targetId);
+    // 用户已经回到主窗，残留在角落的卡片没有意义
+    notificationManager.clear();
+    return result;
 });
 
 // 独立小型无边框置顶窗（file://renderer/timer-float.html）：状态由主窗口经主进程全量推来，单一数据源在主窗口
@@ -747,13 +897,14 @@ function openTimerFloat(cfg) {
     return { success: true };
 }
 
-ipcMain.handle('timer-float-open', (event, cfg) => openTimerFloat(cfg));
-ipcMain.handle('timer-float-close', () => { closeTimerFloat(); return { success: true }; });
+handleMainIpc('timer-float-open', (event, cfg) => openTimerFloat(cfg));
+handleMainIpc('timer-float-close', () => { closeTimerFloat(); return { success: true }; });
 // 渲染层（可能刚重载过）问一句：悬浮窗现在还开着吗？→ 用来对齐「开关」状态
-ipcMain.handle('timer-float-is-open', () => !!(timerFloatWin && !timerFloatWin.isDestroyed()));
+handleMainIpc('timer-float-is-open', () => !!(timerFloatWin && !timerFloatWin.isDestroyed()));
 
 // 主窗口推送状态（全量覆盖，不做增量）
 ipcMain.on('timer-float-update', (event, state) => {
+    if (!isAllowedSender(event, 'main')) return;
     timerFloatState = state || null;
     if (timerFloatWin && !timerFloatWin.isDestroyed()) {
         timerFloatWin.webContents.send('timer-float-state', timerFloatState);
@@ -762,6 +913,7 @@ ipcMain.on('timer-float-update', (event, state) => {
 
 // 渲染层实测内容高度回传 → 窗口高度随「当前显示几个格」自适应（宽度恒定）
 ipcMain.on('timer-float-resize', (event, raw) => {
+    if (!isAllowedSender(event, 'timer-float')) return;
     const h = Math.round(Number(raw));
     if (!Number.isFinite(h) || h <= 0) return;
     const next = Math.min(TIMER_FLOAT_MAX_H, Math.max(TIMER_FLOAT_MIN_H, h));
@@ -779,6 +931,7 @@ ipcMain.on('timer-float-resize', (event, raw) => {
 
 // 主窗口推送外观配置（位置/置顶）
 ipcMain.on('timer-float-config', (event, cfg) => {
+    if (!isAllowedSender(event, 'main')) return;
     if (!cfg || typeof cfg !== 'object') return;
     const prevTop = timerFloatConfig.onTop !== false;
     timerFloatConfig = { ...timerFloatConfig, ...cfg };
@@ -796,23 +949,24 @@ ipcMain.on('timer-float-config', (event, cfg) => {
 
 // 悬浮窗上的按钮 → 交回主窗口执行（保持单一数据源）
 ipcMain.on('timer-float-cmd', (event, payload) => {
+    if (!isAllowedSender(event, 'timer-float')) return;
     const type = payload && payload.type;
     if (type === 'close') { closeTimerFloat(); return; }
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('timer-float-command', payload);
 });
 
 
-ipcMain.handle('window-minimize', () => { if (mainWindow) mainWindow.minimize(); });
-ipcMain.handle('window-maximize', () => { if (mainWindow) mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize(); });
-ipcMain.handle('window-close', () => { if (mainWindow) mainWindow.close(); });
-ipcMain.handle('window-is-maximized', () => mainWindow ? mainWindow.isMaximized() : false);
+handleMainIpc('window-minimize', () => { if (mainWindow) mainWindow.minimize(); });
+handleMainIpc('window-maximize', () => { if (mainWindow) mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize(); });
+handleMainIpc('window-close', () => { if (mainWindow) mainWindow.close(); });
+handleMainIpc('window-is-maximized', () => mainWindow ? mainWindow.isMaximized() : false);
 
-ipcMain.handle('get-window-state', () => {
+handleMainIpc('get-window-state', () => {
     if (!mainWindow) return { visible: false, focused: false, minimized: false };
     return { visible: mainWindow.isVisible(), focused: mainWindow.isFocused(), minimized: mainWindow.isMinimized() };
 });
 
-ipcMain.handle('clipboard-write-text', async (event, text) => {
+handleMainIpc('clipboard-write-text', async (event, text) => {
     clipboard.writeText(text);
     return { success: true };
 });
@@ -823,7 +977,7 @@ ipcMain.handle('clipboard-write-text', async (event, text) => {
 // 否则渲染层一旦被注入就能往任意路径落文件。
 const writableFilePaths = new Set();
 
-ipcMain.handle('select-file', async () => {
+handleMainIpc('select-file', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], title: '选择要发送的文件' });
     if (canceled || !filePaths.length) return { success: false, canceled: true };
     try {
@@ -854,7 +1008,7 @@ ipcMain.handle('select-file', async () => {
     } catch (e) { return { success: false, error: e.message }; }
 });
 
-ipcMain.handle('select-image', async () => {
+handleMainIpc('select-image', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
         properties: ['openFile'],
         title: '选择表情图片',
@@ -894,13 +1048,13 @@ ipcMain.handle('select-image', async () => {
 // 否则一旦「曾经 blur 过、现在又 focus 回来且已经过一轮扫描」就判定用户放弃 → 立即返回。
 const cameraWaiters = new Set();
 
-ipcMain.handle('cancel-camera', async () => {
+handleMainIpc('cancel-camera', async () => {
     // 用户主动点了「取消」：作废所有正在等待的拍照请求
     for (const w of [...cameraWaiters]) w.canceled = true;
     return { success: true };
 });
 
-ipcMain.handle('launch-camera', async (event) => {
+handleMainIpc('launch-camera', async (event) => {
     const os = require('os');
     const { spawn } = require('child_process');
     const home = os.homedir();
@@ -1036,7 +1190,7 @@ ipcMain.handle('launch-camera', async (event) => {
     return done({ success: false, canceled: true });
 });
 
-ipcMain.handle('download-file', async (event, base64Data, suggestedName, mime) => {
+handleMainIpc('download-file', async (event, base64Data, suggestedName, mime) => {
     try {
         const { canceled, filePath: savePath } = await dialog.showSaveDialog(mainWindow, { defaultPath: suggestedName || 'download' });
         if (canceled || !savePath) return { success: false, canceled: true };
@@ -1051,7 +1205,7 @@ ipcMain.handle('download-file', async (event, base64Data, suggestedName, mime) =
 // ⚠️ 必须放在主进程：渲染层 fetch 远程资源会被 CORS 拦（渲染进程源是本地服务端口，远程站点
 // 通常不带 access-control-allow-origin），表现为「Failed to fetch」；而 <img> 加载不受同源
 // 策略限制，所以图能显示却下不下来。Node 侧没有同源策略，抓取稳定。
-ipcMain.handle('download-url', async (event, url, suggestedName) => {
+handleMainIpc('download-url', async (event, url, suggestedName) => {
     try {
         if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return { success: false, error: '地址无效' };
         const { canceled, filePath: savePath } = await dialog.showSaveDialog(mainWindow, { defaultPath: suggestedName || 'download' });
@@ -1067,7 +1221,7 @@ ipcMain.handle('download-url', async (event, url, suggestedName) => {
 
 // 覆盖写入已保存过的文件（不弹对话框）。unsupported 表示路径不受信，
 // 渲染层据此回落到「另存为」对话框，而不是直接报失败。
-ipcMain.handle('save-file-to', async (event, filePath, base64Data) => {
+handleMainIpc('save-file-to', async (event, filePath, base64Data) => {
     try {
         if (typeof filePath !== 'string' || !filePath) return { success: false, unsupported: true };
         if (!writableFilePaths.has(filePath)) return { success: false, unsupported: true };
@@ -1078,7 +1232,7 @@ ipcMain.handle('save-file-to', async (event, filePath, base64Data) => {
 });
 
 // 导出 Markdown 为 PNG：保存对话框选路径 + offscreen 渲染截图（替代原 tool-export-markdown-to-png）
-ipcMain.handle('export-markdown-png', async (event, suggestedName, html) => {
+handleMainIpc('export-markdown-png', async (event, suggestedName, html) => {
     let exportWin = null;
     let tmpHtml = null;
     try {
@@ -1167,7 +1321,7 @@ body { width: ${WIDTH}px; padding: ${PAD}px; background: #ffffff; color: #1a1a2e
     }
 });
 
-ipcMain.handle('clipboard-write-image', async (event, base64Data) => {
+handleMainIpc('clipboard-write-image', async (event, base64Data) => {
     try {
         const buf = Buffer.from(base64Data, 'base64');
         const img = nativeImage.createFromBuffer(buf);
@@ -1177,13 +1331,11 @@ ipcMain.handle('clipboard-write-image', async (event, base64Data) => {
     } catch (e) { return { success: false, error: e.message }; }
 });
 
-const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
-ipcMain.handle('open-external', (event, url) => {
+handleMainIpc('open-external', (event, url) => {
     try {
         const parsed = new URL(url);
         if (!SAFE_URL_PROTOCOLS.has(parsed.protocol)) return { success: false };
     } catch { return { success: false }; }
-    const { shell } = require('electron');
     shell.openExternal(url);
     return { success: true };
 });
@@ -1198,7 +1350,8 @@ function storeReady() {
 
 // 初始化当前用户：迁移旧版单文件（幂等）
 // 渲染进程数据落盘完成后确认关闭（配合 close 拦截：先 flush 再关窗）
-ipcMain.on('app-flush-done', () => {
+ipcMain.on('app-flush-done', (event) => {
+    if (!isAllowedSender(event, 'main')) return;
     forceClose = true;
     flushPending = false;
     if (pendingRestart) {
@@ -1210,7 +1363,7 @@ ipcMain.on('app-flush-done', () => {
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
 });
 
-ipcMain.handle('store-init', async (event, uid) => {
+handleMainIpc('store-init', async (event, uid) => {
     if (!storeReady()) return { success: false, error: '存储未初始化' };
     if (uid == null) return { success: false, error: '缺少 uid' };
     try {
@@ -1222,42 +1375,42 @@ ipcMain.handle('store-init', async (event, uid) => {
     }
 });
 
-ipcMain.handle('store-load-convos', async (event, uid) => {
+handleMainIpc('store-load-convos', async (event, uid) => {
     if (!storeReady()) return { success: false, error: '存储未初始化' };
     return userStore.loadConvos(Number(uid));
 });
 
 // 全量快照（唯一保存通道）：会话元数据 + 偏好 + 待写消息，单事务原子
-ipcMain.handle('store-save-all', async (event, uid, data) => {
+handleMainIpc('store-save-all', async (event, uid, data) => {
     if (!storeReady()) return { success: false, error: '存储未初始化' };
     if (!data || typeof data !== 'object') return { success: false, error: 'data 需为对象' };
     return userStore.saveAll(Number(uid), data);
 });
 
-ipcMain.handle('store-load-messages', async (event, uid, kind, cid, limit, before) => {
+handleMainIpc('store-load-messages', async (event, uid, kind, cid, limit, before) => {
     if (!storeReady()) return { success: false, error: '存储未初始化' };
     return userStore.loadMessages(Number(uid), kind, Number(cid), limit, before);
 });
 
 // 每个会话最新一条消息（会话列表预览/排序）
-ipcMain.handle('store-load-last-messages', async (event, uid) => {
+handleMainIpc('store-load-last-messages', async (event, uid) => {
     if (!storeReady()) return { success: false, error: '存储未初始化' };
     return userStore.loadLastMessages(Number(uid));
 });
 
-ipcMain.handle('store-load-prefs', async (event, uid) => {
+handleMainIpc('store-load-prefs', async (event, uid) => {
     if (!storeReady()) return { success: false, error: '存储未初始化' };
     return userStore.loadPrefs(Number(uid));
 });
 
 // 全量导出（备份）：所有会话元数据 + 全部消息（解密）+ 偏好
-ipcMain.handle('store-export-all', async (event, uid) => {
+handleMainIpc('store-export-all', async (event, uid) => {
     if (!storeReady()) return { success: false, error: '存储未初始化' };
     return userStore.exportAll(Number(uid));
 });
 
 // 恢复备份：把备份 JSON 写入 SQLite（消息按会话归属，事务批量）
-ipcMain.handle('store-import-all', async (event, uid, data) => {
+handleMainIpc('store-import-all', async (event, uid, data) => {
     if (!storeReady()) return { success: false, error: '存储未初始化' };
     if (!data || typeof data !== 'object') return { success: false, error: '备份数据格式异常' };
     return importLegacyData(userStore, Number(uid), data);
@@ -1605,11 +1758,11 @@ async function getToolEntryUrl(id, entry) {
 }
 
 // ========== 在线工具 IPC ==========
-ipcMain.handle('tools-fetch-manifest', () => fetchToolsManifest());
-ipcMain.handle('tools-install', (event, toolMeta) => installTool(event.sender, toolMeta));
-ipcMain.handle('tools-list-installed', () => listInstalledTools());
-ipcMain.handle('tools-remove', (event, id) => removeTool(id));
-ipcMain.handle('tools-get-entry-url', (event, id, entry) => getToolEntryUrl(id, entry));
+handleMainIpc('tools-fetch-manifest', () => fetchToolsManifest());
+handleMainIpc('tools-install', (event, toolMeta) => installTool(event.sender, toolMeta));
+handleMainIpc('tools-list-installed', () => listInstalledTools());
+handleMainIpc('tools-remove', (event, id) => removeTool(id));
+handleMainIpc('tools-get-entry-url', (event, id, entry) => getToolEntryUrl(id, entry));
 
 // ========== 自动更新 ==========
 let updateDownloaded = false;
@@ -1747,7 +1900,7 @@ function stopUpdateCheckTimer() {
     }
 }
 
-ipcMain.handle('check-for-update', async () => {
+handleMainIpc('check-for-update', async () => {
     if (!app.isPackaged || !autoUpdater) return { status: 'not-packaged' };
     try {
         const result = await autoUpdater.checkForUpdates();
@@ -1757,7 +1910,7 @@ ipcMain.handle('check-for-update', async () => {
     }
 });
 
-ipcMain.handle('download-update', async () => {
+handleMainIpc('download-update', async () => {
     if (!app.isPackaged || !autoUpdater) return { status: 'not-packaged' };
     try {
         await autoUpdater.downloadUpdate();
@@ -1767,7 +1920,7 @@ ipcMain.handle('download-update', async () => {
     }
 });
 
-ipcMain.handle('install-update', () => {
+handleMainIpc('install-update', () => {
     if (!updateDownloaded) return;
     if (process.platform === 'linux' && process.env.APPIMAGE) {
         try {
@@ -1800,7 +1953,7 @@ ipcMain.handle('install-update', () => {
 });
 
 // ========== 获取远程 CHANGELOG（GitLab latest/CHANGELOG，Markdown，渲染层自行渲染） ==========
-ipcMain.handle('fetch-changelog', async () => {
+handleMainIpc('fetch-changelog', async () => {
     try {
         // 同样要绕开缓存：GitLab 包文件的 ETag 不随内容变化
         const res = await net.fetch(`${gitlabLatestPackage()}/CHANGELOG?t=${Date.now()}`, {
@@ -1820,7 +1973,7 @@ ipcMain.handle('fetch-changelog', async () => {
 });
 
 // ========== 赞助列表（GitLab 公开仓库 assets/sponsors.json） ==========
-ipcMain.handle('fetch-sponsors', async () => {
+handleMainIpc('fetch-sponsors', async () => {
     try {
         const res = await net.fetch(`${gitlabSponsorsFile()}&t=${Date.now()}`, {
             cache: 'no-store',
@@ -1838,13 +1991,13 @@ ipcMain.handle('fetch-sponsors', async () => {
 });
 
 // 任务栏图标未读数
-ipcMain.handle('set-badge-count', (event, count) => {
+handleMainIpc('set-badge-count', (event, count) => {
     try { app.setBadgeCount(count || 0); return { success: true }; }
     catch (e) { return { success: false, error: e.message }; }
 });
 
 // 导出数据到文件（备份）
-ipcMain.handle('export-data', async (event, data) => {
+handleMainIpc('export-data', async (event, data) => {
     try {
         const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
             title: '导出聊天数据',
@@ -1858,7 +2011,7 @@ ipcMain.handle('export-data', async (event, data) => {
 });
 
 // 从文件导入数据（恢复）
-ipcMain.handle('import-data', async () => {
+handleMainIpc('import-data', async () => {
     try {
         const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
             title: '导入聊天数据',
@@ -1872,7 +2025,7 @@ ipcMain.handle('import-data', async () => {
 });
 
 // 获取本地缓存大小（userData/data 目录）
-ipcMain.handle('get-cache-size', async () => {
+handleMainIpc('get-cache-size', async () => {
     try {
         const dataDir = path.join(app.getPath('userData'), 'data');
         let totalSize = 0;
@@ -1893,12 +2046,16 @@ ipcMain.handle('get-cache-size', async () => {
     } catch (e) { return { success: false, error: e.message }; }
 });
 
-// 清理本地缓存（删除旧 data 目录 + 清空 SQLite 消息表，保留会话元数据与偏好）
-ipcMain.handle('clear-cache', async () => {
+// 清理本地缓存（按登录用户隔离清理旧 .7c 与 SQLite 消息表，禁止未登录时误删全库）
+handleMainIpc('clear-cache', async (event, uid) => {
     try {
+        const numUid = uid != null && uid !== '' ? Number(uid) : NaN;
+        if (!Number.isFinite(numUid) || numUid <= 0) {
+            return { success: false, error: '未登录，无法清理缓存' };
+        }
         const dataDir = path.join(app.getPath('userData'), 'data');
-        await fs.rm(dataDir, { recursive: true, force: true });
-        if (userStore) userStore.clearAllMessages();
+        await fs.rm(path.join(dataDir, `${numUid}.7c`), { force: true });
+        if (userStore) userStore.cleanAllMessages(numUid);
         return { success: true };
     } catch (e) { return { success: false, error: e.message }; }
 });
@@ -1913,7 +2070,7 @@ function getUsersDbPath() {
     return path.join(app.getAppPath(), 'src/renderer/public/users.7c');
 }
 
-ipcMain.handle('load-users-db', async () => {
+handleMainIpc('load-users-db', async () => {
     try {
         const payload = JSON.parse(await fs.readFile(getUsersDbPath(), 'utf8'));
         const key = crypto.createHash('sha256').update(USERS_DB_PASSPHRASE).digest();
@@ -1928,7 +2085,7 @@ ipcMain.handle('load-users-db', async () => {
 
 // ========== 退出登录 ==========
 // 退出登录：清除会话 cookie（含 HttpOnly），渲染进程 document.cookie 无法删除 HttpOnly cookie
-ipcMain.handle('clear-session-cookies', async () => {
+handleMainIpc('clear-session-cookies', async () => {
     try {
         const ses = session.defaultSession;
         if (ses) {

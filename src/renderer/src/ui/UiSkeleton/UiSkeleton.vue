@@ -54,4 +54,4 @@ const sizeStyle = computed(() => {
 })
 </script>
 
-<style scoped src="./UiSkeleton.css"></style>
+<style src="./UiSkeleton.css"></style>

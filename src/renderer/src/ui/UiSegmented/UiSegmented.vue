@@ -23,6 +23,8 @@
       role="tab"
       class="ui-segmented-item"
       :class="{ 'is-active': index === activeIndex }"
+      :title="item.title || item.label || undefined"
+      :aria-label="item.ariaLabel || item.label || item.title || undefined"
       :aria-selected="index === activeIndex ? 'true' : 'false'"
       :tabindex="index === activeIndex ? 0 : -1"
       @click="select(item)"
@@ -87,4 +89,4 @@ function onKeydown(event, index) {
 }
 </script>
 
-<style scoped src="./UiSegmented.css"></style>
+<style src="./UiSegmented.css"></style>

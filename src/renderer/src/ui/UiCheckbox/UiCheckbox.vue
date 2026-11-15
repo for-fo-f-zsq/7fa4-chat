@@ -64,4 +64,4 @@ function onChange(event) {
 }
 </script>
 
-<style scoped src="./UiCheckbox.css"></style>
+<style src="./UiCheckbox.css"></style>

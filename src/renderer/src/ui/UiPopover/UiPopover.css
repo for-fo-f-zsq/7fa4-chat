@@ -7,13 +7,14 @@
   position: fixed;
   z-index: var(--z-popover);
   min-width: var(--menu-w-min);
-  max-height: var(--popover-w-max);
+  max-width: min(var(--popover-w-max), calc(100vw - 16px));
+  max-height: calc(100vh - 16px);
   overflow-y: auto;
   padding: var(--space-1);
   background: var(--surface-raised);
-  border: var(--border-width) solid var(--line);
+  border: var(--border-width) solid var(--line-hairline);
   border-radius: var(--radius-xl);
-  box-shadow: var(--elev-2);
+  box-shadow: var(--elev-pop);
   color: var(--fg);
   font-size: var(--text-md);
   line-height: var(--leading-snug);

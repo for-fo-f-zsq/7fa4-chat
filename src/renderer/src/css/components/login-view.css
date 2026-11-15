@@ -1,231 +1,201 @@
-/* 登录页样式（D 域：LoginView.vue scoped）
-   - 输入框/开关/下拉/按钮/错误条交给 UiInput / UiSwitch / UiDropdown / UiIconButton / UiButton / UiBanner；
-     本文件只保留页面骨架、品牌氛围与标题栏副本。
-   - 品牌例外：登录页环境光与粒子漂移（EXCEPTIONS.md W1/W2），只用 --motion-* 令牌，
-     reduced-motion 与 html.fx-lite 下由下方规则降级为静态。
-   - 全局 reset / 背景 / 字体由 base.css 提供；本文件不得再出现 body / * 选择器。 */
+/* LoginView — 现代极简玻璃拟态登录页 */
 
-/* ---------- 0. 标题栏（LoginView 自带一份，避免依赖 chat-view.css 的全局副本） ---------- */
-.title-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 32px;
-    flex-shrink: 0;
-    background: var(--surface-0);
-    border-bottom: var(--border-width) solid var(--line);
-    box-shadow: var(--elev-titlebar);
-    z-index: var(--z-header);
-    user-select: none;
-}
-.title-bar-drag {
-    flex: 1;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    padding-left: var(--space-3);
-    -webkit-app-region: drag;
-}
-.title-bar-title {
-    font-size: var(--text-sm);
-    color: var(--fg-muted);
-}
-.title-bar-controls {
-    display: flex;
-    height: 100%;
-    -webkit-app-region: no-drag;
-}
-.title-btn {
-    width: 46px;
-    height: 100%;
-    border: none;
-    background: transparent;
-    color: var(--fg-muted);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: var(--text-sm);
-    transition: background var(--motion-dur-fast) var(--motion-ease-standard),
-                color var(--motion-dur-fast) var(--motion-ease-standard);
-}
-.title-btn:hover {
-    background: var(--surface-hover);
-    color: var(--fg);
-}
-.title-close:hover {
-    background: var(--status-danger);
-    /* 危险色填充上用自己的前景色（--on-danger），不用品牌墨色 */
-    color: var(--on-danger);
-}
-
-/* ---------- 1. 页面骨架与品牌氛围 ---------- */
 .login-root {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    /* 不能用 100vh：#app 已按安全区留白，100vh 会多出一截被 overflow:hidden 裁掉 */
-    height: 100%;
-    overflow: hidden;
-    isolation: isolate;
-    background: var(--gradient-panel);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--gradient-panel);
 }
 
-/* 旧 body::before 的呼吸光晕（scoped 化后挂到 .login-root） */
+/* 氛围光晕背景 */
 .login-root::before {
-    content: '';
-    position: absolute;
-    top: -30%;
-    left: -30%;
-    width: 160%;
-    height: 160%;
-    background:
-        radial-gradient(ellipse at 25% 30%, var(--brand-glow), transparent 55%),
-        radial-gradient(ellipse at 75% 70%, var(--brand-glow), transparent 55%);
-    pointer-events: none;
-    z-index: var(--z-base);
-    opacity: 0.6;
-    animation: ambientDrift var(--motion-loop-drift) var(--motion-ease-standard) infinite alternate;
+  content: '';
+  position: absolute;
+  top: -30%;
+  left: -30%;
+  width: 160%;
+  height: 160%;
+  background:
+    radial-gradient(ellipse at 25% 30%, var(--brand-glow), transparent 55%),
+    radial-gradient(ellipse at 75% 70%, var(--brand-glow), transparent 55%);
+  pointer-events: none;
+  z-index: var(--z-base);
+  opacity: 0.65;
+  animation: ambientDrift var(--motion-loop-drift) var(--motion-ease-standard) infinite alternate;
 }
 
-/* 旧 body::after 的星点漂移 */
 .login-root::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background:
-        radial-gradient(2px 2px at 20% 30%, var(--brand-gradient), transparent),
-        radial-gradient(2px 2px at 40% 70%, var(--brand-gradient), transparent),
-        radial-gradient(2px 2px at 60% 40%, var(--brand-gradient), transparent),
-        radial-gradient(2px 2px at 80% 60%, var(--brand-gradient), transparent),
-        radial-gradient(1.5px 1.5px at 10% 80%, var(--brand-gradient), transparent),
-        radial-gradient(1.5px 1.5px at 90% 20%, var(--brand-gradient), transparent);
-    pointer-events: none;
-    z-index: var(--z-base);
-    opacity: 0.3;
-    animation: ambientDrift var(--motion-loop-drift) var(--motion-ease-standard) infinite alternate;
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(2px 2px at 20% 30%, var(--brand-gradient), transparent),
+    radial-gradient(2px 2px at 40% 70%, var(--brand-gradient), transparent),
+    radial-gradient(2px 2px at 60% 40%, var(--brand-gradient), transparent),
+    radial-gradient(2px 2px at 80% 60%, var(--brand-gradient), transparent),
+    radial-gradient(1.5px 1.5px at 10% 80%, var(--brand-gradient), transparent),
+    radial-gradient(1.5px 1.5px at 90% 20%, var(--brand-gradient), transparent);
+  pointer-events: none;
+  z-index: var(--z-base);
+  opacity: 0.28;
+  animation: ambientDrift var(--motion-loop-drift) var(--motion-ease-standard) infinite alternate;
 }
 
 html.fx-lite .login-root::before,
 html.fx-lite .login-root::after {
-    animation: none;
-    opacity: 0.25;
+  animation: none;
+  opacity: 0.2;
 }
 
 .container {
-    position: relative;
-    z-index: var(--z-raised);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex: 1;
-    width: 100%;
-    padding: var(--space-5);
+  position: relative;
+  z-index: var(--z-raised);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+  width: 100%;
+  padding: var(--space-5);
 }
 
-/* ---------- 2. 登录卡片 ---------- */
+/* 登录卡片 */
 .box {
-    position: relative;
-    z-index: var(--z-raised);
-    width: 320px;
-    padding: 36px var(--space-6);
-    background: var(--surface-0);
-    border: var(--border-width) solid var(--line);
-    border-radius: var(--radius-3xl);
-    box-shadow: var(--elev-3);
-    overflow: hidden;
-    animation: popIn var(--motion-dur-slow) var(--motion-ease-spring) both;
-    transition: background-color var(--motion-dur-emph) var(--motion-ease-standard),
-                border-color var(--motion-dur-emph) var(--motion-ease-standard),
-                box-shadow var(--motion-dur-emph) var(--motion-ease-standard);
+  position: relative;
+  z-index: var(--z-raised);
+  width: 348px;
+  max-width: 100%;
+  padding: var(--space-8) var(--space-6) var(--space-6);
+  background: var(--surface-glass);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: var(--border-width) solid var(--line-hairline);
+  border-radius: var(--radius-3xl);
+  box-shadow: var(--elev-3);
+  overflow: hidden;
+  animation: popIn var(--motion-spring-dur) var(--motion-ease-out-expo) both;
+  transition:
+    background-color var(--motion-dur-emph) var(--motion-ease-standard),
+    border-color var(--motion-dur-emph) var(--motion-ease-standard),
+    box-shadow var(--motion-dur-emph) var(--motion-ease-standard);
 }
+
 .logo {
-    text-align: center;
-    margin-bottom: var(--space-6);
-    animation: brandFade var(--motion-dur-slow) var(--motion-ease-enter) both;
-    animation-delay: var(--motion-dur-base);
+  text-align: center;
+  margin-bottom: var(--space-4);
+  animation: brandFade var(--motion-dur-slow) var(--motion-ease-out-expo) both;
+  animation-delay: var(--motion-stagger);
 }
+
 .logo-icon {
-    width: 72px;
-    height: 72px;
-    border-radius: var(--radius-base);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform var(--motion-dur-base) var(--motion-ease-spring);
+  width: 64px;
+  height: 64px;
+  padding: var(--space-2);
+  border-radius: var(--radius-2xl);
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--line-hairline);
+  box-shadow: var(--elev-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--motion-dur-base) var(--motion-ease-spring);
 }
-.logo-icon:hover {
-    transform: scale(1.05) rotate(-3deg);
+
+.logo-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+@media (hover: hover) {
+  .logo-icon:hover {
+    transform: scale(1.06) rotate(-3deg);
+  }
 }
 
 .box h2 {
-    text-align: center;
-    margin-bottom: 28px;
-    color: var(--fg);
-    font-weight: var(--weight-medium);
-    font-size: var(--text-2xl);
-    animation: brandRise var(--motion-dur-slow) var(--motion-ease-enter) both;
-    animation-delay: var(--motion-dur-slow);
+  text-align: center;
+  margin-bottom: var(--space-6);
+  color: var(--fg);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-2xl);
+  letter-spacing: var(--tracking-tight);
+  animation: brandRise var(--motion-dur-slow) var(--motion-ease-out-expo) both;
+  animation-delay: calc(var(--motion-stagger) * 2);
 }
 
-/* ---------- 3. 输入区（UiInput 负责外观，这里只给间距与入场顺序） ---------- */
+/* 输入区 */
 .login-input {
-    margin-bottom: var(--space-3);
-    animation: fadeInLeft var(--motion-dur-slow) var(--motion-ease-enter) both;
+  margin-bottom: var(--space-3);
+  animation: fadeInUp var(--motion-dur-slow) var(--motion-ease-out-expo) both;
 }
+
 .login-input:nth-of-type(1) {
-    animation-delay: var(--motion-dur-slow);
+  animation-delay: calc(var(--motion-stagger) * 3);
 }
+
 .login-input:nth-of-type(2) {
-    animation-delay: calc(var(--motion-dur-slow) + var(--motion-dur-fast));
+  animation-delay: calc(var(--motion-stagger) * 4);
 }
 
-/* ---------- 4. 保持登录 / API 地址 ---------- */
+/* 保持登录 / API 地址 */
 .remember-me {
-    margin-top: var(--space-3);
-    animation: fadeInLeft var(--motion-dur-slow) var(--motion-ease-enter) both;
-    animation-delay: calc(var(--motion-dur-slow) + var(--motion-dur-base));
+  margin-top: var(--space-3);
+  animation: fadeInUp var(--motion-dur-slow) var(--motion-ease-out-expo) both;
+  animation-delay: calc(var(--motion-stagger) * 5);
 }
+
 .api-url-select-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-top: var(--space-3);
-    animation: fadeInLeft var(--motion-dur-slow) var(--motion-ease-enter) both;
-    animation-delay: calc(var(--motion-dur-slow) + var(--motion-dur-base));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-3);
+  animation: fadeInUp var(--motion-dur-slow) var(--motion-ease-out-expo) both;
+  animation-delay: calc(var(--motion-stagger) * 5);
 }
+
 .api-url-label {
-    font-size: var(--text-sm);
-    color: var(--fg-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--fg-muted);
 }
+
 .api-url-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
+
 .api-url-dropdown {
-    width: 132px;
+  width: 136px;
 }
 
-/* ---------- 5. 登录按钮（UiButton 主按钮，仅保留入场节奏） ---------- */
+/* 登录按钮与错误条 */
 .login-btn {
-    margin-top: var(--space-5);
-    animation: fadeInUp var(--motion-dur-slow) var(--motion-ease-enter) both;
-    animation-delay: calc(var(--motion-dur-slow) + var(--motion-dur-base));
-}
-.login-error {
-    margin-top: 14px;
-    animation: shake var(--motion-dur-emph) var(--motion-ease-standard) both;
+  margin-top: var(--space-5);
+  animation: fadeInUp var(--motion-dur-slow) var(--motion-ease-out-expo) both;
+  animation-delay: calc(var(--motion-stagger) * 6);
 }
 
-/* ---------- 6. 返回按钮（游客模式回到主界面） ---------- */
+.login-error {
+  margin-top: var(--space-3);
+  animation: shake var(--motion-dur-emph) var(--motion-ease-standard) both;
+}
+
+/* 返回按钮（游客模式回到主界面） */
 .btn-guest {
-    position: absolute;
-    top: 14px;
-    left: 14px;
-    z-index: var(--z-raised);
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  z-index: var(--z-raised);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-root::before,
+  .login-root::after {
+    animation: none;
+  }
 }

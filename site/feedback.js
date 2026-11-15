@@ -26,9 +26,9 @@ const DATA_DIR = process.env.FEEDBACK_DIR || path.join(__dirname, 'data', 'feedb
 const ITEMS_FILE = path.join(DATA_DIR, 'items.json');
 const ATTACH_DIR = path.join(DATA_DIR, 'attachments');
 const SECRET_FILE = path.join(DATA_DIR, '.secret');
-const ADMIN_PASSWORD = process.env.FEEDBACK_ADMIN_PASSWORD || 'dev-admin-password';
-if (!process.env.FEEDBACK_ADMIN_PASSWORD) {
-  console.warn('[feedback] 未设置环境变量 FEEDBACK_ADMIN_PASSWORD，当前使用本地开发默认密码（生产环境请务必通过环境变量配置）');
+const ADMIN_PASSWORD = process.env.FEEDBACK_ADMIN_PASSWORD || '';
+if (!ADMIN_PASSWORD) {
+  console.warn('[feedback] 未设置环境变量 FEEDBACK_ADMIN_PASSWORD，管理端登录已禁用');
 }
 const PUBLIC_DIR = path.join(__dirname, 'public', 'feedback');
 
@@ -136,17 +136,31 @@ function readBody(req, limit) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
+    let settled = false;
     req.on('data', (chunk) => {
+      if (settled) return;
       size += chunk.length;
       if (size > limit) {
+        settled = true;
+        // 排空后续请求体而不是直接 destroy，确保 HTTP 413 JSON 能正常写回客户端
+        req.resume();
         reject(Object.assign(new Error('body_too_large'), { code: 413 }));
-        req.destroy();
         return;
       }
       chunks.push(chunk);
     });
-    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-    req.on('error', (e) => reject(e));
+    req.on('end', () => {
+      if (!settled) {
+        settled = true;
+        resolve(Buffer.concat(chunks).toString('utf8'));
+      }
+    });
+    req.on('error', (e) => {
+      if (!settled) {
+        settled = true;
+        reject(e);
+      }
+    });
   });
 }
 
@@ -160,28 +174,46 @@ async function readJson(req, limit) {
 }
 
 function clientIp(req) {
-  const fwd = req.headers['x-forwarded-for'];
-  if (fwd) return String(fwd).split(',')[0].trim();
-  return (req.socket && req.socket.remoteAddress) || 'unknown';
+  const remote = (req.socket && req.socket.remoteAddress) || '';
+  const isLoopback = remote === '127.0.0.1' || remote === '::1' || remote === '::ffff:127.0.0.1';
+  if (isLoopback) {
+    // Caddy 本机反代会在 X-Forwarded-For 末尾追加真实客户端 IP（取最末段防首段伪造）
+    const fwd = req.headers['x-forwarded-for'];
+    if (fwd) {
+      const parts = String(fwd).split(',').map((s) => s.trim()).filter(Boolean);
+      if (parts.length) return parts[parts.length - 1];
+    }
+  }
+  return remote || 'unknown';
 }
 
 /* -------------------------------------------------------------- 限流 */
-// 简单内存限流：同一 IP 10 分钟内最多 5 条，防刷。
+// 简单内存限流：防刷与暴力试密
 const rate = new Map();
-function allowSubmit(ip) {
+function allowRate(map, ip, maxCount, windowMs) {
   const now = Date.now();
-  const hit = rate.get(ip);
+  const hit = map.get(ip);
   if (!hit || now > hit.resetAt) {
-    rate.set(ip, { count: 1, resetAt: now + 10 * 60 * 1000 });
+    map.set(ip, { count: 1, resetAt: now + windowMs });
     return true;
   }
-  if (hit.count >= 5) return false;
+  if (hit.count >= maxCount) return false;
   hit.count++;
   return true;
+}
+
+function allowSubmit(ip) {
+  return allowRate(rate, ip, 5, 10 * 60 * 1000);
+}
+
+const loginRate = new Map();
+function allowLoginAttempt(ip) {
+  return allowRate(loginRate, ip, 10, 15 * 60 * 1000);
 }
 setInterval(() => {
   const now = Date.now();
   for (const [ip, v] of rate) if (now > v.resetAt) rate.delete(ip);
+  for (const [ip, v] of loginRate) if (now > v.resetAt) loginRate.delete(ip);
 }, 5 * 60 * 1000).unref?.();
 
 /* ---------------------------------------------------------- 管理端登录 */
@@ -296,6 +328,14 @@ async function adminApi(req, res, pathname) {
   const sub = pathname.slice('/api/feedback/admin'.length) || '/';
 
   if (sub === '/login' && req.method === 'POST') {
+    if (!ADMIN_PASSWORD) {
+      sendJson(res, 503, { ok: false, error: '服务端未配置管理密码，登录已禁用' });
+      return;
+    }
+    if (!allowLoginAttempt(clientIp(req))) {
+      sendJson(res, 429, { ok: false, error: '登录尝试过于频繁，请稍后再试' });
+      return;
+    }
     let body;
     try {
       body = await readJson(req, 64 * 1024);

@@ -1,52 +1,81 @@
 <template>
   <Transition name="dropdown">
-  <div class="emoji-picker" v-if="visible" ref="pickerEl" :style="pickerStyle">
-    <div class="emoji-drag-bar" title="上下拖动调整高度" @mousedown.prevent="onDragStart"><i></i></div>
-    <UiSegmented class="emoji-mode-switch" v-model="mode" size="sm" :items="MODE_ITEMS" aria-label="表情类型" />
-    <template v-if="mode === 'emoji'">
-      <div class="emoji-search">
-        <input v-autofocus v-model="search" placeholder="搜索 QQ 表情（输入 /微笑 或 /wx）..." ref="searchInput" />
-      </div>
-      <div class="emoji-grid qqface-grid">
-        <img v-for="f in filteredQqfaces" :key="f.id"
-          :src="qqfaceUrl(f.file)" :alt="f.name"
-          :title="f.name + '　' + f.code + (f.pinyin ? ' /' + f.pinyin : '') + (f.alias && f.alias.length ? ' /' + f.alias.join(' /') : '')"
-          class="emoji-item qqface-item" @click="emit('select', f)" />
-      </div>
-      <div v-if="filteredQqfaces.length === 0" class="emoji-empty">无匹配表情</div>
-    </template>
-    <template v-if="mode === 'sticker'">
-      <div class="sticker-toolbar">
-        <UiButton size="sm" variant="secondary" icon="fas fa-plus" @click="emit('addSticker')">添加表情</UiButton>
-      </div>
-      <div class="sticker-grid">
-        <div v-if="!stickers || stickers.length === 0" class="sticker-empty">
-          暂无自定义表情<br>点击上方按钮添加
+    <div class="emoji-picker" v-if="visible" ref="pickerEl" data-placement="top" :style="pickerStyle">
+      <div class="emoji-drag-bar" title="上下拖动调整高度" @mousedown.prevent="onDragStart"><i></i></div>
+      <UiSegmented class="emoji-mode-switch" v-model="mode" size="sm" :items="MODE_ITEMS" aria-label="表情类型" />
+      <template v-if="mode === 'emoji'">
+        <div class="emoji-search">
+          <UiSearchInput
+            ref="searchInput"
+            v-model="search"
+            size="sm"
+            placeholder="搜索 QQ 表情（输入 /微笑 或 /wx）..."
+            :autofocus="true"
+          />
         </div>
-        <div v-for="(s, i) in stickers" :key="i"
-          class="sticker-item" :title="s.name + '（点击发送 · 右键放大预览）'"
-          @click="emit('selectSticker', s)"
-          @contextmenu.prevent="emit('previewSticker', s)">
-          <img :src="s.data && s.mime ? 'data:' + s.mime + ';base64,' + s.data : ''" :alt="s.name" />
-          <button class="sticker-del-btn" @click.stop="emit('removeSticker', i)" title="删除"><i class="fas fa-times"></i></button>
+        <div class="emoji-grid qqface-grid">
+          <img
+            v-for="f in filteredQqfaces"
+            :key="f.id"
+            :src="qqfaceUrl(f.file)"
+            :alt="f.name"
+            :title="faceTitle(f)"
+            loading="lazy"
+            decoding="async"
+            class="emoji-item qqface-item"
+            @click="emit('select', f)"
+          />
         </div>
-      </div>
-    </template>
-  </div>
+        <UiEmptyState v-if="filteredQqfaces.length === 0" size="sm" icon="fas fa-face-meh" title="无匹配表情" />
+      </template>
+      <template v-if="mode === 'sticker'">
+        <div class="sticker-toolbar">
+          <UiButton size="sm" variant="secondary" icon="fas fa-plus" @click="emit('addSticker')">添加表情</UiButton>
+        </div>
+        <div class="sticker-grid">
+          <UiEmptyState
+            v-if="!stickers || stickers.length === 0"
+            class="sticker-empty"
+            size="sm"
+            icon="fas fa-images"
+            title="暂无自定义表情"
+            description="点击上方按钮添加"
+          />
+          <div
+            v-for="(s, i) in stickers"
+            :key="i"
+            class="sticker-item"
+            :title="s.name + '（点击发送 · 右键放大预览）'"
+            @click="emit('selectSticker', s)"
+            @contextmenu.prevent="emit('previewSticker', s)"
+          >
+            <img :src="s.data && s.mime ? 'data:' + s.mime + ';base64,' + s.data : ''" :alt="s.name" />
+            <UiIconButton
+              class="sticker-del-btn"
+              icon="fas fa-times"
+              size="sm"
+              round
+              aria-label="删除"
+              title="删除"
+              @click.stop="emit('removeSticker', i)"
+            />
+          </div>
+        </div>
+      </template>
+    </div>
   </Transition>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { QQFACES, qqfaceUrl } from '../../qqface-data.js'
-import { UiButton, UiSegmented } from '../../ui/index.js'
+import { UiButton, UiEmptyState, UiIconButton, UiSearchInput, UiSegmented } from '@/ui'
 
-// 表情类型分段选项（UiSegmented 数据源）
 const MODE_ITEMS = [{ value: 'emoji', label: 'QQ 表情' }, { value: 'sticker', label: '自定义表情' }]
 
-const props = defineProps({
+defineProps({
   visible: Boolean,
-  stickers: { type: Array, default: () => [] }
+  stickers: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['select', 'selectSticker', 'addSticker', 'removeSticker', 'previewSticker'])
 
@@ -54,14 +83,24 @@ const mode = ref('emoji')
 const search = ref('')
 const searchInput = ref(null)
 
+function faceTitle(f) {
+  const parts = [f.name + '　' + f.code]
+  if (f.pinyin && '/' + f.pinyin !== f.code.toLowerCase()) parts.push('/' + f.pinyin)
+  if (f.alias?.length) parts.push(...f.alias.map((a) => '/' + a))
+  return parts.join(' ')
+}
+
 const filteredQqfaces = computed(() => {
-  const q = search.value.trim().toLowerCase()
-  if (!q) return QQFACES
-  return QQFACES.filter(f =>
-    f.code.toLowerCase().includes(q) ||
-    f.name.includes(q) ||
-    f.pinyin.includes(q) ||
-    (f.alias && f.alias.some(a => a.includes(q)))
+  const rawQ = search.value.trim().toLowerCase()
+  if (!rawQ) return QQFACES
+  const q = rawQ.replace(/^\/+/, '')
+  return QQFACES.filter((f) =>
+    f.code.toLowerCase().includes(rawQ) ||
+    (q && (
+      f.name.toLowerCase().includes(q) ||
+      f.pinyin.includes(q) ||
+      (f.alias && f.alias.some((a) => a.includes(q)))
+    ))
   )
 })
 
@@ -70,7 +109,6 @@ function onFocusEmojiSearch() {
   searchInput.value?.focus()
 }
 
-// ---- 拖拽调整高度（把手上移增高，下限/上限钳制，localStorage 持久化） ----
 const DRAG_MIN = 160
 const DRAG_MAX = 480
 const DRAG_KEY = '7fa4_emoji_picker_h'
@@ -78,10 +116,9 @@ const pickerEl = ref(null)
 const pickerHeight = ref(null)
 let dragState = null
 
-// 自定义高度时同时覆盖 CSS 的 max-height:320px（否则拖拽会被钳在 320 以内）
-const pickerStyle = () => (pickerHeight.value
+const pickerStyle = computed(() => (pickerHeight.value
   ? { height: pickerHeight.value + 'px', maxHeight: DRAG_MAX + 'px', flex: 'none' }
-  : {})
+  : {}))
 
 function restorePickerHeight() {
   try {
@@ -102,7 +139,6 @@ function onDragStart(e) {
 
 function onDragMove(e) {
   if (!dragState) return
-  // 把手上移 → 高度变大；下移 → 变小；限制在 [DRAG_MIN, DRAG_MAX]
   const h = Math.round(Math.max(DRAG_MIN, Math.min(DRAG_MAX, dragState.startH + (dragState.startY - e.clientY))))
   pickerHeight.value = h
   try { localStorage.setItem(DRAG_KEY, String(h)) } catch {}

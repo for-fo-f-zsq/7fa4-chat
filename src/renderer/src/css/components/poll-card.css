@@ -4,57 +4,92 @@
      ⚠️ 不要在这里加 min-width：气泡是 width:fit-content，百分比解析不出（形同虚设），
      固定像素又会在窄容器（预览侧栏挤压）溢出 —— 两条路都踩过（2026-10-02）。 */
   max-width: 340px;
-  padding: var(--space-3) var(--space-4) var(--space-2);
-  border-radius: var(--radius-base);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-xl);
   background: var(--surface-raised);
-  border: var(--border-width) solid var(--line);
+  border: var(--border-width) solid var(--line-hairline);
+  box-shadow: var(--elev-1);
   font-size: var(--text-base);
   /* ⚠️ 必须显式给出文字颜色：本卡片不在 `.bubble-content` 内，而全局 `body` 只设了背景、
-     没有设置 `color`（base.css），于是 `.poll-q` / `.poll-opt-label` 会继承浏览器默认的
-     黑色 —— 浅色主题下看不出问题，深色主题下卡片底是深色、文字仍是黑色 → 完全看不清
-     （用户 2026-10-10 报障）。这里统一按主题取色，子元素继续继承即可。 */
+     没有设置 `color`（base.css），深色主题下需显式继承主题文字色。 */
   color: var(--fg);
 }
-.poll-card--own { border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
 
-.poll-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); flex-wrap: wrap; }
-.poll-head-icon { color: var(--brand); font-size: var(--text-md); }
-.poll-tag {
-  font-size: var(--text-xs);
-  padding: 1px var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--brand-soft);
+.poll-card--own {
+  border-color: color-mix(in srgb, var(--brand) 36%, var(--line-hairline));
+}
+
+.poll-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-bottom: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.poll-head-icon {
   color: var(--brand);
-}
-.poll-tag--multi,
-.poll-tag--limit,
-.poll-tag--open,
-.poll-tag--expired {
-  background: var(--surface-2);
-  color: var(--fg-muted);
+  font-size: var(--text-md);
 }
 
-.poll-q { font-weight: var(--weight-semibold); line-height: 1.45; margin-bottom: var(--space-3); word-break: break-word; }
+.poll-q {
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  margin-bottom: var(--space-3);
+  word-break: break-word;
+}
 
-.poll-opts { display: flex; flex-direction: column; gap: var(--space-2); }
+.poll-opts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
 .poll-opt {
   position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  min-height: 36px;
   padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-base);
+  border-radius: var(--radius-md);
   background: var(--surface-2);
-  border: var(--border-width) solid transparent;
+  border: var(--border-width) solid var(--line-hairline);
   overflow: hidden;
-  min-height: 34px;
+  transition:
+    background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    border-color var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo);
 }
-.poll-opt--clickable { cursor: pointer; }
-.poll-opt--clickable:hover { border-color: var(--line); }
-.poll-opt--picked { border-color: var(--brand); }
-.poll-opt--disabled { cursor: default; }
-/* 自拟选项行：虚线边框 + 轻微区分，一眼看出「这是别人写的」 */
-.poll-opt--extra { border-style: dashed; border-color: var(--line); }
+
+.poll-opt--clickable {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .poll-opt--clickable:hover {
+    background: var(--surface-hover);
+    border-color: var(--brand-line);
+  }
+}
+
+.poll-opt--clickable:active {
+  transform: scale(0.99);
+}
+
+.poll-opt--picked {
+  border-color: var(--brand);
+}
+
+.poll-opt--disabled {
+  cursor: default;
+}
+
+/* 自拟选项行：虚线边框区分开放输入项 */
+.poll-opt--extra {
+  border-style: dashed;
+  border-color: var(--line);
+}
 
 /* 结果条：UiProgress 铺满选项行，z-index 低于文字 */
 .poll-opt-progress {
@@ -63,18 +98,23 @@
   z-index: var(--z-base);
   pointer-events: none;
 }
+
 .poll-opt-progress :deep(.ui-progress-track) {
   height: 100%;
   border-radius: 0;
   background: transparent;
 }
+
 .poll-opt-progress :deep(.ui-progress-bar) {
   border-radius: 0;
-  background: color-mix(in srgb, var(--brand) 16%, transparent);
-  transition: width var(--motion-dur-base) var(--motion-ease-standard);
+  background: color-mix(in srgb, var(--brand) 15%, transparent);
+  transition:
+    width var(--motion-dur-slow) var(--motion-ease-out-expo),
+    background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
+
 .poll-opt--picked .poll-opt-progress :deep(.ui-progress-bar) {
-  background: color-mix(in srgb, var(--brand) 28%, transparent);
+  background: color-mix(in srgb, var(--brand) 26%, transparent);
 }
 
 .poll-opt-check {
@@ -84,50 +124,55 @@
   width: var(--icon-md);
   height: var(--icon-md);
   border-radius: var(--radius-xs);
-  border: 1.5px solid var(--line);
+  border: 1.5px solid var(--line-strong);
   display: grid;
   place-items: center;
   font-size: var(--text-2xs);
   color: var(--on-brand);
+  transition:
+    background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    border-color var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-spring);
 }
-.poll-opt--picked .poll-opt-check { background: var(--brand-fill); border-color: var(--brand-fill); }
-/* 自拟行未选中时显示一支笔（区别于内置选项的「空方框」） */
-.poll-opt-check--custom:not(.poll-opt-check--on) { color: var(--fg-muted); }
 
-.poll-opt-label { position: relative; z-index: var(--z-raised); flex: 1; min-width: 0; word-break: break-word; }
+.poll-opt--picked .poll-opt-check {
+  background: var(--brand-fill);
+  border-color: var(--brand-fill);
+}
+
+/* 自拟行未选中时显示一支笔（区别于内置选项的「空方框」） */
+.poll-opt-check--custom:not(.poll-opt-check--on) {
+  color: var(--fg-muted);
+}
+
+.poll-opt-label {
+  position: relative;
+  z-index: var(--z-raised);
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
 .poll-opt-meta {
   position: relative;
   z-index: var(--z-raised);
   flex: none;
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
   color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.poll-opt-meta b { color: var(--fg); }
 
-/* 开放题：自拟输入行 */
-.poll-custom {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-base);
-  background: var(--surface-2);
-  border: var(--border-width) dashed var(--line);
-}
-.poll-custom-icon { flex: none; font-size: var(--text-xs); color: var(--fg-muted); }
-.poll-custom-input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: var(--text-md);
-  font-family: inherit;
+.poll-opt-meta b {
   color: var(--fg);
+  font-weight: var(--weight-semibold);
 }
-.poll-custom-input::placeholder { color: var(--fg-muted); }
+
+/* 开放题：自拟输入行（外观由 UiInput 提供，保留虚线边框提示开放输入） */
+.poll-custom :deep(.ui-input) {
+  background: var(--surface-2);
+  border-style: dashed;
+}
 
 /* 限选提示：瞬时、不干扰布局 */
 .poll-hint {
@@ -136,7 +181,7 @@
   gap: var(--space-1);
   margin-top: var(--space-2);
   font-size: var(--text-xs);
-  color: var(--status-warning);
+  color: var(--status-warning-ink);
 }
 
 /* 无效投票人告警 */
@@ -145,27 +190,50 @@
   align-items: flex-start;
   gap: var(--space-2);
   margin-top: var(--space-2);
-  padding: var(--space-2) var(--space-2);
-  border-radius: var(--radius-base);
-  background: color-mix(in srgb, var(--fg-danger) 10%, transparent);
-  color: var(--fg-danger);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--status-danger-soft);
+  border: var(--border-width) solid var(--status-danger-border);
+  color: var(--status-danger-ink);
   font-size: var(--text-xs);
-  line-height: 1.5;
+  line-height: var(--leading-normal);
   word-break: break-word;
 }
-.poll-invalid i { margin-top: 2px; flex: none; }
+
+.poll-invalid i {
+  margin-top: 2px;
+  flex: none;
+}
 
 .poll-foot {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  margin-top: var(--space-2);
+  margin-top: var(--space-3);
   font-size: var(--text-xs);
   color: var(--fg-muted);
 }
-.poll-foot-until { margin-left: auto; }
-.poll-foot-voting { margin-left: auto; color: var(--brand); }
-.poll-foot-dirty { margin-left: auto; color: var(--brand); font-size: var(--text-xs); }
-.poll-foot-done { margin-left: auto; color: var(--brand); font-size: var(--text-xs); }
-/* 提交按钮外观由 UiButton 提供，这里只保留靠右布局。 */
-.poll-submit { flex: none; margin-left: auto; }
+
+.poll-foot-total {
+  font-variant-numeric: tabular-nums;
+}
+
+.poll-foot-until {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.poll-foot-voting,
+.poll-foot-dirty,
+.poll-foot-done {
+  margin-left: auto;
+  color: var(--brand);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+/* 提交按钮外观由 UiButton 提供，这里只保留靠右布局 */
+.poll-submit {
+  flex: none;
+  margin-left: auto;
+}

@@ -19,7 +19,7 @@
         </div>
       </template>
       <template v-if="pageType === 'group' && targetGroup">
-        <div class="user-info" @click="!targetGroup.exited && $emit('openGroupSettings', pageId)">
+        <div class="user-info" :class="{ 'is-static': targetGroup.exited }" @click="!targetGroup.exited && $emit('openGroupSettings', pageId)">
           <UiAvatar class="header-avatar" :size="32" :color="avatarTint('group:' + (targetGroup.name || ''))" :name="targetGroup.name || '群'" />
           <h3>
             {{ targetGroup.name }}

@@ -1,3 +1,4 @@
+/* UiBadge — 徽标原语；保证 6 主题下浅底状态色文字对比度，单数字成圆/胶囊不挤扁。 */
 .ui-badge {
   --badge-h: var(--badge-h-md);
   --badge-fs: var(--text-sm);
@@ -7,14 +8,16 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-1);
+  min-width: var(--badge-h);
   height: var(--badge-h);
-  padding: 0 var(--space-2);
+  padding: 0 6px;
   border: var(--border-width) solid transparent;
   border-radius: var(--radius-pill);
   font-family: var(--font-sans);
   font-size: var(--badge-fs);
   font-weight: var(--weight-medium);
-  line-height: var(--leading-tight);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
   white-space: nowrap;
 }
 
@@ -22,7 +25,7 @@
   --badge-h: var(--badge-h-sm);
   --badge-fs: var(--text-xs);
   --badge-dot: var(--badge-dot-sm);
-  padding: 0 var(--space-1);
+  padding: 0 5px;
 }
 
 .ui-badge--md {
@@ -47,22 +50,22 @@
 
 .ui-badge--success {
   background: var(--status-success-soft);
-  color: var(--status-success);
+  color: var(--status-success-ink);
 }
 
 .ui-badge--warning {
   background: var(--status-warning-soft);
-  color: var(--status-warning);
+  color: var(--status-warning-ink);
 }
 
 .ui-badge--danger {
   background: var(--status-danger-soft);
-  color: var(--status-danger);
+  color: var(--status-danger-ink);
 }
 
 .ui-badge--notice {
   background: var(--status-notice-soft);
-  color: var(--status-notice);
+  color: var(--status-notice-ink);
 }
 
 .ui-badge--outline {
@@ -72,6 +75,7 @@
 }
 
 .ui-badge--dot {
+  min-width: 0;
   height: auto;
   padding: 0;
   border-color: transparent;

@@ -11,8 +11,16 @@ export function weightOf(e) {
   return n == null ? 1 : n
 }
 
-function buildAdj(nodes, edges, directed) {
-  const adj = new Map()
+/**
+ * 丢掉端点不在节点集合里的脏边。文本解析与手输都可能带出这种边，
+ * 各算法里 `adj.get(u).push(...)` 会直接抛 TypeError 并让整个工具白屏。
+ */
+function validEdges(nodes, edges) {
+  const ids = new Set(nodes.map((n) => n.id))
+  return edges.filter((e) => ids.has(e.u) && ids.has(e.v))
+}
+
+function buildAdj(nodes, edges, directed) {  const adj = new Map()
   for (const n of nodes) adj.set(n.id, [])
   for (const e of edges) {
     if (!adj.has(e.u)) adj.set(e.u, [])
@@ -208,7 +216,7 @@ export function topoSort(nodes, edges) {
     indeg.set(n.id, 0)
     adj.set(n.id, [])
   }
-  for (const e of edges) {
+  for (const e of validEdges(nodes, edges)) {
     adj.get(e.u).push(e.v)
     indeg.set(e.v, (indeg.get(e.v) || 0) + 1)
   }
@@ -255,15 +263,24 @@ export function treeDiameter(nodes, edges) {
   const second = bfs(first.far)
   const pathNodes = new Set()
   const pathEdges = new Set()
+  const rev = []
   let cur = second.far
   while (cur != null) {
     pathNodes.add(cur)
+    rev.push(cur)
     const p = second.prev.get(cur)
     if (!p) break
     pathEdges.add(p.e)
     cur = p.from
   }
-  return { edges: pathEdges, nodes: pathNodes, len: second.dist.get(second.far), a: first.far, b: second.far }
+  return {
+    edges: pathEdges,
+    nodes: pathNodes,
+    seq: rev.reverse(),
+    len: second.dist.get(second.far),
+    a: first.far,
+    b: second.far
+  }
 }
 
 // 树的重心（仅对树有意义：m === n-1 且连通）
@@ -274,15 +291,18 @@ export function centroids(nodes, edges) {
   const parent = new Map()
   const order = []
   const st = [nodes[0].id]
+  // 必须用 visited 去重：只比 parent 的话，含环的图（三角形）会把节点反复入栈，
+  // order 无限增长，主线程直接冻死。边数 = n-1 并不保证是树（还有孤立点的情况）。
+  const seen = new Set([nodes[0].id])
   parent.set(nodes[0].id, null)
   while (st.length) {
     const v = st.pop()
     order.push(v)
     for (const { to } of adj.get(v) || []) {
-      if (to !== parent.get(v)) {
-        parent.set(to, v)
-        st.push(to)
-      }
+      if (seen.has(to)) continue
+      seen.add(to)
+      parent.set(to, v)
+      st.push(to)
     }
   }
   if (order.length !== n) return { ids: [], valid: false }
@@ -341,6 +361,7 @@ export function maxMatching(nodes, edges) {
 
 // 最大流（Dinic）；容量 = 边权（无权重为 1）；无向边视为双向容量
 export function maxFlow(nodes, edges, directed, s, t) {
+  edges = validEdges(nodes, edges)
   const adj = new Map()
   for (const n of nodes) adj.set(n.id, [])
   const allArcs = []
@@ -407,6 +428,7 @@ export function maxFlow(nodes, edges, directed, s, t) {
 
 // 欧拉路径/回路（Hierholzer）
 export function eulerPath(nodes, edges, directed) {
+  edges = validEdges(nodes, edges)
   if (!edges.length) return { exists: false, trail: [], seq: [], reason: '没有边' }
   const adj = new Map()
   const deg = new Map()
@@ -440,7 +462,9 @@ export function eulerPath(nodes, edges, directed) {
   } else {
     for (const n of nodes) {
       const d = deg.get(n.id)
-      if ((d.in + d.out) % 2 === 1) {
+      // 无向边在两组计数器里都 +1，所以 d.out 就是点的度；用 in+out 判断奇偶永远为偶，
+      // 会让 K1,4 这种 4 个奇度点的图被判成「存在欧拉路径」。
+      if (d.out % 2 === 1) {
         odd++
         start = n.id
       }

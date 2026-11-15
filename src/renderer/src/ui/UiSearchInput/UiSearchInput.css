@@ -2,3 +2,9 @@
   width: 100%;
   min-width: 0;
 }
+
+.ui-search.ui-input--sm {
+  --input-h: var(--control-h-md);
+  --input-px: var(--space-3);
+  border-radius: var(--radius-base);
+}

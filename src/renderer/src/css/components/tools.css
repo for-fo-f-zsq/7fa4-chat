@@ -1,204 +1,226 @@
-/**
- * 工具中心（卡片列表）样式 —— ToolsView.vue 专用
- *
- * 仅由 `views/ToolsView.vue` 以 `<style scoped src="../css/tools.css">` 引入；
- * 不再全局加载（index.css 中的 `@import './tools.css'` 由 Lead 统一删除）。
- *
- * P2-ADOPT-E：卡片/按钮/徽标/空状态/进度条/错误条已改为 ui/ 原语
- * （UiCard / UiButton / UiBadge / UiEmptyState / UiProgress / UiBanner / UiSpinner），
- * 本文件只保留页面布局钩子（class 策略 B）与业务内容排版（策略 D）；
- * 旧 .tool-btn / .tool-badge / .tool-card 基座 / .tool-progress-track/-bar /
- * .tools-empty 等重复样式已删除。
- *
- * 全部颜色、圆角、字号、动效取自设计令牌，禁止裸色值 / 裸时长 / 裸缓动。
- */
-
-/* ---------------------------- 工具中心页面 ---------------------------- */
-
-.tools-page {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--gradient-panel);
-}
-
-.tools-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-5) var(--space-6);
-  border-bottom: 1px solid var(--line);
-  flex-shrink: 0;
-}
-
-.tools-header h2 {
-  margin: 0;
-  font-size: var(--text-lg);
-  font-weight: var(--weight-semibold);
-  color: var(--fg);
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.tools-header h2 i {
-  color: var(--brand);
-}
-
-.tools-header-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-shrink: 0;
-}
-
-.tools-header-meta .tools-updated {
-  font-size: var(--text-sm);
-  color: var(--fg-muted);
+/* 工具中心（ToolsView + ToolCard 共享样式；外框交由 PanelShell） */
+.tools-updated {
+  color: var(--fg-subtle);
+  font-size: var(--text-xs);
   white-space: nowrap;
 }
 
-/* 错误条：UiBanner 负责视觉，这里只保留页面边距 */
+.tools-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
 .tools-error-bar {
-  margin: var(--space-3) var(--space-6) 0;
   flex-shrink: 0;
 }
 
-/* 首次加载占位 */
 .tools-loading {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  padding: var(--space-8) var(--space-6);
+  padding: var(--space-10) var(--space-4);
   color: var(--fg-muted);
   font-size: var(--text-sm);
 }
 
-/* ---------------------------- 卡片网格 ---------------------------- */
-
 .tools-grid {
-  padding: var(--space-5) var(--space-6);
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: var(--space-4);
-  overflow-y: auto;
+  flex: 1;
+  grid-template-columns: repeat(auto-fill, minmax(276px, 1fr));
   align-content: start;
+  gap: var(--space-4);
+  min-height: 0;
+  padding: var(--space-1) var(--space-1) var(--space-5);
+  overflow-y: auto;
 }
 
-/* 布局钩子：UiCard 基座负责视觉，这里只补网格内约束与禁用态 */
-.tool-card {
+/* 显式双类名确保覆盖 .ui-card 默认变量与阴影 */
+.ui-card.tool-card {
+  --card-pad: var(--space-5);
+  --card-gap: var(--space-3);
   min-width: 0;
+  box-shadow: var(--elev-1);
 }
 
-.tool-card.is-disabled {
-  cursor: not-allowed;
+.ui-card.tool-card.is-disabled {
   opacity: var(--opacity-muted);
+  cursor: not-allowed;
+}
+
+.tool-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.tool-card-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  background: var(--brand-soft);
+  border: var(--border-width) solid var(--brand-line);
+  border-radius: var(--radius-xl);
+  transition:
+    transform var(--motion-dur-base) var(--motion-ease-out-expo),
+    background-color var(--motion-dur-base) var(--motion-ease-standard),
+    border-color var(--motion-dur-base) var(--motion-ease-standard);
+}
+
+@media (hover: hover) {
+  .ui-card.tool-card:not(.is-disabled):hover .tool-card-icon-wrap {
+    border-color: var(--brand);
+    transform: scale(1.05);
+  }
 }
 
 .tool-card-icon {
-  font-size: var(--icon-3xl);
   color: var(--brand);
+  font-size: var(--icon-xl);
+}
+
+.tool-card-status {
+  flex-shrink: 0;
+}
+
+.tool-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
 }
 
 .tool-card-name {
-  font-size: var(--text-lg);
-  font-weight: var(--weight-medium);
-  color: var(--fg);
   overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--fg);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .tool-card-desc {
-  font-size: var(--text-sm);
+  min-height: calc(1.55em * 2);
   color: var(--fg-muted);
-  line-height: var(--leading-relaxed);
-  /* 描述最多两行，保持卡片高度一致 */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  min-height: calc(1.6em * 2);
+  font-size: var(--text-sm);
+  line-height: 1.55;
   word-break: break-word;
 }
 
 .tool-card-meta {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--fg-muted);
+  min-height: 20px;
 }
 
-.tool-card-meta .tool-meta-item {
+.tool-meta-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--fg-subtle);
+  font-size: var(--text-xs);
   white-space: nowrap;
 }
 
-/* UiCard 的 footer 插槽：状态徽标 + 操作按钮两端对齐 */
-.tool-card-footer {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  flex-wrap: wrap;
+.tool-meta-sep {
+  opacity: 0.65;
 }
 
-.tool-actions {
-  display: flex;
+.tool-meta-outdated {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
+  padding: 1px var(--space-2);
+  color: var(--status-warning-ink);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-medium);
+  background: var(--status-warning-soft);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
 }
 
-/* 进度条：UiProgress 负责轨道/填充，这里只补文案行 */
+.tool-progress-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 .tool-progress {
   width: 100%;
 }
 
 .tool-progress-text {
-  font-size: var(--text-xs);
-  color: var(--fg-muted);
   display: flex;
   justify-content: space-between;
   gap: var(--space-2);
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
 }
 
-/* minAppVersion 不满足时的提示 */
 .tool-blocked-hint {
-  font-size: var(--text-sm);
-  line-height: var(--leading-normal);
-  color: var(--status-warning);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--status-warning-ink);
+  font-size: var(--text-xs);
+  line-height: var(--leading-snug);
 }
 
-/* ---------------------------- 窄屏 ---------------------------- */
+.tool-card-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.ui-btn.tool-install-btn {
+  min-width: 104px;
+}
+
+.ui-btn.tool-open-btn {
+  --btn-px: var(--space-3);
+  min-width: 82px;
+}
+
+.tool-open-arrow {
+  font-size: var(--icon-xs);
+  transition: transform var(--motion-dur-fast) var(--motion-ease-out-expo);
+}
+
+@media (hover: hover) {
+  .ui-btn.tool-open-btn:not(.is-disabled):hover .tool-open-arrow {
+    transform: translateX(2px);
+  }
+}
+
+.ui-btn.tool-remove-btn {
+  margin-left: auto;
+  --btn-px: var(--space-2);
+  --btn-fg: var(--fg-subtle);
+  --btn-hover-bg: var(--status-danger-soft);
+  --btn-hover-fg: var(--status-danger-ink);
+  --btn-active-bg: var(--status-danger-soft);
+}
 
 @media (max-width: 600px) {
-  .tools-header {
-    padding: var(--space-3) var(--space-4);
-  }
-
-  .tools-header-meta .tools-updated {
+  .tools-updated {
     display: none;
   }
 
   .tools-grid {
-    padding: var(--space-3) var(--space-4);
     grid-template-columns: 1fr;
     gap: var(--space-3);
   }
 
   .tool-card-desc {
     min-height: 0;
-  }
-
-  .tools-error-bar {
-    margin: var(--space-3) var(--space-4) 0;
   }
 }

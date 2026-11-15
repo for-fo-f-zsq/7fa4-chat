@@ -49,4 +49,4 @@ function onActivate(event) {
 }
 </script>
 
-<style scoped src="./UiCard.css"></style>
+<style src="./UiCard.css"></style>

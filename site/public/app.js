@@ -1,6 +1,6 @@
 /* ============================================================
    7FA4 Chat 官网前端
-   - 所有数据都来自同源 /api/*（由服务端转发 GitLab，前端不直连仓库）
+   - 所有数据都来自同源 api/*（由服务端转发 GitLab，前端不直连仓库）
    ============================================================ */
 
 (function () {
@@ -28,7 +28,7 @@
     try { forced = new URLSearchParams(location.search).get('theme'); } catch (e) { /* ignore */ }
     if (forced === 'light' || forced === 'dark') saved = forced;
     if (saved !== 'light' && saved !== 'dark') {
-      saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      saved = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
     }
     applyTheme(saved);
     const btn = $('#theme-toggle');
@@ -39,6 +39,35 @@
         try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* ignore */ }
       });
     }
+  }
+
+  /* ---------------------------------------------------------- 移动端导航 */
+
+  function initMobileNav() {
+    const toggle = $('#nav-toggle');
+    const menu = $('#mobile-menu');
+    if (!toggle || !menu) return;
+
+    const setOpen = (open) => {
+      menu.hidden = !open;
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.setAttribute('aria-label', open ? '关闭导航菜单' : '打开导航菜单');
+    };
+
+    toggle.addEventListener('click', () => setOpen(menu.hidden));
+    $$('a', menu).forEach((a) => a.addEventListener('click', () => setOpen(false)));
+
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && !menu.hidden) setOpen(false);
+    });
+    document.addEventListener('click', (ev) => {
+      if (menu.hidden) return;
+      if (menu.contains(ev.target) || toggle.contains(ev.target)) return;
+      setOpen(false);
+    });
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 820 && !menu.hidden) setOpen(false);
+    }, { passive: true });
   }
 
   /* ------------------------------------------------------------ 工具 */
@@ -87,8 +116,6 @@
 
   const ICON_DOWNLOAD = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10m0 0 3.6-3.6M12 14l-3.6-3.6M5 18.4v.6a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.6"/></svg>';
 
-  let downloadsData = null;
-
   function renderDownloadItem(item) {
     return `
       <a class="dl-item${item.primary ? ' primary' : ''}" href="${escapeHtml(item.url)}"
@@ -104,11 +131,9 @@
   }
 
   function renderDownloads(data) {
-    downloadsData = data;
     const items = data.items || [];
 
     // 版本/日期
-    const ver = data.version ? 'v' + data.version : '—';
     const metaVersion = $('#meta-version');
     const metaDate = $('#meta-date');
     if (metaVersion) metaVersion.textContent = data.version || '—';
@@ -138,26 +163,31 @@
     const cur = detectPlatform();
     $$('.dl-card').forEach((c) => c.classList.toggle('is-current', !!cur && c.getAttribute('data-platform') === cur));
 
-    // Hero 主按钮：按当前系统给一个更明确的文案
-    const hero = $('#hero-download');
-    const label = $('#hero-download-label');
+    // 顶栏与 Hero 主下载按钮：按当前系统给一个更明确的文案与直链
     const platform = detectPlatform();
     const map = { windows: 'Windows', macos: 'macOS', linux: 'Linux', android: 'Android' };
-    if (hero && label) {
-      if (platform && map[platform]) {
-        const first = items.find((i) => i.platform === platform && i.primary) || items.find((i) => i.platform === platform);
-        if (first) {
-          label.textContent = `下载 ${map[platform]} 版`;
-          hero.setAttribute('href', first.url);
-          hero.setAttribute('rel', 'nofollow');
-        }
+    if (platform && map[platform]) {
+      const first = items.find((i) => i.platform === platform && i.primary) || items.find((i) => i.platform === platform);
+      if (first) {
+        const text = `下载 ${map[platform]} 版`;
+        [
+          ['#hero-download', '#hero-download-label'],
+          ['#hero-cta', '#hero-cta-label']
+        ].forEach(([btnSel, lblSel]) => {
+          const btn = $(btnSel);
+          const lbl = $(lblSel);
+          if (!btn || !lbl) return;
+          lbl.textContent = text;
+          btn.setAttribute('href', first.url);
+          btn.setAttribute('rel', 'nofollow');
+        });
       }
     }
 
     // 校验值 + 说明
     const note = $('#dl-note');
     if (note) {
-      const total = items.reduce((n, i) => n + 1, 0);
+      const total = items.length;
       note.innerHTML = `共 ${total} 个安装包 · 版本 <code>v${escapeHtml(data.version || '')}</code> · 支持断点续传与 SHA-256 校验。`;
       note.hidden = false;
     }
@@ -345,29 +375,29 @@
   /* ----------------------------------------------------- 视觉细节 */
 
   function initReveal() {
-    const items = $$("[data-reveal]");
+    const items = $$('[data-reveal]');
     if (!items.length) return;
     const vh = window.innerHeight || 800;
     const later = [];
     items.forEach((el) => {
       const top = el.getBoundingClientRect().top;
-      if (top < vh * 1.02) el.classList.add("in");
+      if (top < vh * 1.02) el.classList.add('in');
       else later.push(el);
     });
-    if (!("IntersectionObserver" in window)) {
-      later.forEach((el) => el.classList.add("in"));
+    if (!('IntersectionObserver' in window)) {
+      later.forEach((el) => el.classList.add('in'));
       return;
     }
     const io = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         if (!entry.isIntersecting) return;
-        entry.target.classList.add("in");
+        entry.target.classList.add('in');
         io.unobserve(entry.target);
       });
-    }, { rootMargin: "0px 0px -6% 0px", threshold: 0.06 });
+    }, { rootMargin: '0px 0px -6% 0px', threshold: 0.06 });
     later.forEach((el) => io.observe(el));
     // 兜底：任何原因导致观察器没触发时，2 秒后全部显示
-    setTimeout(() => items.forEach((el) => el.classList.add("in")), 2000);
+    setTimeout(() => items.forEach((el) => el.classList.add('in')), 2000);
   }
 
   function initSpotlight() {
@@ -404,6 +434,7 @@
 
   function boot() {
     initTheme();
+    initMobileNav();
     initHostLinks();
     initReveal();
     initSpotlight();

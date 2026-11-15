@@ -1,7 +1,10 @@
 <template>
   <div
     class="ui-dropdown"
-    :class="[`ui-dropdown--${sizeClass}`, { 'is-open': open, 'is-disabled': disabled, 'is-invalid': invalid }]"
+    :class="[
+      `ui-dropdown--${sizeClass}`,
+      { 'is-open': open, 'is-disabled': disabled, 'is-invalid': invalid, 'ui-dropdown--auto': autoWidth }
+    ]"
   >
     <label v-if="label" :id="labelId" :for="triggerId" class="ui-dropdown__field-label">{{ label }}</label>
     <button
@@ -40,7 +43,7 @@
     </button>
     <Teleport to="body">
       <Transition name="dropdown">
-        <div v-if="open" ref="panelRef" class="ui-dropdown__panel" :style="panelStyle" @mousedown.prevent>
+        <div v-if="open" ref="panelRef" class="ui-dropdown__panel" :data-placement="actualPlacement" :style="panelStyle" @mousedown.prevent>
           <div v-if="searchable" class="ui-dropdown__search">
             <input
               ref="searchRef"
@@ -51,6 +54,17 @@
               aria-label="搜索选项"
               @keydown="onKeydown"
             />
+          </div>
+          <div
+            v-if="$slots['list-header'] || (multiple && selectAll && enabledFilteredOptions.length)"
+            class="ui-dropdown__list-header"
+          >
+            <slot name="list-header">
+              <button type="button" class="ui-dropdown__select-all" @click="toggleSelectAll">
+                <span>{{ allFilteredSelected ? '取消全选' : '全选' }}</span>
+                <span v-if="allFilteredSelected" class="ui-dropdown__check" aria-hidden="true">✓</span>
+              </button>
+            </slot>
           </div>
           <ul
             :id="listId"
@@ -105,6 +119,9 @@ const props = defineProps({
   options: { type: Array, default: () => [] },
   multiple: { type: Boolean, default: false },
   searchable: { type: Boolean, default: false },
+  selectAll: { type: Boolean, default: false },
+  autoWidth: { type: Boolean, default: false },
+  minPanelWidth: { type: [Number, String], default: 0 },
   placeholder: { type: String, default: '请选择' },
   label: { type: String, default: '' },
   ariaLabel: { type: String, default: '' },
@@ -119,6 +136,7 @@ const triggerRef = ref(null)
 const panelRef = ref(null)
 const searchRef = ref(null)
 const panelStyle = ref({})
+const actualPlacement = ref('bottom')
 const open = ref(false)
 const query = ref('')
 const activeIndex = ref(0)
@@ -152,6 +170,14 @@ const filteredOptions = computed(() => {
   return props.options.filter((option) => String(option.label).toLowerCase().includes(keyword))
 })
 
+const enabledFilteredOptions = computed(() => filteredOptions.value.filter((option) => !option.disabled))
+
+const allFilteredSelected = computed(
+  () =>
+    enabledFilteredOptions.value.length > 0 &&
+    enabledFilteredOptions.value.every((option) => selectedValues.value.includes(option.value))
+)
+
 function optionId(index) {
   return `${uid}-option-${index}`
 }
@@ -169,18 +195,28 @@ function updatePosition() {
   const panel = panelRef.value
   if (!trigger || !panel) return
   const rect = trigger.getBoundingClientRect()
-  const width = rect.width
-  const height = panel.offsetHeight
   const vw = window.innerWidth
   const vh = window.innerHeight
+  const maxW = Math.max(120, vw - GUTTER * 2)
+  const minW = Math.max(rect.width, Number(props.minPanelWidth) || 0)
+  const width = props.autoWidth ? Math.min(Math.max(panel.offsetWidth, minW), maxW) : Math.min(minW, maxW)
+  const height = panel.offsetHeight
   const spaceBelow = vh - rect.bottom - GUTTER
-  let top = rect.bottom + PANEL_GAP
-  if (height > spaceBelow && rect.top > spaceBelow) top = rect.top - height - PANEL_GAP
-  panelStyle.value = {
+  const openAbove = height > spaceBelow && rect.top > spaceBelow
+  actualPlacement.value = openAbove ? 'top' : 'bottom'
+  let top = openAbove ? rect.top - height - PANEL_GAP : rect.bottom + PANEL_GAP
+  const style = {
     top: `${clamp(top, GUTTER, vh - height - GUTTER)}px`,
     left: `${clamp(rect.left, GUTTER, vw - width - GUTTER)}px`,
-    width: `${width}px`
+    maxWidth: `${maxW}px`
   }
+  if (props.autoWidth) {
+    style.minWidth = `${Math.min(minW, maxW)}px`
+    style.width = 'max-content'
+  } else {
+    style.width = `${width}px`
+  }
+  panelStyle.value = style
 }
 
 function activeFirstEnabled() {
@@ -213,6 +249,17 @@ function closeMenu(refocus = true) {
 function toggleOpen() {
   if (open.value) closeMenu()
   else openMenu()
+}
+
+function toggleSelectAll() {
+  if (!props.multiple) return
+  const targetValues = enabledFilteredOptions.value.map((option) => option.value)
+  if (!targetValues.length) return
+  const next = allFilteredSelected.value
+    ? selectedValues.value.filter((value) => !targetValues.includes(value))
+    : Array.from(new Set([...selectedValues.value, ...targetValues]))
+  emit('update:modelValue', next)
+  emit('change', next)
 }
 
 function selectOption(option) {
@@ -365,4 +412,4 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped src="./UiDropdown.css"></style>
+<style src="./UiDropdown.css"></style>

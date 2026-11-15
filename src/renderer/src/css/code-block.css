@@ -114,7 +114,10 @@
   white-space: nowrap;
   cursor: pointer;
   opacity: 0.55;
-  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+  transition: opacity var(--motion-dur-fast) var(--motion-ease-standard),
+    color var(--motion-dur-fast) var(--motion-ease-standard),
+    background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo);
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -126,13 +129,14 @@
 
 .luogu-code-block-wrapper .luogu-code-copy-btn:active {
   background-color: color-mix(in srgb, var(--text-primary) 14%, transparent);
+  transform: scale(var(--press-scale, 0.97));
 }
 
 .luogu-code-block-wrapper .luogu-code-copy-btn:focus-visible {
   opacity: 1;
   color: var(--text-primary);
-  outline: 2px solid var(--accent-outline);
-  outline-offset: 1px;
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
 }
 
 .luogu-code-block-wrapper .luogu-code-copy-btn .copy-icon {

@@ -1,21 +1,12 @@
 <template>
   <div class="login-root">
-    <div class="title-bar">
-      <div class="title-bar-drag">
-        <span class="title-bar-title">7FA4 Chat</span>
-      </div>
-      <div class="title-bar-controls">
-        <button class="title-btn title-minimize" @click="windowMinimize"><i class="fas fa-minus"></i></button>
-        <button class="title-btn title-maximize" @click="windowMaximize"><i class="fas" :class="isMaximized ? 'fa-clone' : 'fa-square'"></i></button>
-        <button class="title-btn title-close" @click="windowClose"><i class="fas fa-times"></i></button>
-      </div>
-    </div>
+    <WindowTitleBar title="7FA4 Chat" />
     <div class="container">
       <div class="box">
         <UiButton class="btn-guest" variant="text" size="sm" icon="fas fa-arrow-left" title="返回主界面（游客模式）" @click="emit('guest')">返回</UiButton>
         <div class="logo">
           <div class="logo-icon">
-            <img src="../assets/icon.ico" style="width:100%">
+            <img src="../assets/icon.ico" alt="7FA4 Chat" />
           </div>
         </div>
         <h2>7FA4 Chat</h2>
@@ -78,11 +69,9 @@
 
 import { ref, onMounted, watch } from 'vue'
 import md5 from 'md5'
-import { tryLogin } from '../utils.js'
-import { useWindowControls } from '../composables/useWindowControls.js'
+import { tryLogin, isWebBrowser } from '../utils.js'
+import WindowTitleBar from '../components/common/WindowTitleBar.vue'
 import { UiBanner, UiButton, UiDropdown, UiIconButton, UiInput, UiSwitch } from '@/ui'
-
-const { isMaximized, windowMinimize, windowMaximize, windowClose } = useWindowControls()
 
 const emit = defineEmits(['login', 'guest'])
 
@@ -109,8 +98,11 @@ async function onSuccess(type) {
     const setting = await window.api.loadSetting()
     setting.keepLogin = true
     setting.loginUsername = username.value
-    // 直接存原始密码到本地加密存储（setting.7c），不再做 md5
-    setting.loginPassword = password.value
+    // 只有桌面端能用 safeStorage 加密保存口令；网页与安卓都落在 localStorage 明文里，
+    // 所以这两端一律只记住用户名，密码留空 → 下次需手动输入。
+    const platform = typeof window !== 'undefined' ? window.__7FA4_PLATFORM__ : ''
+    const canEncryptPassword = !isWebBrowser() && platform !== 'android'
+    setting.loginPassword = canEncryptPassword ? password.value : ''
     await window.api.saveSetting(setting)
   }
   emit('login')

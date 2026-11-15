@@ -1,3 +1,4 @@
+/* UiProgress — 进度条原语；expo-out 平滑进度过渡。 */
 .ui-progress {
   --progress-h: var(--space-1);
   display: flex;
@@ -6,17 +7,9 @@
   font-family: var(--font-sans);
 }
 
-.ui-progress--xs {
-  --progress-h: var(--border-width-thick);
-}
-
-.ui-progress--sm {
-  --progress-h: var(--space-1);
-}
-
-.ui-progress--md {
-  --progress-h: var(--space-2);
-}
+.ui-progress--xs { --progress-h: var(--border-width-thick); }
+.ui-progress--sm { --progress-h: var(--space-1); }
+.ui-progress--md { --progress-h: var(--space-2); }
 
 .ui-progress-label {
   color: var(--fg-muted);
@@ -29,7 +22,7 @@
   width: 100%;
   height: var(--progress-h);
   border-radius: var(--radius-pill);
-  background: var(--surface-hover);
+  background: var(--surface-3, var(--surface-hover));
   overflow: hidden;
 }
 
@@ -40,24 +33,13 @@
   height: 100%;
   border-radius: var(--radius-pill);
   background: var(--brand);
-  transition: width var(--motion-dur-slow) var(--motion-ease-standard);
+  transition: width var(--motion-dur-slow) var(--motion-ease-out-expo);
 }
 
-.ui-progress-bar--brand {
-  background: var(--brand);
-}
-
-.ui-progress-bar--success {
-  background: var(--success);
-}
-
-.ui-progress-bar--warning {
-  background: var(--warning);
-}
-
-.ui-progress-bar--danger {
-  background: var(--danger);
-}
+.ui-progress-bar--brand { background: var(--brand); }
+.ui-progress-bar--success { background: var(--success); }
+.ui-progress-bar--warning { background: var(--warning); }
+.ui-progress-bar--danger { background: var(--danger); }
 
 .ui-progress-bar.is-indeterminate {
   width: 100%;

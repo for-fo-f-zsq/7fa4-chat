@@ -1,141 +1,266 @@
 ﻿<template>
-  <div class="about-panel">
-    <!-- 返回条 -->
-    <div class="about-topbar">
-      <BackButton title="返回消息列表" @back="emit('back')" />
-    </div>
-    <!-- 概览 -->
+  <PanelShell title="关于" icon="fas fa-circle-info" :backable="true" @back="emit('back')">
     <UiCard class="about-card about-hero" size="lg">
-      <div class="about-hero-center">
+      <div class="about-hero-top">
         <div class="about-logo-wrap">
           <img :src="iconUrl" alt="7FA4 Chat" class="about-logo" />
         </div>
-        <div class="about-name">7FA4 Chat</div>
-        <UiBadge class="about-version" variant="brand" size="sm">v{{ version }}</UiBadge>
-        <p class="about-tagline">基于 Vue 3 与 Electron 的跨平台即时通讯应用，内置 Markdown、数学公式、代码与画板等学习工具。</p>
-        <!-- 作者 & AI 协作者 -->
-        <div class="about-author">
-          <div class="about-author-line">
-            <span class="about-author-main">for_fo_f</span>
-            <span class="about-author-sep">/</span>
-            <span class="about-author-ai"><i class="fas fa-robot"></i> AI</span>
-            <span class="about-author-note">协作开发</span>
+        <div class="about-hero-info">
+          <div class="about-title-row">
+            <h1 class="about-name">7FA4 Chat</h1>
+            <UiBadge v-if="version" class="about-version u-tabular-nums" variant="brand" size="sm">
+              v{{ version }}
+            </UiBadge>
+            <UiBadge variant="neutral" size="sm">{{ platformLabel }}</UiBadge>
           </div>
-          <div class="about-ai-models">
-            <UiBadge
-              v-for="m in aiModels"
-              :key="m.name"
-              variant="outline"
-              size="sm"
-              :color="m.color"
-              :title="m.name"
-            >{{ m.name }}</UiBadge>
+          <p class="about-tagline">
+            轻量、克制的跨平台即时通讯与学习工具箱，内置 Markdown、KaTeX 公式、图论与图像画板，聊天数据本地加密存储。
+          </p>
+          <div class="about-author-inline">
+            <span class="about-author-label">作者</span>
+            <span class="about-author-name">for_fo_f</span>
+            <span class="about-meta-dot" aria-hidden="true">·</span>
+            <UiPopover v-model:open="aiPopoverOpen" trigger="hover" placement="bottom" :offset="8">
+              <template #trigger>
+                <button
+                  type="button"
+                  class="about-ai-trigger"
+                  @focus="aiPopoverOpen = true"
+                  @blur="aiPopoverOpen = false"
+                >
+                  <i class="fas fa-robot" aria-hidden="true"></i>
+                  <span>AI 协作</span>
+                </button>
+              </template>
+              <template #content>
+                <div class="about-ai-popover">
+                  <div class="about-ai-popover-head">
+                    <span>参与协作的 AI</span>
+                    <span class="about-ai-popover-count u-tabular-nums">{{ totalAiEntries }}</span>
+                  </div>
+                  <div class="about-ai-popover-list">
+                    <div v-for="family in aiFamilies" :key="family.id" class="about-ai-group">
+                      <div class="about-ai-group-name">{{ family.label }}</div>
+                      <div class="about-ai-tags">
+                        <span
+                          v-for="model in family.models"
+                          :key="model.name"
+                          class="about-ai-pill"
+                          :class="{ 'is-recent': model.recent }"
+                        >{{ model.name }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </UiPopover>
           </div>
         </div>
       </div>
-      <div class="about-links">
-        <UiButton variant="secondary" size="sm" icon="fab fa-gitlab" @click="openLink(gitlabProjectUrl())">GitLab</UiButton>
-        <UiButton variant="secondary" size="sm" icon="fab fa-github" @click="openLink('https://github.com/for-fo-f-zsq/7fa4-chat')">GitHub</UiButton>
-        <UiButton variant="secondary" size="sm" icon="fas fa-house" @click="openLink(officialSiteUrl())">官网</UiButton>
+
+      <div class="about-hero-actions">
+        <div class="about-links">
+          <UiButton variant="secondary" size="sm" icon="fas fa-house" @click="openLink(officialSiteUrl())">官网</UiButton>
+          <UiButton variant="secondary" size="sm" icon="fab fa-github" @click="openLink('https://github.com/for-fo-f-zsq/7fa4-chat')">GitHub</UiButton>
+          <UiButton variant="secondary" size="sm" icon="fab fa-gitlab" @click="openLink(gitlabProjectUrl())">GitLab</UiButton>
+        </div>
+        <div class="about-quick-actions">
+          <UiButton variant="ghost" size="sm" icon="fas fa-comment-dots" @click="openFeedback">意见反馈</UiButton>
+          <UiButton variant="ghost" size="sm" icon="fas fa-book-open" @click="openGuide">新手指引</UiButton>
+        </div>
       </div>
     </UiCard>
 
-    <!-- 功能特性 -->
     <UiCard class="about-card" size="lg">
-      <template #header><i class="fas fa-cubes about-card-icon" aria-hidden="true"></i>功能特性</template>
+      <template #header>
+        <div class="about-card-head">
+          <span class="about-card-head-title">
+            <i class="fas fa-cubes about-card-icon" aria-hidden="true"></i>
+            <span>核心能力</span>
+          </span>
+          <span class="about-card-meta">消息 · 工具 · 隐私</span>
+        </div>
+      </template>
+
       <div class="about-feat-grid">
-        <UiCard v-for="feat in features" :key="feat.name" class="about-feat" size="sm">
-          <div class="about-feat-inner">
-            <div class="about-feat-icon"><i :class="feat.icon" aria-hidden="true"></i></div>
-            <div class="about-feat-body">
-              <div class="about-feat-name">{{ feat.name }}</div>
-              <div class="about-feat-desc">{{ feat.desc }}</div>
-            </div>
+        <div v-for="feat in features" :key="feat.name" class="about-feat-item">
+          <div class="about-feat-icon"><i :class="feat.icon" aria-hidden="true"></i></div>
+          <div class="about-feat-body">
+            <div class="about-feat-name">{{ feat.name }}</div>
+            <div class="about-feat-desc">{{ feat.desc }}</div>
           </div>
-        </UiCard>
+        </div>
       </div>
     </UiCard>
 
-    <!-- 技术栈 -->
-    <UiCard class="about-card" size="lg">
-      <template #header><i class="fas fa-code about-card-icon" aria-hidden="true"></i>技术栈</template>
+    <UiCard class="about-card about-stack-card" size="lg">
+      <template #header>
+        <div class="about-card-head">
+          <span class="about-card-head-title">
+            <i class="fas fa-code about-card-icon" aria-hidden="true"></i>
+            <span>技术底座</span>
+          </span>
+        </div>
+      </template>
+
       <div class="about-tech">
-        <UiBadge v-for="tech in techStack" :key="tech" variant="brand" size="sm">{{ tech }}</UiBadge>
+        <UiBadge v-for="tech in techStack" :key="tech" variant="neutral" size="sm">{{ tech }}</UiBadge>
       </div>
+
       <div class="about-footer">
-        © 2026 for_fo_f 独立开发维护 · 问题请点「意见反馈」
-        <UiButton class="about-guide-link" variant="text" size="sm" icon="fas fa-comment-dots" @click="openFeedback">意见反馈</UiButton>
-        <UiButton class="about-guide-link" variant="text" size="sm" icon="fas fa-book-open" @click="openGuide">重新查看新手指引</UiButton>
+        <span class="about-copyright">© 2026 for_fo_f · 本地 SQLite 加密存储 · 零遥测、无广告</span>
+        <div class="about-footer-actions">
+          <UiButton variant="text" size="sm" icon="fas fa-comment-dots" @click="openFeedback">意见反馈</UiButton>
+          <UiButton variant="text" size="sm" icon="fas fa-book-open" @click="openGuide">重新查看新手指引</UiButton>
+        </div>
       </div>
     </UiCard>
-  </div>
+  </PanelShell>
 </template>
 
 <script setup>
-// 用法：<AboutPanel :version="version" @back="view='chat'" />
-
-import { ref, onMounted } from 'vue'
-import BackButton from '../common/BackButton.vue'
-import { officialSiteUrl, gitlabProjectUrl, feedbackPageUrl, isWebBrowser } from '../../utils.js'
-import { assetUrl } from '../../platform/asset-base.js'
-import { UiBadge, UiButton, UiCard } from '@/ui'
+import { computed, onMounted, ref } from 'vue'
+import { UiBadge, UiButton, UiCard, UiPopover } from '@/ui'
+import { assetUrl } from '@/platform/asset-base.js'
+import { feedbackPageUrl, gitlabProjectUrl, isWebBrowser, officialSiteUrl } from '@/utils.js'
+import PanelShell from '@/components/common/PanelShell.vue'
 
 const iconUrl = assetUrl('icon.png')
-
 const props = defineProps({ version: { type: String, default: '' } })
 const emit = defineEmits(['back'])
 
-// 关于页入口：让 App 重新打开新手指引（已看过的用户也能回看）
+const version = ref(props.version || '')
+const aiPopoverOpen = ref(false)
+
+const platformLabel = computed(() => {
+  if (typeof window !== 'undefined' && window.__7FA4_PLATFORM__ === 'android') return 'Android'
+  if (isWebBrowser()) return 'Web 网页版'
+  return 'Electron 桌面端'
+})
+
 function openGuide() {
   window.dispatchEvent(new Event('open-onboarding'))
 }
 
-// 意见反馈：桌面端弹内置表单；网页版没有弹窗，直接开官网反馈页
 function openFeedback() {
   if (isWebBrowser()) {
-    window.api.openExternal(feedbackPageUrl('web', version.value || ''))
+    window.api?.openExternal?.(feedbackPageUrl('web', version.value || ''))
     return
   }
   window.dispatchEvent(new Event('open-feedback'))
 }
 
-// 兜底：外层异步传入可能为空，面板自身再拉一次版本号
-const version = ref(props.version || '')
+function openLink(url) {
+  window.api?.openExternal?.(url)
+}
+
 onMounted(() => {
-  if (!version.value) {
-    window.api.getVersion().then((v) => { if (v) version.value = v }).catch(() => {})
+  if (!version.value && typeof window.api?.getVersion === 'function') {
+    window.api.getVersion().then((v) => {
+      if (v) version.value = v
+    }).catch(() => {})
   }
 })
 
-// 用系统默认浏览器打开外部链接
-function openLink(url) {
-  window.api.openExternal(url)
-}
-
-// 功能特性（长文案保留原文）
-const features = [
-  { icon: 'fas fa-comment-dots', name: '即时通讯', desc: '私聊与群聊、@ 提醒与拍一拍；消息置顶、自定义表情、图片与文件消息，历史记录完整拉取。' },
-  { icon: 'fas fa-file-alt', name: '消息渲染', desc: 'Markdown 富文本与代码高亮，行内、块级 KaTeX 数学公式，图片按原始比例显示并支持全屏预览。' },
-  { icon: 'fas fa-wrench', name: '在线工具箱', desc: 'Markdown 编辑与预览、图片编辑、交互式 Graph Editor、科学计算器与 GeoGebra 数学画板，按需下载、即装即用。' },
-  { icon: 'fas fa-calculator', name: '科学计算', desc: '科学计算器支持表达式、模运算与质因数分解；GeoGebra 数学画板提供完整的绘图体验。' },
-  { icon: 'fas fa-shield-alt', name: '数据与隐私', desc: '聊天数据本地 SQLite + AES-256 加密存储，无遥测、无广告。' },
-  { icon: 'fas fa-laptop', name: '跨平台体验', desc: '支持 Windows、Linux 与 macOS，多套主题、可自定义快捷键与字体大小，窄窗自动单列布局。' }
+// 参与协作的 AI：只有主力用过的条目才加 is-recent 高亮，避免满屏都是强调色。
+const aiFamilies = [
+  {
+    id: 'deepseek',
+    label: 'DeepSeek',
+    models: [
+      { name: 'DeepSeek V4 Flash 0731', recent: false },
+      { name: 'DeepSeek V4 Flash Vision (Exp)', recent: false },
+      { name: 'DeepSeek V4.1 Flash', recent: false },
+      { name: 'DeepSeek V4.1 Flash 1017', recent: true },
+    ],
+  },
+  {
+    id: 'gemini',
+    label: 'Gemini',
+    models: [
+      { name: 'Gemini 4 Argon', recent: false },
+      { name: 'Gemini 4 Hydrogen', recent: true },
+    ],
+  },
+  {
+    id: 'glm',
+    label: 'GLM',
+    models: [
+      { name: 'GLM-5.1', recent: false },
+      { name: 'GLM-5.2', recent: false },
+      { name: 'GLM-5.3', recent: false },
+      { name: 'GLM-5.3 Flash', recent: false },
+    ],
+  },
+  {
+    id: 'hy',
+    label: 'Hy',
+    models: [
+      { name: 'Hy3', recent: false },
+      { name: 'Hy4 Preview', recent: false },
+      { name: 'Hy4', recent: false },
+    ],
+  },
+  {
+    id: 'agents',
+    label: 'Agents',
+    models: [
+      { name: 'CodeBuddy', recent: false },
+      { name: 'WorkBuddy', recent: false },
+      { name: 'DeepSeek Harness', recent: false },
+      { name: 'Antigravity', recent: true },
+    ],
+  },
 ]
 
-const techStack = ['Vue 3', 'Electron', 'Node.js', 'SQLite', 'Markdown', 'KaTeX', 'Prism', 'GeoGebra', 'Font Awesome']
+const totalAiEntries = computed(() =>
+  aiFamilies.reduce((sum, family) => sum + family.models.length, 0),
+)
 
-// 参与开发的 AI 协作者（按需增删改名即可）；颜色按厂商分色系：
-// DeepSeek=蓝系、GLM(智谱)=绿系、Hy3(腾讯混元)=橙，同厂商用同色系深浅区分具体模型
-const aiModels = [
-  { name: 'DeepSeek V4 Flash · 0731', color: '#3b5bfd' },
-  { name: 'DeepSeek V4 Flash Vision (Exp)', color: '#6176ff' },
-  { name: 'DeepSeek V4.1 Flash', color: '#8797ff' },
-  { name: 'GLM-5.1', color: '#0a7a4b' },
-  { name: 'GLM-5.2', color: '#0b8f5a' },
-  { name: 'GLM-5.3', color: '#10a86b' },
-  { name: 'GLM-5.3 Flash', color: '#28c18a' },
-  { name: 'Hy3', color: '#e07b39' },
-  { name: 'Hy4 Preview', color: '#eda366' },
+const features = [
+  {
+    icon: 'fas fa-comment-dots',
+    name: '即时通讯',
+    desc: '私聊与群聊、@ 提醒、引用回复与拍一拍；支持投票、自定义表情、图片与文件消息及历史完整拉取。',
+  },
+  {
+    icon: 'fas fa-file-lines',
+    name: '富文本与公式',
+    desc: 'Markdown 渲染与代码高亮，行内与块级 KaTeX 数学公式，图片原比例展示及高清灯箱预览。',
+  },
+  {
+    icon: 'fas fa-toolbox',
+    name: '扩展工具箱',
+    desc: '提供 Markdown、图像画板、Graph Editor、科学计算器、GeoGebra 与四宫格计时器，按需下载即装即用。',
+  },
+  {
+    icon: 'fas fa-shield-alt',
+    name: '本地加密与隐私',
+    desc: '消息记录采用本地 SQLite + AES-256 加密存储，支持备份恢复；无广告、零遥测上报。',
+  },
+  {
+    icon: 'fas fa-laptop',
+    name: '多端协同体验',
+    desc: '覆盖 Windows、Linux、macOS 桌面端以及网页端与 Android 端，窄屏窗口自动切换单栏视图。',
+  },
+  {
+    icon: 'fas fa-palette',
+    name: '主题与个性定制',
+    desc: '内置多套低饱和护眼主题并支持自定义配色、字体字号调整与全局快捷键绑定。',
+  },
+]
+
+const techStack = [
+  'Vue 3',
+  'Electron',
+  'Vite',
+  'Capacitor',
+  'Node.js',
+  'SQLite',
+  'KaTeX',
+  'Prism',
+  'GeoGebra',
+  'Font Awesome',
 ]
 </script>
 

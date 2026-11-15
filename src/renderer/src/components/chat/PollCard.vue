@@ -6,71 +6,59 @@
   <div class="poll-card" :class="{ 'poll-card--own': own }">
     <div class="poll-head">
       <i class="fas fa-square-poll-vertical poll-head-icon"></i>
-      <span class="poll-tag">投票</span>
-      <span v-if="poll.multi" class="poll-tag poll-tag--multi">多选</span>
-      <span v-if="limitTag" class="poll-tag poll-tag--limit">{{ limitTag }}</span>
-      <span v-if="result.allowCustom" class="poll-tag poll-tag--open">开放题</span>
-      <span v-if="result.expired" class="poll-tag poll-tag--expired">已截止</span>
+      <UiBadge variant="brand" size="sm">投票</UiBadge>
+      <UiBadge v-if="poll.multi" variant="neutral" size="sm">多选</UiBadge>
+      <UiBadge v-if="limitTag" variant="neutral" size="sm">{{ limitTag }}</UiBadge>
+      <UiBadge v-if="result.allowCustom" variant="neutral" size="sm">开放题</UiBadge>
+      <UiBadge v-if="isExpired" variant="warning" size="sm">已截止</UiBadge>
     </div>
 
     <div class="poll-q">{{ poll.q }}</div>
 
     <div class="poll-opts">
       <div
-        v-for="(opt, i) in poll.opts"
-        :key="i"
+        v-for="row in optionRows"
+        :key="row.key"
         class="poll-opt"
         :class="{
-          'poll-opt--picked': picked(i),
-          'poll-opt--disabled': !interactive,
-          'poll-opt--clickable': interactive,
+          'poll-opt--picked': row.picked,
+          'poll-opt--extra': row.custom,
+          'poll-opt--disabled': !row.custom && !interactive,
+          'poll-opt--clickable': !row.custom && interactive,
         }"
-        :title="votersTitle(i)"
-        @click.stop="toggle(i)"
+        :title="votersTitle(row.voters)"
+        @click.stop="!row.custom && toggle(row.index)"
       >
         <!-- 结果条：宽度按占比，外观由 UiProgress 提供 -->
-        <UiProgress class="poll-opt-progress" size="xs" :value="pctNum(i)" />
-        <span class="poll-opt-check" :class="{ 'poll-opt-check--on': picked(i) }">
-          <i v-if="picked(i)" class="fas fa-check"></i>
+        <UiProgress class="poll-opt-progress" size="xs" :value="row.pct" />
+        <span
+          class="poll-opt-check"
+          :class="{
+            'poll-opt-check--custom': row.custom,
+            'poll-opt-check--on': row.picked,
+          }"
+        >
+          <i v-if="row.picked" class="fas fa-check"></i>
+          <i v-else-if="row.custom" class="fas fa-pen"></i>
         </span>
-        <span class="poll-opt-label">{{ opt }}</span>
+        <span class="poll-opt-label">{{ row.label }}</span>
         <span class="poll-opt-meta">
-          <b>{{ result.counts[i] }}</b> 票 ·
-          <span class="poll-opt-pct">{{ Number(pct(i).replace('%', '')).toFixed(0) }}%</span>
-        </span>
-      </div>
-
-      <!-- 开放题：他人自拟的选项（来自聚合结果，按文本分组；仅展示，不可点选） -->
-      <div
-        v-for="(o, j) in extraOptions"
-        :key="'x' + j"
-        class="poll-opt poll-opt--extra"
-        :class="{ 'poll-opt--picked': isMyCustom(o.label) }"
-        :title="extraVotersTitle(j)"
-      >
-        <UiProgress class="poll-opt-progress" size="xs" :value="pctNumOf(o.count)" />
-        <span class="poll-opt-check poll-opt-check--custom" :class="{ 'poll-opt-check--on': isMyCustom(o.label) }">
-          <i v-if="isMyCustom(o.label)" class="fas fa-check"></i>
-          <i v-else class="fas fa-pen"></i>
-        </span>
-        <span class="poll-opt-label">{{ o.label }}</span>
-        <span class="poll-opt-meta">
-          <b>{{ o.count }}</b> 票 ·
-          <span class="poll-opt-pct">{{ Number(pctOf(o.count).replace('%', '')).toFixed(0) }}%</span>
+          <b>{{ row.count }}</b> 票 ·
+          <span class="poll-opt-pct">{{ row.pct.toFixed(0) }}%</span>
         </span>
       </div>
 
       <!-- 开放题：自拟输入行（仅「开放题 + 仍可投票」时出现） -->
-      <div v-if="showCustomInput" class="poll-custom">
-        <i class="fas fa-pen poll-custom-icon"></i>
-        <input
-          class="poll-custom-input"
-          v-model="customDraft"
-          :maxlength="POLL_MAX_OPT_LEN"
-          :placeholder="poll.multi ? '也可以自己填一个选项…' : '或者自己填一个选项…'"
-          @click.stop
-        />
-      </div>
+      <UiInput
+        v-if="showCustomInput"
+        class="poll-custom"
+        size="sm"
+        prefixIcon="fas fa-pen"
+        v-model="customDraft"
+        :maxlength="POLL_MAX_OPT_LEN"
+        :placeholder="poll.multi ? '也可以自己填一个选项…' : '或者自己填一个选项…'"
+        @click.stop
+      />
     </div>
 
     <div class="poll-hint" v-if="limitHint"><i class="fas fa-circle-info"></i> {{ limitHint }}</div>
@@ -83,14 +71,14 @@
 
     <div class="poll-foot">
       <span class="poll-foot-total">共 {{ result.total }} 票</span>
-      <span v-if="poll.until && !result.expired" class="poll-foot-until">
+      <span v-if="poll.until && !isExpired" class="poll-foot-until">
         {{ untilText }} 截止
       </span>
-      <span v-if="result.expired" class="poll-foot-until">已截止，仅可查看结果</span>
-      <template v-if="!result.expired && !readonly">
+      <span v-if="isExpired" class="poll-foot-until">已截止，仅可查看结果</span>
+      <template v-if="!isExpired && !readonly">
         <!-- ⚠️ 点选项只切换勾选，点了右下角「确认投票」才真正提交（2026-10-02 改） -->
         <span class="poll-foot-dirty" v-if="dirty && !voted">已选 {{ selCount }} 项</span>
-        <span class="poll-foot-voting" v-if="voting"><i class="fas fa-spinner"></i> 提交中…</span>
+        <span class="poll-foot-voting" v-if="voting"><i class="fas fa-spinner motion-spin"></i> 提交中…</span>
         <!-- 已投票：只显示结果，不可再改票（用户明确要求） -->
         <span class="poll-foot-done" v-else-if="voted"><i class="fas fa-check"></i> 已投票</span>
         <UiButton
@@ -109,9 +97,10 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { POLL_INVALID_TEXT, POLL_MAX_OPT_LEN } from '../../utils.js'
-import { UiButton, UiProgress } from '../../ui/index.js'
+import { UiBadge, UiButton, UiInput, UiProgress } from '@/ui'
+import { useNowSeconds } from '../../composables/useNowSeconds.js'
 
 const props = defineProps({
   /** parsePoll() 的返回值:{ q, opts, multi, until, maxSelect, allowCustom, ... } */
@@ -183,25 +172,14 @@ watch(customDraft, (v) => {
  *    卡片还显示成可投票，点了还真能发出去（投票无服务端校验，`until` 纯前端约束）。
  *    这里按本地时钟补判一次，并到点后停表。
  */
-const nowTick = ref(Date.now())
-let untilTimer = null
+const nowSeconds = useNowSeconds()
 const expiredNow = computed(() => {
   const u = Number(props.poll.until) || 0
-  return !!u && nowTick.value / 1000 > u
+  return !!u && nowSeconds.value > u
 })
-function syncUntilTimer() {
-  if (untilTimer) { clearInterval(untilTimer); untilTimer = null }
-  const u = Number(props.poll.until) || 0
-  if (!u || expiredNow.value) return // 没设截止时间 / 已过期 → 不用跑表
-  untilTimer = setInterval(() => {
-    nowTick.value = Date.now()
-    if (expiredNow.value && untilTimer) { clearInterval(untilTimer); untilTimer = null }
-  }, 1000)
-}
-onMounted(syncUntilTimer)
-onUnmounted(() => { if (untilTimer) clearInterval(untilTimer) })
+const isExpired = computed(() => !!(props.result.expired || expiredNow.value))
 
-const locked = computed(() => props.readonly || props.result.expired || expiredNow.value || props.voting)
+const locked = computed(() => props.readonly || isExpired.value || props.voting)
 /** 与已提交状态有差异 = 有未提交的改动（内置勾选 或 自拟文本 任一变了都算） */
 const dirty = computed(() => {
   const a = [...localPick.value].sort().join(',')
@@ -298,38 +276,44 @@ function submit() {
   emit('vote', [...localPick.value], custom)
 }
 
-/** 该选项占已投票总数的百分比；⚠️ 分母用 result.total（已含自拟票），与自拟行口径一致 */
-function pct(i) {
+/** 选项占已投票总数的 0-100 数值；⚠️ 分母用 result.total（已含自拟票） */
+function pctOfCount(count) {
   const t = props.result.total
-  if (!t) return '0%'
-  return ((props.result.counts[i] || 0) / t * 100).toFixed(1) + '%'
-}
-/** 同上，但直接吃票数（自拟选项行用） */
-function pctOf(count) {
-  const t = props.result.total
-  if (!t) return '0%'
-  return ((Number(count) || 0) / t * 100).toFixed(1) + '%'
-}
-/** UiProgress 需要 0–100 的数值；与 pct 同口径（分母 result.total） */
-function pctNum(i) {
-  return Number(pct(i).replace('%', ''))
-}
-function pctNumOf(count) {
-  return Number(pctOf(count).replace('%', ''))
+  if (!t) return 0
+  return Math.round(((Number(count) || 0) / t) * 1000) / 10
 }
 
-/** 选项悬浮提示：列出选了这项的人（result.voters[i]）；用原生 title，无投票人时返回空避免空 tooltip */
-function votersTitle(i) {
-  const uids = props.result.voters?.[i] || []
-  if (!uids.length) return ''
-  const names = uids.map((uid) => (props.nameOf ? props.nameOf(uid) : String(uid)))
-  return '投票人：' + names.join('、')
-}
+/** 统一内置选项与他人自拟选项行的数据结构，避免模板重复渲染两套列表 */
+const optionRows = computed(() => {
+  const builtin = (props.poll.opts || []).map((opt, i) => {
+    const count = props.result.counts[i] || 0
+    return {
+      key: `opt-${i}`,
+      index: i,
+      label: opt,
+      count,
+      pct: pctOfCount(count),
+      voters: props.result.voters?.[i] || [],
+      picked: picked(i),
+      custom: false,
+    }
+  })
+  const extra = extraOptions.value.map((o, j) => ({
+    key: `extra-${j}`,
+    index: -1,
+    label: o.label,
+    count: Number(o.count) || 0,
+    pct: pctOfCount(o.count),
+    voters: o.voters || [],
+    picked: isMyCustom(o.label),
+    custom: true,
+  }))
+  return [...builtin, ...extra]
+})
 
-/** 自拟选项行的悬浮提示（同样的口径） */
-function extraVotersTitle(j) {
-  const uids = (extraOptions.value[j] && extraOptions.value[j].voters) || []
-  if (!uids.length) return ''
+/** 选项悬浮提示：列出投票人；无投票人时返回空避免空 tooltip */
+function votersTitle(uids) {
+  if (!uids || !uids.length) return ''
   const names = uids.map((uid) => (props.nameOf ? props.nameOf(uid) : String(uid)))
   return '投票人：' + names.join('、')
 }

@@ -1,74 +1,84 @@
 /* 新用户引导（D 域：Onboarding.vue scoped）
    - 气泡外壳交给 UiCard，步数交给 UiBadge，操作按钮交给 UiButton；本文件只留定位与描边。
-   - 原 ob-pulse @keyframes 已删除，呼吸光圈映射 motion.css 的 glowPulse + --motion-loop-pulse；
-     .ob-hole 带 data-ambient，html.fx-lite 与 reduced-motion 下由 motion.css 暂停。
-   - reduced-motion 由 motion.css 全局压制。
-   - 颜色/阴影/圆角/时长全部走 tokens / motion 语义令牌；ob-dragging 由 JS 只在拖拽时短暂添加。 */
+   - .ob-hole 带 data-ambient，html.fx-lite 与 reduced-motion 下由 motion.css 暂停。 */
 
 .ob-layer {
-    position: fixed;
-    inset: 0;
-    z-index: var(--z-max);
-    pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-max);
+  pointer-events: none;
 }
+
 .ob-hole {
-    position: fixed;
-    border: 2px solid var(--brand);
-    border-radius: var(--radius-md);
-    box-shadow: 0 0 0 1px var(--line-strong),
-                0 0 18px 2px color-mix(in srgb, var(--brand) 35%, transparent);
-    pointer-events: none;
-    animation: glowPulse var(--motion-loop-pulse) var(--motion-ease-standard) infinite;
-    transition: left var(--motion-dur-base) var(--motion-ease-standard),
-                top var(--motion-dur-base) var(--motion-ease-standard),
-                width var(--motion-dur-base) var(--motion-ease-standard),
-                height var(--motion-dur-base) var(--motion-ease-standard);
+  position: fixed;
+  border: var(--border-width-thick) solid var(--brand);
+  border-radius: var(--radius-md);
+  box-shadow:
+    0 0 0 1px var(--line-strong),
+    0 0 18px 2px color-mix(in srgb, var(--brand) 35%, transparent);
+  pointer-events: none;
+  animation: glowPulse var(--motion-loop-pulse) var(--motion-ease-standard) infinite;
+  transition:
+    left var(--motion-dur-base) var(--motion-ease-out-expo),
+    top var(--motion-dur-base) var(--motion-ease-out-expo),
+    width var(--motion-dur-base) var(--motion-ease-out-expo),
+    height var(--motion-dur-base) var(--motion-ease-out-expo);
 }
-/* 气泡：外壳视觉由 UiCard 提供，这里只管浮层定位与抬升层级 */
-.ob-tip {
-    position: fixed;
-    width: 330px;
-    box-shadow: var(--elev-3);
-    pointer-events: auto;
-    transition: left var(--motion-dur-base) var(--motion-ease-standard),
-                top var(--motion-dur-base) var(--motion-ease-standard);
+
+.ui-card.ob-tip {
+  position: fixed;
+  width: 332px;
+  border-color: var(--brand-line);
+  box-shadow: var(--elev-3);
+  pointer-events: auto;
+  transition:
+    left var(--motion-dur-base) var(--motion-ease-out-expo),
+    top var(--motion-dur-base) var(--motion-ease-out-expo);
 }
-.ob-tip.ob-dragging {
-    transition: none;
+
+.ui-card.ob-tip.ob-dragging {
+  transition: none;
 }
+
 .ob-tip-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    cursor: move;
-    user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: move;
+  user-select: none;
 }
+
 .ob-tip-title {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--text-base);
-    font-weight: var(--weight-semibold);
-    color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--fg);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
 }
+
 .ob-tip-title i {
-    color: var(--brand);
+  color: var(--brand);
 }
+
 .ob-tip-text {
-    font-size: var(--text-md);
-    line-height: 1.65;
-    color: var(--fg-muted);
+  color: var(--fg-muted);
+  font-size: var(--text-md);
+  line-height: 1.65;
 }
+
 .ob-tip-text:last-child {
-    margin-bottom: 0;
+  margin-bottom: 0;
 }
+
 .ob-tip-actions {
-    display: flex;
-    gap: var(--space-2);
-    flex-wrap: wrap;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
+
 .ob-tip-hint {
-    font-size: var(--text-xs);
-    color: var(--fg-muted);
-    opacity: var(--opacity-muted);
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
 }

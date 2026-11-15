@@ -142,4 +142,4 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped src="./UiTabs.css"></style>
+<style src="./UiTabs.css"></style>

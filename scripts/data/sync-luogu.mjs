@@ -10,8 +10,9 @@
  * --skip-vendor  只生成 CSS，不复制 vendor/*.js（验证时避免改 src）。
  *
  * 做两件事：
- *   1. vendor/*.js —— 逐字节复制上游 5 个模块，本地不做任何改写；
- *   2. luogu-theme.css —— 从上游 styles.css 抽取 .luogu-* / .typora-* 规则，
+ *   1. vendor/*.js —— 逐字节复制上游 4 个模块，本地不做任何改写
+ *      （上游的 luogu-typora.js 已随「所见即所得」功能一并移除，不再同步）；
+ *   2. luogu-theme.css —— 从上游 styles.css 抽取 .luogu-* 规则，
  *      把上游主题变量（--bg-secondary、--text-primary 等）重命名为 --lg-*，
  *      并重新映射到 7fa4-chat 的主题变量，避免跟项目自己的 :root 变量撞名。
  *
@@ -60,7 +61,6 @@ const THEMES_DIR = path.join(ROOT, 'src', 'renderer', 'css', 'themes')
 const VENDOR_FILES = [
   'luogu-parser.js',
   'luogu-linter.js',
-  'luogu-typora.js',
   'luogu-math-cheatsheet.js',
   'luogu-templates.js',
 ]
@@ -100,12 +100,15 @@ const VAR_MAP = {
   '--text-muted': 'var(--text-placeholder)',
 }
 
-const KEEP_SELECTOR = /(^|[\s,>+~(])\.(luogu-|typora|preview-content)/
+const KEEP_SELECTOR = /(^|[\s,>+~(])\.(luogu-|preview-content)/
+
+// 「所见即所得」（Typora 就地编辑）已从项目移除，上游为它准备的
+// .typora-* / .mode-typora 规则一律不再抽取，避免重跑同步时又写回来。
+const TYPORA_SELECTOR = /typora/i
 
 // 上游把 markdown 内容根节点叫 .preview-content，同时把编辑器外壳的布局也挂在它上面。
-// 7fa4-chat 里内容会落在消息气泡、输入框预览、工具分屏三种容器里，所以：
-//   - 统一改名为自己的根类 .luogu-md；
-//   - 丢弃 .mode-typora 前缀的规则（那是上游外壳的居中/45vh 底部留白，不属于内容本身）。
+// 7fa4-chat 里内容会落在消息气泡、输入框预览、工具分屏三种容器里，所以统一改名为
+// 自己的根类 .luogu-md。
 const ROOT_CLASS_FROM = '.preview-content'
 const ROOT_CLASS_TO = '.luogu-md'
 
@@ -292,11 +295,9 @@ for (const block of blocks) {
     continue
   }
   const body = block.slice(block.indexOf('{'))
-  // 外壳布局：上游用它把预览列居中并留出 45vh 底部点击区，对消息气泡与输入框都不适用。
-  if (sel.startsWith('.mode-typora ')) continue
   // 代码块外观交给 code-block.css：剔除上游 .luogu-code-* 规则与全局
   // pre/code[class*="language-"] 的强制换行规则；混合选择器里只删代码块那部分。
-  const selectorParts = splitSelectorList(sel)
+  const selectorParts = splitSelectorList(sel).filter((part) => !TYPORA_SELECTOR.test(part))
   const keptParts = selectorParts.filter((part) => !isCodeBlockSelector(part, body))
   filteredSelectors += selectorParts.length - keptParts.length
   if (!keptParts.length) {
@@ -304,7 +305,7 @@ for (const block of blocks) {
     continue
   }
   const keptSel = keptParts.join(', ')
-  // 内容规则：以 .preview-content 为根，或直接是 .luogu-* / .typora-* 组件类。
+  // 内容规则：以 .preview-content 为根，或直接是 .luogu-* 组件类。
   const isContentRoot = keptSel.includes(ROOT_CLASS_FROM)
   if (!KEEP_SELECTOR.test(keptSel) && !isContentRoot) continue
   const renamedSel = keptSel.split(ROOT_CLASS_FROM).join(ROOT_CLASS_TO)
@@ -411,7 +412,7 @@ const header = `/*
  * 上游：wudream813/luogu-markdown-editor v${upstreamPkg.version}（MIT License）
  * https://github.com/wudream813/luogu-markdown-editor
  *
- * 本文件只含上游 styles.css 中 .luogu-* / .typora-* / .preview-content 相关规则
+ * 本文件只含上游 styles.css 中 .luogu-* / .preview-content 相关规则
  * （共 ${picked.length} 条；聊天代码块外观已过滤，见 css/code-block.css）。
  * 上游的 :root 主题变量不在此处引入，改为下面的 --lg-* 映射层，
  * 取值全部落到 7fa4-chat 自己的主题变量上，因此自动跟随 21 套主题（含暗色）切换。
@@ -448,22 +449,11 @@ const footer = `
 .luogu-md > :first-child { margin-top: 0; }
 .luogu-md > :last-child { margin-bottom: 0; }
 
-/* ---- 补丁：上游用字面量写死的少量颜色在项目主题下需要跟随 ---- */
-.typora-host-editing .typora-block-input {
-  background: var(--lg-surface);
-  color: var(--text-primary);
-}
 /* ---- 代码块外观不在此文件 ----
    聊天代码块的外框、头部、语言标签、复制按钮、代码区换行/滚动、行号与高亮，
    统一由 src/renderer/src/css/code-block.css 提供（task-6 完全重写）。
    上游对应的 .luogu-code-* 规则和全局 pre/code[class*="language-"] 的强制换行规则
    已在抽取阶段过滤掉，避免重跑同步时把旧样式写回并覆盖新样式。 */
-
-.typora-block-input {
-  background: var(--lg-surface);
-  color: var(--text-primary);
-  border-color: var(--border-light);
-}
 
 /* ---- 暗色主题覆盖（主题清单由 --bg-app 亮度自动判定）---- */
 ${tuackDark || '/* 上游未提供暗色覆盖 */'}

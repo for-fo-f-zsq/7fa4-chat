@@ -33,4 +33,4 @@ const props = defineProps({
 const colorStyle = computed(() => (props.color ? { '--spin-color': props.color } : undefined))
 </script>
 
-<style scoped src="./UiSpinner.css"></style>
+<style src="./UiSpinner.css"></style>

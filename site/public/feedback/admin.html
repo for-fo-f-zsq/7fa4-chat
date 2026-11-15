@@ -3,223 +3,559 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark light" />
+<meta name="theme-color" content="#05060a" id="themeColorMeta" />
 <title>反馈管理 · 7FA4 Chat</title>
-<style>
-  :root {
-    --bg: #f2f6fc;
-    --card: #ffffff;
-    --line: #dbe6f4;
-    --fg: #24324a;
-    --muted: #5f7089;
-    --brand: #4b73a6;
-    --brand-fill: #a3bfe3;
-    --danger: #a35e56;
-    --ok: #3f7d5c;
-    --warn: #9a6b32;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #161b24;
-      --card: #1d232f;
-      --line: #2b3444;
-      --fg: #e8edf6;
-      --muted: #98a5bb;
-      --brand: #8fb0dd;
-      --brand-fill: #37506f;
-      --danger: #e08c84;
-      --ok: #7cc39b;
-      --warn: #d6a86a;
+<script>
+(function () {
+  var theme = null;
+  try {
+    var qp = new URLSearchParams(location.search).get('theme');
+    if (qp === 'light' || qp === 'dark') {
+      theme = qp;
+    } else {
+      var saved = localStorage.getItem('7fa4-site-theme');
+      if (saved === 'light' || saved === 'dark') theme = saved;
     }
+  } catch (e) {}
+  if (!theme) {
+    theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   }
-  * { box-sizing: border-box; }
+  document.documentElement.setAttribute('data-theme', theme);
+  var meta = document.getElementById('themeColorMeta');
+  if (meta) meta.setAttribute('content', theme === 'light' ? '#f6f7fb' : '#05060a');
+})();
+</script>
+<link id="faviconLink" rel="icon" type="image/png" href="../assets/icon.png" />
+<link id="tokensCss" rel="stylesheet" href="../tokens.css" />
+<script>
+(function () {
+  var base = location.pathname.replace(/\/feedback\/admin\/?$/, '');
+  var tok = document.getElementById('tokensCss');
+  var fav = document.getElementById('faviconLink');
+  try {
+    if (tok && new URL(tok.getAttribute('href'), location.href).pathname !== base + '/tokens.css') {
+      tok.href = base + '/tokens.css';
+    }
+    if (fav && new URL(fav.getAttribute('href'), location.href).pathname !== base + '/assets/icon.png') {
+      fav.href = base + '/assets/icon.png';
+    }
+  } catch (e) {}
+})();
+</script>
+<style>
   body {
-    margin: 0;
+    display: flex;
+    flex-direction: column;
     min-height: 100vh;
-    background: var(--bg);
-    color: var(--fg);
-    font: 14px/1.65 "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  .wrap { max-width: 1120px; margin: 0 auto; padding: 26px 20px 60px; }
-  .login {
-    max-width: 380px;
-    margin: 14vh auto 0;
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 26px 24px 22px;
-    box-shadow: 0 4px 18px rgba(35, 55, 90, .08);
-  }
-  .login h1 { margin: 0 0 4px; font-size: 19px; }
-  .login p { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
-  input[type="password"], input[type="search"] {
-    width: 100%;
-    font: inherit;
-    color: inherit;
-    background: var(--bg);
-    border: 1px solid var(--line);
-    border-radius: 9px;
-    padding: 9px 12px;
-    outline: none;
-  }
-  input[type="password"]:focus, input[type="search"]:focus {
-    border-color: var(--brand);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 20%, transparent);
-  }
-  button {
-    font: inherit;
-    cursor: pointer;
-    border-radius: 9px;
-    border: 1px solid var(--line);
-    background: var(--card);
-    color: var(--fg);
-    padding: 7px 14px;
-  }
-  button:hover { border-color: var(--brand); color: var(--brand); }
-  button.primary {
-    background: var(--brand-fill);
-    border: 0;
-    color: #1f2c42;
-    font-weight: 600;
-  }
-  button.primary:hover { filter: brightness(.95); color: #1f2c42; }
-  button:disabled { opacity: .55; cursor: not-allowed; }
-  .login-msg { margin-top: 12px; font-size: 13px; color: var(--danger); min-height: 20px; }
 
-  /* ---- 顶部工具条 ---- */
-  .bar {
+  .adm-main {
+    flex: 1;
+    padding: 104px 0 64px;
+  }
+
+  /* 登录卡片 */
+  .adm-login {
+    max-width: 400px;
+    margin: 7vh auto 0;
+    padding: 30px 28px;
+  }
+
+  .adm-login-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .adm-login-head img {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .adm-login h1 {
+    font-size: 21px;
+  }
+
+  .adm-login-sub {
+    font-size: 13.5px;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+
+  .adm-pw-wrap {
+    position: relative;
+  }
+
+  .adm-pw-wrap .field {
+    padding-right: 60px;
+  }
+
+  .adm-pw-toggle {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 30px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .adm-pw-toggle:hover {
+    color: var(--ink);
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
+  }
+
+  .adm-login-actions {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .adm-login-msg {
+    font-size: 13px;
+    color: var(--danger);
+    min-height: 20px;
+  }
+
+  /* 控制台顶栏 */
+  .adm-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+
+  .adm-title-group {
     display: flex;
     align-items: center;
     gap: 12px;
     flex-wrap: wrap;
-    margin-bottom: 16px;
   }
-  .bar h1 { margin: 0; font-size: 19px; }
-  .stats { display: flex; gap: 8px; margin-left: 4px; }
-  .stat {
-    font-size: 12.5px;
-    padding: 3px 10px;
-    border-radius: 999px;
-    background: var(--card);
-    border: 1px solid var(--line);
-    color: var(--muted);
-  }
-  .stat b { color: var(--fg); }
-  .stat.new b { color: var(--danger); }
-  .bar .spacer { flex: 1; }
-  .bar input[type="search"] { max-width: 240px; }
-  .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
-  .tabs button.on { border-color: var(--brand); color: var(--brand); font-weight: 600; }
 
-  /* ---- 列表 ---- */
-  .list { display: flex; flex-direction: column; gap: 12px; }
-  .item {
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-left: 3px solid var(--line);
-    border-radius: 12px;
-    padding: 15px 17px;
-    box-shadow: 0 1px 6px rgba(35, 55, 90, .04);
+  .adm-bar h1 {
+    font-size: 24px;
   }
-  .item.is-new { border-left-color: var(--brand); }
-  .item.is-handled { opacity: .72; }
+
+  .adm-stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .adm-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    flex: 1;
+    justify-content: flex-end;
+    min-width: 260px;
+  }
+
+  .adm-search {
+    width: min(100%, 280px);
+    padding: 8px 14px;
+    font-size: 13.5px;
+    border-radius: 999px;
+  }
+
+  /* 标签过滤栏 */
+  .adm-tabs {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    border: 1px solid var(--line);
+    margin-bottom: 18px;
+  }
+
+  .adm-tabs button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color .16s var(--ease), color .16s var(--ease);
+  }
+
+  .adm-tabs button:hover {
+    color: var(--ink);
+  }
+
+  .adm-tabs button.on {
+    background: color-mix(in srgb, var(--accent) 18%, var(--panel-solid));
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+
+  [data-theme="light"] .adm-tabs button.on {
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(14, 20, 40, .08);
+  }
+
+  .adm-tab-num {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 反馈列表 */
+  .adm-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .item {
+    padding: 20px 22px;
+    border-left: 3px solid var(--line-strong);
+    transition: border-color .18s var(--ease), opacity .18s var(--ease);
+  }
+
+  .item.is-new {
+    border-left-color: var(--accent);
+  }
+
+  .item.is-handled {
+    opacity: 0.76;
+    border-left-color: var(--ok-line);
+  }
+
+  .item.is-handled:hover {
+    opacity: 0.96;
+  }
+
   .item-head {
     display: flex;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
-    font-size: 12.5px;
-    color: var(--muted);
-    margin-bottom: 8px;
+    margin-bottom: 12px;
   }
-  .tag {
-    font-size: 11.5px;
-    padding: 1px 8px;
-    border-radius: 999px;
-    border: 1px solid var(--line);
+
+  .item-head time {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 12px;
     color: var(--muted);
-    background: var(--bg);
+    font-variant-numeric: tabular-nums;
   }
-  .tag.platform { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
-  .tag.new { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
-  .tag.handled { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--line)); }
-  .item-head time { margin-left: auto; }
-  .content {
+
+  .adm-content {
     white-space: pre-wrap;
     word-break: break-word;
-    font-size: 14px;
-    margin: 0 0 10px;
+    font-size: 14.5px;
+    line-height: 1.7;
+    color: var(--ink);
+    margin: 0 0 12px;
   }
-  .meta { font-size: 12.5px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 10px; }
-  .shots { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-  .shots a { display: block; }
-  .shots img {
-    width: 108px;
-    height: 108px;
-    object-fit: cover;
-    border-radius: 8px;
-    border: 1px solid var(--line);
-    cursor: zoom-in;
-    display: block;
-  }
-  .item-foot { display: flex; gap: 8px; align-items: center; }
-  .item-foot .id { font-size: 12px; color: var(--muted); margin-left: auto; font-family: ui-monospace, Consolas, monospace; }
-  .empty { text-align: center; color: var(--muted); padding: 60px 0; }
 
+  .adm-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    border-radius: 11px;
+    background: color-mix(in srgb, var(--bg) 52%, transparent);
+    border: 1px solid var(--line);
+  }
+
+  .adm-meta span {
+    word-break: break-all;
+  }
+
+  .adm-shots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .adm-shots a {
+    display: block;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--line-strong);
+    background: var(--panel-solid);
+    transition: transform .18s var(--ease), border-color .18s var(--ease);
+  }
+
+  .adm-shots a:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+  }
+
+  .adm-shots img {
+    width: 104px;
+    height: 104px;
+    object-fit: cover;
+    display: block;
+    cursor: zoom-in;
+  }
+
+  .item-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+
+  .item-foot .id {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    user-select: all;
+  }
+
+  .adm-empty {
+    text-align: center;
+    padding: 56px 24px;
+    color: var(--muted);
+    font-size: 14.5px;
+  }
+
+  .adm-empty svg {
+    width: 34px;
+    height: 34px;
+    stroke: var(--faint);
+    fill: none;
+    stroke-width: 1.6;
+    margin-bottom: 10px;
+  }
+
+  /* 灯箱 */
   .zoom {
     position: fixed;
     inset: 0;
-    background: rgba(10, 14, 22, .82);
+    z-index: 80;
+    background: rgba(5, 6, 10, 0.86);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 50;
-    cursor: zoom-out;
     padding: 24px;
+    cursor: zoom-out;
   }
-  .zoom img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+
+  .zoom img {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 14px;
+    box-shadow: 0 28px 70px rgba(0, 0, 0, .65);
+    cursor: default;
+  }
+
+  .zoom-close {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, .24);
+    background: rgba(13, 16, 25, .78);
+    color: #fff;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+  }
+
+  .zoom-close:hover {
+    background: rgba(13, 16, 25, .96);
+  }
+
+  /* 页脚 */
+  .adm-footer {
+    border-top: 1px solid var(--line);
+    padding: 24px 0 34px;
+    color: var(--muted);
+    font-size: 13.5px;
+  }
+
+  .adm-footer-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .adm-footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .adm-footer-links a:hover {
+    color: var(--ink);
+  }
+
   @media (max-width: 640px) {
-    .bar input[type="search"] { max-width: 100%; width: 100%; }
-    .item-foot .id { display: none; }
+    .adm-main {
+      padding: 88px 0 44px;
+    }
+    .adm-login {
+      margin-top: 4vh;
+      padding: 22px 20px;
+    }
+    .adm-controls {
+      width: 100%;
+      justify-content: flex-start;
+    }
+    .adm-search {
+      width: 100%;
+      flex: 1 1 100%;
+    }
+    .item {
+      padding: 16px;
+    }
+    .item-head time {
+      margin-left: 0;
+      width: 100%;
+    }
+    .topbar-inner {
+      padding: 8px 10px 8px 14px;
+      gap: 8px;
+    }
+    .brand-tag {
+      display: none;
+    }
   }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="login" id="login" hidden>
-    <h1>反馈管理</h1>
-    <p>需要管理密码才能查看全部反馈。</p>
-    <form id="loginForm">
-      <input type="password" id="password" placeholder="管理密码" autocomplete="current-password" />
-      <div style="margin-top:12px; display:flex; gap:8px; align-items:center;">
-        <button type="submit" class="primary" id="loginBtn">进入</button>
-        <span class="login-msg" id="loginMsg"></span>
-      </div>
-    </form>
-  </div>
-
-  <div id="panel" hidden>
-    <div class="bar">
-      <h1>用户反馈</h1>
-      <div class="stats">
-        <span class="stat">全部 <b id="statTotal">0</b></span>
-        <span class="stat new">待处理 <b id="statNew">0</b></span>
-      </div>
-      <span class="spacer"></span>
-      <input type="search" id="q" placeholder="搜索内容 / 联系方式 / 编号" />
-      <button id="reload">刷新</button>
-      <button id="logout">退出</button>
-    </div>
-
-    <div class="tabs">
-      <button data-tab="all" class="on">全部</button>
-      <button data-tab="new">待处理</button>
-      <button data-tab="handled">已处理</button>
-    </div>
-
-    <div class="list" id="list"></div>
-    <div class="empty" id="empty" hidden>没有符合条件的反馈</div>
-  </div>
+<div class="aurora" aria-hidden="true">
+  <span class="aurora-a"></span>
+  <span class="aurora-b"></span>
+  <span class="aurora-c"></span>
 </div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="../" data-nav="home">
+      <img class="brand-mark" id="brandIcon" src="../assets/icon.png" alt="7FA4 Chat" width="28" height="28" />
+      <span class="brand-name">7FA4 <span class="brand-light">Chat</span></span>
+      <span class="brand-tag">反馈管理</span>
+    </a>
+    <div class="topbar-side">
+      <button type="button" class="icon-btn" id="themeToggle" aria-label="切换浅色/深色主题" title="切换主题">
+        <svg class="ico-sun" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+        </svg>
+        <svg class="ico-moon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"></path>
+        </svg>
+      </button>
+      <a class="btn btn-ghost btn-sm" href="./" data-nav="feedback">提交页</a>
+      <a class="btn btn-ghost btn-sm" href="../" data-nav="home">返回官网</a>
+    </div>
+  </div>
+</header>
+
+<main class="adm-main">
+  <div class="wrap">
+    <section class="glass-card adm-login" id="login" hidden>
+      <div class="adm-login-head">
+        <img id="loginIcon" src="../assets/icon.png" alt="" width="34" height="34" />
+        <h1>反馈管理</h1>
+      </div>
+      <p class="adm-login-sub">需要管理密码才能查看全部反馈与截图附件。</p>
+      <form id="loginForm">
+        <div class="adm-pw-wrap">
+          <input type="password" class="field" id="password" placeholder="管理密码" autocomplete="current-password" />
+          <button type="button" class="adm-pw-toggle" id="pwToggle" aria-label="显示密码">显示</button>
+        </div>
+        <div class="adm-login-actions">
+          <button type="submit" class="btn btn-primary btn-sm" id="loginBtn">进入</button>
+          <span class="adm-login-msg" id="loginMsg" role="alert"></span>
+        </div>
+      </form>
+    </section>
+
+    <section id="panel" hidden>
+      <div class="adm-bar">
+        <div class="adm-title-group">
+          <h1>用户反馈</h1>
+          <div class="adm-stats">
+            <span class="pill">全部 <b id="statTotal">0</b></span>
+            <span class="tag tag-danger">待处理 <b id="statNew">0</b></span>
+            <span class="tag tag-ok">已处理 <b id="statHandled">0</b></span>
+          </div>
+        </div>
+        <div class="adm-controls">
+          <input type="search" class="field adm-search" id="q" placeholder="搜索内容 / 联系方式 / 编号" aria-label="搜索反馈" />
+          <button type="button" class="btn btn-ghost btn-sm" id="reload">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23 4v6h-6M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            刷新
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm" id="logout">退出</button>
+        </div>
+      </div>
+
+      <div class="adm-tabs" role="tablist" aria-label="状态筛选">
+        <button type="button" data-tab="all" class="on" role="tab" aria-selected="true">全部 <span class="adm-tab-num" id="tabAllCount">0</span></button>
+        <button type="button" data-tab="new" role="tab" aria-selected="false">待处理 <span class="adm-tab-num" id="tabNewCount">0</span></button>
+        <button type="button" data-tab="handled" role="tab" aria-selected="false">已处理 <span class="adm-tab-num" id="tabHandledCount">0</span></button>
+      </div>
+
+      <div class="adm-list" id="list"></div>
+      <div class="glass-card adm-empty" id="empty" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <div>没有符合条件的反馈</div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="adm-footer">
+  <div class="wrap adm-footer-inner">
+    <span>7FA4 Chat · 反馈管理</span>
+    <div class="adm-footer-links">
+      <a href="../" data-nav="home">官网首页</a>
+      <a href="./" data-nav="feedback">反馈提交页</a>
+    </div>
+  </div>
+</footer>
 
 <script>
 (function () {
@@ -231,6 +567,46 @@
   // 站点可能被反代挂在子路径下（例如 /7fa4-chat/feedback/admin），
   // 前缀只存在于浏览器侧，必须由页面自己算出来再拼接口地址。
   var BASE = location.pathname.replace(/\/feedback\/admin\/?$/, '');
+
+  var brandIcon = $('brandIcon');
+  var loginIcon = $('loginIcon');
+  if (brandIcon) brandIcon.src = BASE + '/assets/icon.png';
+  if (loginIcon) loginIcon.src = BASE + '/assets/icon.png';
+  document.querySelectorAll('a[data-nav="home"]').forEach(function (a) {
+    a.href = (BASE || '') + '/';
+  });
+  document.querySelectorAll('a[data-nav="feedback"]').forEach(function (a) {
+    a.href = BASE + '/feedback/';
+  });
+
+  // 主题同步：与官网共享 localStorage['7fa4-site-theme']
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    var meta = $('themeColorMeta');
+    if (meta) meta.setAttribute('content', t === 'light' ? '#f6f7fb' : '#05060a');
+  }
+
+  $('themeToggle').addEventListener('click', function () {
+    var cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    var next = cur === 'light' ? 'dark' : 'light';
+    applyTheme(next);
+    try { localStorage.setItem('7fa4-site-theme', next); } catch (e) {}
+  });
+
+  window.addEventListener('storage', function (e) {
+    if (e.key === '7fa4-site-theme' && (e.newValue === 'light' || e.newValue === 'dark')) {
+      applyTheme(e.newValue);
+    }
+  });
+
+  // 密码显示切换
+  $('pwToggle').addEventListener('click', function () {
+    var pw = $('password');
+    var show = pw.type === 'password';
+    pw.type = show ? 'text' : 'password';
+    $('pwToggle').textContent = show ? '隐藏' : '显示';
+    $('pwToggle').setAttribute('aria-label', show ? '隐藏密码' : '显示密码');
+  });
 
   function absolute(path) {
     return path && path.charAt(0) === '/' ? BASE + path : path;
@@ -266,6 +642,9 @@
 
   function render() {
     var q = query.trim().toLowerCase();
+    var newCount = items.filter(function (it) { return it.status !== 'handled'; }).length;
+    var handledCount = items.length - newCount;
+
     var shown = items.filter(function (it) {
       if (tab === 'new' && it.status === 'handled') return false;
       if (tab === 'handled' && it.status !== 'handled') return false;
@@ -274,14 +653,19 @@
     });
 
     $('statTotal').textContent = items.length;
-    $('statNew').textContent = items.filter(function (it) { return it.status !== 'handled'; }).length;
+    $('statNew').textContent = newCount;
+    $('statHandled').textContent = handledCount;
+    $('tabAllCount').textContent = items.length;
+    $('tabNewCount').textContent = newCount;
+    $('tabHandledCount').textContent = handledCount;
     $('empty').hidden = shown.length > 0;
 
     var list = $('list');
     list.innerHTML = '';
     shown.forEach(function (it) {
-      var el = document.createElement('div');
-      el.className = 'item ' + (it.status === 'handled' ? 'is-handled' : 'is-new');
+      var el = document.createElement('article');
+      var isHandled = it.status === 'handled';
+      el.className = 'glass-card item ' + (isHandled ? 'is-handled' : 'is-new');
 
       var shots = (it.attachments || []).map(function (a) {
         var src = absolute(a.url);
@@ -297,17 +681,17 @@
 
       el.innerHTML =
         '<div class="item-head">' +
-          '<span class="tag platform">' + esc(platformLabel(it.platform)) + '</span>' +
-          '<span class="tag ' + (it.status === 'handled' ? 'handled' : 'new') + '">' +
-            (it.status === 'handled' ? '已处理' : '待处理') + '</span>' +
+          '<span class="tag tag-accent">' + esc(platformLabel(it.platform)) + '</span>' +
+          '<span class="tag ' + (isHandled ? 'tag-ok' : 'tag-danger') + '">' +
+            (isHandled ? '已处理' : '待处理') + '</span>' +
           '<time>' + esc(fmtTime(it.createdAt)) + '</time>' +
         '</div>' +
-        '<p class="content">' + esc(it.content) + '</p>' +
-        (metaBits.length ? '<div class="meta">' + metaBits.map(function (m) { return '<span>' + m + '</span>'; }).join('') + '</div>' : '') +
-        (shots ? '<div class="shots">' + shots + '</div>' : '') +
+        '<p class="adm-content">' + esc(it.content) + '</p>' +
+        (metaBits.length ? '<div class="adm-meta">' + metaBits.map(function (m) { return '<span>' + m + '</span>'; }).join('') + '</div>' : '') +
+        (shots ? '<div class="adm-shots">' + shots + '</div>' : '') +
         '<div class="item-foot">' +
-          '<button data-toggle="' + esc(it.id) + '" data-to="' + (it.status === 'handled' ? 'new' : 'handled') + '">' +
-            (it.status === 'handled' ? '标记待处理' : '标记已处理') + '</button>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-toggle="' + esc(it.id) + '" data-to="' + (isHandled ? 'new' : 'handled') + '">' +
+            (isHandled ? '标记待处理' : '标记已处理') + '</button>' +
           '<span class="id">' + esc(it.id) + '</span>' +
         '</div>';
 
@@ -316,7 +700,10 @@
   }
 
   function load() {
+    var reloadBtn = $('reload');
+    if (reloadBtn) reloadBtn.disabled = true;
     return api('/list').then(function (r) {
+      if (reloadBtn) reloadBtn.disabled = false;
       if (r.status === 401) {
         $('panel').hidden = true;
         $('login').hidden = false;
@@ -326,6 +713,8 @@
       $('login').hidden = true;
       $('panel').hidden = false;
       render();
+    }).catch(function () {
+      if (reloadBtn) reloadBtn.disabled = false;
     });
   }
 
@@ -345,13 +734,20 @@
       } else {
         $('loginMsg').textContent = (r.data && r.data.error) || '登录失败';
       }
+    }).catch(function () {
+      $('loginBtn').disabled = false;
+      $('loginMsg').textContent = '网络错误，请稍后重试';
     });
   });
 
-  document.querySelectorAll('.tabs button').forEach(function (b) {
+  document.querySelectorAll('.adm-tabs button').forEach(function (b) {
     b.addEventListener('click', function () {
       tab = b.dataset.tab;
-      document.querySelectorAll('.tabs button').forEach(function (x) { x.classList.toggle('on', x === b); });
+      document.querySelectorAll('.adm-tabs button').forEach(function (x) {
+        var active = x === b;
+        x.classList.toggle('on', active);
+        x.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
       render();
     });
   });
@@ -393,19 +789,42 @@
           if (it) it.status = toggle.dataset.to;
           render();
         }
+      }).catch(function () {
+        toggle.disabled = false;
       });
       return;
     }
-    if (e.target.classList.contains('zoom')) e.target.remove();
   });
 
   function showZoom(url) {
+    var existing = document.querySelector('.zoom');
+    if (existing) existing.remove();
     var z = document.createElement('div');
     z.className = 'zoom';
+    z.setAttribute('role', 'dialog');
+    z.setAttribute('aria-modal', 'true');
+    z.setAttribute('aria-label', '截图大图预览');
     var img = document.createElement('img');
     img.src = url;
+    img.alt = '反馈截图大图';
+    var closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'zoom-close';
+    closeBtn.textContent = '×';
+    closeBtn.setAttribute('aria-label', '关闭大图');
+    function close() {
+      document.removeEventListener('keydown', onKey);
+      z.remove();
+    }
+    function onKey(ev) {
+      if (ev.key === 'Escape') close();
+    }
+    z.addEventListener('click', function (ev) {
+      if (ev.target === z || ev.target === closeBtn) close();
+    });
+    document.addEventListener('keydown', onKey);
     z.appendChild(img);
-    z.addEventListener('click', function () { z.remove(); });
+    z.appendChild(closeBtn);
     document.body.appendChild(z);
   }
 

@@ -203,18 +203,25 @@ rollback() {
   fi
   log "ERROR: 部署失败，正在自动回滚到 ${OLD_SHA:0:7} ..."
   git reset --hard "$OLD_SHA"
+  local rollback_failed=0
   if [[ "$NEED_NPM_INSTALL" -eq 1 ]]; then
-    ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --ignore-scripts --no-audit --no-fund >/dev/null 2>&1 || true
+    if ! ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --ignore-scripts --no-audit --no-fund; then
+      log "ERROR: 回滚阶段 npm ci 失败"
+      rollback_failed=1
+    fi
   fi
   if [[ "$NEED_WEB_BUILD" -eq 1 ]]; then
-    NODE_OPTIONS="--max-old-space-size=${NODE_MAX_MEM}" npm run site:build >/dev/null 2>&1 || true
+    if ! NODE_OPTIONS="--max-old-space-size=${NODE_MAX_MEM}" npm run site:build; then
+      log "ERROR: 回滚阶段 site:build 失败"
+      rollback_failed=1
+    fi
   fi
-  write_deploy_meta "$OLD_SHA" || true
-  restart_service || true
-  if wait_healthy; then
+  write_deploy_meta "$OLD_SHA" || rollback_failed=1
+  restart_service || rollback_failed=1
+  if [[ "$rollback_failed" -eq 0 ]] && wait_healthy; then
     log "已成功回滚至 ${OLD_SHA:0:7}，服务恢复健康"
   else
-    log "CRITICAL: 回滚后健康检查仍未通过，请排查 journalctl -u ${SERVICE_NAME}"
+    log "CRITICAL: 回滚过程出现失败或健康检查未通过，请排查 journalctl -u ${SERVICE_NAME}"
   fi
   return 1
 }

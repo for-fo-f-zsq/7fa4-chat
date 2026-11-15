@@ -6,6 +6,7 @@
         ref="menuRef"
         class="ui-menu"
         :class="{ 'ui-menu--floating': isFloating }"
+        :data-placement="isFloating ? actualPlacement : undefined"
         :style="menuStyle"
         role="menu"
         tabindex="-1"
@@ -61,6 +62,7 @@ const emit = defineEmits(['select', 'update:open', 'close'])
 const menuRef = ref(null)
 const anchorEl = ref(null)
 const menuStyle = ref({})
+const actualPlacement = ref(props.placement)
 const activeIndex = ref(-1)
 const uid = useId()
 const GUTTER = 8
@@ -85,7 +87,30 @@ function resolveAnchor() {
     anchorEl.value = null
     return
   }
-  anchorEl.value = typeof value === 'string' ? document.querySelector(value) : value
+  if (typeof value === 'string') {
+    anchorEl.value = document.querySelector(value)
+    return
+  }
+  if (typeof value.getBoundingClientRect === 'function') {
+    anchorEl.value = value
+    return
+  }
+  if (typeof value.x === 'number' && typeof value.y === 'number') {
+    const x = value.x
+    const y = value.y
+    anchorEl.value = {
+      getBoundingClientRect: () => ({
+        top: y,
+        bottom: y,
+        left: x,
+        right: x,
+        width: 0,
+        height: 0
+      })
+    }
+    return
+  }
+  anchorEl.value = value
 }
 
 function clamp(value, min, max) {
@@ -108,6 +133,7 @@ function updatePosition() {
   if (placement === 'bottom' && height + props.offset > spaceBelow && spaceAbove > spaceBelow) placement = 'top'
   if (placement === 'top' && height + props.offset > spaceAbove && spaceBelow > spaceAbove) placement = 'bottom'
 
+  actualPlacement.value = placement
   const top = placement === 'top' ? rect.top - props.offset - height : rect.bottom + props.offset
   const left = rect.left
   const style = {
@@ -212,7 +238,7 @@ function onKeydown(event) {
 function onDocumentMousedown(event) {
   const target = event.target
   if (menuRef.value && menuRef.value.contains(target)) return
-  if (anchorEl.value && anchorEl.value.contains(target)) return
+  if (anchorEl.value && typeof anchorEl.value.contains === 'function' && anchorEl.value.contains(target)) return
   requestClose()
 }
 
@@ -306,4 +332,4 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped src="./UiMenu.css"></style>
+<style src="./UiMenu.css"></style>

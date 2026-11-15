@@ -9,10 +9,10 @@
    LoginView 的 title-bar 由 D 域在 login-view.css scoped 内补一份（见 .team/refactor/css/A-handoff.md §6）。
    ========================================================================== */
 
-/* ---------- 1. reset ---------- */
-*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { height: 100%; }
-body {
+/* ---------- 1. reset（全部包在 :where() 内保持 0 特异性，永不压过任何组件类） ---------- */
+:where(*), :where(*)::before, :where(*)::after { margin: 0; padding: 0; box-sizing: border-box; }
+:where(html, body) { height: 100%; }
+:where(body) {
     font-family: var(--font-sans);
     font-size: var(--text-base);
     line-height: var(--leading-normal);
@@ -22,6 +22,7 @@ body {
     background-attachment: fixed;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     overflow: hidden;
     overscroll-behavior: none;
 }
@@ -36,30 +37,30 @@ body {
 }
 #app > * { min-width: 0; min-height: 0; }
 
-/* ---------- 3. 全局排版 ---------- */
-h1, h2, h3, h4, h5, h6 {
+/* ---------- 3. 全局排版（:where() 零特异性） ---------- */
+:where(h1, h2, h3, h4, h5, h6) {
     font-weight: var(--weight-semibold);
     line-height: var(--leading-tight);
     color: var(--fg);
 }
-h1 { font-size: var(--text-3xl); }
-h2 { font-size: var(--text-2xl); }
-h3 { font-size: var(--text-xl); }
-h4 { font-size: var(--text-lg); }
-h5, h6 { font-size: var(--text-base); }
-p { line-height: var(--leading-relaxed); }
-small { font-size: var(--text-sm); color: var(--fg-muted); }
-code, pre, kbd, samp { font-family: var(--font-mono); font-size: 0.92em; }
-button, input, textarea, select { font: inherit; color: inherit; }
-button { background: none; border: 0; padding: 0; cursor: pointer; }
-img, svg, video, canvas { display: block; max-width: 100%; }
-ul, ol { list-style: none; }
-a { color: var(--fg-link); text-decoration: none; }
-a:hover { color: var(--brand-hover); }
-[hidden] { display: none; }
+:where(h1) { font-size: var(--text-3xl); }
+:where(h2) { font-size: var(--text-2xl); }
+:where(h3) { font-size: var(--text-xl); }
+:where(h4) { font-size: var(--text-lg); }
+:where(h5, h6) { font-size: var(--text-base); }
+:where(p) { line-height: var(--leading-relaxed); }
+:where(small) { font-size: var(--text-sm); color: var(--fg-muted); }
+:where(code, pre, kbd, samp) { font-family: var(--font-mono); font-size: 0.92em; }
+:where(button, input, textarea, select) { font: inherit; color: inherit; }
+:where(button) { background: none; border: 0; padding: 0; cursor: pointer; }
+:where(img, svg, video, canvas) { display: block; max-width: 100%; }
+:where(ul, ol) { list-style: none; }
+:where(a) { color: var(--fg-link); text-decoration: none; }
+:where(a:hover) { color: var(--brand-hover); }
+:where([hidden]) { display: none; }
 ::selection { background: var(--brand-soft); color: var(--fg); }
 
-/* ---------- 4. 焦点可见（唯一来源，原语不得再改 outline 颜色） ---------- */
+/* ---------- 4. 焦点可见（唯一来源，原语可使用 --focus-ring） ---------- */
 :focus { outline: none; }
 :focus-visible {
     outline: var(--focus-width) solid var(--focus-color);
@@ -67,17 +68,18 @@ a:hover { color: var(--brand-hover); }
 }
 
 /* ---------- 5. 滚动条（全局一次；组件禁止再写 ::-webkit-scrollbar） ---------- */
-* { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
-*::-webkit-scrollbar { width: 8px; height: 8px; }
-*::-webkit-scrollbar-track { background: transparent; }
-*::-webkit-scrollbar-thumb {
+:where(*) { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+:where(*)::-webkit-scrollbar { width: 7px; height: 7px; }
+:where(*)::-webkit-scrollbar-track { background: transparent; }
+:where(*)::-webkit-scrollbar-thumb {
     background: var(--scrollbar-thumb);
     border: 2px solid transparent;
     background-clip: padding-box;
     border-radius: var(--radius-pill);
+    transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
-*::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); background-clip: padding-box; }
-*::-webkit-scrollbar-corner { background: transparent; }
+:where(*)::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); border: 1.5px solid transparent; background-clip: padding-box; }
+:where(*)::-webkit-scrollbar-corner { background: transparent; }
 
 /* ---------- 6. 平台（Web / Capacitor Android） ---------- */
 body.web { user-select: none; -webkit-user-select: none; touch-action: manipulation; }

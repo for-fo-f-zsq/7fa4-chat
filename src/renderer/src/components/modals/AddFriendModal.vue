@@ -5,32 +5,37 @@
         <UiInput
           ref="searchRef"
           v-model="query"
+          class="addfriend-input"
           placeholder="搜索用户名 / 昵称 / 真名 / UID"
+          prefix-icon="fas fa-search"
           clearable
         />
       </div>
-      <select v-model="gradeFilter" class="addfriend-grade-select">
-        <option value="">全部年级</option>
-        <option v-for="g in gradeOptions" :key="g.key" :value="g.key">{{ g.label }}</option>
-      </select>
+      <UiDropdown
+        v-model="gradeFilter"
+        :options="gradeOptions"
+        :auto-width="true"
+        size="sm"
+        aria-label="筛选年级"
+      />
     </div>
-    <div class="addfriend-direct" v-if="query.trim()">
+    <div v-if="query.trim()" class="addfriend-direct">
       <UiButton variant="secondary" size="sm" block icon="fas fa-user-plus" @click="onDirectAdd">
         直接添加「{{ query.trim() }}」
       </UiButton>
     </div>
-    <div class="addfriend-list" v-if="users.length > 0">
+    <div v-if="users.length > 0" class="addfriend-list">
       <div
         v-for="u in users"
         :key="u.uid"
-        class="addfriend-item"
+        class="p-list-row p-list-row--interactive addfriend-item"
         :class="{ 'is-friend': u.isFriend }"
         @click="onViewUser(u)"
       >
         <UiAvatar shape="rounded" size="md" :color="avatarTint(u.uid)" :name="u.initial" />
-        <div class="addfriend-item-info">
+        <div class="p-list-row__main addfriend-item-info">
           <span class="addfriend-item-name" :style="{ color: u.gradeColor }">{{ u.realName }}</span>
-          <span class="addfriend-item-detail">
+          <span class="addfriend-item-detail u-tabular-nums">
             <template v-if="u.uid">{{ u.uid }}</template>
             <template v-if="u.nickname || u.username"> / </template>
             <template v-if="u.nickname">{{ u.nickname }}</template>
@@ -47,32 +52,31 @@
         />
       </div>
     </div>
-    <div class="addfriend-empty" v-else-if="query || gradeFilter">
-      无匹配结果
-    </div>
-    <div class="addfriend-empty" v-else>
-      加载中...
-    </div>
+    <UiEmptyState
+      v-else
+      :icon="query || gradeFilter ? 'fas fa-search' : 'fas fa-spinner fa-spin'"
+      :title="query || gradeFilter ? '无匹配结果' : '加载中...'"
+    />
   </UiModal>
 </template>
 
-<style scoped src="../../css/components/addfriend-modal.css"></style>
-
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { store } from '../../store.js'
-import { getGradeColor, getGradeLabel, getAvatarInitial, GRADE_LABELS, ranklistOrder, usersJson, localGradeColorKey, avatarTint } from '../../utils.js'
-import UiModal from '../../ui/UiModal/UiModal.vue'
-import UiAvatar from '../../ui/UiAvatar/UiAvatar.vue'
-import UiInput from '../../ui/UiInput/UiInput.vue'
-import UiButton from '../../ui/UiButton/UiButton.vue'
-import UiIconButton from '../../ui/UiIconButton/UiIconButton.vue'
+import { computed, ref, watch } from 'vue'
+import { UiAvatar, UiButton, UiDropdown, UiEmptyState, UiIconButton, UiInput, UiModal } from '@/ui'
+import { store } from '@/store.js'
+import {
+  GRADE_LABELS,
+  avatarTint,
+  getAvatarInitial,
+  getGradeColor,
+  localGradeColorKey,
+  ranklistOrder,
+  usersJson,
+} from '@/utils.js'
 
 const props = defineProps({
   visible: Boolean,
-  // 预填搜索词：新手引导「打开与我的对话」目标用户还不是好友时传入 UID，
-  // visible 变 true 时写入输入框并聚焦，用户点「直接添加」即可。
-  initialQuery: { type: String, default: '' }
+  initialQuery: { type: String, default: '' },
 })
 
 const emit = defineEmits(['update:visible', 'confirm', 'viewUser'])
@@ -82,28 +86,31 @@ const gradeFilter = ref('')
 const searchRef = ref(null)
 const modalOpen = ref(false)
 
-const gradeOptions = Object.entries(GRADE_LABELS).map(([key, label]) => ({ key, label }))
+const gradeOptions = [
+  { value: '', label: '全部年级' },
+  ...Object.entries(GRADE_LABELS).map(([value, label]) => ({ value, label })),
+]
 
-watch(() => props.visible, (newVal) => {
-  if (newVal) {
-    // 打开前先落初始搜索词，再交给 UiModal 播进场（autofocus 由 @opened 统一转焦）
-    query.value = props.initialQuery || ''
-    gradeFilter.value = ''
-    modalOpen.value = true
-  } else {
-    modalOpen.value = false
+watch(
+  () => props.visible,
+  (newVal) => {
+    if (newVal) {
+      query.value = props.initialQuery || ''
+      gradeFilter.value = ''
+      modalOpen.value = true
+    } else {
+      modalOpen.value = false
+    }
   }
-})
+)
 
 function focusSearch() {
-  const el = searchRef.value?.$el?.querySelector?.('input')
-  el?.focus({ preventScroll: true })
+  searchRef.value?.focus()
 }
 
 const users = computed(() => {
   const q = query.value.trim().toLowerCase()
   const gf = gradeFilter.value
-
   const results = []
   const rankSet = new Set(ranklistOrder)
 
@@ -112,12 +119,9 @@ const users = computed(() => {
     const name = jsonInfo?.name || ''
     const username = user?.username || ''
     const nickname = user?.nickname || ''
-    const isFriend = user?.watchee === true // 是否已关注（watchee）
+    const isFriend = user?.watchee === true
 
-    if (gf) {
-      const colorKey = localGradeColorKey(uid)
-      if (colorKey !== gf) return
-    }
+    if (gf && localGradeColorKey(uid) !== gf) return
 
     if (q) {
       const haystack = [name, username, nickname, String(uid)].join(' ').toLowerCase()
@@ -131,18 +135,15 @@ const users = computed(() => {
       username,
       gradeColor: getGradeColor(uid),
       initial: getAvatarInitial(uid),
-      isFriend
+      isFriend,
     })
   }
 
-  // 先按 ranklist 顺序
   for (const uid of ranklistOrder) {
     const user = store.users[uid]
-    if (!user) continue
-    processUser(uid, user)
+    if (user) processUser(uid, user)
   }
 
-  // 不在 ranklist 中的用户追加到末尾
   for (const [uidStr, user] of Object.entries(store.users)) {
     const uid = Number(uidStr)
     if (!uid || rankSet.has(uid)) continue
@@ -161,7 +162,6 @@ function onAddFriend(u) {
   emit('confirm', String(u.uid))
 }
 
-// 直接添加：把原始输入透传给后端（API 支持用户名 / uid），用于添加不在榜单上的用户
 function onDirectAdd() {
   const q = query.value.trim()
   if (!q) return
@@ -177,3 +177,5 @@ function finishClose() {
   emit('update:visible', false)
 }
 </script>
+
+<style scoped src="../../css/components/addfriend-modal.css"></style>

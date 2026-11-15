@@ -1,7 +1,15 @@
-/* UiDropdown — 下拉选择样式；只消费 tokens/motion 语义令牌。 */
+/* UiDropdown — 下拉选择样式；方向感知展开。 */
 .ui-dropdown {
   display: inline-block;
   width: 100%;
+}
+
+.ui-dropdown--auto {
+  width: auto;
+}
+
+.ui-dropdown--auto .ui-dropdown__trigger {
+  width: auto;
 }
 
 .ui-dropdown__field-label {
@@ -22,20 +30,23 @@
   height: var(--control-h-lg);
   padding: 0 var(--space-3);
   border: var(--border-width) solid var(--line);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-base);
   background: var(--surface-2);
   color: var(--fg);
   font: inherit;
   font-size: var(--text-base);
   text-align: left;
   cursor: pointer;
-  transition: border-color var(--motion-dur-fast) var(--motion-ease-standard),
-    box-shadow var(--motion-dur-fast) var(--motion-ease-standard);
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    border-color var(--motion-dur-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo);
 }
 
 .ui-dropdown--sm .ui-dropdown__trigger {
   height: var(--control-h-sm);
   font-size: var(--text-sm);
+  border-radius: var(--radius-md);
 }
 
 .ui-dropdown--lg .ui-dropdown__trigger {
@@ -48,13 +59,19 @@
   }
 }
 
+.ui-dropdown__trigger:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
 .ui-dropdown__trigger:focus-visible {
-  outline: var(--focus-width) solid var(--focus-color);
-  outline-offset: var(--focus-offset);
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
 }
 
 .ui-dropdown.is-open .ui-dropdown__trigger {
   border-color: var(--brand);
+  background: var(--surface-raised);
+  box-shadow: var(--focus-halo);
 }
 
 .ui-dropdown.is-invalid .ui-dropdown__trigger {
@@ -97,6 +114,7 @@
   background: var(--brand-soft);
   color: var(--brand);
   font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -104,7 +122,7 @@
 .ui-dropdown__arrow {
   flex: none;
   color: var(--fg-muted);
-  transition: transform var(--motion-dur-fast) var(--motion-ease-standard);
+  transition: transform var(--motion-dur-base) var(--motion-ease-out-expo);
 }
 
 .ui-dropdown.is-open .ui-dropdown__arrow {
@@ -120,9 +138,9 @@
   overflow: hidden;
   padding: var(--space-1);
   background: var(--surface-raised);
-  border: var(--border-width) solid var(--line);
+  border: var(--border-width) solid var(--line-hairline);
   border-radius: var(--radius-xl);
-  box-shadow: var(--elev-2);
+  box-shadow: var(--elev-pop);
   color: var(--fg);
   font-size: var(--text-md);
 }
@@ -146,8 +164,40 @@
 }
 
 .ui-dropdown__input:focus-visible {
-  outline: var(--focus-width) solid var(--focus-color);
-  outline-offset: 0;
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring-inset);
+}
+
+.ui-dropdown__list-header {
+  flex: none;
+  padding: var(--space-1);
+  border-bottom: var(--border-width) solid var(--line-subtle);
+}
+
+.ui-dropdown__select-all {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: var(--control-h-sm);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    color var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+@media (hover: hover) {
+  .ui-dropdown__select-all:hover {
+    background: var(--surface-hover);
+    color: var(--fg);
+  }
 }
 
 .ui-dropdown__list {
@@ -168,6 +218,9 @@
   border-radius: var(--radius-md);
   color: var(--fg);
   cursor: pointer;
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    color var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo);
 }
 
 .ui-dropdown__option.is-active {
@@ -176,6 +229,11 @@
 
 .ui-dropdown__option.is-selected {
   color: var(--brand);
+  font-weight: var(--weight-medium);
+}
+
+.ui-dropdown__option:active:not(.is-disabled) {
+  transform: scale(0.99);
 }
 
 .ui-dropdown__option.is-disabled {

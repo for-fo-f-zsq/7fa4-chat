@@ -1,9 +1,10 @@
 <template>
-  <Teleport to="body">
+  <Teleport to="body" :disabled="!teleport">
     <Transition name="overlay">
       <div
         v-if="open"
         class="ui-modal-overlay"
+        :style="zIndex != null ? { zIndex } : undefined"
         aria-hidden="true"
         @mousedown.self.prevent
         @click.self="onOverlayClick"
@@ -14,10 +15,12 @@
         v-if="open"
         ref="panelRef"
         class="ui-modal"
-        :class="[`ui-modal--${sizeClass}`, { 'is-scrollable': scrollable }]"
+        :class="[modalClass, `ui-modal--${sizeClass}`, { 'is-scrollable': scrollable }]"
+        :style="zIndex != null ? { zIndex } : undefined"
         role="dialog"
         aria-modal="true"
         :aria-labelledby="title ? titleId : undefined"
+        :aria-label="!title && ariaLabel ? ariaLabel : undefined"
         tabindex="-1"
       >
         <div v-if="title || $slots.header || $slots.title" class="ui-modal__header">
@@ -47,6 +50,12 @@
   </Teleport>
 </template>
 
+<script>
+// 多弹窗叠放共用全局滚动锁引用计数，避免内层先关时提前解锁 body
+let scrollLockCount = 0
+let bodyPrevOverflow = ''
+</script>
+
 <script setup>
 // UiModal — 浮层弹窗原语：body Teleport + 遮罩/面板成对过渡 + 焦点陷阱 + 滚动锁 + 焦点还原。
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
@@ -56,12 +65,16 @@ defineOptions({ name: 'UiModal' })
 const props = defineProps({
   open: { type: Boolean, default: false },
   title: { type: String, default: '' },
+  ariaLabel: { type: String, default: '' },
   size: { type: String, default: 'md' },
   showClose: { type: Boolean, default: true },
   closeOnOverlay: { type: Boolean, default: true },
   closeOnEsc: { type: Boolean, default: true },
   persistent: { type: Boolean, default: false },
-  scrollable: { type: Boolean, default: true }
+  scrollable: { type: Boolean, default: true },
+  teleport: { type: Boolean, default: true },
+  modalClass: { type: [String, Array, Object], default: '' },
+  zIndex: { type: [Number, String], default: null }
 })
 
 const emit = defineEmits(['update:open', 'close', 'opened', 'closed'])
@@ -77,7 +90,6 @@ const FOCUSABLE =
 
 let restoreEl = null
 let bodyLocked = false
-let bodyPrevOverflow = ''
 
 function focusables() {
   const panel = panelRef.value
@@ -95,15 +107,21 @@ function focusInitial() {
 
 function lockBodyScroll() {
   if (bodyLocked) return
-  bodyPrevOverflow = document.body.style.overflow
-  document.body.style.overflow = 'hidden'
+  if (scrollLockCount === 0) {
+    bodyPrevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+  }
+  scrollLockCount += 1
   bodyLocked = true
 }
 
 function unlockBodyScroll() {
   if (!bodyLocked) return
-  document.body.style.overflow = bodyPrevOverflow
   bodyLocked = false
+  scrollLockCount = Math.max(0, scrollLockCount - 1)
+  if (scrollLockCount === 0) {
+    document.body.style.overflow = bodyPrevOverflow
+  }
 }
 
 function requestClose(reason) {
@@ -192,4 +210,4 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped src="./UiModal.css"></style>
+<style src="./UiModal.css"></style>

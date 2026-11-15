@@ -21,11 +21,11 @@
 defineOptions({ name: 'UiEmptyState' })
 
 defineProps({
-  icon: { type: String, default: 'fa-inbox' },
+  icon: { type: String, default: 'fas fa-inbox' },
   title: { type: String, default: '' },
   description: { type: String, default: '' },
   size: { type: String, default: 'md' },
 })
 </script>
 
-<style scoped src="./UiEmptyState.css"></style>
+<style src="./UiEmptyState.css"></style>

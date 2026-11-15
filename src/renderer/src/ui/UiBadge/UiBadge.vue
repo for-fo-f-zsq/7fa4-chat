@@ -54,4 +54,4 @@ const displayCount = computed(() => {
 })
 </script>
 
-<style scoped src="./UiBadge.css"></style>
+<style src="./UiBadge.css"></style>

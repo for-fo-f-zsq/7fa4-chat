@@ -6,9 +6,11 @@
       {
         'ui-btn--primary': variant === 'primary',
         'ui-btn--secondary': variant === 'secondary',
+        'ui-btn--soft': variant === 'soft',
         'ui-btn--ghost': variant === 'ghost',
         'ui-btn--danger': variant === 'danger',
         'ui-btn--text': variant === 'text',
+        'ui-btn--overlay': variant === 'overlay',
       },
       {
         'ui-btn--sm': size === 'sm',
@@ -73,4 +75,4 @@ function onClick(event) {
 }
 </script>
 
-<style scoped src="./UiButton.css"></style>
+<style src="./UiButton.css"></style>

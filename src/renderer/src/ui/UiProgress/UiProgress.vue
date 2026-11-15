@@ -58,4 +58,4 @@ const barStyle = computed(() => ({
 }))
 </script>
 
-<style scoped src="./UiProgress.css"></style>
+<style src="./UiProgress.css"></style>

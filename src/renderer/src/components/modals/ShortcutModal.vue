@@ -1,11 +1,15 @@
 <template>
-  <UiModal :open="visible" title="快捷键设置" size="sm" @close="close">
+  <UiModal v-model:open="visible" title="快捷键设置" size="sm" @closed="emit('close')">
     <div class="shortcut-list">
-      <div v-for="item in shortcutItems" :key="item.action" class="shortcut-row">
-        <span class="shortcut-label">{{ item.label }}</span>
+      <div
+        v-for="item in shortcutItems"
+        :key="item.action"
+        class="p-list-row shortcut-row"
+      >
+        <span class="p-list-row__main shortcut-label">{{ item.label }}</span>
         <div class="shortcut-key-wrap">
           <UiButton
-            class="shortcut-key-btn"
+            class="shortcut-key-btn u-tabular-nums"
             size="sm"
             :variant="recordingAction === item.action ? 'primary' : 'secondary'"
             @click="startRecording(item.action)"
@@ -34,20 +38,17 @@
 </template>
 
 <script setup>
-// 用法：<ShortcutModal v-if="shortcutModal" :setting="setting" @close="shortcutModal=false" @settingChange="save" />
-
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
-import { isWebBrowser } from '../../utils.js'
+import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { UiButton, UiIconButton, UiModal } from '@/ui'
+import { isWebBrowser } from '@/utils.js'
 
 const props = defineProps({
-  setting: Object
+  setting: Object,
 })
 
 const emit = defineEmits(['close', 'settingChange'])
 const isWeb = isWebBrowser()
 
-// 编号严格跟随 NavBar 主导航顺序：消息 / 工具 / 设置；关于排在其后
 const defaultShortcuts = {
   sendMessage: 'enter',
   search: 'ctrl+f',
@@ -55,7 +56,7 @@ const defaultShortcuts = {
   switchToTools: 'ctrl+2',
   switchToSettings: 'ctrl+3',
   switchToAbout: 'ctrl+4',
-  newConversation: 'ctrl+n'
+  newConversation: 'ctrl+n',
 }
 
 const shortcutItems = [
@@ -65,22 +66,16 @@ const shortcutItems = [
   ...(!isWeb ? [{ action: 'switchToTools', label: '切换到工具' }] : []),
   { action: 'switchToSettings', label: '切换到设置' },
   { action: 'switchToAbout', label: '切换到关于' },
-  { action: 'newConversation', label: '新建会话' }
+  { action: 'newConversation', label: '新建会话' },
 ]
 
 const recordingAction = ref(null)
 const visible = ref(false)
 
 onMounted(async () => {
-  // 等一帧再打开，让 UiModal 的进入动效生效（父级用 v-if 控制挂载）
   await nextTick()
   visible.value = true
 })
-
-function close() {
-  visible.value = false
-  emit('close')
-}
 
 function getShortcutValue(action) {
   return props.setting?.shortcuts?.[action] || defaultShortcuts[action]
@@ -90,7 +85,7 @@ function formatShortcut(shortcut) {
   if (!shortcut) return '未设置'
   return shortcut
     .split('+')
-    .map(part => {
+    .map((part) => {
       if (part === 'ctrl') return 'Ctrl'
       if (part === 'meta') return 'Cmd'
       if (part === 'shift') return 'Shift'
@@ -103,6 +98,7 @@ function formatShortcut(shortcut) {
 function startRecording(action) {
   if (recordingAction.value === action) {
     recordingAction.value = null
+    document.removeEventListener('keydown', onRecordingKeydown)
     return
   }
   recordingAction.value = action
@@ -115,7 +111,6 @@ function onRecordingKeydown(e) {
   e.preventDefault()
   e.stopPropagation()
 
-  // Escape 取消录制
   if (e.key === 'Escape') {
     recordingAction.value = null
     document.removeEventListener('keydown', onRecordingKeydown)
@@ -131,10 +126,9 @@ function onRecordingKeydown(e) {
 
   const shortcut = parts.join('+')
 
-  // 检查冲突：是否与其他快捷键重复
   const conflictAction = shortcutItems
-    .filter(item => item.action !== recordingAction.value)
-    .find(item => getShortcutValue(item.action) === shortcut)
+    .filter((item) => item.action !== recordingAction.value)
+    .find((item) => getShortcutValue(item.action) === shortcut)
   if (conflictAction) {
     recordingAction.value = null
     document.removeEventListener('keydown', onRecordingKeydown)

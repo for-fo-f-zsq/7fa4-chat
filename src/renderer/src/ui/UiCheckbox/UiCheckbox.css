@@ -1,3 +1,4 @@
+/* UiCheckbox — 复选框原语样式；spring 勾选 + --focus-ring。 */
 .ui-checkbox {
   position: relative;
   display: inline-flex;
@@ -38,9 +39,11 @@
   font-size: var(--text-2xs);
   line-height: 1;
   transition:
-    background var(--motion-dur-fast) var(--motion-ease-standard),
+    background-color var(--motion-dur-fast) var(--motion-ease-standard),
     border-color var(--motion-dur-fast) var(--motion-ease-standard),
-    color var(--motion-dur-fast) var(--motion-ease-standard);
+    color var(--motion-dur-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo);
 }
 
 .ui-checkbox-mark,
@@ -72,8 +75,7 @@
 }
 
 .ui-checkbox-input:focus-visible + .ui-checkbox-box {
-  outline: var(--focus-width) solid var(--focus-color);
-  outline-offset: var(--focus-offset);
+  box-shadow: var(--focus-ring);
 }
 
 .ui-checkbox.is-disabled {
@@ -85,4 +87,8 @@
   .ui-checkbox:hover:not(.is-disabled) .ui-checkbox-box {
     border-color: var(--brand);
   }
+}
+
+.ui-checkbox:active:not(.is-disabled) .ui-checkbox-box {
+  transform: scale(0.92);
 }

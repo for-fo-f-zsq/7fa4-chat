@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { showToast } from './useToast.js'
 
 export function useMuteConfirm(submitFn) {
   const muteModalVisible = ref(false)
@@ -12,7 +13,7 @@ export function useMuteConfirm(submitFn) {
   function onMuteMinutesConfirm(minutesStr) {
     const minutes = parseInt(minutesStr, 10)
     if (isNaN(minutes) || minutes < 0) {
-      alert('请输入有效的分钟数')
+      showToast('请输入有效的分钟数', 'warning')
       return
     }
     if (pendingMuteMemberId.value) {

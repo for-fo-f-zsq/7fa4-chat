@@ -43,12 +43,15 @@ const devApiProxyPlugin = () => ({
   }
 });
 
-// 主进程使用 CJS require('./storage')，vite 不会打包相对 CJS 依赖，
-// 该插件在构建产物中输出 storage.js 原文件，保证运行时 require 可解析。
+// 主进程使用 CJS require('./storage') / require('./notifications')，vite 不会打包相对 CJS 依赖，
+// 该插件在构建产物中原样输出这些文件，保证运行时 require 可解析（新增主进程 CJS 模块要加到这里）。
+const MAIN_CJS_MODULES = ['storage.js', 'notifications.js'];
 const copyStoragePlugin = () => ({
   name: 'copy-storage-file',
   generateBundle() {
-    this.emitFile({ type: 'asset', fileName: 'storage.js', source: readFileSync(resolve('src/main/storage.js'), 'utf8') });
+    for (const file of MAIN_CJS_MODULES) {
+      this.emitFile({ type: 'asset', fileName: file, source: readFileSync(resolve('src/main', file), 'utf8') });
+    }
   }
 });
 

@@ -50,7 +50,14 @@ function off(name, cb) {
 // ---------- 设置（对应桌面 setting.7c → localStorage） ----------
 const SETTING_KEY = '7fa4_setting'
 function loadSettingObj() {
-  try { return JSON.parse(localStorage.getItem(SETTING_KEY) || '{}') } catch { return {} }
+  try {
+    const obj = JSON.parse(localStorage.getItem(SETTING_KEY) || '{}')
+    if (!IS_NATIVE && obj && typeof obj === 'object' && 'loginPassword' in obj) {
+      delete obj.loginPassword
+      try { localStorage.setItem(SETTING_KEY, JSON.stringify(obj)) } catch {}
+    }
+    return obj
+  } catch { return {} }
 }
 function apiBase() {
   // 纯浏览器（网页版）跟随当前站点：从 in.7fa4.cn 打开就访问 in、从 jx.7fa4.cn 打开就访问 jx。
@@ -863,13 +870,112 @@ async function saveAndShare(base64Data, suggestedName, mime) {
   }
 }
 
-// ---------- 通知（LocalNotifications） ----------
-let notifId = 1
+// ---------- 通知（LocalNotifications / Web Notification） ----------
 async function ensureNotifPermission() {
   try {
     const perm = await LocalNotifications.checkPermissions()
     if (perm.display !== 'granted') await LocalNotifications.requestPermissions()
   } catch {}
+}
+
+// 渲染层现在只发一个 payload 对象（契约见 utils/notify.js），这里兼容旧的位置参数调用。
+function normalizeNotifPayload(payloadOrTitle, bodyArg, chatTypeArg, targetIdArg) {
+  if (payloadOrTitle && typeof payloadOrTitle === 'object') {
+    const p = payloadOrTitle
+    return {
+      id: String(p.id || `${p.chatType === 'group' ? 'group' : 'user'}_${p.targetId ?? 'unknown'}`),
+      title: String(p.title || '7FA4 Chat'),
+      body: String(p.body || ''),
+      chatType: p.chatType === 'group' ? 'group' : 'user',
+      targetId: p.targetId,
+      count: Math.max(1, Math.floor(Number(p.count) || 1)),
+      position: p.position || 'br',
+      duration: Number(p.duration) || 6000,
+      test: p.test === true
+    }
+  }
+  return {
+    id: `${chatTypeArg === 'group' ? 'group' : 'user'}_${targetIdArg ?? 'unknown'}`,
+    title: String(payloadOrTitle || '7FA4 Chat'),
+    body: String(bodyArg || ''),
+    chatType: chatTypeArg === 'group' ? 'group' : 'user',
+    targetId: targetIdArg,
+    count: 1,
+    position: 'br',
+    duration: 6000,
+    test: false
+  }
+}
+
+// 安卓通知 id 是 32 位 int：同一会话复用同一 id（count 参与低位），
+// 否则每次 id++ 都会堆成一串旧提醒；count 变化时又能重新提醒。
+function notifIdOf(payload) {
+  const s = String(payload.id)
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0
+  return (Math.abs(h) % 100000) * 10 + Math.min(payload.count, 9)
+}
+
+function hasWebNotification() {
+  return typeof window !== 'undefined' && 'Notification' in window
+}
+
+async function requestWebPermission() {
+  if (!hasWebNotification()) return 'unsupported'
+  const cur = window.Notification.permission
+  if (cur === 'granted' || cur === 'denied') return cur
+  try {
+    // 新浏览器返回 Promise；老实现只认回调、返回 undefined。
+    const ret = window.Notification.requestPermission()
+    if (ret && typeof ret.then === 'function') {
+      const p = await ret
+      return p || window.Notification.permission || 'default'
+    }
+    return window.Notification.permission || 'default'
+  } catch {
+    return window.Notification.permission || 'default'
+  }
+}
+
+async function notifyWeb(payload) {
+  if (!hasWebNotification()) return false
+  let perm = window.Notification.permission
+  // 只有「发送测试通知」才主动索权：正常收消息时不能在后台弹权限框。
+  if (payload.test) perm = await requestWebPermission()
+  if (perm !== 'granted') return false
+  try {
+    const n = new window.Notification(payload.title, {
+      body: payload.body,
+      tag: payload.id, // 同一会话替换旧卡片，不堆叠
+      renotify: payload.count > 1,
+      silent: true // 提示音由渲染层 Web Audio 统一负责，避免两套声音
+    })
+    n.onclick = () => {
+      try { window.focus() } catch {}
+      emit('notifClick', { chatType: payload.chatType, targetId: payload.targetId })
+      try { n.close() } catch {}
+    }
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function notifyNative(payload) {
+  try {
+    await ensureNotifPermission()
+    await LocalNotifications.schedule({
+      notifications: [{
+        id: notifIdOf(payload),
+        title: payload.title,
+        body: payload.body,
+        extra: { chatType: payload.chatType, targetId: payload.targetId }
+      }]
+    })
+    return true
+  } catch {
+    return false
+  }
 }
 
 // ---------- 安卓返回键 & 生命周期 ----------
@@ -896,23 +1002,38 @@ window.api = {
   getPlatform: async () => (IS_NATIVE ? 'android' : 'web'),
   loadSetting: async () => loadSettingObj(),
   saveSetting: async (data) => {
-    const merged = { ...loadSettingObj(), ...(data || {}) }
-    localStorage.setItem(SETTING_KEY, JSON.stringify(merged))
+    // 显式写 undefined 视为「删掉这个键」，否则历史明文/废弃键永远清不掉
+    const merged = { ...loadSettingObj() }
+    for (const [k, v] of Object.entries(data || {})) {
+      if (v === undefined) delete merged[k]
+      else merged[k] = v
+    }
+    if (!IS_NATIVE || !merged.loginPassword) delete merged.loginPassword
+    try {
+      localStorage.setItem(SETTING_KEY, JSON.stringify(merged))
+    } catch (e) {
+      // 配额超限 / 隐私模式禁用存储：必须让调用方看见，别假装写成功了
+      return { success: false, error: String((e && e.message) || e) }
+    }
     return { success: true }
   },
-  notify: async (sender, content, chatType, targetId) => {
-    if (!IS_NATIVE) return
-    try {
-      await ensureNotifPermission()
-      await LocalNotifications.schedule({
-        notifications: [{
-          id: notifId++,
-          title: String(sender || '7FA4 Chat'),
-          body: String(content || ''),
-          extra: { chatType, targetId }
-        }]
-      })
-    } catch {}
+  // payload 对象优先；也接受旧的位置参数 (sender, content, chatType, targetId)。
+  notify: async (payloadOrTitle, bodyArg, chatTypeArg, targetIdArg) => {
+    const payload = normalizeNotifPayload(payloadOrTitle, bodyArg, chatTypeArg, targetIdArg)
+    return IS_NATIVE ? notifyNative(payload) : notifyWeb(payload)
+  },
+  requestNotificationPermission: async () => {
+    if (IS_NATIVE) {
+      try {
+        let perm = await LocalNotifications.checkPermissions()
+        const d0 = perm?.display
+        if (d0 !== 'granted' && d0 !== 'denied') perm = await LocalNotifications.requestPermissions()
+        const d = perm?.display
+        if (d === 'granted' || d === 'denied') return d
+        return 'default'
+      } catch { return 'default' }
+    }
+    return requestWebPermission()
   },
   showMainWindow: async () => {},
   onNotifClick: on('notifClick'),

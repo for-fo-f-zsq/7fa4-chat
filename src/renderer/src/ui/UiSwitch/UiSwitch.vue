@@ -56,4 +56,4 @@ function toggle() {
 }
 </script>
 
-<style scoped src="./UiSwitch.css"></style>
+<style src="./UiSwitch.css"></style>

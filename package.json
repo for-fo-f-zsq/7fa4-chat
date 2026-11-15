@@ -1,6 +1,6 @@
 {
   "name": "7fa4-chat",
-  "version": "3.8.3",
+  "version": "4.0.0",
   "description": "7FA4 Chat",
   "main": "./out/main/index.js",
   "desktopName": "7fa4-chat.desktop",
@@ -23,9 +23,13 @@
     "tools:local": "npm run build:tools && npm run install:tools:local",
     "publish:tools": "node scripts/tools/publish-tools.mjs",
     "check:sfc": "node tests/unit/check-sfc-bindings.mjs",
-    "test:md": "node tests/unit/test-markdown.mjs && node tests/unit/test-typora-input.mjs && node tests/unit/test-input-footer.mjs && node tests/unit/test-markdown-tool.mjs && node tests/unit/test-msg-fmt.mjs",
+    "check:css": "node tests/unit/check-css-selectors.mjs",
+    "test:md": "node tests/unit/test-markdown.mjs && node tests/unit/test-qqface.mjs && node tests/unit/test-input-footer.mjs && node tests/unit/test-markdown-tool.mjs && node tests/unit/test-msg-fmt.mjs",
     "test:store": "node tests/unit/test-store.mjs",
-    "test": "npm run check:sfc && npm run test:md && npm run test:store",
+    "test:scroll": "node tests/unit/test-message-scroll.mjs",
+    "test:notify": "node tests/unit/test-notify-policy.mjs",
+    "test:tools": "node src/renderer/src/views/tools/graph/__tests__/graph-editor.test.mjs && node src/renderer/src/views/tools/image/__tests__/image-editor.test.mjs && node src/renderer/src/views/tools/calculator/__tests__/calculator.test.mjs && node src/renderer/src/views/tools/timer/__tests__/timer.test.mjs",
+    "test": "npm run check:sfc && npm run check:css && npm run test:md && npm run test:store && npm run test:scroll && npm run test:notify && npm run test:tools",
     "sync:luogu": "node scripts/data/sync-luogu.mjs",
     "clean": "node scripts/clean.mjs"
   },

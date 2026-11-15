@@ -107,8 +107,14 @@
 .u-mono {
   font-family: var(--font-mono);
 }
-.u-tabular {
+.u-tabular,
+.u-tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+.u-glass {
+  background: var(--surface-glass);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
 }
 
 /* 状态/交互 */

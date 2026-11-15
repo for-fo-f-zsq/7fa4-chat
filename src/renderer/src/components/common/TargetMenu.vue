@@ -1,11 +1,12 @@
 <template>
-  <ContextMenu
-    :visible="show"
-    :x="x"
-    :y="y"
+  <UiMenu
+    :open="true"
+    :anchor="anchorPoint"
+    :offset="0"
+    placement="bottom"
     :items="menuItems"
     @select="onSelect"
-    @close="$emit('close')"
+    @close="emit('close')"
   />
 </template>
 
@@ -13,7 +14,7 @@
 import { computed } from 'vue'
 import { store } from '../../store.js'
 import { getConvoKey } from '../../utils.js'
-import ContextMenu from './ContextMenu.vue'
+import { UiMenu } from '@/ui'
 
 const props = defineProps({
   type: String,
@@ -21,18 +22,32 @@ const props = defineProps({
   y: Number,
   id: [String, Number],
   isPinned: Boolean,
-  isUnread: Boolean
+  isUnread: Boolean,
 })
 
-const emit = defineEmits(['close', 'pin', 'showuserinfo', 'showgroupinfo', 'leavegroup', 'blockgroup', 'unblockgroup', 'dissolvegroup', 'mute', 'unmute', 'markread', 'markunread', 'togglehidden'])
+const emit = defineEmits([
+  'close',
+  'pin',
+  'showuserinfo',
+  'showgroupinfo',
+  'leavegroup',
+  'blockgroup',
+  'unblockgroup',
+  'dissolvegroup',
+  'mute',
+  'unmute',
+  'markread',
+  'markunread',
+  'togglehidden',
+])
 
-const show = computed(() => true)
+const anchorPoint = computed(() => ({ x: props.x || 0, y: props.y || 0 }))
 
 const isOwner = computed(() => {
   if (props.type !== 'group') return false
   const group = store.groups?.[props.id]
   if (!group) return false
-  const selfMember = group.users.find(u => String(u.user_id) === String(store.self.uid))
+  const selfMember = group.users.find((u) => String(u.user_id) === String(store.self.uid))
   return selfMember?.type === 'Owner'
 })
 
@@ -46,12 +61,11 @@ const isExited = computed(() => {
   return store.groups?.[props.id]?.exited || false
 })
 
-// 「不显示 / 取消不显示」：与免打扰同一套会话偏好（store.hiddenConvos，键为 getConvoKey）
 const isHidden = computed(() => !!store.hiddenConvos?.[getConvoKey(props.type, props.id)])
 const hiddenItem = computed(() => ({
-  value: 'togglehidden',
+  key: 'togglehidden',
   label: isHidden.value ? '取消不显示' : '不显示',
-  icon: isHidden.value ? 'fas fa-eye' : 'fas fa-eye-slash'
+  icon: isHidden.value ? 'fas fa-eye' : 'fas fa-eye-slash',
 }))
 
 const menuItems = computed(() => {
@@ -59,32 +73,48 @@ const menuItems = computed(() => {
   const convoKey = getConvoKey(props.type, props.id)
   const isMuted = !!store.mutedConvos?.[convoKey]
   if (props.type === 'user') {
-    items.push({ value: 'pin', label: props.isPinned ? '取消置顶' : '置顶', icon: 'fas fa-thumbtack' })
-    items.push({ value: 'showuserinfo', label: '好友详情', icon: 'fas fa-user' })
-    items.push({ value: isMuted ? 'unmute' : 'mute', label: isMuted ? '取消免打扰' : '消息免打扰', icon: isMuted ? 'fas fa-bell' : 'fas fa-bell-slash' })
-    items.push({ value: props.isUnread ? 'markread' : 'markunread', label: props.isUnread ? '标记已读' : '标记未读', icon: props.isUnread ? 'fas fa-check' : 'fas fa-envelope' })
+    items.push({ key: 'pin', label: props.isPinned ? '取消置顶' : '置顶', icon: 'fas fa-thumbtack' })
+    items.push({ key: 'showuserinfo', label: '好友详情', icon: 'fas fa-user' })
+    items.push({
+      key: isMuted ? 'unmute' : 'mute',
+      label: isMuted ? '取消免打扰' : '消息免打扰',
+      icon: isMuted ? 'fas fa-bell' : 'fas fa-bell-slash',
+    })
+    items.push({
+      key: props.isUnread ? 'markread' : 'markunread',
+      label: props.isUnread ? '标记已读' : '标记未读',
+      icon: props.isUnread ? 'fas fa-check' : 'fas fa-envelope',
+    })
     items.push(hiddenItem.value)
   }
   if (props.type === 'group') {
     if (isExited.value) {
-      if (isBlocked.value) {
-        items.push({ value: 'unblockgroup', label: '取消屏蔽', icon: 'fas fa-ban' })
-      } else {
-        items.push({ value: 'blockgroup', label: '屏蔽', icon: 'fas fa-ban' })
-      }
+      items.push({
+        key: isBlocked.value ? 'unblockgroup' : 'blockgroup',
+        label: isBlocked.value ? '取消屏蔽' : '屏蔽',
+        icon: 'fas fa-ban',
+      })
       items.push(hiddenItem.value)
     } else {
-      items.push({ value: 'pin', label: props.isPinned ? '取消置顶' : '置顶', icon: 'fas fa-thumbtack' })
-      items.push({ value: 'showgroupinfo', label: '群详情', icon: 'fas fa-users' })
-      items.push({ value: isMuted ? 'unmute' : 'mute', label: isMuted ? '取消免打扰' : '消息免打扰', icon: isMuted ? 'fas fa-bell' : 'fas fa-bell-slash' })
-      items.push({ value: props.isUnread ? 'markread' : 'markunread', label: props.isUnread ? '标记已读' : '标记未读', icon: props.isUnread ? 'fas fa-check' : 'fas fa-envelope' })
+      items.push({ key: 'pin', label: props.isPinned ? '取消置顶' : '置顶', icon: 'fas fa-thumbtack' })
+      items.push({ key: 'showgroupinfo', label: '群详情', icon: 'fas fa-users' })
+      items.push({
+        key: isMuted ? 'unmute' : 'mute',
+        label: isMuted ? '取消免打扰' : '消息免打扰',
+        icon: isMuted ? 'fas fa-bell' : 'fas fa-bell-slash',
+      })
+      items.push({
+        key: props.isUnread ? 'markread' : 'markunread',
+        label: props.isUnread ? '标记已读' : '标记未读',
+        icon: props.isUnread ? 'fas fa-check' : 'fas fa-envelope',
+      })
       if (isBlocked.value) {
-        items.push({ value: 'unblockgroup', label: '取消屏蔽', icon: 'fas fa-ban' })
+        items.push({ key: 'unblockgroup', label: '取消屏蔽', icon: 'fas fa-ban' })
       } else if (isOwner.value) {
-        items.push({ value: 'dissolvegroup', label: '解散群聊', icon: 'fas fa-trash-alt' })
+        items.push({ key: 'dissolvegroup', label: '解散群聊', icon: 'fas fa-trash-alt', danger: true })
       } else {
-        items.push({ value: 'leavegroup', label: '退出群聊', icon: 'fas fa-sign-out-alt' })
-        items.push({ value: 'blockgroup', label: '退出并屏蔽', icon: 'fas fa-ban' })
+        items.push({ key: 'leavegroup', label: '退出群聊', icon: 'fas fa-sign-out-alt' })
+        items.push({ key: 'blockgroup', label: '退出并屏蔽', icon: 'fas fa-ban', danger: true })
       }
       items.push(hiddenItem.value)
     }
@@ -92,7 +122,8 @@ const menuItems = computed(() => {
   return items
 })
 
-function onSelect(value) {
-  emit(value)
+function onSelect(key) {
+  emit(key)
+  emit('close')
 }
 </script>

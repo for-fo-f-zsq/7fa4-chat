@@ -147,6 +147,10 @@ const doc = (t) => md.renderDocument(t)
   chk('表情：URL 内不替换', !inUrl.includes('qqface'))
   const unknownFace = msg('/不存在的表情码 后续')
   chk('表情：未登记码保持原文', unknownFace.includes('/不存在的表情码'))
+  const plusFace = msg('/+1 收到')
+  chk('表情：/+1 符号码转图', plusFace.includes('<img class="qqface"') && plusFace.includes('data-code="/+1"'))
+  const bangFace = msg('/中! 可以')
+  chk('表情：/中! 感叹号码转图', bangFace.includes('<img class="qqface"') && bangFace.includes('data-code="/中!"'))
 }
 
 // -- 7fa4-chat 既有扩展：图片档位 --

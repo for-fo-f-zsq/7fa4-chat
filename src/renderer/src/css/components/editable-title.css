@@ -1,0 +1,63 @@
+.editable-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.editable-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  margin: 0;
+  color: var(--fg);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.35;
+  cursor: default;
+}
+
+.editable-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editable-title.is-multiline {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.editable-title.is-multiline span {
+  white-space: normal;
+}
+
+.editable-title.is-editable {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .editable-title.is-editable:hover {
+    text-decoration: underline;
+    text-decoration-color: var(--brand);
+    text-underline-offset: 3px;
+  }
+
+  .editable-title.is-editable:hover .editable-title__icon {
+    color: var(--brand);
+    opacity: 1;
+  }
+}
+
+.editable-title__icon {
+  flex-shrink: 0;
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  opacity: 0.6;
+  transition:
+    color var(--motion-dur-fast) var(--motion-ease-standard),
+    opacity var(--motion-dur-fast) var(--motion-ease-standard);
+}

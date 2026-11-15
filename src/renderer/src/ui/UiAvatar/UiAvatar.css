@@ -1,3 +1,4 @@
+/* UiAvatar — 头像原语样式。 */
 .ui-avatar {
   --avatar-size: var(--avatar-size-md);
   --avatar-bg: var(--brand-gradient);
@@ -14,48 +15,28 @@
   font-family: var(--font-sans);
   font-weight: var(--weight-medium);
   line-height: 1;
+  transition: box-shadow var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo);
 }
 
-.ui-avatar--xs {
-  --avatar-size: var(--avatar-size-xs);
-}
+.ui-avatar--xs { --avatar-size: var(--avatar-size-xs); }
+.ui-avatar--sm { --avatar-size: var(--avatar-size-sm); }
+.ui-avatar--md { --avatar-size: var(--avatar-size-md); }
+.ui-avatar--lg { --avatar-size: var(--avatar-size-lg); }
+.ui-avatar--xl { --avatar-size: var(--avatar-size-xl); }
+.ui-avatar--2xl { --avatar-size: var(--avatar-size-2xl); }
+.ui-avatar--3xl { --avatar-size: var(--avatar-size-3xl); }
 
-.ui-avatar--sm {
-  --avatar-size: var(--avatar-size-sm);
-}
-
-.ui-avatar--md {
-  --avatar-size: var(--avatar-size-md);
-}
-
-.ui-avatar--lg {
-  --avatar-size: var(--avatar-size-lg);
-}
-
-.ui-avatar--xl {
-  --avatar-size: var(--avatar-size-xl);
-}
-
-.ui-avatar--2xl {
-  --avatar-size: var(--avatar-size-2xl);
-}
-
-.ui-avatar--3xl {
-  --avatar-size: var(--avatar-size-3xl);
-}
-
-.ui-avatar--circle {
-  border-radius: 50%;
-}
-
-.ui-avatar--rounded {
-  border-radius: 40%;
-}
+.ui-avatar--circle { border-radius: 50%; }
+.ui-avatar--rounded { border-radius: 36%; }
 
 .ui-avatar.has-color {
   background: var(--avatar-bg);
-  /* 头像色板文字色随主题（浅色主题深字、深色主题浅字） */
   color: var(--avatar-tint-text, #2A3547);
+}
+
+.ui-avatar.has-ring {
+  box-shadow: 0 0 0 2px var(--avatar-ring, var(--brand));
 }
 
 .ui-avatar.is-clickable {
@@ -63,8 +44,8 @@
 }
 
 .ui-avatar.is-clickable:focus-visible {
-  outline: var(--focus-width) solid var(--focus-color);
-  outline-offset: var(--focus-offset);
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
 }
 
 .ui-avatar-img {
@@ -99,6 +80,7 @@
   background: var(--status-danger);
   color: var(--on-danger);
   font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
   line-height: 1;
   transform: translate(50%, -50%);
 }
@@ -125,4 +107,8 @@
   .ui-avatar.is-clickable:hover {
     box-shadow: var(--elev-avatar-hover);
   }
+}
+
+.ui-avatar.is-clickable:active {
+  transform: scale(var(--press-scale, 0.97));
 }

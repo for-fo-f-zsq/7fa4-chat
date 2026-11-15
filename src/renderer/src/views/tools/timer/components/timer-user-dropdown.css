@@ -1,0 +1,218 @@
+.tm-picker {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  max-height: 380px;
+  border: var(--border-width) solid var(--line-hairline);
+  border-radius: var(--radius-xl);
+  background: var(--surface-glass);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--elev-3);
+  overflow: hidden;
+}
+
+.tm-picker.up {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.tm-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-3) 14px;
+  border-bottom: var(--border-width) solid var(--line-hairline);
+  flex-shrink: 0;
+}
+
+.tm-picker-search > i {
+  color: var(--fg-muted);
+  font-size: var(--text-base);
+}
+
+.tm-picker-search input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--text-base);
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+}
+
+.tm-picker-search input::placeholder {
+  color: var(--fg-placeholder);
+}
+
+.tm-picker-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.tm-picker-empty {
+  padding: var(--space-5) var(--space-3);
+  text-align: center;
+  font-size: var(--text-base);
+  color: var(--fg-muted);
+}
+
+.tm-picker-custom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  font: inherit;
+  font-size: var(--text-base);
+  text-align: left;
+  padding: 10px var(--space-3);
+  border: none;
+  border-radius: var(--radius-base);
+  background: transparent;
+  color: var(--brand);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo);
+}
+
+.tm-picker-custom:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring-inset);
+}
+
+@media (hover: hover) {
+  .tm-picker-custom:hover {
+    background: var(--brand-soft);
+  }
+}
+
+.tm-picker-custom:active {
+  transform: scale(0.99);
+}
+
+.tm-picker-custom-cur {
+  margin-left: auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+}
+
+.tm-picker-custom-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px var(--space-2) var(--space-2);
+}
+
+.tm-picker-custom-edit input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--text-base);
+  padding: var(--space-2) 10px;
+  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--brand);
+  background: var(--surface-2);
+  color: var(--fg);
+  outline: none;
+  box-shadow: var(--focus-halo);
+}
+
+.tm-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--text-base);
+  text-align: left;
+  padding: 10px var(--space-3);
+  border: none;
+  border-radius: var(--radius-base);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo);
+}
+
+.tm-picker-item:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring-inset);
+}
+
+@media (hover: hover) {
+  .tm-picker-item:hover {
+    background: var(--surface-hover);
+  }
+}
+
+.tm-picker-item:active {
+  transform: scale(0.99);
+}
+
+.tm-picker-item.sel {
+  background: var(--brand-soft);
+}
+
+.tm-picker-avatar {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+}
+
+.tm-picker-name {
+  flex-shrink: 0;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--weight-semibold);
+  color: var(--fg);
+}
+
+.tm-picker-meta {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.tm-picker-check {
+  flex-shrink: 0;
+  color: var(--brand);
+  font-size: var(--text-base);
+}
+
+.tm-picker-foot {
+  flex-shrink: 0;
+  padding: var(--space-2) 10px;
+  border-top: var(--border-width) solid var(--line-hairline);
+  display: flex;
+  justify-content: flex-end;
+}
+
+:global(.tm-tool.narrow) .tm-picker {
+  max-height: min(340px, 58vh);
+}

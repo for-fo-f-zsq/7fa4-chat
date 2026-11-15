@@ -1,7 +1,16 @@
+/* UiButton — 按钮原语（正常类特异性 + CSS 变量钩子，高质感深浅层次） */
 .ui-btn {
   --btn-h: var(--control-h-lg);
   --btn-px: var(--space-4);
   --btn-fs: var(--text-base);
+  --btn-radius: var(--radius-base);
+  --btn-bg: transparent;
+  --btn-fg: var(--fg);
+  --btn-border: transparent;
+  --btn-hover-bg: var(--surface-hover);
+  --btn-hover-fg: var(--fg);
+  --btn-hover-border: var(--btn-border);
+  --btn-active-bg: var(--surface-press);
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -9,10 +18,10 @@
   gap: var(--space-2);
   height: var(--btn-h);
   padding: 0 var(--btn-px);
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius-base);
-  background: transparent;
-  color: var(--fg);
+  border: var(--border-width) solid var(--btn-border);
+  border-radius: var(--btn-radius);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
   font-family: var(--font-sans);
   font-size: var(--btn-fs);
   font-weight: var(--weight-medium);
@@ -24,17 +33,18 @@
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   transition:
-    background var(--motion-dur-fast) var(--motion-ease-standard),
+    background-color var(--motion-dur-fast) var(--motion-ease-standard),
     border-color var(--motion-dur-fast) var(--motion-ease-standard),
     color var(--motion-dur-fast) var(--motion-ease-standard),
     box-shadow var(--motion-dur-fast) var(--motion-ease-standard),
-    transform var(--motion-dur-fast) var(--motion-ease-standard);
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo);
 }
 
 .ui-btn--sm {
   --btn-h: var(--control-h-sm);
   --btn-px: var(--space-3);
   --btn-fs: var(--text-sm);
+  --btn-radius: var(--radius-md);
 }
 
 .ui-btn--md {
@@ -50,7 +60,7 @@
 }
 
 .ui-btn--pill {
-  border-radius: var(--radius-pill);
+  --btn-radius: var(--radius-pill);
 }
 
 .ui-btn--block {
@@ -59,64 +69,83 @@
 }
 
 .ui-btn--primary {
-  background: var(--brand-fill);
-  border-color: transparent;
-  color: var(--on-brand);
+  --btn-bg: var(--brand-fill);
+  --btn-fg: var(--on-brand);
+  --btn-border: transparent;
+  --btn-hover-bg: var(--brand-fill-hover);
+  --btn-hover-fg: var(--on-brand);
+  --btn-active-bg: var(--brand-fill-active);
   box-shadow: var(--elev-brand);
 }
 
 .ui-btn--secondary {
-  background: var(--surface-2);
-  border-color: var(--line);
-  color: var(--fg);
+  --btn-bg: var(--surface-raised);
+  --btn-fg: var(--fg);
+  --btn-border: var(--line);
+  --btn-hover-bg: var(--surface-hover);
+  --btn-hover-fg: var(--fg);
+  --btn-hover-border: var(--line-strong);
+  --btn-active-bg: var(--surface-press);
+  box-shadow: var(--elev-pill);
+}
+
+.ui-btn--soft {
+  --btn-bg: var(--brand-soft);
+  --btn-fg: var(--brand);
+  --btn-border: transparent;
+  --btn-hover-bg: color-mix(in srgb, var(--brand-fill) 18%, transparent);
+  --btn-hover-fg: var(--brand-hover);
+  --btn-active-bg: color-mix(in srgb, var(--brand-fill) 24%, transparent);
 }
 
 .ui-btn--ghost {
-  background: transparent;
-  border-color: transparent;
-  color: var(--fg-muted);
+  --btn-bg: transparent;
+  --btn-fg: var(--fg-muted);
+  --btn-border: transparent;
+  --btn-hover-bg: var(--surface-hover);
+  --btn-hover-fg: var(--fg);
+  --btn-active-bg: var(--surface-press);
 }
 
 .ui-btn--text {
   padding-inline: var(--space-2);
-  background: transparent;
-  border-color: transparent;
-  color: var(--brand);
+  --btn-bg: transparent;
+  --btn-fg: var(--brand);
+  --btn-border: transparent;
+  --btn-hover-bg: var(--surface-hover);
+  --btn-hover-fg: var(--brand-hover);
+  --btn-active-bg: var(--surface-press);
 }
 
 .ui-btn--danger {
-  background: var(--status-danger);
-  border-color: transparent;
-  color: var(--on-danger);
+  --btn-bg: var(--status-danger);
+  --btn-fg: var(--on-danger);
+  --btn-border: transparent;
+  --btn-hover-bg: var(--status-danger-hover);
+  --btn-hover-fg: var(--on-danger-hover);
+  --btn-active-bg: var(--status-danger-hover);
   box-shadow: var(--elev-1);
 }
 
+.ui-btn--overlay {
+  --btn-bg: var(--surface-overlay-pill);
+  --btn-fg: var(--on-overlay);
+  --btn-border: var(--overlay-border);
+  --btn-hover-bg: var(--overlay-hover);
+  --btn-hover-fg: var(--on-overlay);
+  --btn-hover-border: var(--overlay-border);
+  --btn-active-bg: var(--overlay-active);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+
 .ui-btn:focus-visible {
-  outline: var(--focus-width) solid var(--focus-color);
-  outline-offset: var(--focus-offset);
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
 }
 
-.ui-btn:active:not(.is-disabled) {
-  transform: translateY(0);
-}
-
-.ui-btn--primary:active:not(.is-disabled) {
-  background: var(--brand-fill-active);
-  box-shadow: var(--elev-brand-press);
-}
-
-.ui-btn--secondary:active:not(.is-disabled) {
-  background: var(--surface-press);
-}
-
-.ui-btn--ghost:active:not(.is-disabled),
-.ui-btn--text:active:not(.is-disabled) {
-  background: var(--surface-press);
-}
-
-.ui-btn--danger:active:not(.is-disabled) {
-  background: var(--status-danger-hover);
-  color: var(--on-danger-hover);
+.ui-btn--overlay:focus-visible {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.72);
 }
 
 .ui-btn.is-loading {
@@ -154,36 +183,28 @@
 }
 
 @media (hover: hover) {
+  .ui-btn:hover:not(.is-disabled) {
+    background: var(--btn-hover-bg);
+    border-color: var(--btn-hover-border);
+    color: var(--btn-hover-fg);
+  }
+
   .ui-btn--primary:hover:not(.is-disabled) {
-    background: var(--brand-fill-hover);
     box-shadow: var(--elev-brand-hover);
-    transform: translateY(-1px);
-  }
-
-  .ui-btn--secondary:hover:not(.is-disabled) {
-    background: var(--surface-0);
-    border-color: var(--brand-line);
-    color: var(--brand);
-  }
-
-  .ui-btn--ghost:hover:not(.is-disabled) {
-    background: var(--surface-hover);
-    color: var(--fg);
-  }
-
-  .ui-btn--text:hover:not(.is-disabled) {
-    background: var(--surface-hover);
-    color: var(--brand-hover);
-  }
-
-  .ui-btn--danger:hover:not(.is-disabled) {
-    background: var(--status-danger-hover);
-    color: var(--on-danger-hover);
   }
 
   .ui-btn.is-disabled:hover {
     transform: none;
   }
+}
+
+.ui-btn:active:not(.is-disabled) {
+  background: var(--btn-active-bg);
+  transform: scale(var(--press-scale, 0.97));
+}
+
+.ui-btn--primary:active:not(.is-disabled) {
+  box-shadow: var(--elev-brand-press);
 }
 
 @media (pointer: coarse) {

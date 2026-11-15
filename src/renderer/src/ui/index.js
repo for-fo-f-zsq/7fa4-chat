@@ -21,6 +21,9 @@ import UiSwitch from './UiSwitch/UiSwitch.vue'
 import UiTabs from './UiTabs/UiTabs.vue'
 import UiTextarea from './UiTextarea/UiTextarea.vue'
 import UiTooltip from './UiTooltip/UiTooltip.vue'
+import UiSlider from './UiSlider/UiSlider.vue'
+import UiDialogHost from './UiDialogHost/UiDialogHost.vue'
+import UiToastHost from './UiToastHost/UiToastHost.vue'
 
 export {
   UiAvatar,
@@ -45,6 +48,9 @@ export {
   UiTabs,
   UiTextarea,
   UiTooltip,
+  UiSlider,
+  UiDialogHost,
+  UiToastHost,
 }
 
 const components = {
@@ -70,6 +76,9 @@ const components = {
   UiTabs,
   UiTextarea,
   UiTooltip,
+  UiSlider,
+  UiDialogHost,
+  UiToastHost,
 }
 
 export const Ui = {

@@ -1,5 +1,6 @@
 <template>
   <span
+    v-if="$slots.trigger"
     ref="triggerRef"
     class="ui-popover"
     :aria-expanded="open ? 'true' : 'false'"
@@ -18,6 +19,7 @@
         :id="panelId"
         ref="panelRef"
         class="ui-popover__panel"
+        :data-placement="actualPlacement"
         :style="panelStyle"
         @mouseenter="onPanelEnter"
         @mouseleave="onPanelLeave"
@@ -36,6 +38,7 @@ defineOptions({ name: 'UiPopover' })
 
 const props = defineProps({
   open: { type: Boolean, default: false },
+  anchor: { type: [Object, String], default: null },
   placement: { type: String, default: 'bottom' },
   offset: { type: Number, default: 6 },
   disabled: { type: Boolean, default: false },
@@ -47,6 +50,7 @@ const emit = defineEmits(['update:open'])
 const triggerRef = ref(null)
 const panelRef = ref(null)
 const panelStyle = ref({})
+const actualPlacement = ref(props.placement)
 const panelId = `${useId()}-panel`
 
 const GUTTER = 8
@@ -105,39 +109,63 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), Math.max(min, max))
 }
 
+function resolveAnchorRect() {
+  const value = props.anchor
+  if (value) {
+    if (typeof value === 'string') return document.querySelector(value)?.getBoundingClientRect() || null
+    if (typeof value.getBoundingClientRect === 'function') return value.getBoundingClientRect()
+    if (typeof value.x === 'number' && typeof value.y === 'number') {
+      return {
+        top: value.y,
+        bottom: value.y,
+        left: value.x,
+        right: value.x,
+        width: 0,
+        height: 0
+      }
+    }
+  }
+  return triggerRef.value ? triggerRef.value.getBoundingClientRect() : null
+}
+
 function updatePosition() {
-  const trigger = triggerRef.value
   const panel = panelRef.value
-  if (!trigger || !panel) return
-  const anchor = trigger.getBoundingClientRect()
+  const anchor = resolveAnchorRect()
+  if (!anchor || !panel) return
   const width = panel.offsetWidth
   const height = panel.offsetHeight
   const vw = window.innerWidth
   const vh = window.innerHeight
   const offset = props.offset
-  let placement = props.placement
+  const [rawSide, align = 'center'] = String(props.placement || 'bottom').split('-')
+  let side = ['top', 'bottom', 'left', 'right'].includes(rawSide) ? rawSide : 'bottom'
   let top = 0
   let left = 0
 
-  if (placement === 'left' || placement === 'right') {
+  if (side === 'left' || side === 'right') {
     const spaceRight = vw - anchor.right - GUTTER
     const spaceLeft = anchor.left - GUTTER
-    if (placement === 'right' && width + offset > spaceRight && spaceLeft > spaceRight) placement = 'left'
-    if (placement === 'left' && width + offset > spaceLeft && spaceRight > spaceLeft) placement = 'right'
-    left = placement === 'right' ? anchor.right + offset : anchor.left - offset - width
-    top = anchor.top + anchor.height / 2 - height / 2
+    if (side === 'right' && width + offset > spaceRight && spaceLeft > spaceRight) side = 'left'
+    if (side === 'left' && width + offset > spaceLeft && spaceRight > spaceLeft) side = 'right'
+    left = side === 'right' ? anchor.right + offset : anchor.left - offset - width
+    if (align === 'start') top = anchor.top
+    else if (align === 'end') top = anchor.bottom - height
+    else top = anchor.top + anchor.height / 2 - height / 2
   } else {
     const spaceBelow = vh - anchor.bottom - GUTTER
     const spaceAbove = anchor.top - GUTTER
-    if (placement === 'bottom' && height + offset > spaceBelow && spaceAbove > spaceBelow) placement = 'top'
-    if (placement === 'top' && height + offset > spaceAbove && spaceBelow > spaceAbove) placement = 'bottom'
-    top = placement === 'bottom' ? anchor.bottom + offset : anchor.top - offset - height
-    left = anchor.left + anchor.width / 2 - width / 2
+    if (side === 'bottom' && height + offset > spaceBelow && spaceAbove > spaceBelow) side = 'top'
+    if (side === 'top' && height + offset > spaceAbove && spaceBelow > spaceAbove) side = 'bottom'
+    top = side === 'bottom' ? anchor.bottom + offset : anchor.top - offset - height
+    if (align === 'start') left = anchor.left
+    else if (align === 'end') left = anchor.right - width
+    else left = anchor.left + anchor.width / 2 - width / 2
   }
 
+  actualPlacement.value = align === 'center' ? side : `${side}-${align}`
   panelStyle.value = {
-    top: `${clamp(top, GUTTER, vh - height - GUTTER)}px`,
-    left: `${clamp(left, GUTTER, vw - width - GUTTER)}px`
+    top: `${clamp(top, GUTTER, Math.max(GUTTER, vh - height - GUTTER))}px`,
+    left: `${clamp(left, GUTTER, Math.max(GUTTER, vw - width - GUTTER))}px`
   }
 }
 
@@ -201,7 +229,7 @@ watch(
   }
 )
 
-watch([() => props.placement, () => props.offset], () => {
+watch([() => props.anchor, () => props.placement, () => props.offset], () => {
   if (props.open) updatePosition()
 })
 
@@ -211,4 +239,4 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped src="./UiPopover.css"></style>
+<style src="./UiPopover.css"></style>

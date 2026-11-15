@@ -1,0 +1,233 @@
+.md-workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.md-pane {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+}
+
+.md-pane-editor {
+  flex-direction: row;
+}
+
+.md-gutter {
+  order: -1;
+  flex: none;
+  width: 44px;
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-1);
+  border-right: var(--border-width) solid var(--line-hairline);
+  user-select: none;
+}
+
+.md-gutter :deep(.md-gutter-num) {
+  position: absolute;
+  right: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+.md-source {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-0);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  line-height: 1.6;
+  tab-size: 4;
+  caret-color: var(--brand);
+}
+
+.md-source::placeholder {
+  color: var(--fg-placeholder);
+}
+
+.md-source::selection {
+  background: var(--brand-soft);
+}
+
+.md-divider {
+  position: relative;
+  flex: none;
+  width: 5px;
+  cursor: col-resize;
+  background: var(--line-hairline);
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+.md-divider::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  background: var(--fg-placeholder);
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  transition: opacity var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+.md-divider:hover,
+.md-divider:active {
+  background: var(--brand);
+}
+
+.md-divider:hover::after,
+.md-divider:active::after {
+  opacity: 0.7;
+}
+
+.md-pane-preview {
+  flex-direction: column;
+}
+
+.md-preview {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface-0);
+  color: var(--fg);
+  font-size: var(--text-base);
+  line-height: 1.7;
+  border-left: var(--border-width) solid var(--line-hairline);
+  word-break: break-word;
+}
+
+.md-statusbar {
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-3);
+  border-top: var(--border-width) solid var(--line-hairline);
+  border-bottom: none;
+  background: var(--surface-1);
+}
+
+.md-stats {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.md-status-right {
+  margin-left: auto;
+}
+
+.md-preview :deep(h1),
+.md-preview :deep(h2),
+.md-preview :deep(h3),
+.md-preview :deep(h4),
+.md-preview :deep(h5),
+.md-preview :deep(h6) {
+  margin: 1em 0 0.5em;
+  line-height: 1.3;
+  color: var(--fg);
+}
+
+.md-preview :deep(h1) {
+  font-size: 1.7em;
+  border-bottom: var(--border-width) solid var(--line);
+  padding-bottom: 0.3em;
+}
+
+.md-preview :deep(h2) {
+  font-size: 1.4em;
+  border-bottom: var(--border-width) solid var(--line);
+  padding-bottom: 0.25em;
+}
+
+.md-preview :deep(h3) {
+  font-size: 1.2em;
+}
+
+.md-preview :deep(p) {
+  margin: 0.6em 0;
+}
+
+.md-preview :deep(ul),
+.md-preview :deep(ol) {
+  padding-left: 1.6em;
+  margin: 0.6em 0;
+}
+
+.md-preview :deep(li) {
+  margin: 0.2em 0;
+}
+
+.md-preview :deep(a) {
+  color: var(--fg-link);
+}
+
+.md-preview :deep(blockquote) {
+  border-left: 3px solid var(--line-subtle);
+  padding-left: var(--space-3);
+  margin: 0.8em 0;
+  color: var(--fg-muted);
+}
+
+.md-preview :deep(code) {
+  background: var(--surface-code-inline);
+  padding: 2px 6px;
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.md-preview :deep(pre) {
+  background: var(--bg-code-block);
+  padding: var(--space-3) 14px;
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  margin: 0.8em 0;
+}
+
+.md-preview :deep(pre code) {
+  background: transparent;
+  padding: 0;
+}
+
+.md-preview :deep(table) {
+  border-collapse: collapse;
+  margin: 0.8em 0;
+}
+
+.md-preview :deep(th),
+.md-preview :deep(td) {
+  border: var(--border-width) solid var(--line-subtle);
+  padding: 6px var(--space-3);
+}
+
+.md-preview :deep(th) {
+  background: var(--surface-table-head);
+}
+
+.md-preview :deep(img) {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+}
+
+.md-preview :deep(hr) {
+  border: none;
+  border-top: var(--border-width) solid var(--line);
+  margin: 1.2em 0;
+}

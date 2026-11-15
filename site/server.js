@@ -57,14 +57,24 @@ const MIME = {
 /* ---------------------------------------------------------------- 缓存 */
 
 const cache = new Map(); // key -> { t: number, v: any }
+const inflight = new Map(); // key -> Promise<any>
 
 async function cached(key, ttlMs, producer) {
   const hit = cache.get(key);
   const now = Date.now();
   if (hit && now - hit.t < ttlMs) return hit.v;
-  const value = await producer();
-  cache.set(key, { t: now, v: value });
-  return value;
+  if (inflight.has(key)) return inflight.get(key);
+  const p = (async () => {
+    try {
+      const value = await producer();
+      cache.set(key, { t: Date.now(), v: value });
+      return value;
+    } finally {
+      inflight.delete(key);
+    }
+  })();
+  inflight.set(key, p);
+  return p;
 }
 
 /* ------------------------------------------------------------ GitLab 访问 */
@@ -81,21 +91,24 @@ function rawFileUrl(filePath) {
 }
 
 async function glFetch(url, options = {}) {
+  const { timeoutMs, ...rest } = options;
+  const signal = rest.signal || (timeoutMs > 0 ? AbortSignal.timeout(timeoutMs) : undefined);
   const res = await fetch(url, {
-    ...options,
-    headers: { 'User-Agent': '7fa4-chat-site/1.0', ...(options.headers || {}) }
+    ...rest,
+    ...(signal ? { signal } : {}),
+    headers: { 'User-Agent': '7fa4-chat-site/1.0', ...(rest.headers || {}) }
   });
   return res;
 }
 
 async function glJson(url) {
-  const res = await glFetch(url);
+  const res = await glFetch(url, { timeoutMs: 15000 });
   if (!res.ok) throw new Error(`GitLab ${res.status} for ${url}`);
   return res.json();
 }
 
 async function glText(url) {
-  const res = await glFetch(url);
+  const res = await glFetch(url, { timeoutMs: 15000 });
   if (!res.ok) throw new Error(`GitLab ${res.status} for ${url}`);
   return res.text();
 }
@@ -269,12 +282,19 @@ function serveWeb(req, res, pathname) {
   });
 }
 
+const SEC_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'X-Frame-Options': 'SAMEORIGIN'
+};
+
 function sendJson(res, status, payload, extraHeaders) {
   const body = Buffer.from(JSON.stringify(payload));
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': body.length,
     'Cache-Control': 'no-store',
+    ...SEC_HEADERS,
     ...(extraHeaders || {})
   });
   res.end(body);
@@ -285,9 +305,33 @@ function sendText(res, status, text, contentType, extraHeaders) {
   res.writeHead(status, {
     'Content-Type': contentType,
     'Content-Length': body.length,
+    ...SEC_HEADERS,
     ...(extraHeaders || {})
   });
   res.end(body);
+}
+
+function sendNotFound(req, res, pathname) {
+  const ext = path.extname(pathname || '').toLowerCase();
+  const wantsHtml = req.method === 'GET' && (!ext || ext === '.html');
+  if (wantsHtml) {
+    const page404 = path.join(PUBLIC_DIR, '404.html');
+    fs.readFile(page404, (err, buf) => {
+      if (err) {
+        sendText(res, 404, 'Not Found', 'text/plain; charset=utf-8');
+        return;
+      }
+      res.writeHead(404, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Length': buf.length,
+        'Cache-Control': 'no-cache',
+        ...SEC_HEADERS
+      });
+      res.end(buf);
+    });
+    return;
+  }
+  sendText(res, 404, 'Not Found', 'text/plain; charset=utf-8');
 }
 
 function serveStatic(req, res, absPath, pathname) {
@@ -296,7 +340,7 @@ function serveStatic(req, res, absPath, pathname) {
       const idx = path.join(absPath, 'index.html');
       fs.stat(idx, (idxErr, idxSt) => {
         if (idxErr || !idxSt.isFile()) {
-          sendText(res, 404, 'Not Found', 'text/plain; charset=utf-8');
+          sendNotFound(req, res, pathname);
           return;
         }
         // 新增的任何子页面目录（如 /docs -> docs/），缺末尾斜杠时做相对 308 重定向，兼容反代子路径
@@ -313,7 +357,7 @@ function serveStatic(req, res, absPath, pathname) {
       return;
     }
     if (err || !st.isFile()) {
-      sendText(res, 404, 'Not Found', 'text/plain; charset=utf-8');
+      sendNotFound(req, res, pathname);
       return;
     }
     serveFile(req, res, absPath, st);
@@ -324,16 +368,30 @@ function serveFile(req, res, absPath, st) {
   const ext = path.extname(absPath).toLowerCase();
   const type = MIME[ext] || 'application/octet-stream';
   const isHtml = ext === '.html';
-  res.writeHead(200, {
+  const headers = {
     'Content-Type': type,
     'Content-Length': st.size,
-    'Cache-Control': isHtml ? 'no-cache' : 'public, max-age=86400'
-  });
+    'Cache-Control': isHtml ? 'no-cache' : 'public, max-age=86400',
+    ...SEC_HEADERS
+  };
   if (req.method === 'HEAD') {
+    res.writeHead(200, headers);
     res.end();
     return;
   }
-  fs.createReadStream(absPath).pipe(res);
+  const stream = fs.createReadStream(absPath);
+  stream.on('open', () => {
+    if (!res.headersSent) res.writeHead(200, headers);
+    stream.pipe(res);
+  });
+  stream.on('error', (err) => {
+    console.error('[site] serveFile failed:', absPath, err.message);
+    if (!res.headersSent) {
+      sendText(res, 500, 'Internal Server Error', 'text/plain; charset=utf-8');
+    } else if (!res.destroyed) {
+      res.destroy();
+    }
+  });
 }
 
 /* --------------------------------------------------------- 下载流式转发 */

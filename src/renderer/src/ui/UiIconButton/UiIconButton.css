@@ -1,6 +1,15 @@
+/* UiIconButton — 图标按钮原语（正常类特异性 + CSS 变量钩子，外部样式可平滑覆写） */
 .ui-icon-btn {
   --ibtn-size: var(--control-h-md);
   --ibtn-icon: var(--icon-lg);
+  --ibtn-radius: var(--radius-md);
+  --ibtn-bg: transparent;
+  --ibtn-fg: var(--fg-muted);
+  --ibtn-border: transparent;
+  --ibtn-hover-bg: var(--surface-hover);
+  --ibtn-hover-fg: var(--fg);
+  --ibtn-hover-border: var(--ibtn-border);
+  --ibtn-active-bg: var(--surface-press);
   position: relative;
   display: inline-flex;
   flex: none;
@@ -9,10 +18,10 @@
   width: var(--ibtn-size);
   height: var(--ibtn-size);
   padding: 0;
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--fg-muted);
+  border: var(--border-width) solid var(--ibtn-border);
+  border-radius: var(--ibtn-radius);
+  background: var(--ibtn-bg);
+  color: var(--ibtn-fg);
   font-size: var(--ibtn-icon);
   line-height: 1;
   cursor: pointer;
@@ -20,11 +29,11 @@
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   transition:
-    background var(--motion-dur-fast) var(--motion-ease-standard),
+    background-color var(--motion-dur-fast) var(--motion-ease-standard),
     border-color var(--motion-dur-fast) var(--motion-ease-standard),
     color var(--motion-dur-fast) var(--motion-ease-standard),
     box-shadow var(--motion-dur-fast) var(--motion-ease-standard),
-    transform var(--motion-dur-fast) var(--motion-ease-standard);
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo);
 }
 
 .ui-icon-btn--sm {
@@ -43,47 +52,75 @@
 }
 
 .ui-icon-btn--round {
-  border-radius: var(--radius-pill);
+  --ibtn-radius: var(--radius-pill);
 }
 
 .ui-icon-btn--ghost {
-  background: transparent;
-  color: var(--fg-muted);
+  --ibtn-bg: transparent;
+  --ibtn-fg: var(--fg-muted);
+  --ibtn-hover-bg: var(--surface-hover);
+  --ibtn-hover-fg: var(--fg);
 }
 
 .ui-icon-btn--soft {
-  background: var(--surface-2);
-  color: var(--fg);
+  --ibtn-bg: var(--surface-2);
+  --ibtn-fg: var(--fg);
+  --ibtn-hover-bg: var(--surface-hover);
+  --ibtn-hover-fg: var(--fg);
 }
 
 .ui-icon-btn--solid {
-  background: var(--brand-fill);
-  color: var(--on-brand);
+  --ibtn-bg: var(--brand-fill);
+  --ibtn-fg: var(--on-brand);
+  --ibtn-hover-bg: var(--brand-fill-hover);
+  --ibtn-hover-fg: var(--on-brand);
+  --ibtn-active-bg: var(--brand-fill-active);
   box-shadow: var(--elev-brand);
 }
 
+.ui-icon-btn--overlay {
+  --ibtn-bg: transparent;
+  --ibtn-fg: var(--on-overlay);
+  --ibtn-hover-bg: var(--overlay-hover);
+  --ibtn-hover-fg: var(--on-overlay);
+  --ibtn-active-bg: var(--overlay-active);
+}
+
 .ui-icon-btn--danger {
-  color: var(--status-danger);
+  --ibtn-fg: var(--status-danger-ink);
+  --ibtn-hover-bg: var(--status-danger-soft);
+  --ibtn-hover-fg: var(--status-danger-ink);
 }
 
 .ui-icon-btn--danger.ui-icon-btn--solid {
-  background: var(--status-danger);
-  color: var(--on-danger);
+  --ibtn-bg: var(--status-danger);
+  --ibtn-fg: var(--on-danger);
+  --ibtn-hover-bg: var(--status-danger-hover);
+  --ibtn-hover-fg: var(--on-danger-hover);
   box-shadow: var(--elev-1);
 }
 
 .ui-icon-btn.is-active {
-  background: var(--brand-soft);
-  color: var(--brand);
+  --ibtn-bg: var(--brand-soft);
+  --ibtn-fg: var(--brand);
+  --ibtn-hover-bg: var(--brand-soft);
+  --ibtn-hover-fg: var(--brand);
+}
+
+.ui-icon-btn--overlay.is-active {
+  --ibtn-bg: var(--overlay-active);
+  --ibtn-fg: var(--on-overlay);
+  --ibtn-hover-bg: var(--overlay-active);
+  --ibtn-hover-fg: var(--on-overlay);
 }
 
 .ui-icon-btn:focus-visible {
-  outline: var(--focus-width) solid var(--focus-color);
-  outline-offset: var(--focus-offset);
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
 }
 
-.ui-icon-btn:active:not(.is-disabled) {
-  transform: scale(0.96);
+.ui-icon-btn--overlay:focus-visible {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.72);
 }
 
 .ui-icon-btn.is-disabled {
@@ -121,33 +158,25 @@
   border-radius: var(--radius-pill);
   background: var(--status-danger);
   color: var(--on-danger);
+  box-shadow: 0 0 0 1.5px var(--surface-0);
   font-size: var(--text-2xs);
   font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
   line-height: 1;
   pointer-events: none;
 }
 
 @media (hover: hover) {
-  .ui-icon-btn--ghost:hover:not(.is-disabled) {
-    background: var(--surface-hover);
-    color: var(--fg);
+  .ui-icon-btn:hover:not(.is-disabled) {
+    background: var(--ibtn-hover-bg);
+    border-color: var(--ibtn-hover-border);
+    color: var(--ibtn-hover-fg);
   }
+}
 
-  .ui-icon-btn--soft:hover:not(.is-disabled) {
-    background: var(--surface-hover);
-  }
-
-  .ui-icon-btn--solid:hover:not(.is-disabled) {
-    background: var(--brand-fill-hover);
-  }
-
-  .ui-icon-btn--danger:hover:not(.is-disabled) {
-    background: var(--status-danger-soft);
-  }
-
-  .ui-icon-btn.is-active:hover:not(.is-disabled) {
-    background: var(--brand-soft);
-  }
+.ui-icon-btn:active:not(.is-disabled) {
+  background: var(--ibtn-active-bg);
+  transform: scale(var(--press-scale, 0.97));
 }
 
 @media (pointer: coarse) {

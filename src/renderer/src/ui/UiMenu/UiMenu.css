@@ -1,4 +1,4 @@
-/* UiMenu — 菜单样式；只消费 tokens/motion 语义令牌。 */
+/* UiMenu — 菜单样式；方向感知展开。 */
 .ui-menu {
   display: flex;
   flex-direction: column;
@@ -7,9 +7,9 @@
   overflow-y: auto;
   padding: var(--space-1);
   background: var(--surface-raised);
-  border: var(--border-width) solid var(--line);
+  border: var(--border-width) solid var(--line-hairline);
   border-radius: var(--radius-xl);
-  box-shadow: var(--elev-2);
+  box-shadow: var(--elev-pop);
   color: var(--fg);
   font-size: var(--text-md);
   line-height: var(--leading-snug);
@@ -35,12 +35,9 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-}
-
-@media (hover: hover) {
-  .ui-menu__item:hover {
-    background: var(--surface-hover);
-  }
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    color var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo);
 }
 
 .ui-menu__item.is-active {
@@ -49,12 +46,33 @@
 }
 
 .ui-menu__item.is-danger {
-  color: var(--status-danger);
+  color: var(--status-danger-ink);
 }
 
 .ui-menu__item.is-danger.is-active {
   background: var(--status-danger-soft);
-  color: var(--status-danger);
+  color: var(--status-danger-ink);
+}
+
+@media (hover: hover) {
+  .ui-menu__item:hover:not(.is-disabled) {
+    background: var(--surface-hover);
+  }
+
+  .ui-menu__item.is-danger:hover:not(.is-disabled) {
+    background: var(--status-danger-soft);
+    color: var(--status-danger-ink);
+  }
+}
+
+.ui-menu__item:active:not(.is-disabled) {
+  background: var(--surface-press);
+  transform: scale(0.985);
+}
+
+.ui-menu__item.is-danger:active:not(.is-disabled) {
+  background: var(--status-danger-soft);
+  transform: scale(0.985);
 }
 
 .ui-menu__item.is-disabled {
@@ -64,8 +82,8 @@
 }
 
 .ui-menu__item:focus-visible {
-  outline: var(--focus-width) solid var(--focus-color);
-  outline-offset: calc(var(--focus-offset) * -1);
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring-inset);
 }
 
 .ui-menu__icon {
@@ -77,6 +95,10 @@
 
 .ui-menu__item.is-active .ui-menu__icon {
   color: var(--brand);
+}
+
+.ui-menu__item.is-danger .ui-menu__icon {
+  color: currentColor;
 }
 
 .ui-menu__label {

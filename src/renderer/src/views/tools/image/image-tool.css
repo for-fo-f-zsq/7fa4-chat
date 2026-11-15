@@ -1,236 +1,90 @@
 /**
- * 图片编辑工具（ImageTool.vue）自有样式 —— 仅本组件以 `<style scoped src>` 引入
- *
- * 历史：本文件原为 `ide-tool.css`，由 MarkdownTool + ImageTool 共享。
- * P2-E 起按组件拆分：
- *   - Markdown 相关段（md-name-* / md-preview / md-tool-body .md-editor）已迁入
- *     `views/tools/markdown-tool.css`；
- *   - 工具列表页段（.tools-page/.tools-header/.tools-grid/.tool-card）已迁入
- *     `css/tools.css`（ToolsView 专用）；
- *   - `.md-back-btn` 与 base.css 重复，已删除（返回按钮归 BackButton 组件）；
- *   - `.ide-host` 已迁入 `css/tool-shell.css` / `css/tool-host.css`。
- * 本文件现只保留 ImageTool 用到的「工具外壳 + 图片编辑器」段。
- * 文件名保留 ide-tool.css 是为了不破坏 tmp/audit 的 OWNER_MAP 归属映射。
- *
- * 全部颜色 / 圆角 / 动效走设计令牌，禁止裸色值 / 裸时长 / 裸缓动。
+ * 图片编辑工具（ImageTool.vue）自有样式
  */
 
-/* ---- 工具外壳（Markdown / 图片共用结构的 ImageTool 副本） ---- */
-
-.md-tool {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
+.img-tool-wrap {
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  background: var(--gradient-panel);
 }
 
-.md-tool-header {
-  padding: 10px var(--space-4);
-  border-bottom: 1px solid var(--line);
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.md-workspace-bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  font-size: var(--text-sm);
-  color: var(--fg-muted);
-  min-width: 0;
-}
-
-.md-workspace-bar > i {
-  flex-shrink: 0;
-  color: var(--brand);
-}
-
-.md-workspace-path {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  direction: rtl;
-  text-align: left;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  padding: var(--space-1) 10px;
-  color: var(--fg);
-}
-
-/* 工作区按钮（打开/新建/保存/发送）改用 UiIconButton / UiButton，视觉由原语负责 */
-.md-tool-body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  padding: var(--space-3) var(--space-4);
-  gap: var(--space-3);
-}
-
-/* 窄模式（手机比例）：分屏改为上下堆叠 */
-.md-tool.narrow .md-tool-body {
-  flex-direction: column;
-}
-
-/* ---- 图片编辑工具（画图） ---- */
-
-/* 空状态：UiEmptyState 负责视觉，这里只让它占满编辑区 */
 .img-tool-empty {
   flex: 1;
   justify-content: center;
+  border: 2px dashed var(--line-hairline);
+  border-radius: var(--radius-xl);
+  margin: var(--space-4);
+  background: var(--surface-0);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.img-tool-empty.is-drag-over {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.empty-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .img-editor {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.img-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: var(--space-2) var(--space-3);
-  border-bottom: 1px solid var(--line);
-  flex-shrink: 0;
-  /* 窄窗口单行横向滚动，避免按钮换行堆叠 */
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: thin;
-}
-
-.img-toolbar::-webkit-scrollbar {
-  height: 4px;
-}
-
-.img-toolbar::-webkit-scrollbar-thumb {
-  background: var(--line);
-  border-radius: 2px;
-}
-
-.img-toolbar > * {
-  flex-shrink: 0;
-}
-
-.img-tool-sep {
-  width: 1px;
-  height: 22px;
-  background: var(--line);
-  margin: 0 var(--space-1);
-}
-
-.img-resize {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
-  padding: 2px 6px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-}
-
-/* 尺寸输入：UiInput 负责视觉，这里只限定宽度 */
-.img-resize-input {
-  width: 52px;
-}
-
-.img-resize-x {
-  color: var(--fg-muted);
-}
-
-.img-zoom {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px var(--space-1);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface-raised);
-}
-
-/* 缩放 −/+/适配按钮改用 UiIconButton，百分比改用 UiButton(text) */
-
-.img-color-label input[type='color'] {
-  width: 30px;
-  height: 26px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  cursor: pointer;
-  padding: 0;
-}
-
-.img-brush-size {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--fg-muted);
-}
-
-.img-brush-size input[type='range'] {
-  width: 90px;
-}
-
-.img-size-val {
-  font-size: var(--text-sm);
-  min-width: 18px;
-  text-align: center;
-}
-
-/* 透明区域棋盘格：用主题线色 / 页面底色绘制，暗色主题下不再刺眼 */
-.img-canvas-wrap {
-  flex: 1;
-  min-height: 0;
-  display: block;
-  overflow: auto;
-  background: repeating-conic-gradient(var(--line) 0% 25%, var(--surface-0) 0% 50%) 0 0 / 16px 16px;
+  border: var(--border-width) solid var(--line-hairline);
+  border-radius: var(--radius-xl);
+  background: var(--surface-0);
+  box-shadow: var(--elev-1);
+  overflow: hidden;
   position: relative;
 }
 
-.img-canvas {
-  display: block;
-  margin: 0 auto;
-  background: var(--surface-0);
-  box-shadow: var(--elev-1);
-  cursor: crosshair;
-  touch-action: none;
-}
-
-.img-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  background: var(--surface-0);
-  color: var(--fg-muted);
-  font-size: var(--text-base);
-}
-
 .img-footer {
+  width: 100%;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-top: 0;
+  background: transparent;
+  padding: 0 var(--space-1);
+  flex-wrap: wrap;
+}
+
+.img-footer-zoom {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: var(--space-2) var(--space-3);
-  border-top: 1px solid var(--line);
+  gap: var(--space-1);
+  flex: 0 1 300px;
+  min-width: 190px;
+  color: var(--fg-muted);
+}
+
+.img-zoom-slider {
+  flex: 1;
+  min-width: 60px;
+}
+
+.img-zoom-slider :deep(.ui-slider__input) {
+  height: 3px;
+}
+
+.ui-btn.img-zoom-value {
+  --btn-px: var(--space-2);
   flex-shrink: 0;
+  min-width: 44px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
 }
 
 .img-meta {
-  font-size: var(--text-sm);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
   color: var(--fg-muted);
   min-width: 0;
   overflow: hidden;
@@ -238,78 +92,7 @@
   white-space: nowrap;
 }
 
-/* #8 图片文字工具 */
-.img-text-overlay {
-  position: absolute;
-  z-index: var(--z-header);
-}
-
-.img-text-toolbar {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  background: var(--surface-0);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--elev-3);
-  padding: var(--space-1);
-  margin-bottom: 3px;
-  width: max-content;
-}
-
-/* 字号输入：UiInput 负责视觉，这里只限定宽度 */
-.img-text-size {
-  width: 52px;
-}
-
-.img-text-toolbar label {
-  display: inline-flex;
-  align-items: center;
-  cursor: pointer;
-}
-
-.img-text-toolbar label input[type='color'] {
-  width: 26px;
-  height: 26px;
-  border: none;
-  padding: 0;
-  background: none;
-  cursor: pointer;
-}
-
-.img-text-editor {
-  background: color-mix(in srgb, var(--surface-0) 35%, transparent);
-  border: 1px dashed var(--brand);
-  border-radius: var(--radius-xs);
-  padding: var(--space-1) 6px;
-  outline: none;
-  min-width: 120px;
-  min-height: 36px;
-  overflow: hidden;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-/* 画笔粗细预览圆点：尺寸由模板内联 font-size 控制，这里只保证它不被 flex 压缩 */
-.img-size-icon {
-  flex-shrink: 0;
-}
-
-/* 保存状态文字：归属工具页（CONTRACT §3.3 从 base.css 迁出；全局副本可由 Lead 删除）。
-   is-clean / is-dirty 由 utils.toolSaveState() 动态提供，audit 静态扫描可能误报孤儿。 */
-.tool-save-state {
-  flex-shrink: 0;
-  font-size: var(--text-xs);
-  white-space: nowrap;
-}
-
-.tool-save-state.is-clean {
-  color: var(--status-success);
-}
-
-.tool-save-state.is-dirty {
-  color: var(--status-warning);
+.img-footer-hint {
+  font-size: var(--text-2xs);
+  color: var(--fg-subtle);
 }

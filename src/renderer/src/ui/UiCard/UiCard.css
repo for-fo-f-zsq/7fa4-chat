@@ -1,3 +1,4 @@
+/* UiCard — 卡片容器原语；发丝线边框 + 轻抬升阴影与悬停反馈。 */
 .ui-card {
   --card-pad: var(--space-4);
   --card-gap: var(--space-3);
@@ -5,17 +6,18 @@
   flex-direction: column;
   gap: var(--card-gap);
   padding: var(--card-pad);
-  border: var(--border-width) solid var(--line);
+  border: var(--border-width) solid var(--line-hairline);
   border-radius: var(--radius-xl);
   background: var(--surface-card);
+  box-shadow: var(--elev-1);
   color: var(--fg);
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: var(--leading-normal);
   transition:
-    box-shadow var(--motion-dur-base) var(--motion-ease-standard),
+    box-shadow var(--motion-dur-base) var(--motion-ease-out-expo),
     border-color var(--motion-dur-base) var(--motion-ease-standard),
-    transform var(--motion-dur-base) var(--motion-ease-standard);
+    transform var(--motion-dur-base) var(--motion-ease-out-expo);
 }
 
 .ui-card--sm {
@@ -38,8 +40,8 @@
 }
 
 .ui-card.is-clickable:focus-visible {
-  outline: var(--focus-width) solid var(--focus-color);
-  outline-offset: var(--focus-offset);
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
 }
 
 .ui-card-header {
@@ -67,7 +69,11 @@
   .ui-card.is-interactive:hover,
   .ui-card.is-clickable:hover {
     border-color: var(--line-strong);
-    box-shadow: var(--elev-1);
-    transform: translateY(-1px);
+    box-shadow: var(--elev-1-hover);
+    transform: translateY(-2px);
   }
+}
+
+.ui-card.is-clickable:active {
+  transform: scale(0.99);
 }

@@ -1,3 +1,4 @@
+/* UiSwitch — 开关原语样式；spring 滑块 + --focus-ring。 */
 .ui-switch {
   --switch-w: var(--switch-w-md);
   --switch-h: var(--switch-h-md);
@@ -11,7 +12,7 @@
   gap: var(--space-2);
   padding: 0;
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--fg);
   font-family: var(--font-sans);
@@ -38,7 +39,10 @@
   padding: var(--switch-pad);
   border-radius: var(--radius-pill);
   background: var(--line);
-  transition: background var(--motion-dur-fast) var(--motion-ease-standard);
+  background: color-mix(in srgb, var(--fg) 16%, var(--surface-card));
+  box-shadow: inset 0 0 0 1px var(--line-hairline);
+  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-dur-fast) var(--motion-ease-standard);
 }
 
 .ui-switch-knob {
@@ -47,22 +51,22 @@
   height: var(--switch-knob);
   border-radius: 50%;
   background: var(--surface-toggle-knob);
-  box-shadow: var(--elev-1);
+  box-shadow: var(--elev-pill);
   transform: translateX(0);
-  transition: transform var(--motion-dur-fast) var(--motion-ease-standard);
+  transition: transform var(--motion-dur-base) var(--motion-ease-spring);
 }
 
 .ui-switch.is-checked .ui-switch-track {
   background: var(--brand-fill);
+  box-shadow: none;
 }
 
 .ui-switch.is-checked .ui-switch-knob {
   transform: translateX(var(--switch-travel));
 }
 
-.ui-switch:focus-visible {
-  outline: var(--focus-width) solid var(--focus-color);
-  outline-offset: var(--focus-offset);
+.ui-switch:focus-visible .ui-switch-track {
+  box-shadow: var(--focus-ring);
 }
 
 .ui-switch.is-disabled {

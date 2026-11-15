@@ -1,0 +1,394 @@
+/* 图编辑器侧栏：图结构 / 物理布局 / 算法分析三块面板 */
+
+.graph-sidebar-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+  background: var(--surface-1);
+}
+
+.graph-sidebar-tabs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+}
+
+/* 标签：三个页签均分宽度，禁止溢出裁剪 */
+.graph-sidebar-tabs :deep(.ui-tabs__list) {
+  display: flex;
+  align-items: stretch;
+  padding: 0 var(--space-2);
+  background: var(--surface-1);
+  border-bottom: var(--border-width) solid var(--line-hairline);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.graph-sidebar-tabs :deep(.ui-tabs__tab) {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+  padding: var(--space-2) var(--space-1);
+  font-size: var(--text-xs);
+  gap: var(--space-1);
+}
+
+.graph-sidebar-tabs :deep(.ui-tabs__label) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graph-sidebar-tabs :deep(.ui-tabs__icon) {
+  flex-shrink: 0;
+}
+
+.graph-sidebar-tabs :deep(.ui-tabs__panel) {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  outline: none;
+}
+
+.graph-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  min-width: 0;
+}
+
+/* ---------- 区块卡片 ---------- */
+.graph-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+  background: var(--surface-0);
+  border: var(--border-width) solid var(--line-hairline);
+  border-radius: var(--radius-lg);
+}
+
+.graph-block-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--fg);
+  user-select: none;
+}
+
+.graph-block-head i {
+  color: var(--brand);
+  font-size: var(--text-2xs);
+}
+
+.graph-block-hint {
+  margin-left: auto;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-regular);
+  color: var(--fg-subtle);
+  white-space: nowrap;
+}
+
+/* ---------- 表单元素 ---------- */
+.graph-field-label {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  user-select: none;
+  min-width: 0;
+}
+
+.graph-field-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.graph-field-row .graph-field-label {
+  flex: 1;
+}
+
+.graph-field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.graph-field-grid.is-single {
+  grid-template-columns: 1fr;
+}
+
+.graph-field-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.graph-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.graph-switch-row {
+  display: flex;
+  align-items: center;
+  padding: var(--space-1) 0;
+}
+
+.graph-btn-row {
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.graph-btn-row > * {
+  flex: 1;
+  min-width: 0;
+}
+
+.graph-help {
+  margin: 0;
+  font-size: var(--text-2xs);
+  line-height: var(--leading-relaxed);
+  color: var(--fg-subtle);
+  overflow-wrap: anywhere;
+}
+
+.graph-help code {
+  padding: 0 3px;
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+}
+
+/* ---------- 物理参数 ---------- */
+.graph-param {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.graph-param + .graph-param {
+  padding-top: var(--space-2);
+  border-top: var(--border-width) dashed var(--line-hairline);
+}
+
+.graph-param-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.graph-param-label {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  color: var(--fg);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graph-param-val {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--brand);
+  font-weight: var(--weight-semibold);
+}
+
+.graph-param :deep(.ui-slider) {
+  gap: 0;
+  padding: var(--space-1) 0;
+}
+
+/* ---------- 算法分析结果 ---------- */
+.graph-analysis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+  background: var(--surface-0);
+  border: var(--border-width) solid var(--line-hairline);
+  border-radius: var(--radius-lg);
+  border-left: 3px solid var(--line-strong);
+}
+
+.graph-analysis[data-status='ok'] {
+  border-left-color: var(--status-success);
+}
+
+.graph-analysis[data-status='warn'] {
+  border-left-color: var(--status-warning);
+}
+
+.graph-analysis[data-status='error'] {
+  border-left-color: var(--status-danger);
+}
+
+.graph-analysis[data-status='info'] {
+  border-left-color: var(--brand);
+}
+
+.graph-analysis-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.graph-analysis-badge {
+  flex-shrink: 0;
+  padding: 1px var(--space-1);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-muted);
+  background: var(--surface-2);
+}
+
+.graph-analysis[data-status='ok'] .graph-analysis-badge {
+  color: var(--status-success-ink);
+  background: var(--status-success-soft);
+}
+
+.graph-analysis[data-status='warn'] .graph-analysis-badge {
+  color: var(--status-warning-ink);
+  background: var(--status-warning-soft);
+}
+
+.graph-analysis[data-status='error'] .graph-analysis-badge {
+  color: var(--status-danger-ink);
+  background: var(--status-danger-soft);
+}
+
+.graph-analysis[data-status='info'] .graph-analysis-badge {
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.graph-analysis-summary {
+  font-size: var(--text-xs);
+  line-height: var(--leading-relaxed);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.graph-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.graph-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.graph-metric__k {
+  font-size: var(--text-2xs);
+  color: var(--fg-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.graph-metric__v {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-semibold);
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.graph-analysis-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.graph-analysis-list__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-muted);
+  user-select: none;
+}
+
+.graph-analysis-list__count {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-subtle);
+}
+
+.graph-analysis-list__items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.graph-analysis-list__items li {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-relaxed);
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.graph-analysis-list__empty {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--fg-subtle);
+}
+
+.graph-analysis-meta {
+  margin: 0;
+  padding-top: var(--space-1);
+  border-top: var(--border-width) solid var(--line-hairline);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-subtle);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

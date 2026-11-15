@@ -7,13 +7,14 @@
   position: fixed;
   z-index: var(--z-tooltip);
   max-width: var(--tooltip-w);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-1) var(--space-3);
   background: var(--surface-raised);
-  border: var(--border-width) solid var(--line);
+  border: var(--border-width) solid var(--line-hairline);
   border-radius: var(--radius-md);
-  box-shadow: var(--elev-2);
+  box-shadow: var(--elev-tooltip);
   color: var(--fg);
   font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
   line-height: var(--leading-snug);
   pointer-events: none;
   word-break: break-word;

@@ -67,4 +67,4 @@ function onClose() {
 }
 </script>
 
-<style scoped src="./UiBanner.css"></style>
+<style src="./UiBanner.css"></style>

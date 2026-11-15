@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>404 · 页面未找到 — 7FA4 Chat</title>
+<meta name="color-scheme" content="dark light">
+<script>
+(function () {
+  var t = null;
+  try { t = localStorage.getItem('7fa4-site-theme'); } catch (e) {}
+  if (t !== 'light' && t !== 'dark') {
+    t = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #05060a;
+    --panel-solid: #0d1019;
+    --line: rgba(255, 255, 255, .09);
+    --line-strong: rgba(255, 255, 255, .16);
+    --ink: #f2f4f9;
+    --ink-soft: #c7ccda;
+    --muted: #8b93a7;
+    --accent: #6d8bff;
+    --accent-2: #22d3ee;
+    --grad: linear-gradient(100deg, #8ea6ff 0%, #58e0f5 42%, #b79cff 100%);
+    --on-grad: #070a14;
+  }
+  [data-theme="light"] {
+    color-scheme: light;
+    --bg: #f6f7fb;
+    --panel-solid: #ffffff;
+    --line: rgba(14, 20, 40, .10);
+    --line-strong: rgba(14, 20, 40, .18);
+    --ink: #0b0f1a;
+    --ink-soft: #2b3344;
+    --muted: #5b6478;
+    --accent: #4f6bff;
+    --accent-2: #0bb6cf;
+    --grad: linear-gradient(100deg, #4f6bff 0%, #0aa7c2 45%, #8b5cf6 100%);
+    --on-grad: #ffffff;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: grid;
+    place-items: center;
+    padding: 24px 16px;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  .aurora {
+    position: fixed; inset: -20vh -10vw auto;
+    height: 120vh; z-index: -2; pointer-events: none;
+    filter: blur(90px) saturate(120%);
+    opacity: .72;
+  }
+  .aurora span { position: absolute; display: block; border-radius: 50%; mix-blend-mode: screen; }
+  .aurora-a {
+    width: 46vw; height: 46vw; left: 4vw; top: -6vh;
+    background: radial-gradient(circle at 40% 40%, rgba(109, 139, 255, .52), transparent 66%);
+  }
+  .aurora-b {
+    width: 40vw; height: 40vw; right: 2vw; top: 2vh;
+    background: radial-gradient(circle at 50% 50%, rgba(34, 211, 238, .38), transparent 66%);
+  }
+  [data-theme="light"] .aurora { opacity: .45; }
+  [data-theme="light"] .aurora span { mix-blend-mode: multiply; }
+  .card {
+    width: 100%;
+    max-width: 480px;
+    border-radius: 22px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--panel-solid) 68%, transparent);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    padding: 36px 30px 30px;
+    box-shadow: 0 30px 70px -36px rgba(0, 0, 0, .85);
+    text-align: center;
+  }
+  [data-theme="light"] .card {
+    background: rgba(255, 255, 255, .82);
+    box-shadow: 0 24px 56px -34px rgba(20, 28, 60, .38);
+  }
+  .code {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-family: "JetBrains Mono", ui-monospace, Consolas, monospace;
+    font-size: 12px;
+    color: var(--accent-2);
+    border: 1px solid color-mix(in srgb, var(--accent-2) 38%, transparent);
+    background: color-mix(in srgb, var(--accent-2) 12%, transparent);
+    margin-bottom: 18px;
+  }
+  h1 {
+    margin: 0 0 10px;
+    font-size: 28px;
+    font-weight: 680;
+    letter-spacing: -.03em;
+    line-height: 1.2;
+  }
+  p {
+    margin: 0 0 22px;
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.65;
+  }
+  .path {
+    display: block;
+    margin: 0 auto 22px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    font-family: "JetBrains Mono", ui-monospace, Consolas, monospace;
+    font-size: 12px;
+    word-break: break-all;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 11px 20px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1px solid transparent;
+    transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary {
+    color: var(--on-grad);
+    background: var(--grad);
+    box-shadow: 0 14px 30px -14px rgba(109, 139, 255, .65), inset 0 1px 0 rgba(255, 255, 255, .45);
+  }
+  .btn-ghost {
+    color: var(--ink);
+    border-color: var(--line-strong);
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+  }
+  .btn-ghost:hover {
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+</style>
+</head>
+<body>
+<div class="aurora" aria-hidden="true"><span class="aurora-a"></span><span class="aurora-b"></span></div>
+<main class="card">
+  <div class="code">HTTP 404 · Not Found</div>
+  <h1>页面不存在</h1>
+  <p>你访问的链接可能已失效、拼写有误，或该资源尚未发布。</p>
+  <code class="path" id="reqPath" hidden></code>
+  <div class="actions">
+    <a class="btn btn-primary" id="homeLink" href="./">返回 7FA4 Chat 官网</a>
+    <a class="btn btn-ghost" id="fbLink" href="./feedback/">提交问题反馈</a>
+  </div>
+</main>
+<script>
+(function () {
+  var p = location.pathname || '/';
+  var pathEl = document.getElementById('reqPath');
+  if (pathEl && p !== '/') {
+    pathEl.textContent = p;
+    pathEl.hidden = false;
+  }
+  var base = p.indexOf('/7fa4-chat/') === 0 || p === '/7fa4-chat' ? '/7fa4-chat/' : '/';
+  var home = document.getElementById('homeLink');
+  var fb = document.getElementById('fbLink');
+  if (home) home.setAttribute('href', base);
+  if (fb) fb.setAttribute('href', base + 'feedback/');
+})();
+</script>
+</body>
+</html>

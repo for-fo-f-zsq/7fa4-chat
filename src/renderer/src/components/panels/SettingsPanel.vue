@@ -1,157 +1,830 @@
 <template>
-  <div class="settings-panel">
-    <div class="settings-header">
-      <h2 class="page-title"><i class="fas fa-cog"></i> 设置</h2>
-    </div>
-    <div class="settings-card">
-      <div class="options-grid">
-        <div class="options-col">
-          <!-- 网页版固定走当前站点（同源），没有 jx/in 可切，整行隐藏 -->
-          <div class="option-row" v-if="!isWeb">
-            <span class="option-label">API 地址<i class="fas fa-circle-info option-info" title="选择连接的服务器：jx.7fa4.cn 为默认站点，in.7fa4.cn 为校内备用入口"></i></span>
-            <UiDropdown
-              class="settings-select"
-              :model-value="apiUrlValue"
-              :options="apiUrlOptions"
-              aria-label="API 地址"
-              @update:model-value="selectApiUrl"
-            />
-          </div>
-          <div class="option-row theme-row" role="button" tabindex="0" @click="$emit('openThemeModal')" @keydown.enter="$emit('openThemeModal')" @keydown.space.prevent="$emit('openThemeModal')">
-            <span class="option-label">主题<i class="fas fa-circle-info option-info" title="切换界面配色，内置 6 套预设主题与「自定义」；自定义可逐项调整颜色"></i></span>
-            <div class="theme-current"><UiBadge dot :color="currentThemeColor" :title="currentThemeLabel" /><span>{{ currentThemeLabel }}</span><i class="fas fa-chevron-right theme-row-arrow"></i></div>
-          </div>
-          <div class="option-row">
-            <span class="option-label">特效<i class="fas fa-circle-info option-info" title="界面动效强度：性能（无粒子与鼠标渐变）/ 效率（无粒子）/ 精美（全部效果）"></i></span>
-            <UiDropdown
-              class="settings-select"
-              :model-value="effectValue"
-              :options="effectOptions"
-              aria-label="特效强度"
-              @update:model-value="selectEffect"
-            />
-          </div>
-          <div class="option-row slider-row">
-            <span class="option-label">轮询间隔<i class="fas fa-circle-info option-info" title="多久向服务器拉取一次新消息（1.0–10.0 秒）；越短越及时，也越耗流量与电量"></i></span>
-            <div class="slider-wrap">
-              <input type="range" class="slider" :value="setting.pollInterval || 1000" @input="onPollChange($event.target.value)" min="1000" max="10000" step="100" aria-label="轮询间隔" />
-              <span class="slider-value">{{ formatPoll(setting.pollInterval || 1000) }}</span>
+  <PanelShell title="设置" icon="fas fa-cog" :scrollable="false">
+    <div class="settings-layout">
+      <aside class="settings-nav" role="tablist" aria-label="设置分类" @keydown="onCategoryKeydown">
+        <button
+          v-for="cat in categories"
+          :id="`settings-tab-${cat.key}`"
+          :key="cat.key"
+          ref="tabRefs"
+          type="button"
+          role="tab"
+          class="settings-nav-item"
+          :class="{ 'is-active': activeCategory === cat.key }"
+          :aria-selected="activeCategory === cat.key"
+          :aria-controls="`settings-panel-${cat.key}`"
+          :tabindex="activeCategory === cat.key ? 0 : -1"
+          @click="selectCategory(cat.key)"
+        >
+          <i :class="cat.icon" class="settings-nav-icon" aria-hidden="true"></i>
+          <span class="settings-nav-label">{{ cat.label }}</span>
+        </button>
+      </aside>
+
+      <div
+        :id="`settings-panel-${activeCategory}`"
+        ref="contentRef"
+        class="settings-content"
+        role="tabpanel"
+        :aria-labelledby="`settings-tab-${activeCategory}`"
+      >
+        <template v-if="activeCategory === 'appearance'">
+          <section class="p-panel-section">
+            <h3 class="p-panel-section__title">交互与显示</h3>
+            <SettingRow
+              label="特效"
+              tooltip="界面动效强度：性能（无粒子与鼠标渐变）/ 效率（无粒子）/ 精美（全部效果）"
+            >
+              <UiDropdown
+                class="settings-select"
+                :model-value="effectValue"
+                :options="effectOptions"
+                aria-label="特效强度"
+                @update:model-value="selectEffect"
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="字体大小"
+              tooltip="聊天与界面文字的字号（12–20 px），调整后立即生效"
+            >
+              <div class="slider-wrap">
+                <UiSlider
+                  class="settings-slider"
+                  :model-value="setting.fontSize || 14"
+                  :min="12"
+                  :max="20"
+                  :step="1"
+                  :show-value="false"
+                  size="sm"
+                  aria-label="字体大小"
+                  @update:model-value="onFontSizeChange"
+                />
+                <span class="slider-value u-tabular-nums">{{ setting.fontSize || 14 }}px</span>
+              </div>
+            </SettingRow>
+
+            <SettingRow
+              label="快捷键"
+              tooltip="自定义页面切换与常用操作的键盘快捷键"
+              clickable
+              @activate="emit('openShortcutModal')"
+            >
+              <div class="settings-entry-right">
+                <span class="settings-entry-hint">自定义</span>
+                <i class="fas fa-chevron-right settings-arrow" aria-hidden="true"></i>
+              </div>
+            </SettingRow>
+          </section>
+
+          <section class="p-panel-section settings-grade-section">
+            <div class="settings-grade-header">
+              <div>
+                <h3 class="p-panel-section__title settings-theme-title">年级颜色</h3>
+                <p class="settings-section-desc">自定义聊天消息与好友列表中各年级名称牌与标识的颜色</p>
+              </div>
+              <UiButton
+                variant="secondary"
+                size="sm"
+                icon="fas fa-rotate-left"
+                @click="resetGradeColors"
+              >
+                重置默认
+              </UiButton>
             </div>
-          </div>
-          <div class="option-row slider-row">
-            <span class="option-label">字体大小<i class="fas fa-circle-info option-info" title="聊天与界面文字的字号（12–20 px），调整后立即生效"></i></span>
-            <div class="slider-wrap">
-              <input type="range" class="slider" :value="setting.fontSize || 14" @input="onFontSizeChange($event.target.value)" min="12" max="20" step="1" aria-label="字体大小" />
-              <span class="slider-value">{{ setting.fontSize || 14 }}px</span>
+
+            <div class="grade-color-grid">
+              <div v-for="k in COLOR_KEYS" :key="k" class="grade-card">
+                <div class="grade-card-top">
+                  <span class="grade-preview-name" :style="{ color: getGradeColorValue(k) }">
+                    {{ GRADE_LABELS[k] || k }}
+                  </span>
+                  <label class="grade-picker-wrap" :title="`选择「${GRADE_LABELS[k] || k}」颜色`">
+                    <span class="grade-color-chip" :style="{ background: getGradeColorValue(k) }"></span>
+                    <input
+                      type="color"
+                      :value="getGradeColorValue(k)"
+                      :aria-label="`选择${GRADE_LABELS[k] || k}颜色`"
+                      @input="onGradeColorChange(k, $event.target.value)"
+                    />
+                  </label>
+                </div>
+                <UiInput
+                  :model-value="getGradeColorValue(k)"
+                  class="grade-hex-input u-tabular-nums"
+                  size="sm"
+                  monospace
+                  :aria-label="`${GRADE_LABELS[k] || k}颜色十六进制值`"
+                  @update:model-value="onGradeColorHexChange(k, $event)"
+                />
+              </div>
             </div>
-          </div>
-          <div class="option-row shortcut-entry" role="button" tabindex="0" @click="$emit('openShortcutModal')" @keydown.enter="$emit('openShortcutModal')" @keydown.space.prevent="$emit('openShortcutModal')">
-            <span class="option-label">快捷键<i class="fas fa-circle-info option-info" title="自定义页面切换与常用操作的键盘快捷键"></i></span>
-            <div class="shortcut-entry-right"><span class="shortcut-entry-hint">自定义</span><i class="fas fa-chevron-right theme-row-arrow"></i></div>
-          </div>
-        </div>
-        <div class="options-col">
-          <!-- 「保持后台运行」只由 Electron 主进程消费（见 src/main/index.js），
-               网页端与安卓端没有任何实现，显示出来会让人误以为已开启。 -->
-          <div class="option-row" v-if="isElectron">
-            <span class="option-label">保持后台运行<i class="fas fa-circle-info option-info" title="关闭主窗口后隐藏到系统托盘并继续接收消息；需要彻底退出时用托盘菜单的「退出」（仅桌面端）"></i></span>
-            <UiSwitch :model-value="setting.minimizeToTray !== false" aria-label="保持后台运行" @update:model-value="onSettingChange('minimizeToTray', $event)" />
-          </div>
-          <div class="option-row" v-if="isElectron">
-            <span class="option-label">自动更新<i class="fas fa-circle-info option-info" title="启动后自动检查并下载新版本（仅桌面端）"></i></span>
-            <UiSwitch :model-value="setting.autoUpdate !== false" aria-label="自动更新" @update:model-value="onSettingChange('autoUpdate', $event)" />
-          </div>
-          <div class="option-row">
-            <span class="option-label">保持登录<i class="fas fa-circle-info option-info" title="在本机保存登录凭据以便下次自动登录；关闭会清除已保存的账号与密码，之后需要重新登录"></i></span>
-            <UiSwitch :model-value="!!setting.keepLogin" :disabled="!setting.keepLogin" aria-label="保持登录" @update:model-value="onKeepLoginChange" />
-          </div>
-          <div class="option-row">
-            <span class="option-label">隐藏弹窗内容<i class="fas fa-circle-info option-info" title="系统通知只显示「收到一条新消息」，不显示消息正文"></i></span>
-            <UiSwitch :model-value="!!setting.notifPrivacy" aria-label="隐藏弹窗内容" @update:model-value="onSettingChange('notifPrivacy', $event)" />
-          </div>
-          <div class="option-row">
-            <span class="option-label">免打扰<i class="fas fa-circle-info option-info" title="开启后不再弹出任何新消息通知（消息照常接收，只是不提醒）"></i></span>
-            <UiSwitch :model-value="!!setting.dndEnabled" aria-label="免打扰" @update:model-value="onSettingChange('dndEnabled', $event)" />
-          </div>
-          <div class="option-row">
-            <span class="option-label">隐藏非双向好友<i class="fas fa-circle-info option-info" title="开启后，会话列表只保留互相关注的好友（单向关注的关系将隐藏，数据不会被删除）"></i></span>
-            <UiSwitch :model-value="setting.hideNonMutual === true" aria-label="隐藏非双向好友" @update:model-value="onSettingChange('hideNonMutual', $event)" />
-          </div>
-        </div>
-      </div>
-      <div class="settings-divider" v-if="!isWeb"></div>
-      <div class="option-row shortcut-entry" v-if="!isWeb" role="button" tabindex="0" @click="exportData" @keydown.enter="exportData" @keydown.space.prevent="exportData">
-        <span class="option-label">备份聊天数据<i class="fas fa-circle-info option-info" title="把本机的聊天记录、群与设置全部导出为一个文件" @click.stop></i></span>
-        <div class="shortcut-entry-right"><span class="shortcut-entry-hint">导出到文件</span><i class="fas fa-download theme-row-arrow"></i></div>
-      </div>
-      <div class="option-row shortcut-entry" v-if="!isWeb" role="button" tabindex="0" @click="importData" @keydown.enter="importData" @keydown.space.prevent="importData">
-        <span class="option-label">恢复聊天数据<i class="fas fa-circle-info option-info" title="从备份文件恢复聊天记录与设置；会写入并覆盖本机对应数据" @click.stop></i></span>
-        <div class="shortcut-entry-right"><span class="shortcut-entry-hint">从文件导入</span><i class="fas fa-upload theme-row-arrow"></i></div>
-      </div>
-      <div class="option-row shortcut-entry" v-if="!isWeb && cacheSize !== null" role="button" tabindex="0" @click="clearCache" @keydown.enter="clearCache" @keydown.space.prevent="clearCache">
-        <span class="option-label">缓存管理<i class="fas fa-circle-info option-info" title="本机聊天数据的占用空间；点击清理会删除本地缓存并从服务器重新拉取" @click.stop></i></span>
-        <div class="shortcut-entry-right"><span class="shortcut-entry-hint">{{ formatSize(cacheSize) }} · 点击清理</span><i class="fas fa-trash theme-row-arrow"></i></div>
+          </section>
+
+          <section class="p-panel-section settings-theme-section" :class="{ 'is-wide': themeTab === 'custom' }">
+            <div class="settings-theme-header">
+              <h3 class="p-panel-section__title settings-theme-title">主题</h3>
+              <div class="theme-current" :title="currentThemeLabel">
+                <UiBadge dot :color="currentThemeColor" :title="currentThemeLabel" />
+                <span>{{ currentThemeLabel }}</span>
+              </div>
+            </div>
+
+            <UiTabs v-model="themeTab" :items="themeTabs" variant="pill" size="sm" class="theme-tabs">
+              <ThemePresetGrid
+                v-if="themeTab === 'preset'"
+                :themes="THEMES"
+                :current-theme="currentTheme"
+                :vars-of="themeVarsOf"
+                :is-dark-theme="isDarkTheme"
+                @select="selectTheme"
+                @preview="previewTheme"
+                @restore="restoreTheme"
+              />
+              <ThemeCustomEditor
+                v-else
+                :custom-vars="customVars"
+                :selected-preset-base="selectedPresetBase"
+                :is-custom-dark="isCustomDark"
+                :dirty="hasUnsavedChanges"
+                @export="exportTheme"
+                @import-text="importThemeText"
+                @reset-custom="resetCustom"
+                @apply="applyCustom"
+                @load-preset="loadPresetIntoCustom"
+                @update-var="updateCustomVar"
+              />
+            </UiTabs>
+          </section>
+        </template>
+
+        <template v-else-if="activeCategory === 'notifications'">
+          <section class="p-panel-section">
+            <h3 class="p-panel-section__title">桌面通知</h3>
+            <p class="settings-section-desc">窗口未聚焦或最小化时，用系统级卡片提醒新消息。</p>
+
+            <SettingRow
+              label="新消息提醒"
+              tooltip="桌面端：窗口未聚焦或最小化时弹出消息卡片；安卓端：退到后台时发系统通知；网页端：需要浏览器通知权限"
+            >
+              <UiSwitch
+                :model-value="setting.notifDesktop !== false"
+                aria-label="新消息提醒"
+                @update:model-value="onSettingChange('notifDesktop', $event)"
+              />
+            </SettingRow>
+
+            <SettingRow
+              v-if="isElectron"
+              label="弹窗位置"
+              tooltip="通知卡片出现在屏幕的哪个角落（仅桌面端）"
+            >
+              <UiDropdown
+                class="settings-select settings-select--narrow"
+                size="sm"
+                :model-value="setting.notifPosition || 'br'"
+                :options="notifPositionOptions"
+                :disabled="setting.notifDesktop === false"
+                aria-label="弹窗位置"
+                @update:model-value="onSettingChange('notifPosition', $event)"
+              />
+            </SettingRow>
+
+            <SettingRow
+              v-if="isElectron"
+              label="停留时长"
+              tooltip="通知卡片在屏幕上停留多久后自动消失（3–20 秒，仅桌面端）"
+            >
+              <div class="slider-wrap">
+                <UiSlider
+                  class="settings-slider"
+                  :model-value="setting.notifDuration || 6000"
+                  :min="3000"
+                  :max="20000"
+                  :step="1000"
+                  :show-value="false"
+                  size="sm"
+                  aria-label="通知停留时长"
+                  @update:model-value="onNotifDurationChange"
+                />
+                <span class="slider-value u-tabular-nums">{{ formatNotifDuration(setting.notifDuration || 6000) }}</span>
+              </div>
+            </SettingRow>
+
+            <SettingRow
+              label="隐藏消息内容"
+              tooltip="系统通知与弹窗里只显示「收到一条新消息」，不显示消息正文；仍会显示会话名与发送者，便于判断是谁在找你"
+            >
+              <UiSwitch
+                :model-value="!!setting.notifPrivacy"
+                aria-label="隐藏消息内容"
+                @update:model-value="onSettingChange('notifPrivacy', $event)"
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="发送测试通知"
+              tooltip="立刻弹一条测试通知并播放提示音，用来确认权限、位置与音量是否合适"
+              clickable
+              @activate="onSendTestNotification"
+            >
+              <UiButton
+                size="sm"
+                variant="secondary"
+                icon="fas fa-paper-plane"
+                :loading="testNotifBusy"
+                aria-label="发送测试通知"
+                @click.stop="onSendTestNotification"
+              >
+                发送测试
+              </UiButton>
+            </SettingRow>
+          </section>
+
+          <section class="p-panel-section">
+            <h3 class="p-panel-section__title">声音与提醒</h3>
+            <p class="settings-section-desc">用什么方式提示我，以及哪些消息值得打扰。</p>
+
+            <SettingRow label="提示音" tooltip="收到新消息时播放提示音（系统静音时听不到）">
+              <UiSwitch
+                :model-value="setting.notifSound !== false"
+                aria-label="提示音"
+                @update:model-value="onSettingChange('notifSound', $event)"
+              />
+            </SettingRow>
+
+            <SettingRow label="提示音量" tooltip="拖动即可试听当前音量（0–100）">
+              <div class="slider-wrap">
+                <UiSlider
+                  class="settings-slider"
+                  :model-value="setting.notifSoundVolume ?? 60"
+                  :min="0"
+                  :max="100"
+                  :step="5"
+                  :show-value="false"
+                  size="sm"
+                  :disabled="setting.notifSound === false"
+                  aria-label="提示音量"
+                  @update:model-value="onNotifVolumeChange"
+                />
+                <span class="slider-value u-tabular-nums">{{ setting.notifSoundVolume ?? 60 }}%</span>
+              </div>
+            </SettingRow>
+
+            <SettingRow
+              label="仅提醒提及我的"
+              description="私聊照常提醒；群聊只在 @我 或 @全体成员 时提醒"
+            >
+              <UiSwitch
+                :model-value="!!setting.notifMentionOnly"
+                aria-label="仅提醒提及我的"
+                @update:model-value="onSettingChange('notifMentionOnly', $event)"
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="应用内提示"
+              description="窗口在前台时，用顶部轻提示提醒其它会话的新消息（不再弹系统通知）"
+            >
+              <UiSwitch
+                :model-value="setting.notifInApp !== false"
+                aria-label="应用内提示"
+                @update:model-value="onSettingChange('notifInApp', $event)"
+              />
+            </SettingRow>
+
+            <SettingRow
+              v-if="isElectron"
+              label="未读角标"
+              description="任务栏 / 托盘图标上显示未读消息总数（仅桌面端）"
+            >
+              <UiSwitch
+                :model-value="setting.notifBadge !== false"
+                aria-label="未读角标"
+                @update:model-value="onSettingChange('notifBadge', $event)"
+              />
+            </SettingRow>
+          </section>
+
+          <section class="p-panel-section">
+            <h3 class="p-panel-section__title">免打扰</h3>
+            <p class="settings-section-desc">
+              免打扰优先于以上所有提醒；单个会话的「消息免打扰」始终生效，开启后只计数、不提醒。
+            </p>
+
+            <SettingRow label="免打扰" tooltip="开启后不再弹出任何新消息通知（消息照常接收，只是不提醒）">
+              <UiSwitch
+                :model-value="!!setting.dndEnabled"
+                aria-label="免打扰"
+                @update:model-value="onSettingChange('dndEnabled', $event)"
+              />
+            </SettingRow>
+
+            <SettingRow label="定时免打扰" description="每天按下面的时段自动进入免打扰，其余时间正常提醒">
+              <UiSwitch
+                :model-value="!!setting.dndSchedule"
+                aria-label="定时免打扰"
+                @update:model-value="onSettingChange('dndSchedule', $event)"
+              />
+            </SettingRow>
+
+            <SettingRow label="免打扰时段">
+              <div class="settings-time-range">
+                <UiInput
+                  class="settings-time-input"
+                  type="time"
+                  size="sm"
+                  :model-value="setting.dndStart ?? '22:00'"
+                  placeholder="22:00"
+                  :disabled="!setting.dndSchedule"
+                  aria-label="免打扰开始时间"
+                  @update:model-value="onSettingChange('dndStart', $event)"
+                />
+                <span class="settings-time-range__sep" aria-hidden="true">至</span>
+                <UiInput
+                  class="settings-time-input"
+                  type="time"
+                  size="sm"
+                  :model-value="setting.dndEnd ?? '07:00'"
+                  placeholder="07:00"
+                  :disabled="!setting.dndSchedule"
+                  aria-label="免打扰结束时间"
+                  @update:model-value="onSettingChange('dndEnd', $event)"
+                />
+                <span class="settings-inline-hint">跨零点自动识别</span>
+              </div>
+            </SettingRow>
+          </section>
+        </template>
+
+        <template v-else-if="activeCategory === 'messaging'">
+          <section class="p-panel-section">
+            <h3 class="p-panel-section__title">消息与网络</h3>
+            <p class="settings-section-desc">连到哪台服务器、多久拉取一次消息，以及会话列表里保留哪些好友。</p>
+
+            <SettingRow
+              v-if="!isWeb"
+              label="API 地址"
+              tooltip="选择连接的服务器：jx.7fa4.cn 为默认站点，in.7fa4.cn 为校内备用入口"
+            >
+              <UiDropdown
+                class="settings-select"
+                :model-value="apiUrlValue"
+                :options="apiUrlOptions"
+                aria-label="API 地址"
+                @update:model-value="selectApiUrl"
+              />
+            </SettingRow>
+
+            <SettingRow
+              label="轮询间隔"
+              tooltip="多久向服务器拉取一次新消息（1.0–10.0 秒）；越短越及时，也越耗流量与电量"
+            >
+              <div class="slider-wrap">
+                <UiSlider
+                  class="settings-slider"
+                  :model-value="setting.pollInterval || 1000"
+                  :min="1000"
+                  :max="10000"
+                  :step="100"
+                  :show-value="false"
+                  size="sm"
+                  aria-label="轮询间隔"
+                  @update:model-value="onPollChange"
+                />
+                <span class="slider-value u-tabular-nums">{{ formatPoll(setting.pollInterval || 1000) }}</span>
+              </div>
+            </SettingRow>
+
+            <SettingRow
+              label="隐藏非双向好友"
+              tooltip="开启后，会话列表只保留互相关注的好友（单向关注的关系将隐藏，数据不会被删除）"
+            >
+              <UiSwitch
+                :model-value="setting.hideNonMutual === true"
+                aria-label="隐藏非双向好友"
+                @update:model-value="onSettingChange('hideNonMutual', $event)"
+              />
+            </SettingRow>
+          </section>
+        </template>
+
+        <template v-else-if="activeCategory === 'account'">
+          <section class="p-panel-section settings-account-section">
+            <div class="settings-account-header">
+              <h3 class="p-panel-section__title settings-theme-title">账号与安全</h3>
+              <UiBadge v-if="isLoggedIn" variant="success" size="sm">已登录</UiBadge>
+              <UiBadge v-else variant="neutral" size="sm">游客模式</UiBadge>
+            </div>
+
+            <div class="settings-account-card">
+              <div class="settings-account-profile">
+                <UiAvatar
+                  class="settings-account-avatar"
+                  :size="52"
+                  shape="rounded"
+                  :color="isLoggedIn ? avatarTint(selfUid) : ''"
+                  :name="isLoggedIn ? (selfDisplayName || '未登录') : '未登录'"
+                >
+                  <span v-if="isLoggedIn && selfInitial" class="settings-account-initial">{{ selfInitial }}</span>
+                  <i v-else class="fas fa-user settings-account-fallback" aria-hidden="true"></i>
+                </UiAvatar>
+
+                <div class="settings-account-identity">
+                  <div class="settings-account-name-row">
+                    <span
+                      class="settings-account-name"
+                      :style="selfGradeColor ? { color: selfGradeColor } : undefined"
+                    >
+                      {{ isLoggedIn ? (selfDisplayName || '已登录用户') : '未登录账号' }}
+                    </span>
+                    <UiBadge
+                      v-if="selfGradeLabel"
+                      size="sm"
+                      :pill="false"
+                      :color="selfGradeColor"
+                    >
+                      {{ selfGradeLabel }}
+                    </UiBadge>
+                  </div>
+
+                  <p v-if="!isLoggedIn" class="settings-account-guest-hint">
+                    当前处于游客浏览模式，登录后可使用消息收发与同步功能
+                  </p>
+
+                  <div v-else-if="accountMetaItems.length" class="settings-account-meta">
+                    <div v-for="item in accountMetaItems" :key="item.key" class="settings-account-meta-item">
+                      <span class="settings-account-meta-key">{{ item.key }}</span>
+                      <span
+                        class="settings-account-meta-val"
+                        :class="{ mono: item.mono, 'u-tabular-nums': item.mono }"
+                      >
+                        {{ item.value }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-account-actions">
+                <template v-if="isLoggedIn">
+                  <UiButton
+                    variant="secondary"
+                    size="sm"
+                    icon="fas fa-sync-alt"
+                    :disabled="accountActionBusy"
+                    title="退出当前会话并前往登录页切换或重新登录账号"
+                    @click="onAccountAction('relogin')"
+                  >
+                    重新登录
+                  </UiButton>
+                  <UiButton
+                    variant="danger"
+                    size="sm"
+                    icon="fas fa-sign-out-alt"
+                    :disabled="accountActionBusy"
+                    title="退出登录并清除本机保存的自动登录凭据"
+                    @click="onAccountAction('logout')"
+                  >
+                    退出登录
+                  </UiButton>
+                </template>
+                <UiButton
+                  v-else
+                  variant="primary"
+                  size="sm"
+                  icon="fas fa-sign-in-alt"
+                  :disabled="accountActionBusy"
+                  @click="onAccountAction('login')"
+                >
+                  去登录
+                </UiButton>
+              </div>
+            </div>
+          </section>
+
+          <section class="p-panel-section">
+            <h3 class="p-panel-section__title">登录与凭据</h3>
+            <p class="settings-section-desc">登录状态只保存在本机；关闭「保持登录」会清除已保存的凭据。</p>
+
+            <SettingRow
+              label="保持登录"
+              tooltip="在本机保存登录凭据以便下次自动登录；关闭会清除已保存的账号与密码，之后需要重新登录"
+            >
+              <UiSwitch
+                :model-value="!!setting.keepLogin"
+                :disabled="!setting.keepLogin"
+                aria-label="保持登录"
+                @update:model-value="onKeepLoginChange"
+              />
+            </SettingRow>
+          </section>
+        </template>
+
+        <template v-else-if="activeCategory === 'desktop' && isElectron">
+          <section class="p-panel-section">
+            <h3 class="p-panel-section__title">窗口与更新</h3>
+            <p class="settings-section-desc">关闭窗口后是否留在托盘，以及新版本如何获取（仅桌面端生效）。</p>
+
+            <SettingRow
+              v-if="isElectron"
+              label="保持后台运行"
+              tooltip="关闭主窗口后隐藏到系统托盘并继续接收消息；需要彻底退出时用托盘菜单的「退出」（仅桌面端）"
+            >
+              <UiSwitch
+                :model-value="setting.minimizeToTray !== false"
+                aria-label="保持后台运行"
+                @update:model-value="onSettingChange('minimizeToTray', $event)"
+              />
+            </SettingRow>
+
+            <SettingRow
+              v-if="isElectron"
+              label="自动更新"
+              tooltip="启动后自动检查并下载新版本（仅桌面端）"
+            >
+              <UiSwitch
+                :model-value="setting.autoUpdate !== false"
+                aria-label="自动更新"
+                @update:model-value="onSettingChange('autoUpdate', $event)"
+              />
+            </SettingRow>
+          </section>
+        </template>
+
+        <template v-else-if="activeCategory === 'storage' && !isWeb">
+          <section class="p-panel-section">
+            <h3 class="p-panel-section__title">数据与存储</h3>
+            <SettingRow
+              label="备份聊天数据"
+              tooltip="把本机的聊天记录、群与设置全部导出为一个文件"
+              clickable
+              @activate="exportData"
+            >
+              <div class="settings-entry-right">
+                <span class="settings-entry-hint">导出到文件</span>
+                <i class="fas fa-download settings-arrow" aria-hidden="true"></i>
+              </div>
+            </SettingRow>
+
+            <SettingRow
+              label="恢复聊天数据"
+              tooltip="从备份文件恢复聊天记录与设置；会写入并覆盖本机对应数据"
+              clickable
+              @activate="importData"
+            >
+              <div class="settings-entry-right">
+                <span class="settings-entry-hint">从文件导入</span>
+                <i class="fas fa-upload settings-arrow" aria-hidden="true"></i>
+              </div>
+            </SettingRow>
+
+            <SettingRow
+              v-if="cacheSize !== null"
+              label="缓存管理"
+              tooltip="本机聊天数据的占用空间；点击清理会删除本地缓存并从服务器重新拉取"
+              clickable
+              @activate="clearCache"
+            >
+              <div class="settings-entry-right">
+                <span class="settings-entry-hint u-tabular-nums">{{ formatSize(cacheSize) }} · 点击清理</span>
+                <i class="fas fa-trash settings-arrow" aria-hidden="true"></i>
+              </div>
+            </SettingRow>
+          </section>
+        </template>
       </div>
     </div>
-  </div>
+  </PanelShell>
 </template>
 
 <script setup>
-// 用法：<SettingsPanel :self="self" :setting="setting" @setting-change="save" @open-theme-modal="..." />
-
-import { ref, computed, onMounted } from 'vue'
-import { store } from '../../store.js'
-import { THEMES } from '../../composables/constants.js'
-import { applyFontSize, formatSize, isWebBrowser } from '../../utils.js'
-import { UiBadge, UiDropdown, UiSwitch } from '@/ui'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { UiAvatar, UiBadge, UiButton, UiDropdown, UiInput, UiSlider, UiSwitch, UiTabs } from '@/ui'
+import { THEMES } from '@/composables/constants.js'
+import {
+  applyFontSize,
+  avatarTint,
+  COLOR_KEYS,
+  formatSize,
+  getGradeColor,
+  getGradeLabel,
+  GRADE_LABELS,
+  isWebBrowser,
+  localGradeColorKey,
+} from '@/utils.js'
+import { previewNotificationSound, sendTestNotification } from '@/utils/notify.js'
+import { useDataBackup } from '@/composables/modals/useDataBackup.js'
+import { useThemeEditor } from '@/composables/modals/useThemeEditor.js'
+import PanelShell from '@/components/common/PanelShell.vue'
+import SettingRow from '@/components/common/SettingRow.vue'
+import ThemePresetGrid from '@/components/modals/theme/ThemePresetGrid.vue'
+import ThemeCustomEditor from '@/components/modals/theme/ThemeCustomEditor.vue'
 
 const props = defineProps({
-  self: Object,
-  setting: Object
+  self: { type: Object, default: () => ({}) },
+  loggedIn: { type: Boolean, default: false },
+  setting: Object,
 })
 
-const emit = defineEmits(['logout', 'settingChange', 'openThemeModal', 'openShortcutModal'])
+const emit = defineEmits(['userAction', 'settingChange', 'openShortcutModal'])
 
-onMounted(() => { if (!isWeb) loadCacheSize() })
-
-const cacheSize = ref(null)
-
-// 是否 Electron 桌面端：直接读 __7FA4_WEB__（= 「非 Electron」）。
-// 不要用 isWebBrowser()——它对 Electron 和 Android 都返回 false，会把安卓也算成桌面端。
 const isElectron = !window.__7FA4_WEB__
-// 网页版：API 与页面同源，不提供 jx / in 切换
 const isWeb = isWebBrowser()
 
-const themes = THEMES
+const isLoggedIn = computed(() => Boolean(props.loggedIn))
+const selfUid = computed(() => props.self?.uid ?? '')
+const selfUname = computed(() => props.self?.username || '')
+const selfRealName = computed(() => props.self?.realname || '')
+const selfSchool = computed(() => props.self?.school || '')
+const selfSeat = computed(() => props.self?.seat || '')
+const selfDisplayName = computed(
+  () => props.self?.nickname || props.self?.realname || props.self?.username || (selfUid.value !== '' ? `UID ${selfUid.value}` : '')
+)
+const selfInitial = computed(() => {
+  const n = selfDisplayName.value
+  return n ? n.charAt(0).toUpperCase() : ''
+})
+const selfGradeLabel = computed(() => {
+  if (!isLoggedIn.value || !selfUid.value) return ''
+  const key = localGradeColorKey(selfUid.value)
+  if (!key || key === 'uk') return ''
+  return getGradeLabel(selfUid.value) || ''
+})
+const selfGradeColor = computed(() => {
+  if (!isLoggedIn.value || !selfUid.value) return ''
+  return getGradeColor(selfUid.value) || ''
+})
+const accountMetaItems = computed(() => {
+  if (!isLoggedIn.value) return []
+  const items = []
+  if (selfUid.value !== '') items.push({ key: 'UID', value: String(selfUid.value), mono: true })
+  if (selfUname.value) items.push({ key: '用户名', value: `@${selfUname.value}` })
+  if (selfRealName.value && selfRealName.value !== selfDisplayName.value) {
+    items.push({ key: '真名', value: selfRealName.value })
+  }
+  if (selfSchool.value) items.push({ key: '学校', value: selfSchool.value })
+  if (selfSeat.value) items.push({ key: '座位', value: selfSeat.value })
+  return items
+})
+
+const accountActionBusy = ref(false)
+function onAccountAction(kind) {
+  if (accountActionBusy.value) return
+  accountActionBusy.value = true
+  emit('userAction', kind)
+  setTimeout(() => {
+    accountActionBusy.value = false
+  }, 800)
+}
+
+// 分类按「看界面 / 通知 / 网络 / 账号 / 桌面能力 / 数据」拆分：
+// 旧版把账号卡片、通知、托盘、更新全塞在「消息与账号」里，找任何一项都要通读整页。
+const categories = computed(() => {
+  const list = [
+    { key: 'appearance', label: '外观与主题', icon: 'fas fa-palette' },
+    { key: 'notifications', label: '通知与提醒', icon: 'fas fa-bell' },
+    { key: 'messaging', label: '消息与网络', icon: 'fas fa-comments' },
+    { key: 'account', label: '账号与安全', icon: 'fas fa-user-shield' },
+  ]
+  if (isElectron) {
+    list.push({ key: 'desktop', label: '桌面与系统', icon: 'fas fa-desktop' })
+  }
+  if (!isWeb) {
+    list.push({ key: 'storage', label: '数据与存储', icon: 'fas fa-database' })
+  }
+  return list
+})
+
+const activeCategory = ref('appearance')
+const contentRef = ref(null)
+const tabRefs = ref([])
+
+const themeTab = ref('preset')
+const themeTabs = [
+  { key: 'preset', label: '预设主题' },
+  { key: 'custom', label: '自定义主题' },
+]
+
+const {
+  customVars,
+  selectedPresetBase,
+  isCustomDark,
+  hasUnsavedChanges,
+  themeVarsOf,
+  isDarkTheme,
+  initVars,
+  loadPresetIntoCustom,
+  updateCustomVar,
+  selectTheme,
+  previewTheme,
+  restoreTheme,
+  applyCustom,
+  resetCustom,
+  exportTheme,
+  importThemeText,
+  getGradeColorValue,
+  onGradeColorChange,
+  onGradeColorHexChange,
+  resetGradeColors,
+} = useThemeEditor(
+  () => props.setting,
+  (patch) => emit('settingChange', patch)
+)
+
+function selectCategory(key) {
+  if (activeCategory.value === key) return
+  restoreTheme()
+  activeCategory.value = key
+  nextTick(() => {
+    if (contentRef.value) contentRef.value.scrollTop = 0
+  })
+}
+
+function onCategoryKeydown(e) {
+  const list = categories.value
+  const idx = list.findIndex((c) => c.key === activeCategory.value)
+  if (idx < 0) return
+  let nextIdx = -1
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight') nextIdx = (idx + 1) % list.length
+  else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') nextIdx = (idx - 1 + list.length) % list.length
+  else if (e.key === 'Home') nextIdx = 0
+  else if (e.key === 'End') nextIdx = list.length - 1
+  if (nextIdx < 0) return
+  e.preventDefault()
+  selectCategory(list[nextIdx].key)
+  nextTick(() => {
+    tabRefs.value[nextIdx]?.focus()
+  })
+}
+
+watch(themeTab, (next) => {
+  if (next !== 'preset') restoreTheme()
+})
+
+onMounted(() => {
+  initVars()
+})
+
+onBeforeUnmount(() => {
+  restoreTheme()
+})
+
+const { cacheSize, clearCache, exportData, importData } = useDataBackup(
+  () => props.setting,
+  (patch) => emit('settingChange', patch),
+  isWeb
+)
 
 const apiUrlOptions = [
   { value: 'https://jx.7fa4.cn', label: 'jx.7fa4.cn', color: '#E67E22' },
-  { value: 'https://in.7fa4.cn', label: 'in.7fa4.cn', color: '#12B7F5' }
+  { value: 'https://in.7fa4.cn', label: 'in.7fa4.cn', color: '#12B7F5' },
+]
+
+const effectOptions = [
+  { value: 'performance', label: '性能', desc: '无粒子和鼠标渐变', icon: 'fas fa-bolt' },
+  { value: 'efficiency', label: '效率', desc: '无粒子效果', icon: 'fas fa-feather' },
+  { value: 'fancy', label: '精美', desc: '全部效果', icon: 'fas fa-magic' },
+]
+
+const notifPositionOptions = [
+  { value: 'br', label: '右下角' },
+  { value: 'tr', label: '右上角' },
+  { value: 'bl', label: '左下角' },
+  { value: 'tl', label: '左上角' },
 ]
 
 const currentTheme = computed(() => props.setting?.theme || 'default')
 const currentThemeLabel = computed(() => {
   if (currentTheme.value === 'custom') return '自定义（Custom）'
-  return themes.find(t => t.value === currentTheme.value)?.label || '雾蓝（Default）'
+  return THEMES.find((t) => t.value === currentTheme.value)?.label || '雾蓝（Default）'
 })
 const currentThemeColor = computed(() => {
-  if (currentTheme.value === 'custom') return 'var(--accent)'
-  return themes.find(t => t.value === currentTheme.value)?.color || '#3C8CE7'
+  if (currentTheme.value === 'custom') return 'var(--brand-fill)'
+  return THEMES.find((t) => t.value === currentTheme.value)?.color || 'var(--brand-fill)'
 })
-const apiUrlValue = computed(() => (props.setting?.apiUrl || 'https://jx.7fa4.cn').replace(/^http:\/\//, 'https://'))
+
+const apiUrlValue = computed(() =>
+  (props.setting?.apiUrl || 'https://jx.7fa4.cn').replace(/^http:\/\//, 'https://')
+)
 const effectValue = computed(() => props.setting?.effectLevel || 'fancy')
 
-const effectOptions = [
-  { value: 'performance', label: '性能', desc: '无粒子和鼠标渐变', icon: 'fas fa-bolt' },
-  { value: 'efficiency', label: '效率', desc: '无粒子效果', icon: 'fas fa-feather' },
-  { value: 'fancy', label: '精美', desc: '全部效果', icon: 'fas fa-magic' }
-]
+function selectApiUrl(value) {
+  emit('settingChange', { apiUrl: value })
+}
 
-function selectApiUrl(value) { emit('settingChange', { apiUrl: value }) }
-function selectEffect(value) { emit('settingChange', { effectLevel: value }) }
+function selectEffect(value) {
+  emit('settingChange', { effectLevel: value })
+}
 
-function onSettingChange(key, value) { emit('settingChange', { [key]: value }) }
-function onPollChange(val) { emit('settingChange', { pollInterval: Number(val) }) }
+function onSettingChange(key, value) {
+  emit('settingChange', { [key]: value })
+}
+
+function onPollChange(val) {
+  emit('settingChange', { pollInterval: Number(val) })
+}
+
 function onFontSizeChange(val) {
   const size = Number(val)
   emit('settingChange', { fontSize: size })
@@ -159,83 +832,49 @@ function onFontSizeChange(val) {
 }
 
 function formatPoll(ms) {
-  if (ms >= 1000) return (ms / 1000).toFixed(1) + 's'
-  return ms + 'ms'
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`
 }
 
 function onKeepLoginChange(checked) {
   if (!checked) emit('settingChange', { keepLogin: false, loginUsername: '', loginPassword: '' })
 }
 
-// ========== 缓存管理 ==========
-async function loadCacheSize() {
-  try {
-    const r = await window.api.getCacheSize()
-    if (r.success) cacheSize.value = r.size
-  } catch {}
+// ---------- 通知与提醒 ----------
+
+function formatNotifDuration(ms) {
+  return `${(Number(ms) / 1000).toFixed(1)}s`
 }
 
-async function clearCache() {
-  if (!confirm('确定要清理缓存吗？这将删除所有本地聊天数据并从服务器重新拉取。')) return
-  try {
-    const r = await window.api.clearCache()
-    if (r.success) {
-      cacheSize.value = 0
-      emit('settingChange', { _clearCache: true })
-    }
-  } catch {}
+function onNotifDurationChange(val) {
+  emit('settingChange', { notifDuration: Number(val) })
 }
 
-// ========== 备份/恢复 ==========
-async function exportData() {
+// 提示音/测试通知由 utils/notify.js 提供；helper 内部已负责 toast 与播放，面板只负责触发。
+const testNotifBusy = ref(false)
+async function onSendTestNotification() {
+  if (testNotifBusy.value) return
+  testNotifBusy.value = true
   try {
-    const uid = store.self.uid
-    if (!uid) { alert('未登录，无法备份'); return }
-    // 从 SQLite 全量导出（含所有历史消息，内存可能只加载了活跃会话）
-    const r = await window.api.storeExportAll(uid)
-    if (!r.success) { alert('备份失败：' + (r.error || '存储不可用')); return }
-    // 全量备份：系统数据（prefs 聚合）+ 设置（setting）
-    const prefs = { ...((r.prefs && typeof r.prefs === 'object') ? r.prefs : {}) }
-    const data = JSON.stringify({
-      kind: 'full',
-      version: 1,
-      users: r.users,
-      groups: r.groups,
-      messages: r.messages,
-      prefs,
-      setting: { ...(props.setting || {}) }
-    })
-    const saveR = await window.api.exportData(data)
-    if (saveR.success) alert('备份成功：' + saveR.path)
-  } catch (e) { alert('备份失败：' + e.message) }
+    await sendTestNotification(props.setting || {})
+  } catch {
+    // helper 自己会反馈结果，这里只兜底，避免未处理的 Promise 拒绝
+  } finally {
+    testNotifBusy.value = false
+  }
 }
 
-async function importData() {
-  try {
-    const uid = store.self.uid
-    if (!uid) { alert('未登录，无法恢复'); return }
-    const r = await window.api.importData()
-    if (!r.success || !r.data) return
-    const loaded = JSON.parse(r.data)
-    // v1 格式：prefs 聚合 + setting
-    if (loaded.users) store.users = loaded.users
-    if (loaded.groups) store.groups = loaded.groups
-    if (loaded.messages) store.messages = loaded.messages
-    if (loaded.prefs && typeof loaded.prefs === 'object') {
-      const CORE = ['users', 'groups', 'messages', 'self', 'setting']
-      for (const [k, v] of Object.entries(loaded.prefs)) {
-        if (!CORE.includes(k) && k in store) store[k] = v
-      }
-    }
-    if (loaded.setting && typeof loaded.setting === 'object') {
-      emit('settingChange', loaded.setting) // 整体恢复设置（主题 / 年级颜色 / API 地址等）
-    }
-    // 同步写入 SQLite（消息按会话归属，事务批量）
-    const imp = await window.api.storeImportAll(uid, loaded)
-    if (!imp.success) { alert('恢复警告：写入本地存储失败（' + (imp.error || '') + '）'); return }
-    alert('恢复成功')
-  } catch (e) { alert('恢复失败：' + e.message) }
+// 拖动滑块会连发 update，节流到 200ms 一次：既不叠成噪音，又能边拖边听到音量
+let lastPreviewAt = 0
+function onNotifVolumeChange(val) {
+  const volume = Number(val) || 0
+  emit('settingChange', { notifSoundVolume: volume })
+  const now = Date.now()
+  if (now - lastPreviewAt < 200) return
+  lastPreviewAt = now
+  // 试听与 notifSound 开关无关：用户此刻就想听见改完的音量
+  previewNotificationSound(volume)
 }
 </script>
 
+<style src="../../css/components/theme-modal.css"></style>
 <style scoped src="../../css/components/settings-panel.css"></style>

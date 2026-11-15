@@ -10,13 +10,14 @@
     <slot />
   </span>
   <Teleport to="body">
-    <Transition name="fade">
+    <Transition name="dropdown">
       <div
         v-show="visible"
         :id="tooltipId"
         ref="panelRef"
         class="ui-tooltip"
         role="tooltip"
+        :data-placement="actualPlacement"
         :style="panelStyle"
       >
         {{ content }}
@@ -41,6 +42,7 @@ const props = defineProps({
 const triggerRef = ref(null)
 const panelRef = ref(null)
 const panelStyle = ref({})
+const actualPlacement = ref(props.placement)
 const visible = ref(false)
 const uid = useId()
 const tooltipId = `${uid}-tooltip`
@@ -84,6 +86,7 @@ function updatePosition() {
     left = anchor.left + anchor.width / 2 - width / 2
   }
 
+  actualPlacement.value = placement
   panelStyle.value = {
     top: `${clamp(top, GUTTER, vh - height - GUTTER)}px`,
     left: `${clamp(left, GUTTER, vw - width - GUTTER)}px`
@@ -160,4 +163,4 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<style scoped src="./UiTooltip.css"></style>
+<style src="./UiTooltip.css"></style>

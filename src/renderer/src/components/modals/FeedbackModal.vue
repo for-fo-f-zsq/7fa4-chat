@@ -1,12 +1,12 @@
 <template>
   <UiModal :open="open" title="意见反馈" size="md" @close="close">
-    <div class="fb" @paste="onPaste">
+    <div class="p-form-stack fb" @paste="onPaste">
       <p class="fb-lead">遇到问题或想要新功能，写在这里就行。截图可选（支持直接粘贴），最多 {{ MAX_SHOTS }} 张。</p>
 
       <div class="fb-field">
         <div class="fb-label">
           <span>反馈内容</span>
-          <span class="fb-count" :class="{ over: content.length > MAX_CONTENT }">{{ content.length }}/{{ MAX_CONTENT }}</span>
+          <span class="fb-count u-tabular-nums" :class="{ over: content.length > MAX_CONTENT }">{{ content.length }}/{{ MAX_CONTENT }}</span>
         </div>
         <UiTextarea
           v-model="content"
@@ -28,7 +28,7 @@
             v-for="p in PLATFORMS"
             :key="p.value"
             type="button"
-            class="fb-chip"
+            class="fb-chip motion-press"
             :class="{ on: platform === p.value }"
             @click="platform = p.value"
           >{{ p.label }}</button>
@@ -40,13 +40,24 @@
           <span>截图</span>
           <span class="fb-hint">可选，单张 ≤ 3MB</span>
         </div>
-        <div class="fb-shots">
-          <div v-for="(shot, i) in shots" :key="i" class="fb-shot">
-            <img :src="shot.data" :alt="'截图 ' + (i + 1)" />
-            <button type="button" class="fb-shot-del" title="移除" @click="shots.splice(i, 1)">×</button>
-          </div>
-          <button v-if="shots.length < MAX_SHOTS" type="button" class="fb-shot-add" @click="pickFiles">
-            <i class="fas fa-plus"></i><span>添加</span>
+        <div class="fb-shots-wrap">
+          <TransitionGroup name="list" tag="div" class="fb-shots">
+            <div v-for="(shot, i) in shots" :key="shot.id" class="fb-shot">
+              <img :src="shot.data" :alt="'截图 ' + (i + 1)" />
+              <UiIconButton
+                variant="overlay"
+                round
+                icon="fas fa-times"
+                size="sm"
+                class="fb-shot-del"
+                aria-label="移除截图"
+                title="移除"
+                @click="shots.splice(i, 1)"
+              />
+            </div>
+          </TransitionGroup>
+          <button v-if="shots.length < MAX_SHOTS" type="button" class="fb-shot-add motion-press" @click="pickFiles">
+            <i class="fas fa-plus" aria-hidden="true"></i><span>添加</span>
           </button>
         </div>
         <input ref="fileEl" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden @change="onFiles" />
@@ -65,7 +76,7 @@
     </div>
 
     <template #footer>
-      <UiButton variant="text" size="md" @click="close">取消</UiButton>
+      <UiButton variant="secondary" size="md" @click="close">取消</UiButton>
       <UiButton variant="primary" size="md" :disabled="sending || !content.trim()" @click="submit">
         {{ sending ? '提交中…' : '提交反馈' }}
       </UiButton>
@@ -74,12 +85,10 @@
 </template>
 
 <script setup>
-// 意见反馈：桌面端直接向官网后端 POST /api/feedback（同源不需要 cookie），截图以 base64 内嵌。
-// 网页版由 NavBar 直接开 /feedback 页面，不走这个弹窗。
 import { ref, watch } from 'vue'
-import { store } from '../../store.js'
-import { feedbackApiUrl } from '../../utils.js'
-import { UiBanner, UiButton, UiInput, UiModal, UiTextarea } from '@/ui'
+import { UiBanner, UiButton, UiIconButton, UiInput, UiModal, UiTextarea } from '@/ui'
+import { store } from '@/store.js'
+import { feedbackApiUrl } from '@/utils.js'
 
 const MAX_CONTENT = 4000
 const MAX_SHOTS = 3
@@ -90,7 +99,7 @@ const PLATFORMS = [
   { value: 'macos', label: 'macOS' },
   { value: 'android', label: 'Android' },
   { value: 'web', label: '网页版' },
-  { value: 'unknown', label: '其它' }
+  { value: 'unknown', label: '其它' },
 ]
 
 const props = defineProps({ open: { type: Boolean, default: false } })
@@ -105,27 +114,34 @@ const sending = ref(false)
 const done = ref(false)
 const doneId = ref('')
 const fileEl = ref(null)
+let shotSeq = 0
 
-// 打开时按真实平台预填；若上次尚未提交成功则保留已填草稿，避免误触遮罩关闭后丢失内容
-watch(() => props.open, async (v) => {
-  if (!v) return
-  if (done.value) {
-    content.value = ''
-    shots.value = []
-    done.value = false
-    doneId.value = ''
+watch(
+  () => props.open,
+  async (v) => {
+    if (!v) return
+    if (done.value) {
+      content.value = ''
+      shots.value = []
+      done.value = false
+      doneId.value = ''
+    }
+    error.value = ''
+    sending.value = false
+    if (!contact.value.trim() && store.self?.uid) {
+      contact.value = store.self.username
+        ? `${store.self.username} (UID ${store.self.uid})`
+        : `UID ${store.self.uid}`
+    }
+    if (platform.value === 'unknown') {
+      try {
+        platform.value = (await window.api.getPlatform()) || 'unknown'
+      } catch {
+        platform.value = 'unknown'
+      }
+    }
   }
-  error.value = ''
-  sending.value = false
-  if (!contact.value.trim() && store.self?.uid) {
-    contact.value = store.self.username
-      ? `${store.self.username} (UID ${store.self.uid})`
-      : `UID ${store.self.uid}`
-  }
-  if (platform.value === 'unknown') {
-    try { platform.value = (await window.api.getPlatform()) || 'unknown' } catch { platform.value = 'unknown' }
-  }
-})
+)
 
 function close() {
   emit('close')
@@ -147,11 +163,17 @@ function addImageFiles(fileList) {
   }
   error.value = ''
   for (const f of files.slice(0, room)) {
-    if (!/^image\//.test(f.type)) { error.value = '只能上传图片'; continue }
-    if (f.size > MAX_SHOT_BYTES) { error.value = '单张截图不能超过 3MB'; continue }
+    if (!/^image\//.test(f.type)) {
+      error.value = '只能上传图片'
+      continue
+    }
+    if (f.size > MAX_SHOT_BYTES) {
+      error.value = '单张截图不能超过 3MB'
+      continue
+    }
     const reader = new FileReader()
     reader.onload = () => {
-      shots.value.push({ type: f.type, data: String(reader.result), name: f.name || 'screenshot.png' })
+      shots.value.push({ id: ++shotSeq, type: f.type, data: String(reader.result), name: f.name || 'screenshot.png' })
     }
     reader.readAsDataURL(f)
   }
@@ -174,13 +196,23 @@ function onPaste(e) {
 
 async function submit() {
   const text = content.value.trim()
-  if (!text) { error.value = '先写点内容吧'; return }
-  if (text.length > MAX_CONTENT) { error.value = `内容超出 ${MAX_CONTENT} 字`; return }
+  if (!text) {
+    error.value = '先写点内容吧'
+    return
+  }
+  if (text.length > MAX_CONTENT) {
+    error.value = `内容超出 ${MAX_CONTENT} 字`
+    return
+  }
 
   sending.value = true
   error.value = ''
   let version = ''
-  try { version = String(await window.api.getVersion()) } catch {}
+  try {
+    version = String(await window.api.getVersion())
+  } catch {
+    /* ignore */
+  }
   try {
     const res = await fetch(feedbackApiUrl(), {
       method: 'POST',
@@ -191,8 +223,8 @@ async function submit() {
         contact: contact.value.trim(),
         version,
         page: 'app',
-        screenshots: shots.value.map((s) => ({ type: s.type, data: s.data, name: s.name }))
-      })
+        screenshots: shots.value.map((s) => ({ type: s.type, data: s.data, name: s.name })),
+      }),
     })
     const data = await res.json().catch(() => ({}))
     if (res.ok && data.ok) {
@@ -202,7 +234,7 @@ async function submit() {
     } else {
       error.value = data.error || `提交失败（HTTP ${res.status}）`
     }
-  } catch (e) {
+  } catch {
     error.value = '网络错误，检查一下连接后重试'
   } finally {
     sending.value = false

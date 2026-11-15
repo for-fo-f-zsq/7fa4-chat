@@ -1,22 +1,25 @@
+/* UiSegmented — 分段控件样式；利落胶囊比例 + expo-out 滑块。 */
 .ui-segmented {
   --seg-count: 1;
   --seg-index: 0;
-  --seg-h: var(--control-h-md);
+  --seg-h: var(--seg-h-md);
   position: relative;
   display: inline-flex;
   align-items: stretch;
-  padding: var(--space-1);
-  border-radius: var(--radius-md);
+  padding: var(--seg-pad);
+  border: var(--border-width) solid var(--line-hairline);
+  border-radius: var(--radius-base);
   background: var(--surface-2);
   font-family: var(--font-sans);
 }
 
 .ui-segmented--sm {
-  --seg-h: var(--control-h-sm);
+  --seg-h: var(--seg-h-sm);
+  border-radius: var(--radius-md);
 }
 
 .ui-segmented--md {
-  --seg-h: var(--control-h-md);
+  --seg-h: var(--seg-h-md);
 }
 
 .ui-segmented--block {
@@ -26,15 +29,16 @@
 
 .ui-segmented-thumb {
   position: absolute;
-  top: var(--space-1);
-  bottom: var(--space-1);
-  left: var(--space-1);
-  width: calc((100% - var(--space-1) * 2) / var(--seg-count));
+  top: var(--seg-pad);
+  bottom: var(--seg-pad);
+  left: var(--seg-pad);
+  width: calc((100% - var(--seg-pad) * 2) / var(--seg-count));
+  border: var(--border-width) solid var(--line-hairline);
   border-radius: var(--radius-sm);
-  background: var(--surface-0);
-  box-shadow: var(--elev-1);
+  background: var(--surface-raised);
+  box-shadow: var(--elev-pill);
   transform: translateX(calc(var(--seg-index) * 100%));
-  transition: transform var(--motion-dur-base) var(--motion-ease-standard);
+  transition: transform var(--motion-dur-base) var(--motion-ease-out-expo);
   pointer-events: none;
 }
 
@@ -55,19 +59,26 @@
   font-family: var(--font-sans);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
-  line-height: var(--leading-tight);
+  line-height: 1;
   white-space: nowrap;
   cursor: pointer;
-  transition: color var(--motion-dur-fast) var(--motion-ease-standard);
+  transition: color var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo);
+}
+
+.ui-segmented--sm .ui-segmented-item {
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
 }
 
 .ui-segmented-item.is-active {
   color: var(--fg);
+  font-weight: var(--weight-semibold);
 }
 
 .ui-segmented-item:focus-visible {
-  outline: var(--focus-width) solid var(--focus-color);
-  outline-offset: var(--focus-offset);
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
 }
 
 .ui-segmented-label {
@@ -78,4 +89,8 @@
   .ui-segmented-item:hover:not(.is-active) {
     color: var(--fg);
   }
+}
+
+.ui-segmented-item:active {
+  transform: scale(var(--press-scale, 0.97));
 }

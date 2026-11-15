@@ -1,7 +1,12 @@
-/* SearchPanel — 消息搜索面板（C1）；面板进出用 fade-down，下拉用 dropdown，均来自 motion.css。
-   输入类（关键词/发送者搜索/起止日期）外观由 UiSearchInput / UiInput 提供，本文件只做布局与下拉面板。 */
+/* SearchPanel — 滑入毛玻璃搜索条 */
 .search-panel {
-  background: var(--surface-0);
+  background: var(--surface-glass);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-bottom: var(--border-width) solid var(--line-hairline);
+  box-shadow: var(--elev-1);
+  position: relative;
+  z-index: var(--z-sticky);
 }
 
 .search-bar {
@@ -10,194 +15,83 @@
   align-items: flex-end;
   gap: var(--space-2);
   max-width: 100%;
-  padding: var(--space-2) var(--space-4);
-  background: var(--surface-0);
-  border-bottom: var(--border-width) solid var(--line);
+  padding: var(--space-2) var(--space-4) var(--space-3);
 }
 
 .search-field {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  max-width: 160px;
+  gap: 3px;
+  max-width: 164px;
   min-width: 0;
 }
 
 .search-label {
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
+  color: var(--fg-subtle);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wide);
   white-space: nowrap;
 }
 
-/* 关键词搜索：外观由 UiSearchInput 提供，这里只约束列宽。 */
 .search-input {
-  min-width: 120px;
+  min-width: 140px;
 }
 
-/* 起止日期：外观由 UiInput 提供，这里只约束列宽。 */
 .search-date {
-  width: 130px;
+  width: 132px;
 }
 
-/* Custom select for search panel */
-.search-panel .custom-select {
-  position: relative;
-  min-width: 100px;
-  max-width: 160px;
-}
-
-.search-panel .custom-select-trigger {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  overflow: hidden;
-  color: var(--fg);
-  font-size: var(--text-sm);
-  white-space: nowrap;
-  background: var(--surface-2);
-  border: var(--border-width) solid var(--line);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  user-select: none;
-  transition: border-color var(--motion-dur-fast) var(--motion-ease-standard),
-    background-color var(--motion-dur-fast) var(--motion-ease-standard);
-}
-
-.search-panel .custom-select-trigger:hover {
-  background: var(--surface-hover);
-}
-
-.search-panel .custom-select.open .custom-select-trigger {
-  border-color: var(--brand);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-  box-shadow: var(--focus-halo);
-}
-
-.search-panel .custom-select.open.dropup .custom-select-trigger {
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
-}
-
-.search-panel .custom-select-arrow {
-  flex-shrink: 0;
-  margin-left: auto;
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
-  transition: transform var(--motion-dur-base) var(--motion-ease-standard);
-}
-
-.search-panel .custom-select.open .custom-select-arrow {
-  transform: rotate(180deg);
-}
-
-.search-panel .custom-select-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  left: 0;
-  z-index: var(--z-dropdown);
-  max-height: 200px;
-  overflow: hidden auto;
-  background: var(--surface-2);
-  border: var(--border-width) solid var(--brand);
-  border-top: none;
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
-  box-shadow: var(--elev-2);
-}
-
-.search-panel .custom-select-option {
-  display: flex;
-  align-items: center;
-  padding: 6px 10px;
-  overflow: hidden;
-  color: var(--fg);
-  font-size: var(--text-sm);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  cursor: pointer;
-  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
-}
-
-.search-panel .custom-select-option:hover {
-  background: var(--brand-soft);
-}
-
-.search-panel .custom-select-option.active {
-  font-weight: 500;
-  background: var(--brand-soft);
-}
-
-.search-panel .custom-select-dropdown.dropup {
-  top: auto;
-  bottom: 100%;
-  border-top: var(--border-width) solid var(--brand);
-  border-bottom: none;
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-}
-
-/* 发送者搜索行：输入框外观由 UiSearchInput 提供，这里只做行分隔。 */
-.search-panel .custom-select-search {
-  padding: var(--space-1) 6px;
-  border-bottom: var(--border-width) solid var(--line);
-}
-
-.search-panel .custom-select-options {
-  max-height: 160px;
-  overflow-y: auto;
-}
-
-.search-panel .custom-select-empty {
-  padding: var(--space-2) 10px;
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
-  text-align: center;
-}
-
-/* 关闭按钮外观由 UiIconButton 提供，这里只保留对齐。 */
 .search-close-btn {
   align-self: flex-end;
+  margin-left: auto;
 }
 
 .search-results {
-  max-height: 200px;
+  max-height: 220px;
   overflow-y: auto;
-  background: var(--surface-0);
-  border-bottom: var(--border-width) solid var(--line);
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  border-top: var(--border-width) solid var(--line-hairline);
   scrollbar-width: thin;
 }
 
 .search-results-header {
-  padding: 6px var(--space-4);
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
-  border-bottom: var(--border-width) solid var(--line);
+  padding: var(--space-1) var(--space-3);
+  color: var(--fg-subtle);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
 }
 
 .search-result-item {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  border-bottom: var(--border-width) solid var(--line-subtle);
-  transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
+  transition:
+    background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo);
 }
 
-.search-result-item:hover {
-  background: var(--surface-hover);
+@media (hover: hover) {
+  .search-result-item:hover {
+    background: var(--surface-hover);
+  }
 }
 
-.search-result-item:last-child {
-  border-bottom: none;
+.search-result-item:active {
+  transform: scale(0.995);
 }
 
 .search-result-sender {
   flex-shrink: 0;
-  min-width: 60px;
-  max-width: 80px;
+  min-width: 56px;
+  max-width: 96px;
   overflow: hidden;
-  color: var(--fg-link);
+  color: var(--brand);
   font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -213,11 +107,10 @@
 
 .search-result-time {
   flex-shrink: 0;
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
+  color: var(--fg-subtle);
+  font-size: var(--text-xs);
 }
 
-/* 「查看更多」外观由 UiButton 提供，这里只保留分隔。 */
 .search-more-btn {
   margin-top: var(--space-1);
 }

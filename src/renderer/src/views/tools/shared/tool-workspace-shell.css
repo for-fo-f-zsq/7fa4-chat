@@ -1,0 +1,64 @@
+.tool-shell {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--gradient-panel);
+  color: var(--fg);
+}
+
+.tool-shell__header {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--border-width) solid var(--line-hairline);
+  background: var(--surface-1);
+  box-shadow: var(--elev-titlebar);
+  flex-shrink: 0;
+  z-index: var(--z-raised);
+}
+
+.tool-shell__bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  min-width: 0;
+}
+
+.tool-shell__bar > :deep(i:first-child) {
+  flex-shrink: 0;
+  color: var(--brand);
+}
+
+.tool-shell__body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  padding: var(--space-3) var(--space-4);
+  gap: var(--space-3);
+  overflow: hidden;
+  position: relative;
+}
+
+.tool-shell.is-flush .tool-shell__body {
+  padding: 0;
+  gap: 0;
+}
+
+.tool-shell.narrow .tool-shell__body {
+  flex-direction: column;
+}
+
+.tool-shell.narrow:not(.is-flush) .tool-shell__body {
+  padding: var(--space-2) var(--space-3);
+}
+
+.tool-shell__footer {
+  flex-shrink: 0;
+  border-top: var(--border-width) solid var(--line-hairline);
+  background: var(--surface-1);
+}

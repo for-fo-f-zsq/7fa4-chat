@@ -1,8 +1,8 @@
 {
   "id": "image",
   "name": "图片编辑",
-  "desc": "画笔/橡皮/直线/矩形/椭圆；撤销；新建画布；保存到文件",
-  "version": "1.0.4",
+  "desc": "画笔/橡皮/直线/箭头/矩形/椭圆/马赛克/文字；拖动边角调整画布；旋转翻转；撤销重做；保存与导出",
+  "version": "1.1.4",
   "minAppVersion": "3.7.0",
   "entry": "index.html",
   "icon": "fas fa-image"

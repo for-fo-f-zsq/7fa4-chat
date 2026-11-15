@@ -149,7 +149,7 @@ export function assertOptionalString(value, label, fallback = '') {
 /* 主题                                                                 */
 /* ------------------------------------------------------------------ */
 
-/** 按 --bg-app 的亮度判断是否深色（与 ThemeModal.vue isDarkTheme 口径一致） */
+/** 按 --bg-app 的亮度判断是否深色（与 useThemeEditor.js 的 isDarkTheme 口径一致） */
 export function isDarkColor(color) {
   if (typeof color !== 'string' || !color) return false
   const c = color.trim()

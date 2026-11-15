@@ -37,6 +37,7 @@
         :disabled="disabled"
         :readonly="readonly"
         :maxlength="maxlength ?? undefined"
+        :aria-label="ariaLabel || undefined"
         :aria-invalid="invalid || !!error ? 'true' : undefined"
         :aria-describedby="describedBy"
         @input="onInput"
@@ -85,6 +86,7 @@ const props = defineProps({
   help: { type: String, default: '' },
   error: { type: String, default: '' },
   hideLabel: { type: Boolean, default: false },
+  ariaLabel: { type: String, default: '' },
 })
 
 const emit = defineEmits(['update:modelValue', 'focus', 'blur', 'enter', 'clear'])
@@ -146,6 +148,11 @@ function onBoxClick(event) {
 onMounted(() => {
   if (props.autofocus) inputEl.value?.focus()
 })
+defineExpose({
+  focus: () => inputEl.value?.focus(),
+  select: () => inputEl.value?.select(),
+  el: inputEl,
+})
 </script>
 
-<style scoped src="./UiInput.css"></style>
+<style src="./UiInput.css"></style>

@@ -9,12 +9,38 @@ ipcRenderer.on('tools-progress', (event, payload) => {
   }
 });
 
+// 通知 payload 归一化：对象形式原样透传（只补 position/duration 缺省），
+// 老的四参数形式转成同一份字段结构，主进程只认这一种。
+function normalizeNotifyArgs(payload, body, chatType, targetId) {
+  const isPlainObject = !!payload && typeof payload === 'object' && !Array.isArray(payload);
+  if (isPlainObject) {
+    return {
+      position: 'br',
+      duration: 6000,
+      ...payload
+    };
+  }
+  return {
+    title: String(payload ?? ''),
+    body: String(body ?? ''),
+    chatType,
+    targetId,
+    position: 'br',
+    duration: 6000,
+    count: 1,
+    timestamp: Date.now(),
+    id: chatType + '_' + targetId
+  };
+}
+
 contextBridge.exposeInMainWorld('api', {
   getVersion: () => ipcRenderer.invoke('get-version'),
   getPlatform: () => ipcRenderer.invoke('get-platform'),
   loadSetting: () => ipcRenderer.invoke('load-setting'),
   saveSetting: (data) => ipcRenderer.invoke('save-setting', data),
-  notify: (sender, content, chatType, targetId) => ipcRenderer.invoke('notify', { sender, content, chatType, targetId }),
+  // 通知入参归一化：新调用方直接传完整 payload 对象（title/body/position/accent…），
+  // 旧调用方传 (sender, content, chatType, targetId)，两种都兼容到主进程同一份结构上。
+  notify: (payload, body, chatType, targetId) => ipcRenderer.invoke('notify', normalizeNotifyArgs(payload, body, chatType, targetId)),
   showMainWindow: () => ipcRenderer.invoke('show-mainwindow'),
   onNotifClick: (callback) => {
     const handler = (event, data) => callback(data);
@@ -68,7 +94,11 @@ contextBridge.exposeInMainWorld('api', {
   checkForUpdate: () => ipcRenderer.invoke('check-for-update'),
   downloadUpdate: () => ipcRenderer.invoke('download-update'),
   installUpdate: () => ipcRenderer.invoke('install-update'),
-  onUpdateStatus: (callback) => ipcRenderer.on('update-status', (event, data) => callback(data)),
+  onUpdateStatus: (callback) => {
+    const handler = (event, data) => callback(data);
+    ipcRenderer.on('update-status', handler);
+    return () => ipcRenderer.removeListener('update-status', handler);
+  },
   fetchChangelog: () => ipcRenderer.invoke('fetch-changelog'),
   // --- 新增功能 IPC ---
   setBadgeCount: (count) => ipcRenderer.invoke('set-badge-count', count),
@@ -77,7 +107,7 @@ contextBridge.exposeInMainWorld('api', {
   exportData: (data) => ipcRenderer.invoke('export-data', data),
   importData: () => ipcRenderer.invoke('import-data'),
   getCacheSize: () => ipcRenderer.invoke('get-cache-size'),
-  clearCache: () => ipcRenderer.invoke('clear-cache'),
+  clearCache: (uid) => ipcRenderer.invoke('clear-cache', uid),
   // --- 工具 ---
   loadUsersDb: () => ipcRenderer.invoke('load-users-db'),
   clearSessionCookies: () => ipcRenderer.invoke('clear-session-cookies'),

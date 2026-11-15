@@ -36,7 +36,7 @@ const anchorStyle = computed(() => ({
 const actionList = computed(() => {
   const member = store.groups?.[props.gid]?.users?.filter(u => u.user_id == props.mid)[0]
   const self = store.groups?.[props.gid]?.users?.filter(u => u.user_id == store.self.uid)[0]
-  if (!member) return []
+  if (!member || !self) return []
   const selftype = self.type || 'Member'
   const memType = member.type || 'Member'
   const isSelf = String(member.user_id) === String(self.user_id)

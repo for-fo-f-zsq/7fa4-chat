@@ -7,6 +7,7 @@
         'ui-icon-btn--ghost': variant === 'ghost',
         'ui-icon-btn--soft': variant === 'soft',
         'ui-icon-btn--solid': variant === 'solid',
+        'ui-icon-btn--overlay': variant === 'overlay',
       },
       {
         'ui-icon-btn--sm': size === 'sm',
@@ -81,4 +82,4 @@ function onClick(event) {
 }
 </script>
 
-<style scoped src="./UiIconButton.css"></style>
+<style src="./UiIconButton.css"></style>

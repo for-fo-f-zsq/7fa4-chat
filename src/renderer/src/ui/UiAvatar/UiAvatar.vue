@@ -16,6 +16,7 @@
         'ui-avatar--rounded': shape === 'rounded',
         'is-clickable': clickable,
         'has-color': !!color,
+        'has-ring': !!ringColor,
       },
     ]"
     :style="avatarStyle"
@@ -58,6 +59,7 @@ const props = defineProps({
   size: { type: [String, Number], default: 'md' },
   shape: { type: String, default: 'circle' },
   color: { type: String, default: '' },
+  ringColor: { type: String, default: '' },
   badge: { type: [Number, String], default: null },
   status: { type: String, default: '' },
   clickable: { type: Boolean, default: false },
@@ -76,6 +78,7 @@ const avatarStyle = computed(() => {
   const style = {}
   if (typeof props.size === 'number') style['--avatar-size'] = `${props.size}px`
   if (props.color) style['--avatar-bg'] = props.color
+  if (props.ringColor) style['--avatar-ring'] = props.ringColor
   return Object.keys(style).length ? style : undefined
 })
 
@@ -102,4 +105,4 @@ function onActivate(event) {
 }
 </script>
 
-<style scoped src="./UiAvatar.css"></style>
+<style src="./UiAvatar.css"></style>

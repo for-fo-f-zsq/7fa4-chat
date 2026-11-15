@@ -78,6 +78,7 @@ await esbuild.build({
   platform: 'browser',
   target: 'es2022',
   outfile,
+  alias: { '@': path.join(ROOT, 'src/renderer/src') },
   plugins: [vueSfc],
   loader: { '.css': 'empty' },
   define: {
@@ -181,7 +182,7 @@ chk('结构：可拖拽分隔条存在', !!m.divider)
 chk('结构：右栏预览容器存在', !!m.right)
 chk('结构：发送按钮存在', !!m.root.querySelector('#send'))
 chk('结构：计数器行存在', !!m.root.querySelector('.counter-line'))
-chk('结构：分栏内不再有 Typora 表面', !m.footer.querySelector('.input-surface'))
+chk('结构：分栏内不再有旧输入表面', !m.footer.querySelector('.input-surface'))
 
 // -- 2. 空态：右侧给的是空态提示，不是空白 --
 chk('空态：显示"输入内容后在此预览"', !!m.empty && m.empty.textContent.includes('在此预览'))

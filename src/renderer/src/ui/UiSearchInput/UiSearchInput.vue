@@ -1,9 +1,11 @@
 <template>
   <UiInput
+    ref="inputRef"
     class="ui-search"
     :model-value="modelValue"
     :placeholder="placeholder"
     :size="size"
+    :autofocus="autofocus"
     prefix-icon="fas fa-magnifying-glass"
     :clearable="true"
     @update:model-value="onInput"
@@ -16,6 +18,7 @@
 // 用法：<UiSearchInput v-model="keyword" :debounce="300" @search="query" />
 
 import { onBeforeUnmount } from 'vue'
+import { computed, ref } from 'vue'
 import UiInput from '../UiInput/UiInput.vue'
 
 defineOptions({ name: 'UiSearchInput' })
@@ -25,9 +28,12 @@ const props = defineProps({
   placeholder: { type: String, default: '搜索' },
   size: { type: String, default: 'sm' },
   debounce: { type: Number, default: 0 },
+  autofocus: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['update:modelValue', 'search', 'clear'])
+
+const inputRef = ref(null)
 
 let timer = null
 let skipSearch = false
@@ -73,6 +79,12 @@ function onEnter() {
 }
 
 onBeforeUnmount(cancel)
+
+defineExpose({
+  focus: () => inputRef.value?.focus(),
+  select: () => inputRef.value?.select(),
+  el: computed(() => inputRef.value?.el),
+})
 </script>
 
-<style scoped src="./UiSearchInput.css"></style>
+<style src="./UiSearchInput.css"></style>

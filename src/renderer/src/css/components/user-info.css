@@ -1,12 +1,16 @@
-/* 用户信息弹窗内容 — 由 UserInfoModal.vue scoped 引入；浮层外壳（遮罩/面板/焦点锁）由 UiModal 原语承载。 */
+/* 用户信息弹窗内容 — 头像 + EditableTitle + 统一字段行样式。 */
 .userinfo-header {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   min-width: 0;
-  /* 长备注名最多 2 行，头部随内容增高但保留上下呼吸位，避免贴住弹窗边框 */
   padding: var(--space-2) 0;
+}
+
+.user-note-wrapper {
+  flex: 1;
+  min-width: 0;
 }
 
 .userinfo-actions {
@@ -17,85 +21,29 @@
   margin-left: auto;
 }
 
-.user-note-wrapper {
-  flex: 1;
-  min-width: 0;
-}
-
-.user-note-input {
-  width: 100%;
-  max-width: calc(var(--space-16) * 3 + var(--space-2));
-  padding: var(--space-1) var(--space-2);
-  color: var(--fg);
-  font-family: var(--font-sans);
-  font-size: var(--text-lg);
-  font-weight: var(--weight-medium);
-  background: var(--surface-2);
-  border: var(--border-width) solid var(--brand);
-  border-radius: var(--radius-base);
-  outline: none;
-  transition: box-shadow var(--motion-dur-fast) var(--motion-ease-standard);
-}
-
-.user-note-input:focus {
-  box-shadow: var(--focus-halo);
-}
-
-/* 标题编辑：原 base.css 迁移期共享段，C2 scoped 后由本文件拥有；长名字限 2 行并省略 */
-.editable-name {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  margin: 0;
-  color: var(--fg);
-  font-size: var(--text-lg);
-  font-weight: var(--weight-medium);
-  line-height: 1.35;
-  cursor: default;
-}
-
-.editable-name.editable {
-  cursor: pointer;
-}
-
-/* hover 提示可编辑：只加下划线，不改色（--brand 墨色比 --fg 浅，上色等于变浅） */
-.editable-name.editable:hover {
-  text-decoration: underline;
-  text-decoration-color: var(--brand);
-  text-underline-offset: 3px;
-}
-
-.edit-icon {
-  color: var(--fg-muted);
-  font-size: var(--text-base);
-  opacity: 0.6;
-  transition: opacity var(--motion-dur-fast) var(--motion-ease-standard);
-}
-
-.editable-name.editable:hover .edit-icon {
-  color: var(--brand);
-  opacity: 1;
-}
-
 .userinfo-body {
   display: flex;
   flex-direction: column;
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface-1);
+  border: var(--border-width) solid var(--line-hairline);
+  border-radius: var(--radius-xl);
 }
 
 .userinfo-row {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) 0;
+  gap: var(--space-3);
+  padding: var(--space-2);
   border-bottom: var(--border-width) solid var(--line-subtle);
-  border-radius: var(--radius-base);
+  border-radius: var(--radius-md);
   transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
 
-.userinfo-row:hover {
-  background: var(--surface-hover);
+@media (hover: hover) {
+  .userinfo-row:hover {
+    background: var(--surface-hover);
+  }
 }
 
 .userinfo-row:last-child {
@@ -103,11 +51,10 @@
 }
 
 .userinfo-label {
-  flex: 0 0 auto;
-  min-width: calc(var(--space-16) + var(--space-8));
+  flex: 0 0 72px;
   color: var(--fg-muted);
-  font-size: var(--text-lg);
-  text-align: center;
+  font-size: var(--text-sm);
+  text-align: left;
 }
 
 .userinfo-value {
@@ -115,8 +62,8 @@
   min-width: 0;
   overflow: hidden;
   color: var(--fg);
-  font-size: var(--text-lg);
-  text-align: center;
+  font-size: var(--text-base);
+  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -125,6 +72,7 @@
   color: var(--brand);
   cursor: pointer;
   text-decoration: none;
+  border-radius: var(--radius-xs);
   transition: color var(--motion-dur-fast) var(--motion-ease-standard);
 }
 
@@ -133,8 +81,7 @@
   text-decoration: underline;
 }
 
-.userinfo-link:focus-visible,
-.user-note-input:focus-visible {
-  outline: var(--focus-width) solid var(--focus-color);
-  outline-offset: var(--focus-offset);
+.userinfo-link:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
 }

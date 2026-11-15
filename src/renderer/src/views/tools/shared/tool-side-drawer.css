@@ -1,0 +1,108 @@
+.tool-drawer {
+  width: var(--drawer-w, 280px);
+  flex-shrink: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface-1);
+}
+
+.tool-drawer.is-left {
+  border-right: var(--border-width) solid var(--line-hairline);
+}
+
+.tool-drawer.is-right {
+  border-left: var(--border-width) solid var(--line-hairline);
+}
+
+.tool-drawer.narrow {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: var(--z-float);
+  background: var(--surface-glass);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--elev-4);
+  transition: transform var(--motion-dur-slow) var(--motion-ease-out-expo);
+}
+
+.tool-drawer.narrow.is-left {
+  left: 0;
+  transform: translateX(-100%);
+}
+
+.tool-drawer.narrow.is-right {
+  right: 0;
+  transform: translateX(100%);
+}
+
+.tool-drawer.narrow.open {
+  transform: translateX(0);
+}
+
+.tool-drawer-handle {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 58px;
+  padding: 0;
+  border: var(--border-width) solid var(--line-hairline);
+  background: var(--surface-raised);
+  color: var(--fg-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  z-index: calc(var(--z-float) + 1);
+  box-shadow: var(--elev-2);
+  user-select: none;
+  transition:
+    color var(--motion-dur-fast) var(--motion-ease-standard),
+    background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    border-color var(--motion-dur-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo),
+    left var(--motion-dur-slow) var(--motion-ease-out-expo),
+    right var(--motion-dur-slow) var(--motion-ease-out-expo);
+}
+
+.tool-drawer-handle:focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
+}
+
+@media (hover: hover) {
+  .tool-drawer-handle:hover {
+    color: var(--brand);
+    background: var(--surface-hover);
+    border-color: var(--brand-line);
+  }
+}
+
+.tool-drawer-handle:active {
+  transform: translateY(-50%) scale(var(--press-scale));
+}
+
+.tool-drawer-handle.is-left {
+  left: 0;
+  border-left: 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.tool-drawer-handle.is-left.open {
+  left: var(--drawer-w, 256px);
+}
+
+.tool-drawer-handle.is-right {
+  right: 0;
+  border-right: 0;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.tool-drawer-handle.is-right.open {
+  right: var(--drawer-w, 256px);
+}

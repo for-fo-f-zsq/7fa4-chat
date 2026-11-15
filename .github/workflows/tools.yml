@@ -17,11 +17,18 @@ name: Build & Publish Tools
 #     上传中途失败时线上仍是「旧清单 + 旧文件」的完整可用状态。
 on:
   push:
-    # 只响应 main 分支：tag 推送（发版）也包含 tools/ 变更，但不应重复发布工具包
+    # main 分支工具或共享 UI/样式源码变更时自动发布；tag 推送由 release.yml 中的 build-tools job 统一发布
     branches:
       - main
     paths:
       - 'tools/**'
+      - 'src/renderer/src/views/tools/**'
+      - 'src/renderer/src/ui/**'
+      - 'src/renderer/src/css/**'
+      - 'src/renderer/src/utils/**'
+      - 'src/renderer/src/composables/**'
+      - 'src/renderer/src/assets/**'
+      - 'src/renderer/src/store.js'
       - 'config/tools.vite.config.mjs'
       - 'scripts/tools/build-tools.mjs'
       - 'scripts/tools/publish-tools.mjs'
@@ -55,6 +62,9 @@ jobs:
         run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+      - name: Run unit tests
+        run: npm test
 
       - name: Build tool packages
         run: node scripts/tools/build-tools.mjs

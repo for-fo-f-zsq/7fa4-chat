@@ -1,3 +1,4 @@
+/* UiBanner — 横幅提示原语；保证 6 主题下状态墨色对比度。 */
 .ui-banner {
   display: flex;
   align-items: flex-start;
@@ -12,27 +13,32 @@
 
 .ui-banner--info {
   background: var(--brand-soft);
+  border-color: var(--brand-line);
   color: var(--brand);
 }
 
 .ui-banner--success {
   background: var(--status-success-soft);
-  color: var(--status-success);
+  border-color: var(--status-success-border);
+  color: var(--status-success-ink);
 }
 
 .ui-banner--warning {
   background: var(--status-warning-soft);
-  color: var(--status-warning);
+  border-color: var(--status-warning-border);
+  color: var(--status-warning-ink);
 }
 
 .ui-banner--danger {
   background: var(--status-danger-soft);
-  color: var(--status-danger);
+  border-color: var(--status-danger-border);
+  color: var(--status-danger-ink);
 }
 
 .ui-banner--notice {
   background: var(--status-notice-soft);
-  color: var(--status-notice);
+  border-color: var(--status-notice-border);
+  color: var(--status-notice-ink);
 }
 
 .ui-banner-icon {
@@ -81,13 +87,14 @@
   cursor: pointer;
   opacity: var(--opacity-muted);
   transition:
-    background var(--motion-dur-fast) var(--motion-ease-standard),
-    opacity var(--motion-dur-fast) var(--motion-ease-standard);
+    background-color var(--motion-dur-fast) var(--motion-ease-standard),
+    opacity var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo);
 }
 
 .ui-banner-close:focus-visible {
-  outline: var(--focus-width) solid var(--focus-color);
-  outline-offset: var(--focus-offset);
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
 }
 
 @media (hover: hover) {
@@ -95,4 +102,8 @@
     background: var(--surface-hover);
     opacity: 1;
   }
+}
+
+.ui-banner-close:active {
+  transform: scale(var(--press-scale, 0.97));
 }

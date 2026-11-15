@@ -5,12 +5,12 @@ const FALLBACK = Object.freeze({
   fast: 120,
   base: 180,
   slow: 260,
-  emph: 400,
-  exit: 120,
+  emph: 380,
+  exit: 130,
   scroll: 260,
-  spring: 400,
+  spring: 320,
   hold: 1500,
-  stagger: 40,
+  stagger: 36,
   staggerMax: 8,
   spin: 1000,
   shimmer: 1600,
@@ -41,9 +41,10 @@ const VAR_BY_NAME = {
 // 与 motion.css 的缓动令牌一一对应（scrollToY 用同一组控制点，避免 JS/CSS 手感两套）
 const EASE_POINTS = Object.freeze({
   standard: [0.2, 0, 0, 1],
-  enter: [0.05, 0.7, 0.1, 1],
-  exit: [0.3, 0, 0.8, 0.15],
-  spring: [0.34, 1.36, 0.64, 1],
+  outExpo: [0.16, 1, 0.3, 1],
+  enter: [0.16, 1, 0.3, 1],
+  exit: [0.4, 0, 1, 1],
+  spring: [0.22, 1.28, 0.36, 1],
 })
 
 function rootEl() {
@@ -138,43 +139,68 @@ export function waitForMotion(el, options = {}) {
   })
 }
 
+const activeScrollRafs = new WeakMap()
+
+/** 取消指定容器上正在运行的程序化平滑滚动（例如用户主动接管滚动时） */
+export function cancelScrollToY(el) {
+  if (!el) return
+  const entry = activeScrollRafs.get(el)
+  if (entry != null) {
+    cancelAnimationFrame(entry.rafId)
+    activeScrollRafs.delete(el)
+    entry.resolve(el)
+  }
+}
+
 /**
  * 程序化滚动（替代直接赋值 scrollTop / scrollIntoView 的多种写法）
  * 默认 260ms + standard 缓动；减少动态或性能档时瞬时定位
  * @param {HTMLElement} el 滚动容器
  * @param {number} y 目标 scrollTop（传 Infinity/超界值会自动 clamp 到底部）
- * @param {{ duration?: number, easing?: 'standard'|'enter'|'exit'|'spring' }} [options]
+ * @param {{ duration?: number, easing?: 'standard'|'outExpo'|'enter'|'exit'|'spring' }} [options]
  * @returns {Promise<HTMLElement>}
  */
 export function scrollToY(el, y, options = {}) {
   if (!el) return Promise.resolve(el)
-  const max = Math.max(0, el.scrollHeight - el.clientHeight)
-  const target = Number.isFinite(y) ? y : el.scrollHeight
-  const end = Math.max(0, Math.min(target, max))
+  cancelScrollToY(el)
+  const followBottom = y === Infinity
+  const computeEnd = () => {
+    const max = Math.max(0, el.scrollHeight - el.clientHeight)
+    const target = Number.isFinite(y) ? y : el.scrollHeight
+    return Math.max(0, Math.min(target, max))
+  }
+  const initialEnd = computeEnd()
   if (prefersReducedMotion() || isFxLite()) {
-    el.scrollTop = end
+    el.scrollTop = initialEnd
     return Promise.resolve(el)
   }
   const start = el.scrollTop
   const duration = Number.isFinite(options.duration) ? options.duration : motionDuration('scroll')
-  if (duration <= 0 || Math.abs(end - start) < 1) {
-    el.scrollTop = end
+  if (duration <= 0 || Math.abs(initialEnd - start) < 1) {
+    el.scrollTop = initialEnd
     return Promise.resolve(el)
   }
   const points = EASE_POINTS[options.easing] || EASE_POINTS.standard
   return new Promise((resolve) => {
     const begin = performance.now()
     const step = (now) => {
+      const entry = activeScrollRafs.get(el)
+      if (!entry) {
+        resolve(el)
+        return
+      }
+      const end = followBottom ? computeEnd() : initialEnd
       const progress = Math.min(1, (now - begin) / duration)
       el.scrollTop = start + (end - start) * ease(points, progress)
       if (progress < 1) {
-        requestAnimationFrame(step)
+        entry.rafId = requestAnimationFrame(step)
       } else {
-        el.scrollTop = end
+        activeScrollRafs.delete(el)
+        el.scrollTop = followBottom ? computeEnd() : initialEnd
         resolve(el)
       }
     }
-    requestAnimationFrame(step)
+    activeScrollRafs.set(el, { rafId: requestAnimationFrame(step), resolve })
   })
 }
 

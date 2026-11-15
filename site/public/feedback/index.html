@@ -3,238 +3,649 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark light" />
+<meta name="theme-color" content="#05060a" id="themeColorMeta" />
 <title>意见反馈 · 7FA4 Chat</title>
-<style>
-  :root {
-    --bg: #f5f9fe;
-    --card: #ffffff;
-    --line: #dde7f5;
-    --fg: #24324a;
-    --muted: #5f7089;
-    --brand: #4b73a6;
-    --brand-fill: #a3bfe3;
-    --danger: #a35e56;
-    --ok: #3f7d5c;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #171c26;
-      --card: #1e2432;
-      --line: #2c3547;
-      --fg: #e8edf6;
-      --muted: #9aa7bd;
-      --brand: #8fb0dd;
-      --brand-fill: #37506f;
-      --danger: #e08c84;
-      --ok: #7cc39b;
+<script>
+(function () {
+  var theme = null;
+  try {
+    var qp = new URLSearchParams(location.search).get('theme');
+    if (qp === 'light' || qp === 'dark') {
+      theme = qp;
+    } else {
+      var saved = localStorage.getItem('7fa4-site-theme');
+      if (saved === 'light' || saved === 'dark') theme = saved;
     }
+  } catch (e) {}
+  if (!theme) {
+    theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   }
-  * { box-sizing: border-box; }
+  document.documentElement.setAttribute('data-theme', theme);
+  var meta = document.getElementById('themeColorMeta');
+  if (meta) meta.setAttribute('content', theme === 'light' ? '#f6f7fb' : '#05060a');
+})();
+</script>
+<link id="faviconLink" rel="icon" type="image/png" href="../assets/icon.png" />
+<link id="tokensCss" rel="stylesheet" href="../tokens.css" />
+<script>
+(function () {
+  var base = location.pathname.replace(/\/feedback(?:\/(?:index\.html)?)?$/, '');
+  var tok = document.getElementById('tokensCss');
+  var fav = document.getElementById('faviconLink');
+  try {
+    if (tok && new URL(tok.getAttribute('href'), location.href).pathname !== base + '/tokens.css') {
+      tok.href = base + '/tokens.css';
+    }
+    if (fav && new URL(fav.getAttribute('href'), location.href).pathname !== base + '/assets/icon.png') {
+      fav.href = base + '/assets/icon.png';
+    }
+  } catch (e) {}
+})();
+</script>
+<style>
   body {
-    margin: 0;
-    min-height: 100vh;
-    background: var(--bg);
-    color: var(--fg);
-    font: 15px/1.7 "Microsoft YaHei", system-ui, -apple-system, "Segoe UI", sans-serif;
     display: flex;
-    justify-content: center;
-    padding: 32px 18px 56px;
+    flex-direction: column;
+    min-height: 100vh;
   }
-  .wrap { width: 100%; max-width: 620px; }
-  .head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
-  h1 { font-size: 22px; margin: 0; letter-spacing: .2px; }
-  .head a { margin-left: auto; font-size: 13px; color: var(--muted); text-decoration: none; }
-  .head a:hover { color: var(--brand); text-decoration: underline; }
-  .sub { margin: 0 0 22px; font-size: 13.5px; color: var(--muted); }
-  .card {
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    padding: 22px 22px 18px;
-    box-shadow: 0 2px 10px rgba(35, 55, 90, .05);
+
+  .fb-main {
+    flex: 1;
+    padding: 108px 0 64px;
   }
-  label { display: block; font-size: 13.5px; font-weight: 600; margin: 0 0 7px; }
-  .hint { font-weight: 400; color: var(--muted); font-size: 12.5px; }
-  textarea, input[type="text"] {
-    width: 100%;
-    font: inherit;
-    color: inherit;
-    background: var(--bg);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: 10px 12px;
-    outline: none;
-    transition: border-color .15s, box-shadow .15s;
+
+  .fb-intro {
+    margin-bottom: 24px;
   }
-  textarea { min-height: 168px; resize: vertical; line-height: 1.65; }
-  textarea:focus, input[type="text"]:focus {
-    border-color: var(--brand);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 20%, transparent);
-  }
-  .row { margin-top: 18px; }
-  .count { float: right; font-weight: 400; font-size: 12px; color: var(--muted); }
-  .count.over { color: var(--danger); }
-  .platforms { display: flex; flex-wrap: wrap; gap: 8px; }
-  .platforms label {
-    margin: 0;
-    font-weight: 400;
-    display: inline-flex;
+
+  .fb-eyebrow {
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    cursor: pointer;
-    font-size: 13px;
-    background: var(--bg);
-    transition: border-color .15s, background-color .15s;
+    gap: 8px;
+    margin-bottom: 12px;
   }
-  .platforms input { accent-color: var(--brand); margin: 0; }
-  .platforms label:has(input:checked) {
-    border-color: var(--brand);
-    background: color-mix(in srgb, var(--brand) 10%, var(--bg));
+
+  .fb-intro h1 {
+    font-size: clamp(26px, 4vw, 34px);
+    margin-bottom: 10px;
+  }
+
+  .fb-intro h1 .grad-text {
+    background: var(--grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .fb-sub {
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.65;
+  }
+
+  .fb-card {
+    padding: 28px;
+  }
+
+  .fb-field + .fb-field {
+    margin-top: 22px;
+  }
+
+  .fb-label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+
+  .fb-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .fb-hint {
+    font-weight: 400;
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-left: 8px;
+  }
+
+  .fb-count {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+
+  .fb-count.warn {
+    color: var(--warn);
+  }
+
+  .fb-count.over {
+    color: var(--danger);
     font-weight: 600;
   }
-  .shots { display: flex; flex-wrap: wrap; gap: 10px; }
-  .shot {
+
+  textarea.field {
+    min-height: 170px;
+    resize: vertical;
+    line-height: 1.68;
+  }
+
+  .fb-platforms {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .fb-plat {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: color-mix(in srgb, var(--ink) 4%, transparent);
+    color: var(--ink-soft);
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    transition:
+      border-color .18s var(--ease),
+      background-color .18s var(--ease),
+      color .18s var(--ease);
+  }
+
+  .fb-plat:hover {
+    border-color: var(--line-strong);
+    color: var(--ink);
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
+  }
+
+  .fb-plat input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    pointer-events: none;
+  }
+
+  .fb-plat-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--faint);
+    transition: background-color .18s var(--ease), transform .18s var(--ease);
+  }
+
+  .fb-plat:has(input:checked) {
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .fb-plat:has(input:checked) .fb-plat-dot {
+    background: var(--accent-2);
+    transform: scale(1.15);
+  }
+
+  .fb-plat:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .fb-dropzone {
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    background: color-mix(in srgb, var(--bg) 48%, transparent);
+    transition: border-color .18s var(--ease), background-color .18s var(--ease);
+  }
+
+  .fb-dropzone.drag-over {
+    border-color: var(--accent-2);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+
+  .fb-shots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .fb-shot {
     position: relative;
     width: 92px;
     height: 92px;
-    border-radius: 10px;
+    border-radius: 12px;
     overflow: hidden;
-    border: 1px solid var(--line);
-    background: var(--bg);
+    border: 1px solid var(--line-strong);
+    background: var(--panel-solid);
   }
-  .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .shot button {
+
+  .fb-shot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    cursor: zoom-in;
+  }
+
+  .fb-shot-del {
     position: absolute;
-    top: 3px;
-    right: 3px;
+    top: 5px;
+    right: 5px;
     width: 22px;
     height: 22px;
     border: 0;
     border-radius: 50%;
-    background: rgba(0, 0, 0, .55);
+    background: rgba(5, 6, 10, 0.78);
     color: #fff;
     font-size: 14px;
     line-height: 1;
     cursor: pointer;
     padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color .15s var(--ease), transform .15s var(--ease);
   }
-  .shot-add {
+
+  .fb-shot-del:hover {
+    background: var(--danger);
+    transform: scale(1.06);
+  }
+
+  .fb-shot-add {
     width: 92px;
     height: 92px;
-    border-radius: 10px;
-    border: 1px dashed var(--line);
-    background: transparent;
+    border-radius: 12px;
+    border: 1px dashed var(--line-strong);
+    background: color-mix(in srgb, var(--ink) 4%, transparent);
     color: var(--muted);
+    font-family: inherit;
     font-size: 12px;
+    font-weight: 500;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 6px;
     cursor: pointer;
-    font-family: inherit;
+    transition: border-color .18s var(--ease), color .18s var(--ease), background-color .18s var(--ease);
   }
-  .shot-add:hover { border-color: var(--brand); color: var(--brand); }
-  .shot-add b { font-size: 20px; line-height: 1; font-weight: 400; }
-  .actions { display: flex; align-items: center; gap: 12px; margin-top: 24px; }
-  button.primary {
-    font: inherit;
-    font-weight: 600;
-    color: #1f2c42;
-    background: var(--brand-fill);
-    border: 0;
-    border-radius: 10px;
-    padding: 10px 22px;
-    cursor: pointer;
-    transition: filter .15s;
+
+  .fb-shot-add:hover {
+    border-color: var(--accent);
+    color: var(--ink);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
   }
-  button.primary:hover:not(:disabled) { filter: brightness(.95); }
-  button.primary:disabled { opacity: .55; cursor: not-allowed; }
-  .msg { font-size: 13.5px; }
-  .msg.err { color: var(--danger); }
-  .msg.ok { color: var(--ok); }
-  .done { text-align: center; padding: 30px 10px 20px; }
-  .done h2 { margin: 0 0 8px; font-size: 19px; }
-  .done p { margin: 0 0 18px; color: var(--muted); font-size: 13.5px; }
-  .done code {
-    background: var(--bg);
+
+  .fb-shot-add svg {
+    width: 20px;
+    height: 20px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .fb-drop-tip {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .fb-drop-tip kbd,
+  .fb-shortcut kbd {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--ink) 7%, transparent);
     border: 1px solid var(--line);
-    border-radius: 6px;
-    padding: 2px 7px;
-    font-size: 13px;
+    color: var(--ink-soft);
   }
-  .link-btn {
-    font: inherit;
-    font-size: 13px;
-    color: var(--brand);
-    background: none;
+
+  .fb-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-top: 26px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+
+  .fb-shortcut {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--faint);
+  }
+
+  .fb-msg {
+    font-size: 13.5px;
+    font-weight: 500;
+    min-height: 20px;
+  }
+
+  .fb-msg.err { color: var(--danger); }
+  .fb-msg.ok { color: var(--ok); }
+
+  /* 提交成功态 */
+  .fb-done {
+    text-align: center;
+    padding: 28px 12px 16px;
+  }
+
+  .fb-done-icon {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 16px;
+    border-radius: 50%;
+    background: var(--ok-soft);
+    border: 1px solid var(--ok-line);
+    color: var(--ok);
+    display: grid;
+    place-items: center;
+  }
+
+  .fb-done-icon svg {
+    width: 28px;
+    height: 28px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .fb-done h2 {
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+
+  .fb-done p {
+    color: var(--muted);
+    font-size: 14.5px;
+    max-width: 440px;
+    margin: 0 auto 20px;
+  }
+
+  .fb-id-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px 6px 14px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    border: 1px solid var(--line);
+    margin-bottom: 24px;
+  }
+
+  .fb-id-row span {
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+
+  .fb-id-row code {
+    background: transparent;
     border: 0;
-    cursor: pointer;
     padding: 0;
-    text-decoration: underline;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
   }
-  footer { margin-top: 18px; font-size: 12.5px; color: var(--muted); text-align: center; }
-  footer a { color: var(--muted); }
+
+  .fb-done-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  /* 截图灯箱预览 */
+  .fb-zoom {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    background: rgba(5, 6, 10, 0.86);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    cursor: zoom-out;
+  }
+
+  .fb-zoom img {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 14px;
+    box-shadow: 0 28px 70px rgba(0, 0, 0, .65);
+    cursor: default;
+  }
+
+  .fb-zoom-close {
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, .24);
+    background: rgba(13, 16, 25, .78);
+    color: #fff;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+  }
+
+  .fb-zoom-close:hover {
+    background: rgba(13, 16, 25, .96);
+  }
+
+  /* 页脚 */
+  .fb-footer {
+    border-top: 1px solid var(--line);
+    padding: 24px 0 34px;
+    color: var(--muted);
+    font-size: 13.5px;
+  }
+
+  .fb-footer-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .fb-footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .fb-footer-links a:hover {
+    color: var(--ink);
+  }
+
+  @media (max-width: 640px) {
+    .fb-main {
+      padding: 88px 0 44px;
+    }
+    .fb-card {
+      padding: 20px;
+      border-radius: 18px;
+    }
+    .fb-shortcut {
+      display: none;
+    }
+    .fb-actions .btn-primary {
+      width: 100%;
+    }
+    .topbar-inner {
+      padding: 8px 10px 8px 14px;
+      gap: 10px;
+    }
+    .brand-tag {
+      display: none;
+    }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="head">
-    <h1>意见反馈</h1>
-    <a href="../">返回官网</a>
-  </div>
-  <p class="sub">遇到问题、想要新功能，都可以在这里说。截图可选，最多 3 张。</p>
+<div class="aurora" aria-hidden="true">
+  <span class="aurora-a"></span>
+  <span class="aurora-b"></span>
+  <span class="aurora-c"></span>
+</div>
+<div class="grain" aria-hidden="true"></div>
 
-  <div class="card" id="card">
-    <form id="form" novalidate>
-      <div>
-        <label for="content">反馈内容 <span class="hint">必填，最多 4000 字</span><span class="count" id="count">0/4000</span></label>
-        <textarea id="content" maxlength="4000" placeholder="描述你遇到的问题：做了什么、期望什么、实际发生了什么。能复现的步骤越具体越好。"></textarea>
-      </div>
-
-      <div class="row">
-        <label>平台 <span class="hint">会自动识别，可手动改</span></label>
-        <div class="platforms" id="platforms">
-          <label><input type="radio" name="platform" value="windows" /> Windows</label>
-          <label><input type="radio" name="platform" value="linux" /> Linux</label>
-          <label><input type="radio" name="platform" value="web" /> 网页版</label>
-          <label><input type="radio" name="platform" value="macos" /> macOS</label>
-          <label><input type="radio" name="platform" value="android" /> Android</label>
-          <label><input type="radio" name="platform" value="unknown" /> 其它/不清楚</label>
-        </div>
-      </div>
-
-      <div class="row">
-        <label>截图 <span class="hint">可选，最多 3 张，单张 ≤ 3MB</span></label>
-        <div class="shots" id="shots">
-          <button type="button" class="shot-add" id="addShot"><b>+</b>添加截图</button>
-        </div>
-        <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
-      </div>
-
-      <div class="row">
-        <label for="contact">联系方式 <span class="hint">可选，方便回复你</span></label>
-        <input type="text" id="contact" maxlength="120" placeholder="OJ 用户名 / 邮箱 / QQ，任选其一" />
-      </div>
-
-      <div class="actions">
-        <button type="submit" class="primary" id="submit">提交反馈</button>
-        <span class="msg" id="msg"></span>
-      </div>
-    </form>
-
-    <div class="done" id="done" hidden>
-      <h2>已收到，谢谢！</h2>
-      <p>反馈编号 <code id="doneId"></code>，我看过之后会在后续版本里处理。</p>
-      <button type="button" class="link-btn" id="again">再提交一条</button>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="../" data-nav="home">
+      <img class="brand-mark" id="brandIcon" src="../assets/icon.png" alt="7FA4 Chat" width="28" height="28" />
+      <span class="brand-name">7FA4 <span class="brand-light">Chat</span></span>
+      <span class="brand-tag">意见反馈</span>
+    </a>
+    <div class="topbar-side">
+      <button type="button" class="icon-btn" id="themeToggle" aria-label="切换浅色/深色主题" title="切换主题">
+        <svg class="ico-sun" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"></circle>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path>
+        </svg>
+        <svg class="ico-moon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"></path>
+        </svg>
+      </button>
+      <a class="btn btn-ghost btn-sm" href="../" data-nav="home">返回官网</a>
     </div>
   </div>
+</header>
 
-  <footer>7FA4 Chat · <a href="../">官网</a></footer>
-</div>
+<main class="fb-main">
+  <div class="wrap-form">
+    <div class="fb-intro">
+      <div class="fb-eyebrow">
+        <span class="tag tag-accent">意见反馈</span>
+        <span class="tag" id="versionBadge" hidden></span>
+      </div>
+      <h1>把问题和想法<span class="grad-text">直接告诉我们</span></h1>
+      <p class="fb-sub">遇到问题、想要新功能，都可以在这里说。截图可选，最多 3 张。</p>
+    </div>
+
+    <div class="glass-card fb-card" id="card">
+      <form id="form" novalidate>
+        <div class="fb-field">
+          <div class="fb-label-row">
+            <label class="fb-label" for="content">反馈内容 <span class="fb-hint">必填，最多 4000 字</span></label>
+            <span class="fb-count" id="count">0/4000</span>
+          </div>
+          <textarea
+            class="field"
+            id="content"
+            maxlength="4000"
+            placeholder="描述你遇到的问题：做了什么、期望什么、实际发生了什么。能复现的步骤越具体越好。"
+            required
+          ></textarea>
+        </div>
+
+        <div class="fb-field">
+          <div class="fb-label-row">
+            <span class="fb-label">平台 <span class="fb-hint">会自动识别，可手动改</span></span>
+          </div>
+          <div class="fb-platforms" id="platforms" role="radiogroup" aria-label="平台">
+            <label class="fb-plat"><input type="radio" name="platform" value="windows" /><span class="fb-plat-dot" aria-hidden="true"></span>Windows</label>
+            <label class="fb-plat"><input type="radio" name="platform" value="linux" /><span class="fb-plat-dot" aria-hidden="true"></span>Linux</label>
+            <label class="fb-plat"><input type="radio" name="platform" value="web" /><span class="fb-plat-dot" aria-hidden="true"></span>网页版</label>
+            <label class="fb-plat"><input type="radio" name="platform" value="macos" /><span class="fb-plat-dot" aria-hidden="true"></span>macOS</label>
+            <label class="fb-plat"><input type="radio" name="platform" value="android" /><span class="fb-plat-dot" aria-hidden="true"></span>Android</label>
+            <label class="fb-plat"><input type="radio" name="platform" value="unknown" /><span class="fb-plat-dot" aria-hidden="true"></span>其它 / 不清楚</label>
+          </div>
+        </div>
+
+        <div class="fb-field">
+          <div class="fb-label-row">
+            <span class="fb-label">截图 <span class="fb-hint">可选，最多 3 张，单张 ≤ 3MB</span></span>
+          </div>
+          <div class="fb-dropzone" id="dropzone">
+            <div class="fb-shots" id="shots">
+              <button type="button" class="fb-shot-add" id="addShot">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+                  <circle cx="8.5" cy="10.5" r="1.5"></circle>
+                  <path d="M21 15l-5-5L5 19"></path>
+                </svg>
+                <span>添加截图</span>
+              </button>
+            </div>
+            <div class="fb-drop-tip">支持点击选择、拖拽图片到此区域，或直接 <kbd>Ctrl</kbd>+<kbd>V</kbd> 粘贴截图（PNG / JPG / WebP / GIF）</div>
+          </div>
+          <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden />
+        </div>
+
+        <div class="fb-field">
+          <div class="fb-label-row">
+            <label class="fb-label" for="contact">联系方式 <span class="fb-hint">可选，方便回复你</span></label>
+          </div>
+          <input type="text" class="field" id="contact" maxlength="120" placeholder="OJ 用户名 / 邮箱 / QQ，任选其一" />
+        </div>
+
+        <div class="fb-actions">
+          <button type="submit" class="btn btn-primary" id="submit">提交反馈</button>
+          <span class="fb-msg" id="msg" role="status" aria-live="polite"></span>
+          <span class="fb-shortcut"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> 提交</span>
+        </div>
+      </form>
+
+      <div class="fb-done" id="done" hidden>
+        <div class="fb-done-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"></path></svg>
+        </div>
+        <h2>已收到，谢谢！</h2>
+        <p>我们已记录你的反馈，看过之后会在后续版本里排查和处理。</p>
+        <div class="fb-id-row">
+          <span>反馈编号</span>
+          <code id="doneId"></code>
+          <button type="button" class="btn btn-ghost btn-sm" id="copyId">复制</button>
+        </div>
+        <div class="fb-done-actions">
+          <button type="button" class="btn btn-primary" id="again">再提交一条</button>
+          <a class="btn btn-ghost" href="../" data-nav="home">返回官网</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="fb-footer">
+  <div class="wrap-form fb-footer-inner">
+    <span>7FA4 Chat · 意见反馈</span>
+    <div class="fb-footer-links">
+      <a href="../" data-nav="home">官网首页</a>
+      <a href="../web/" data-nav="web">网页版</a>
+      <a href="./admin" data-nav="admin">管理后台</a>
+    </div>
+  </div>
+</footer>
 
 <script>
 (function () {
@@ -249,17 +660,57 @@
   var msgEl = $('msg');
   var submitEl = $('submit');
   var fileEl = $('file');
+  var dropzoneEl = $('dropzone');
+  var addEl = $('addShot');
 
   // 站点可能被反代挂在子路径下（例如 /7fa4-chat/feedback），前缀只存在于浏览器侧
   var BASE = location.pathname.replace(/\/feedback(?:\/(?:index\.html)?)?$/, '');
   var submitUrl = BASE + '/api/feedback';
-  document.querySelectorAll('a[href="../"]').forEach(function (a) {
+
+  var brandIcon = $('brandIcon');
+  if (brandIcon) brandIcon.src = BASE + '/assets/icon.png';
+  document.querySelectorAll('a[data-nav="home"]').forEach(function (a) {
     a.href = (BASE || '') + '/';
   });
+  document.querySelectorAll('a[data-nav="web"]').forEach(function (a) {
+    a.href = BASE + '/web/';
+  });
+  document.querySelectorAll('a[data-nav="admin"]').forEach(function (a) {
+    a.href = BASE + '/feedback/admin';
+  });
+
+  // 主题同步：与官网共享 localStorage['7fa4-site-theme']
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    var meta = $('themeColorMeta');
+    if (meta) meta.setAttribute('content', t === 'light' ? '#f6f7fb' : '#05060a');
+  }
+
+  $('themeToggle').addEventListener('click', function () {
+    var cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    var next = cur === 'light' ? 'dark' : 'light';
+    applyTheme(next);
+    try { localStorage.setItem('7fa4-site-theme', next); } catch (e) {}
+  });
+
+  window.addEventListener('storage', function (e) {
+    if (e.key === '7fa4-site-theme' && (e.newValue === 'light' || e.newValue === 'dark')) {
+      applyTheme(e.newValue);
+    }
+  });
+
+  // 展示 URL 携带的客户端版本号（如有）
+  var urlParams = new URLSearchParams(location.search);
+  var clientVersion = (urlParams.get('version') || '').trim();
+  if (clientVersion) {
+    var vb = $('versionBadge');
+    vb.textContent = '客户端 ' + (/^v/i.test(clientVersion) ? clientVersion : 'v' + clientVersion);
+    vb.hidden = false;
+  }
 
   // 自动识别平台：桌面端反馈按钮会带 ?platform=windows 之类；否则按 UA 猜
   function detectPlatform() {
-    var p = new URLSearchParams(location.search).get('platform');
+    var p = urlParams.get('platform');
     if (p) return p.toLowerCase();
     var ua = navigator.userAgent;
     if (/Android/i.test(ua)) return 'android';
@@ -273,13 +724,21 @@
   if (!radio) radio = document.querySelector('input[name="platform"][value="unknown"]');
   if (radio) radio.checked = true;
 
-  contentEl.addEventListener('input', function () {
+  function updateCount() {
     var n = contentEl.value.length;
     countEl.textContent = n + '/' + MAX_CONTENT;
+    countEl.classList.toggle('warn', n > MAX_CONTENT * 0.9 && n <= MAX_CONTENT);
     countEl.classList.toggle('over', n > MAX_CONTENT);
+  }
+  contentEl.addEventListener('input', updateCount);
+
+  contentEl.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      $('form').requestSubmit ? $('form').requestSubmit() : $('submit').click();
+    }
   });
 
-  var addEl = $('addShot');
   addEl.addEventListener('click', function () {
     if (shots.length >= MAX_SHOTS) return;
     fileEl.value = '';
@@ -288,16 +747,27 @@
 
   function addShotFiles(fileList) {
     var list = Array.prototype.slice.call(fileList || []);
+    if (!list.length) return;
     var room = MAX_SHOTS - shots.length;
-    if (room <= 0 && list.length > 0) {
+    if (room <= 0) {
       setMsg('最多只能添加 ' + MAX_SHOTS + ' 张截图', true);
       return;
     }
+    if (list.length > room) {
+      setMsg('最多只能添加 ' + MAX_SHOTS + ' 张截图，已自动截取前 ' + room + ' 张', true);
+    }
     list.slice(0, room).forEach(function (f) {
-      if (!/^image\//.test(f.type)) { setMsg('只能上传图片', true); return; }
-      if (f.size > MAX_SHOT) { setMsg('单张截图不能超过 3MB', true); return; }
+      if (!/^image\/(png|jpeg|webp|gif)$/i.test(f.type)) {
+        setMsg('仅支持 PNG / JPG / WebP / GIF 格式图片', true);
+        return;
+      }
+      if (f.size > MAX_SHOT) {
+        setMsg('单张截图不能超过 3MB', true);
+        return;
+      }
       var reader = new FileReader();
       reader.onload = function () {
+        if (shots.length >= MAX_SHOTS) return;
         shots.push({ type: f.type, data: String(reader.result), name: f.name || 'screenshot.png' });
         setMsg('');
         renderShots();
@@ -308,6 +778,29 @@
 
   fileEl.addEventListener('change', function () {
     addShotFiles(fileEl.files);
+  });
+
+  var dragDepth = 0;
+  dropzoneEl.addEventListener('dragenter', function (e) {
+    e.preventDefault();
+    dragDepth++;
+    dropzoneEl.classList.add('drag-over');
+  });
+  dropzoneEl.addEventListener('dragover', function (e) {
+    e.preventDefault();
+  });
+  dropzoneEl.addEventListener('dragleave', function (e) {
+    e.preventDefault();
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (!dragDepth) dropzoneEl.classList.remove('drag-over');
+  });
+  dropzoneEl.addEventListener('drop', function (e) {
+    e.preventDefault();
+    dragDepth = 0;
+    dropzoneEl.classList.remove('drag-over');
+    if (e.dataTransfer && e.dataTransfer.files) {
+      addShotFiles(e.dataTransfer.files);
+    }
   });
 
   document.addEventListener('paste', function (e) {
@@ -321,20 +814,59 @@
     addShotFiles(imgFiles);
   });
 
+  function showZoom(url, alt) {
+    var existing = document.querySelector('.fb-zoom');
+    if (existing) existing.remove();
+    var z = document.createElement('div');
+    z.className = 'fb-zoom';
+    z.setAttribute('role', 'dialog');
+    z.setAttribute('aria-modal', 'true');
+    z.setAttribute('aria-label', alt || '截图预览');
+    var img = document.createElement('img');
+    img.src = url;
+    img.alt = alt || '截图预览';
+    var closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'fb-zoom-close';
+    closeBtn.textContent = '×';
+    closeBtn.setAttribute('aria-label', '关闭预览');
+    function close() {
+      document.removeEventListener('keydown', onKey);
+      z.remove();
+    }
+    function onKey(ev) {
+      if (ev.key === 'Escape') close();
+    }
+    z.addEventListener('click', function (ev) {
+      if (ev.target === z || ev.target === closeBtn) close();
+    });
+    document.addEventListener('keydown', onKey);
+    z.appendChild(img);
+    z.appendChild(closeBtn);
+    document.body.appendChild(z);
+  }
+
   function renderShots() {
     var box = $('shots');
-    box.querySelectorAll('.shot').forEach(function (n) { n.remove(); });
+    box.querySelectorAll('.fb-shot').forEach(function (n) { n.remove(); });
     shots.forEach(function (s, i) {
       var d = document.createElement('div');
-      d.className = 'shot';
+      d.className = 'fb-shot';
       var img = document.createElement('img');
       img.src = s.data;
       img.alt = '截图 ' + (i + 1);
+      img.title = s.name + '（点击预览）';
+      img.addEventListener('click', function () {
+        showZoom(s.data, img.alt);
+      });
       var del = document.createElement('button');
       del.type = 'button';
+      del.className = 'fb-shot-del';
       del.textContent = '×';
       del.title = '移除';
-      del.addEventListener('click', function () {
+      del.setAttribute('aria-label', '移除截图 ' + (i + 1));
+      del.addEventListener('click', function (ev) {
+        ev.stopPropagation();
         shots.splice(i, 1);
         renderShots();
       });
@@ -347,7 +879,7 @@
 
   function setMsg(text, isErr) {
     msgEl.textContent = text || '';
-    msgEl.className = 'msg' + (text ? (isErr ? ' err' : ' ok') : '');
+    msgEl.className = 'fb-msg' + (text ? (isErr ? ' err' : ' ok') : '');
   }
 
   function fail(text) {
@@ -368,7 +900,7 @@
       platform: checked ? checked.value : 'unknown',
       contact: $('contact').value.trim(),
       page: location.href,
-      version: new URLSearchParams(location.search).get('version') || '',
+      version: clientVersion,
       screenshots: shots.map(function (s) { return { type: s.type, data: s.data, name: s.name }; })
     };
 
@@ -396,9 +928,21 @@
     xhr.send(JSON.stringify(payload));
   });
 
+  $('copyId').addEventListener('click', function () {
+    var idText = $('doneId').textContent;
+    if (!idText || idText === '—') return;
+    var btn = $('copyId');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(idText).then(function () {
+        btn.textContent = '已复制';
+        setTimeout(function () { btn.textContent = '复制'; }, 1600);
+      }).catch(function () {});
+    }
+  });
+
   $('again').addEventListener('click', function () {
     contentEl.value = '';
-    countEl.textContent = '0/' + MAX_CONTENT;
+    updateCount();
     shots = [];
     renderShots();
     $('contact').value = '';

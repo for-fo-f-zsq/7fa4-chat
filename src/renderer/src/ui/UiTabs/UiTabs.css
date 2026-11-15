@@ -1,4 +1,4 @@
-/* UiTabs — 标签页样式；只消费 tokens/motion 语义令牌。 */
+/* UiTabs — 标签页样式；正常类特异性 + 丝滑滑块过渡。 */
 .ui-tabs {
   display: flex;
   flex-direction: column;
@@ -17,12 +17,13 @@
 }
 
 .ui-tabs--line .ui-tabs__list {
-  border-bottom: var(--border-width) solid var(--line);
+  border-bottom: var(--border-width) solid var(--line-subtle);
 }
 
 .ui-tabs--pill .ui-tabs__list {
   width: fit-content;
   padding: var(--space-1);
+  border: var(--border-width) solid var(--line-hairline);
   border-radius: var(--radius-pill);
   background: var(--surface-2);
 }
@@ -35,20 +36,21 @@
   border-radius: var(--radius-pill);
   background: var(--brand);
   pointer-events: none;
-  transition: transform var(--motion-dur-base) var(--motion-ease-standard),
-    width var(--motion-dur-base) var(--motion-ease-standard),
-    height var(--motion-dur-base) var(--motion-ease-standard);
+  transition: transform var(--motion-dur-base) var(--motion-ease-out-expo),
+    width var(--motion-dur-base) var(--motion-ease-out-expo),
+    height var(--motion-dur-base) var(--motion-ease-out-expo);
 }
 
 .ui-tabs--pill .ui-tabs__ink {
   top: 0;
   bottom: auto;
   background: var(--surface-raised);
-  box-shadow: var(--elev-1);
+  box-shadow: var(--elev-pill);
 }
 
 .ui-tabs__tab {
   position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -64,7 +66,8 @@
   font-size: var(--text-base);
   white-space: nowrap;
   cursor: pointer;
-  transition: color var(--motion-dur-fast) var(--motion-ease-standard);
+  transition: color var(--motion-dur-fast) var(--motion-ease-standard),
+    transform var(--motion-dur-fast) var(--motion-ease-out-expo);
 }
 
 .ui-tabs--sm .ui-tabs__tab {
@@ -78,9 +81,13 @@
 }
 
 @media (hover: hover) {
-  .ui-tabs__tab:hover {
+  .ui-tabs__tab:hover:not(.is-disabled) {
     color: var(--fg);
   }
+}
+
+.ui-tabs__tab:active:not(.is-disabled) {
+  transform: scale(var(--press-scale, 0.97));
 }
 
 .ui-tabs__tab.is-active {
@@ -95,8 +102,8 @@
 }
 
 .ui-tabs__tab:focus-visible {
-  outline: var(--focus-width) solid var(--focus-color);
-  outline-offset: calc(var(--focus-offset) * -1);
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
 }
 
 .ui-tabs__icon {
@@ -121,6 +128,7 @@
   color: var(--brand);
   font-size: var(--text-2xs);
   font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
 }
 
 .ui-tabs__panel {

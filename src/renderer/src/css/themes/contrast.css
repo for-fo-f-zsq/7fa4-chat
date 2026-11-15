@@ -134,4 +134,8 @@
   --palette-2: #5E8F73;
   --palette-3: #B08850;
   --palette-4: #96688C;
+
+  /* ---------- @提及高亮 ---------- */
+  --mention-color: #8A4B12;
+  --mention-soft: rgba(176, 136, 80, 0.16);
 }

@@ -41,20 +41,19 @@ import { QUANCODE, qqfaceUrl } from '../qqface-data.js'
 import {
   LuoguParser,
   LuoguLinter,
-  LuoguTypora,
   LuoguMathLibrary,
   LuoguTemplates,
 } from './vendor/index.js'
 
-export { LuoguLinter, LuoguTypora, LuoguMathLibrary, LuoguTemplates, katex, Prism }
+export { LuoguLinter, LuoguMathLibrary, LuoguTemplates, katex, Prism }
 
 // ========== 基础工具 ==========
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 
-// QQ 表情快捷码：/微笑 /wx /jy …（后边界必须是空白或行尾）
-const QQ_FACE_RE = /\/[\p{L}\p{N}_]{1,16}(?=\s|$)/gu
+// QQ 表情快捷码：/微笑 /wx /jy /+1 /中! …（后边界必须是空白或行尾）
+const QQ_FACE_RE = /\/[\p{L}\p{N}_+!]{1,16}(?=\s|$)/gu
 const QQ_FACE_PLACEHOLDER = /\uE000QF(\d+)QF\uE000/g
 // URL 判定：与既有实现一致，http(s)/ftp 协议头与 www. 开头
 const URL_RE = /\b(?:https?|ftp):\/\/[^\s<>"')\]]+|\bwww\.[^\s<>"')\]]+/gi
@@ -206,6 +205,29 @@ export function renderDocument(text) {
   return render(text, 'document')
 }
 
+/**
+ * 编辑器实时预览：与 renderDocument 同一套表情掩码与异常兜底，但**不改写 id**。
+ * 实时预览靠 patchPreviewDom 按 outerHTML 做增量对比，每帧变换 id 会让标题/脚注节点
+ * 全部重建，滚动位置与折叠状态都会丢。
+ */
+export function renderDocumentLive(text) {
+  if (!text) return ''
+  const raw = String(text)
+  if (!raw.trim()) return ''
+  const { text: masked, faces } = maskQqFaces(raw)
+  let html
+  try {
+    html = parser.render(masked)
+  } catch (e) {
+    console.error('[markdown] 预览渲染失败，退回纯文本', e)
+    return '<p>' + esc(raw) + '</p>'
+  }
+  if (faces.length) {
+    html = html.replace(QQ_FACE_PLACEHOLDER, (m, i) => faces[Number(i)] ?? '')
+  }
+  return html
+}
+
 // ========== 解析器输出依赖的全局函数 ==========
 
 let taskToggleHandler = null
@@ -270,31 +292,3 @@ export function installMarkdownGlobals() {
 }
 
 installMarkdownGlobals()
-
-// ========== Typora 就地编辑宿主 ==========
-
-/**
- * 把 LuoguTypora 接到任意容器上。
- *
- * LuoguTypora 只依赖宿主的三样东西（见上游 luogu-typora.js 注释）：
- *   previewEl       —— 承载渲染结果的元素
- *   textarea.value  —— 读源码；这里用访问器代理，读写都落到组件的响应式文本上
- *   setContent(v)   —— 写回源码
- * 因此不需要照搬上游那套 3236 行的编辑器外壳。
- *
- * @param {HTMLElement} previewEl
- * @param {() => string} getText
- * @param {(v: string) => void} setText
- */
-export function createTyporaHost(previewEl, getText, setText) {
-  const source = {
-    get value() { return getText() },
-    set value(v) { setText(v) },
-  }
-  const host = {
-    previewEl,
-    textarea: source,
-    setContent(v) { setText(v) },
-  }
-  return new LuoguTypora(host)
-}

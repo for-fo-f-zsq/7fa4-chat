@@ -107,12 +107,16 @@
   --opacity-muted: 0.72;
   --opacity-ghost: 0.38;
 
-  /* ========== 5. 焦点 ========== */
-  /* 实线 2px 品牌色（对比度 ≥3:1）+ 3px 柔光 halo，组合视觉 3px */
+  /* ========== 5. 焦点与交互态 ========== */
+  /* 实线 2px 品牌色（对比度 ≥3:1）+ 双环 ring / 柔光 halo */
   --focus-color: var(--brand);
   --focus-width: 2px;
   --focus-offset: 2px;
-  --focus-halo: 0 0 0 3px var(--brand-soft, rgba(60,140,231,.12));
+  --focus-halo: 0 0 0 3px var(--brand-soft, rgba(60,140,231,.16));
+  --focus-halo-danger: 0 0 0 3px var(--status-danger-soft, rgba(231,76,60,.14));
+  --focus-ring: 0 0 0 2px var(--surface-0), 0 0 0 4px var(--focus-color);
+  --focus-ring-inset: inset 0 0 0 2px var(--focus-color);
+  --press-scale: 0.97;
 
   /* ========== 6. 颜色语义（全部引用主题原始令牌） ==========
      品牌色拆两种用途，禁止混用：
@@ -129,7 +133,10 @@
   --on-brand: var(--text-on-accent, #FFFFFF);
   /* 深色遮罩/媒体层上的文字与图标：遮罩恒为深色，故恒用白色，不随主题反转 */
   --on-overlay: #FFFFFF;
-  --overlay-hover: rgba(255, 255, 255, 0.14);
+  --surface-overlay-pill: rgba(16, 18, 24, 0.74);
+  --overlay-border: rgba(255, 255, 255, 0.14);
+  --overlay-hover: rgba(255, 255, 255, 0.16);
+  --overlay-active: rgba(255, 255, 255, 0.24);
   --brand-gradient: var(--gradient-accent, rgba(60,140,231,.25));
   --brand-glow: var(--gradient-subtle, rgba(60,140,231,.08));
   /* 更新日志分类标签（新功能/优化/修复/通知）的成块底色：
@@ -162,7 +169,9 @@
   --surface-0: var(--bg-app, #FFFFFF);
   --surface-1: var(--bg-sidebar, #F5F6F8);
   --surface-2: var(--bg-input, #F3F4F6);
+  --surface-3: var(--border-row, #E8EAEE);
   --surface-raised: var(--bg-group-detail, var(--bg-app, #FFFFFF));
+  --surface-glass: var(--surface-raised);
   --surface-card: var(--bg-settings-info, var(--bg-app, #FFFFFF));
   --surface-sunken: var(--bg-action-panel, var(--bg-input, #F3F4F6));
   --surface-hover: var(--bg-conversation-hover, #F0F2F5);
@@ -175,7 +184,7 @@
   --surface-code-inline: var(--bg-code-inline, rgba(0,0,0,.06));
   --surface-code-inline-self: var(--bg-code-inline-self, rgba(0,0,0,.1));
   --surface-badge: var(--bg-token-badge, var(--bg-input, #F0F0F0));
-  --surface-toggle-knob: var(--bg-toggle-knob, #FFFFFF);
+  --surface-toggle-knob: #FFFFFF;
   --surface-about: var(--bg-about-content, var(--bg-app, #FFFFFF));
   --surface-role-owner: var(--bg-role-owner, #FFF3E0);
   --surface-role-admin: var(--bg-role-admin, #E3F2FD);
@@ -186,6 +195,8 @@
 
   --line: var(--border-light, #E2E4E8);
   --line-subtle: var(--border-row, #ECEEF1);
+  --line-soft: var(--line-subtle);
+  --line-hairline: var(--line-subtle);
   --line-strong: var(--border-table, #E2E4E8);
   --line-conversation: var(--border-conversation-bottom, rgba(0,0,0,.03));
   --line-3d-light: var(--border-3d-light, rgba(255,255,255,.9));
@@ -193,8 +204,8 @@
   --line-self-bubble: var(--border-self-bubble, rgba(0,0,0,.12));
   --line-self-quote: var(--border-self-blockquote, rgba(0,0,0,.2));
 
-  --scrim-strong: var(--bg-upload-overlay, rgba(0,0,0,.45));
-  --overlay-media: rgba(0,0,0,.9);
+  --scrim-strong: var(--surface-overlay-pill);
+  --overlay-media: rgba(0,0,0,.92);
   --grad-start: var(--bg-app, #FFFFFF);
   --grad-end: var(--bg-gradient-end, #EEF2F7);
   --gradient-app: linear-gradient(180deg, var(--grad-start), var(--grad-end));
@@ -207,12 +218,23 @@
   --status-danger-ink: var(--danger, #e74c3c);
   --status-danger-hover: var(--danger-hover, #c0392b);
   --status-success: var(--success, #4caf50);
+  --status-success-ink: var(--success, #4caf50);
   --status-warning: var(--warning, #ff9800);
+  --status-warning-ink: var(--warning, #ff9800);
   --status-notice: var(--notice, #e91e63);
+  --status-notice-ink: var(--notice, #e91e63);
   --status-danger-soft: rgba(231,76,60,.12);
   --status-success-soft: rgba(76,175,80,.12);
   --status-warning-soft: rgba(255,152,0,.14);
   --status-notice-soft: rgba(233,30,99,.12);
+  --status-danger-bg: var(--status-danger-soft);
+  --status-success-bg: var(--status-success-soft);
+  --status-warning-bg: var(--status-warning-soft);
+  --status-notice-bg: var(--status-notice-soft);
+  --status-danger-border: var(--line);
+  --status-success-border: var(--line);
+  --status-warning-border: var(--line);
+  --status-notice-border: var(--line);
   /* 状态色填充上的文字（task-33）：与 --on-brand 解耦；逐主题覆盖见文末 §12，契约见 theme-contrast-fix.md §7.1 */
   --on-status: var(--on-danger);
   --on-danger: #000000;
@@ -221,31 +243,32 @@
   --on-warning: #000000;
   --on-notice: #000000;
 
-  /* ========== 8. 阴影 / elevation ========== */
+  /* ========== 8. 阴影 / elevation（柔和多层） ========== */
   --elev-0: none;
-  --elev-1: var(--shadow-card, 0 2px 4px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.06));
-  --elev-1-hover: var(--shadow-card-hover, 0 6px 16px rgba(0,0,0,.14), 0 2px 6px rgba(0,0,0,.06));
-  --elev-2: var(--shadow-dropdown, 0 8px 24px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.08));
-  --elev-3: var(--shadow-modal, 0 16px 48px rgba(0,0,0,.22), 0 6px 16px rgba(0,0,0,.1));
-  --elev-4: var(--shadow-elevated, 0 28px 72px rgba(0,0,0,.28), 0 10px 28px rgba(0,0,0,.12));
-  --elev-overlay: var(--shadow-modal-heavy, 0 24px 64px rgba(0,0,0,.32), 0 8px 24px rgba(0,0,0,.12));
-  --elev-inset: var(--shadow-input, inset 0 2px 4px rgba(0,0,0,.08), inset 0 1px 2px rgba(0,0,0,.04));
-  --elev-brand: 0 2px 8px rgba(60,140,231,.22);
-  --elev-brand-hover: var(--shadow-btn-hover, 0 6px 16px rgba(60,140,231,.28));
-  --elev-brand-press: var(--shadow-btn-active, inset 0 2px 6px rgba(0,0,0,.18));
-  --elev-bubble: var(--shadow-bubble, 0 1px 2px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04));
-  --elev-bubble-self: var(--shadow-bubble-self, 0 2px 6px rgba(0,0,0,.1));
-  --elev-navbar: var(--shadow-navbar, 4px 0 12px rgba(0,0,0,.08));
-  --elev-sidebar-edge: var(--shadow-sidebar-edge, 1px 0 0 rgba(0,0,0,.06));
-  --elev-titlebar: var(--shadow-title-bar, 0 1px 2px rgba(0,0,0,.04));
-  --elev-chat-header: var(--shadow-chat-header, 0 1px 4px rgba(0,0,0,.06));
-  --elev-input-top: var(--shadow-input-top, 0 -2px 8px rgba(0,0,0,.06));
-  --elev-avatar: var(--avatar-shadow, 0 2px 8px rgba(0,0,0,.12));
-  --elev-avatar-hover: var(--shadow-avatar-hover, 0 4px 12px rgba(0,0,0,.16));
-  --elev-pop: var(--shadow-context-menu, 0 12px 32px rgba(0,0,0,.2));
-  --elev-tooltip: var(--shadow-dropdown, 0 8px 24px rgba(0,0,0,.18));
-  --elev-badge: var(--shadow-badge, 0 2px 8px rgba(250,81,81,.4));
-  --elev-scroll-btn: var(--shadow-scroll-btn, 0 4px 12px rgba(0,0,0,.16));
+  --elev-1: var(--shadow-card, 0 1px 2px rgba(15,23,42,.04), 0 4px 12px rgba(15,23,42,.04));
+  --elev-1-hover: var(--shadow-card-hover, 0 4px 12px rgba(15,23,42,.07), 0 10px 24px rgba(15,23,42,.06));
+  --elev-2: var(--shadow-dropdown, 0 4px 16px rgba(15,23,42,.08), 0 12px 32px rgba(15,23,42,.10));
+  --elev-3: var(--shadow-modal, 0 12px 32px rgba(15,23,42,.14), 0 24px 60px rgba(15,23,42,.10));
+  --elev-4: 0 20px 56px rgba(15,23,42,.20), 0 8px 20px rgba(15,23,42,.10);
+  --elev-pill: 0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.04);
+  --elev-overlay: 0 18px 48px rgba(0,0,0,.28), 0 6px 16px rgba(0,0,0,.12);
+  --elev-inset: var(--shadow-input, inset 0 1px 2px rgba(15,23,42,.04));
+  --elev-brand: 0 1px 2px rgba(60,140,231,.18), 0 3px 8px rgba(60,140,231,.12);
+  --elev-brand-hover: var(--shadow-btn-hover, 0 4px 12px rgba(60,140,231,.24), 0 1px 3px rgba(60,140,231,.14));
+  --elev-brand-press: inset 0 1px 3px rgba(0,0,0,.14);
+  --elev-bubble: var(--shadow-bubble, 0 1px 2px rgba(0,0,0,.04), 0 2px 8px rgba(0,0,0,.03));
+  --elev-bubble-self: var(--shadow-bubble-self, 0 1px 3px rgba(0,0,0,.07), 0 3px 10px rgba(0,0,0,.04));
+  --elev-navbar: 1px 0 0 var(--line-hairline);
+  --elev-sidebar-edge: 1px 0 0 var(--line-hairline);
+  --elev-titlebar: 0 1px 0 var(--line-hairline);
+  --elev-chat-header: 0 1px 2px rgba(0,0,0,.03);
+  --elev-input-top: 0 -2px 10px rgba(0,0,0,.04);
+  --elev-avatar: var(--avatar-shadow, 0 1px 4px rgba(0,0,0,.10), 0 2px 8px rgba(0,0,0,.05));
+  --elev-avatar-hover: 0 4px 12px rgba(0,0,0,.14), 0 1px 4px rgba(0,0,0,.08);
+  --elev-pop: 0 8px 28px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.07);
+  --elev-tooltip: 0 4px 14px rgba(0,0,0,.12), 0 1px 4px rgba(0,0,0,.06);
+  --elev-badge: 0 2px 6px rgba(250,81,81,.28);
+  --elev-scroll-btn: 0 4px 14px rgba(0,0,0,.12), 0 1px 4px rgba(0,0,0,.06);
 
   /* ========== 9. z-index ========== */
   --z-below: -1;
@@ -270,64 +293,52 @@
   --duration-fast: var(--motion-dur-fast, 120ms);
   --duration-normal: var(--motion-dur-base, 180ms);
   --duration-slow: var(--motion-dur-slow, 260ms);
-  --duration-emphasis: var(--motion-dur-emph, 400ms);
-  --ease-out: var(--motion-ease-standard, cubic-bezier(.2, 0, 0, 1));
-  --ease-in: var(--motion-ease-exit, cubic-bezier(.3, 0, .8, .15));
-  --ease-enter: var(--motion-ease-enter, cubic-bezier(.05, .7, .1, 1));
-  --ease-spring: var(--motion-ease-spring, cubic-bezier(.34, 1.36, .64, 1));
+  --duration-emphasis: var(--motion-dur-emph, 380ms);
+  --ease-out: var(--motion-ease-standard, cubic-bezier(0.2, 0, 0, 1));
+  --ease-in: var(--motion-ease-exit, cubic-bezier(0.4, 0, 1, 1));
+  --ease-enter: var(--motion-ease-enter, cubic-bezier(0.16, 1, 0.3, 1));
+  --ease-out-expo: var(--motion-ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1));
+  --ease-spring: var(--motion-ease-spring, cubic-bezier(0.22, 1.28, 0.36, 1));
 
-  /* ========== 11. 原始令牌兜底（仅「无主题覆盖」的 default 专属变量；部分覆盖变量只在语义别名里兜底） ========== */
-  --shadow-bubble: 0 1px 2px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04);
-  --shadow-btn: 0 4px 8px rgba(60,140,231,.3), 0 2px 4px rgba(60,140,231,.15);
-  --shadow-btn-active: inset 0 2px 6px rgba(0,0,0,.18);
-  --shadow-card-subtle: 0 1px 3px rgba(0,0,0,.05);
-  --shadow-chat-header: 0 1px 4px rgba(0,0,0,.06);
-  --shadow-context-menu: 0 12px 32px rgba(0,0,0,.2);
-  --shadow-dot: 0 1px 3px rgba(0,0,0,.2);
-  --shadow-dropdown: 0 8px 24px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.08);
-  --shadow-elevated: 0 28px 72px rgba(0,0,0,.28), 0 10px 28px rgba(0,0,0,.12);
-  --shadow-emoji-picker: 0 12px 36px rgba(0,0,0,.2);
-  --shadow-input: inset 0 2px 4px rgba(0,0,0,.08), inset 0 1px 2px rgba(0,0,0,.04);
-  --shadow-input-focus-ring: 0 0 0 3px rgba(60,140,231,.15);
-  --shadow-input-top: 0 -2px 8px rgba(0,0,0,.06);
-  --shadow-modal-heavy: 0 24px 64px rgba(0,0,0,.32), 0 8px 24px rgba(0,0,0,.12);
-  --shadow-navbar: 4px 0 12px rgba(0,0,0,.08);
-  --shadow-avatar-hover: 0 4px 12px rgba(0,0,0,.16);
-  --shadow-badge: 0 2px 8px rgba(250,81,81,.4);
-  --shadow-scroll-btn: 0 4px 12px rgba(0,0,0,.16);
-  --shadow-sidebar-edge: 1px 0 0 rgba(0,0,0,.06);
-  --shadow-thumb: 0 1px 4px rgba(0,0,0,.2);
-  --shadow-title-bar: 0 1px 2px rgba(0,0,0,.04);
+  /* ========== 11. 原始令牌兜底（仅保留 ThemeEditor / tool-bridge / 聊天旧样式实际引用的变量） ========== */
+  --shadow-bubble: 0 1px 2px rgba(0,0,0,.04), 0 2px 8px rgba(0,0,0,.03);
+  --shadow-btn: 0 2px 6px rgba(60,140,231,.22);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.10);
+  --shadow-input: inset 0 1px 2px rgba(0,0,0,.05);
   --arrow-border: 5px solid transparent;
-  --bg-toggle-knob: #FFFFFF;
-  --bg-search-highlight: rgba(255,235,59,.4);
   --bg-mention-all: rgba(255,193,7,.2);
   --text-mention-all: #ff9800;
-  --bg-upload-overlay: rgba(0,0,0,.45);
-  --btn-shine: rgba(255,255,255,.15);
-  --title-close-hover: #e81123;
   --divider-bg: rgba(0,0,0,.08);
-  /* 状态色由 22 套主题各自定义（task-9 归一），此处不再兜底：同特异性下本文件在主题之后会反向覆盖主题值 */
+  /* 状态色由 6 套主题各自定义，此处不再兜底：同特异性下本文件在主题之后会反向覆盖主题值 */
 }
 
 /* color-mix 可用时用主题色实时派生（旧 WebView 自动退回上面的静态值） */
 @supports (color: color-mix(in srgb, red, blue)) {
   :root {
-    /* 品牌墨色：accent 向正文色混合 —— 浅色主题自动压暗、深色主题自动提亮，
-       实测 6 套主题最差底色对比度 ≥4.7:1（hover/active 更深一档）；无 color-mix 时退回主题链接色 */
+    /* 品牌墨色：低饱和主题自动向正文调深（浅底）/ 提亮（深底），保证全主题可读 */
     --brand: color-mix(in srgb, var(--accent, #3C8CE7) 40%, var(--text-primary, #1A1A2E));
-    --brand-hover: color-mix(in srgb, var(--accent, #3C8CE7) 30%, var(--text-primary, #1A1A2E));
-    --brand-active: color-mix(in srgb, var(--accent, #3C8CE7) 20%, var(--text-primary, #1A1A2E));
-    --elev-brand: 0 2px 8px color-mix(in srgb, var(--brand-fill) 22%, transparent);
+    --brand-hover: color-mix(in srgb, var(--accent-hover, #2E78D0) 30%, var(--text-primary, #1A1A2E));
+    --brand-active: color-mix(in srgb, var(--accent-active, #2566B8) 20%, var(--text-primary, #1A1A2E));
+    --surface-3: color-mix(in srgb, var(--fg) 6%, var(--surface-2));
+    --surface-glass: color-mix(in srgb, var(--surface-raised) 86%, transparent);
+    --line-hairline: color-mix(in srgb, var(--line) 80%, transparent);
+    --elev-brand: 0 1px 2px color-mix(in srgb, var(--brand-fill) 20%, transparent), 0 3px 8px color-mix(in srgb, var(--brand-fill) 14%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.16);
     --status-danger-soft: color-mix(in srgb, var(--status-danger) 12%, transparent);
     --status-success-soft: color-mix(in srgb, var(--status-success) 12%, transparent);
     --status-warning-soft: color-mix(in srgb, var(--status-warning) 14%, transparent);
     --status-notice-soft: color-mix(in srgb, var(--status-notice) 12%, transparent);
+    --status-danger-border: color-mix(in srgb, var(--status-danger) 30%, var(--line));
+    --status-success-border: color-mix(in srgb, var(--status-success) 30%, var(--line));
+    --status-warning-border: color-mix(in srgb, var(--status-warning) 30%, var(--line));
+    --status-notice-border: color-mix(in srgb, var(--status-notice) 30%, var(--line));
     /* task-27 对比度修复：占位文本、气泡时间、状态色文字按主题明暗自适应派生（百分比与实测见 .team/refactor/theme-contrast-fix.md） */
     --fg-placeholder: color-mix(in srgb, var(--fg) 72%, var(--surface-0));
     --fg-self-time: color-mix(in srgb, var(--text-self-bubble-time, rgba(0, 0, 0, 0.35)) 40%, var(--message-self-text, #000000));
     --status-warning: color-mix(in srgb, var(--warning, #ff9800) 50%, var(--fg));
     --status-success: color-mix(in srgb, var(--success, #4caf50) 50%, var(--fg));
+    --status-warning-ink: var(--status-warning);
+    --status-success-ink: var(--status-success);
+    --status-notice-ink: color-mix(in srgb, var(--notice, #e91e63) 50%, var(--fg));
     /* 与上面两条同口径：危险色文字压到 --fg 里 50%，浅色主题才够 AA（原值 #DF9F97 只有 2.2:1） */
     --status-danger-ink: color-mix(in srgb, var(--danger, #e74c3c) 50%, var(--fg));
   }
@@ -348,6 +359,9 @@
   --switch-w-md: 44px;
   --switch-h-md: 24px;
   --switch-knob-md: 18px;
+  --seg-h-sm: 24px;
+  --seg-h-md: 28px;
+  --seg-pad: 3px;
   --badge-h-sm: 18px;
   --badge-h-md: 20px;
   --badge-dot-sm: 6px;
@@ -365,11 +379,19 @@
   --menu-w-min: 160px;
   --menu-w-max: 320px;
   --popover-w-max: 320px;
-  --overlay-blur: 6px;
+  --overlay-blur: 8px;
+  --glass-blur: 14px;
 }
 
 /* ========== §12 状态色填充上的文字：逐主题覆盖 ==========
    取值规则：对「填充色 / hover 填充色 vs 白与黑」求 WCAG 对比度取高者，两态都要 ≥4.5。
-   default（浅底）状态色是浅色填充 → 黑字，由 :root 默认值兜底；
-   midnight / graphite 为深色主题，状态色设计为比背景亮的中浅色 → 同样用黑字。
-   主题定稿后可用 tmp/audit/design/on-status.cjs 复算回填本层。 */
+   default / sand / sage（浅底）状态色是中浅色填充 → 黑字，由 :root 默认值兜底；
+   midnight / graphite 为深色主题，状态色为深底饱和中色 → 白字可保证对比度。 */
+html.theme-midnight,
+html.theme-graphite {
+  --on-danger: #FFFFFF;
+  --on-danger-hover: #FFFFFF;
+  --on-success: #FFFFFF;
+  --on-warning: #FFFFFF;
+  --on-notice: #FFFFFF;
+}

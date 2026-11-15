@@ -150,6 +150,11 @@ onMounted(() => {
   if (props.autofocus) textareaEl.value?.focus()
   autoSize()
 })
+defineExpose({
+  focus: () => textareaEl.value?.focus(),
+  select: () => textareaEl.value?.select(),
+  el: textareaEl,
+})
 </script>
 
-<style scoped src="./UiTextarea.css"></style>
+<style src="./UiTextarea.css"></style>

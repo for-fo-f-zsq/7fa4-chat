@@ -1,146 +1,942 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN" data-theme="default">
 <head>
-    <meta charset="UTF-8">
-    <title>新消息</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body {
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background: transparent;
-            font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-            -webkit-app-region: no-drag;
-        }
-        .card {
-            margin: 8px;
-            height: calc(100% - 16px);
-            background: rgba(255, 255, 255, 0.97);
-            backdrop-filter: blur(12px);
-            border-radius: 8px;
-            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
-            padding: 12px 16px;
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        .card:hover { background: #fff; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.06); }
-        .icon-circle {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #12B7F5, #0EA1DB);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            color: #fff;
-            font-size: var(--font-size-large, 16px);
-            font-weight: 600;
-        }
-        .msg-body { flex: 1; min-width: 0; }
-        .sender {
-            font-weight: 500;
-            font-size: var(--font-size-small, 13px);
-            color: #191919;
-            margin-bottom: 3px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .content {
-            font-size: var(--font-size-small, 12px);
-            color: #888;
-            line-height: 1.4;
-            word-break: break-word;
-            overflow: hidden;
-            display: -webkit-box;
-            -webkit-line-clamp: 1;
-            -webkit-box-orient: vertical;
-            text-overflow: ellipsis;
-        }
-        .close-btn {
-            position: absolute;
-            top: 6px;
-            right: 8px;
-            width: 20px;
-            height: 20px;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: transparent;
-            color: #bbb;
-            font-size: var(--font-size-base, 14px);
-            line-height: 1;
-            cursor: pointer;
-            z-index: 2;
-            transition: background 0.15s, color 0.15s;
-        }
-        .close-btn:hover { background: rgba(0, 0, 0, 0.06); color: #555; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 纵深防御：页面没有任何外部资源，只允许内联 style/script 与 data: 图片。
+     沙箱页默认没有 CSP，这里显式收紧；不引入任何 external 请求。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;">
+<title>新消息提醒</title>
+<!--
+  桌面通知弹窗（Electron BrowserWindow loadFile 的纯静态页）
+  - 不走 Vue、不加载主应用 CSS/JS bundle、没有 Font Awesome：样式与图标全部内联，无任何外部请求。
+  - 宿主窗口 372px 宽、透明、无边框、不可聚焦；高度由本页实测后经 window.api.resize(h) 回传，
+    主进程按 position 锚点（br/tr/bl/tl）重排，h<=0 表示「本批提醒结束」→ 只隐藏窗口不销毁。
+  - preload 契约见 src/preload/notification.js：
+      loadSetting() / onNotifData(cb) / onNotifClear(cb) / resize(h) / notificationAction(chatType,targetId) / closeNotif()
+  - 所有用户文本一律 textContent 写入，不拼 innerHTML。
+  - 直接双击本文件打开（无 preload）不会报错、也不会画假数据；带 ?demo 时才渲染几张家卡片自检。
+-->
+<style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    /* ---------- 设计令牌：字号由 --font-size 派生，主题由 html[data-dark] 切换 ---------- */
+    :root {
+        --font-size: 14px;                                /* JS 按 setting.fontSize 覆盖（12–20） */
+        --fs-base: var(--font-size);
+        --fs-title: calc(var(--font-size) - 1px);         /* 13px @14 */
+        --fs-body: calc(var(--font-size) - 2px);          /* 12px @14 */
+        --fs-small: calc(var(--font-size) - 3px);         /* 11px @14 */
+
+        --pad: 8px;          /* 四周留白：给卡片投影响空间（总高 = 内容高 + 16） */
+        --gap: 10px;
+        --radius: 14px;
+        --avatar: 38px;
+
+        /* 浅色玻璃 */
+        --card-bg: rgba(255, 255, 255, 0.96);
+        --card-border: rgba(22, 36, 56, 0.09);
+        --card-shadow: 0 10px 26px rgba(18, 31, 50, 0.16), 0 1px 3px rgba(18, 31, 50, 0.08);
+        --card-shadow-hover: 0 14px 32px rgba(18, 31, 50, 0.22), 0 1px 3px rgba(18, 31, 50, 0.10);
+        --card-inset: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+        --ring: #FFFFFF;                                  /* 角标描边（与卡片底色同色） */
+        --fg: #1D2735;
+        --fg-muted: #7A8598;
+        --fg-close: #6C7789;
+        --track: rgba(24, 38, 58, 0.12);
+    }
+    /* 深色玻璃：midnight / graphite（或主题未指定且系统为深色） */
+    html[data-dark="1"] {
+        --card-bg: rgba(28, 30, 36, 0.96);
+        --card-border: rgba(255, 255, 255, 0.10);
+        --card-shadow: 0 12px 30px rgba(0, 0, 0, 0.50), 0 1px 2px rgba(0, 0, 0, 0.40);
+        --card-shadow-hover: 0 16px 36px rgba(0, 0, 0, 0.58), 0 1px 2px rgba(0, 0, 0, 0.45);
+        --card-inset: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        --ring: #1F2127;
+        --fg: #ECEFF4;
+        --fg-muted: #98A1B0;
+        --fg-close: #B9C0CC;
+        --track: rgba(255, 255, 255, 0.14);
+    }
+
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        /* 高度不写死：窗口高度由本页实测内容后请主进程调整，body 自适应内容高度 */
+        background: transparent;
+        overflow: hidden;
+    }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', 'PingFang SC',
+                     'Hiragino Sans GB', 'Noto Sans CJK SC', Arial, sans-serif;
+        font-size: var(--fs-base);
+        line-height: 1.45;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        user-select: none;
+        -webkit-user-select: none;
+        cursor: default;
+        /* 窗口不可拖拽（本窗口不可移动），显式声明避免继承到按钮 */
+        -webkit-app-region: no-drag;
+    }
+
+    #root {
+        width: 100%;
+        padding: var(--pad);       /* 四周 8px：卡片阴影不被窗口边缘切掉 */
+    }
+
+    #stack {
+        display: flex;
+        flex-direction: column;
+        gap: var(--gap);           /* 最新的一张在最上面 */
+    }
+
+    /* ---------- 卡片 ---------- */
+    .card {
+        position: relative;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 10px 12px;
+        border-radius: var(--radius);
+        border: 1px solid var(--card-border);
+        background: var(--card-bg);
+        -webkit-backdrop-filter: blur(18px);
+        backdrop-filter: blur(18px);
+        box-shadow: var(--card-shadow), var(--card-inset);
+        color: var(--fg);
+        overflow: hidden;
+        cursor: pointer;
+        -webkit-app-region: no-drag;
+        will-change: transform, opacity;
+    }
+    .card:hover { box-shadow: var(--card-shadow-hover), var(--card-inset); }
+
+    /* ---------- 头像（accent 圆角方块 + 首字） ---------- */
+    .avatar {
+        position: relative;
+        flex: none;
+        width: var(--avatar);
+        height: var(--avatar);
+        border-radius: 11px;
+        display: grid;
+        place-items: center;
+        background-image: linear-gradient(135deg, var(--a1, #12B7F5), var(--a2, #0EA1DB));
+        color: var(--avatar-fg, #FFFFFF);
+        font-size: var(--fs-title);
+        font-weight: 600;
+        letter-spacing: 0.2px;
+        line-height: 1;
+    }
+    .avatar-txt {
+        display: block;
+        max-width: 100%;
+        padding: 0 2px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        text-align: center;
+    }
+    /* count>1 的角标：压在头像右上角 */
+    .badge {
+        position: absolute;
+        top: 0;
+        right: 0;
+        transform: translate(42%, -42%);
+        min-width: 15px;
+        height: 15px;
+        padding: 0 4px;
+        border-radius: 8px;
+        background: var(--a1, #12B7F5);
+        color: #FFFFFF;
+        font-size: 10px;
+        font-weight: 600;
+        line-height: 15px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        box-shadow: 0 0 0 2px var(--ring);
+        pointer-events: none;
+    }
+    .badge[hidden] { display: none; }
+
+    /* ---------- 右侧正文列 ---------- */
+    .main { flex: 1 1 auto; min-width: 0; }
+
+    .head {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        min-width: 0;
+        min-height: 16px;
+    }
+    .title {
+        flex: 0 1 auto;
+        min-width: 0;
+        font-size: var(--fs-title);
+        font-weight: 600;
+        line-height: 16px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .mention {
+        flex: none;
+        height: 15px;
+        padding: 0 5px;
+        border-radius: 5px;
+        background: var(--a-soft, rgba(18, 183, 245, 0.12));
+        color: var(--a-ink, #0B84CC);
+        font-size: 10px;
+        font-weight: 600;
+        line-height: 15px;
+        letter-spacing: 0.2px;
+    }
+    .mention[hidden] { display: none; }
+    .grow { flex: 1 1 auto; min-width: 4px; }
+    .time {
+        flex: none;
+        font-size: var(--fs-small);
+        line-height: 16px;
+        color: var(--fg-muted);
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.2px;
+    }
+    .time:empty { display: none; }
+
+    .close {
+        flex: none;
+        width: 16px;
+        height: 16px;
+        margin: -1px -2px 0 1px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        color: var(--fg-close);
+        opacity: 0.45;
+        cursor: pointer;
+        transition: opacity 0.15s ease, background-color 0.15s ease;
+    }
+    .close:hover { opacity: 1; background: var(--track); }
+    .close:active { opacity: 1; }
+    .close svg { width: 8px; height: 8px; display: block; }
+
+    /* 副标题 chip（群聊里的发送者）：accent 淡底小胶囊 */
+    .sub-row {
+        display: flex;
+        min-width: 0;
+        margin-top: 4px;
+    }
+    .sub {
+        min-width: 0;
+        max-width: 100%;
+        height: 16px;
+        padding: 0 6px;
+        border-radius: 5px;
+        background: var(--a-soft, rgba(18, 183, 245, 0.12));
+        color: var(--a-ink, #0B84CC);
+        font-size: var(--fs-small);
+        line-height: 16px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .sub-row[hidden] { display: none; }
+
+    .body {
+        margin-top: 4px;
+        font-size: var(--fs-body);
+        line-height: 1.45;
+        color: var(--fg-muted);
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+    }
+    .body[hidden] { display: none; }
+
+    /* ---------- 底部倒计时进度条 ---------- */
+    .progress {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 2px;
+        background: var(--track);
+        overflow: hidden;
+    }
+    .progress[hidden] { display: none; }
+    .progress > i {
+        display: block;
+        height: 100%;
+        width: 100%;
+        background: var(--a1, #12B7F5);
+        transform-origin: left center;
+        transform: scaleX(1);
+        animation-name: notif-progress;
+        animation-duration: var(--dur, 6000ms);
+        animation-timing-function: linear;
+        animation-fill-mode: forwards;
+    }
+    .card.paused .progress > i { animation-play-state: paused; }
+    @keyframes notif-progress {
+        from { transform: scaleX(1); }
+        to   { transform: scaleX(0); }
+    }
+
+    /* ---------- 进场 / 退场（不引库，纯 CSS） ---------- */
+    .card.enter { animation: notif-in 220ms cubic-bezier(0.22, 0.8, 0.3, 1) both; }
+    .card.leave { animation: notif-out 200ms cubic-bezier(0.4, 0, 1, 1) both; pointer-events: none; }
+    @keyframes notif-in {
+        from { opacity: 0; transform: translateX(var(--enter-x, 12px)) scale(0.97); }
+        to   { opacity: 1; transform: translateX(0) scale(1); }
+    }
+    @keyframes notif-out {
+        from { opacity: 1; transform: translateX(0) scale(1); }
+        to   { opacity: 0; transform: translateX(var(--enter-x, 12px)) scale(0.97); }
+    }
+
+    /* ---------- 降低动效：不进场、不滑动、不跑进度条 ---------- */
+    @media (prefers-reduced-motion: reduce) {
+        .card.enter, .card.leave { animation: none; }
+        .card.leave { opacity: 0; }
+        .progress { display: none; }
+        .card { will-change: auto; }
+    }
+</style>
 </head>
 <body>
-    <div class="card" id="card">
-        <div class="close-btn" id="closeBtn">&times;</div>
-        <div class="icon-circle" id="iconCircle">M</div>
-        <div class="msg-body">
-            <div class="sender" id="senderName"></div>
-            <div class="content" id="messageContent"></div>
-        </div>
+    <div id="root">
+        <div id="stack" role="list" aria-live="polite" aria-relevant="additions text"></div>
     </div>
     <script>
-        (function() {
-            const api = window.api;
-            let sender = '未知';
-            let content = '';
-            let chatType = '';
-            let targetId = '';
+    (function () {
+        'use strict';
 
-            // Apply font size from settings
-            api.loadSetting().then(setting => {
-                if (setting && setting.fontSize) {
-                    const size = setting.fontSize;
-                    document.documentElement.style.setProperty('--font-size-base', size + 'px');
-                    document.documentElement.style.setProperty('--font-size-small', (size - 2) + 'px');
-                    document.documentElement.style.setProperty('--font-size-large', (size + 2) + 'px');
-                }
-            }).catch(() => {});
+        var MAX_CARDS = 4;      // 同屏最多 4 张，超出立即移除最旧（不播退场）
+        var PAD_TOTAL = 16;     // #root 上下各 8px：窗口高 = 卡片内容高 + 16
+        var ENTER_MS = 240;     // 进场动画时长 + 余量
+        var LEAVE_MS = 240;     // 退场动画兜底时长（reduced-motion 下没有 animationend）
+        var ANON = 0;
 
-            api.onNotifData((data) => {
-                sender = data.sender || '未知';
-                content = data.content || '';
-                chatType = data.chatType || '';
-                targetId = data.targetId || '';
-                document.getElementById('senderName').textContent = sender;
-                document.getElementById('messageContent').textContent = content;
-                document.getElementById('iconCircle').textContent = sender.charAt(0).toUpperCase();
-            });
+        var BRAND = { r: 18, g: 183, b: 245 };      // #12B7F5
+        var BRAND_DEEP = { r: 14, g: 161, b: 219 }; // #0EA1DB
 
-            function closeWindow() {
-                api.closeNotif();
+        var api = (typeof window.api === 'object' && window.api) ? window.api : null;
+        var stackEl = document.getElementById('stack');
+
+        var records = new Map();     // id -> record（同一会话只留一张卡）
+        var lastHeight = null;       // 上一次回报给主进程的高度（null = 还没报过）
+        var reportedContent = false; // 是否曾经报过 >0 的高度（决定空栈时要不要 resize(0)）
+        var rafId = 0;
+        var clearing = false;        // notif-clear 期间抑制中间高度，避免窗口抽搐
+        var clearToken = 0;          // 连续 clear 的令牌：只有最后一次负责收尾（resize(0)）
+        var darkMode = null;         // null = 还没判定
+        var themeValue = '';         // 最近一次已知主题（'' 表示未指定）
+
+        /* ============================ 基础设施 ============================ */
+
+        function callApi(name, arg1, arg2) {
+            var fn = api && api[name];
+            if (typeof fn !== 'function') return null;
+            try {
+                var ret = fn(arg1, arg2);
+                if (ret && typeof ret.catch === 'function') ret.catch(function () { /* 主进程窗口可能已销毁 */ });
+                return ret;
+            } catch (e) {
+                return null; // 降级：没有 preload 时静默
             }
+        }
 
-            document.getElementById('closeBtn').addEventListener('click', (e) => {
+        function nowMs() {
+            return (window.performance && window.performance.now) ? window.performance.now() : Date.now();
+        }
+
+        function prefersDark() {
+            try {
+                return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+        /* ============================ 颜色工具 ============================ */
+
+        function parseHex(value) {
+            if (typeof value !== 'string') return null;
+            var m = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.exec(value.trim());
+            if (!m) return null;
+            var h = m[1];
+            if (h.length === 3) h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
+            var n = parseInt(h, 16);
+            return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+        }
+        function rgb(c) { return 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')'; }
+        function rgba(c, a) { return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')'; }
+        function shade(c, k) {
+            function f(v) { return Math.max(0, Math.min(255, Math.round(v * k))); }
+            return { r: f(c.r), g: f(c.g), b: f(c.b) };
+        }
+        function tint(c, t) {
+            function f(v) { return Math.max(0, Math.min(255, Math.round(v + (255 - v) * t))); }
+            return { r: f(c.r), g: f(c.g), b: f(c.b) };
+        }
+        function luminance(c) { return (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) / 255; }
+
+        // accent 只接受合法 #hex；非法/缺失 → 品牌蓝渐变
+        function paletteOf(accent, dark) {
+            var custom = parseHex(accent);
+            var base = custom || BRAND;
+            var deep = custom ? shade(base, 0.85) : BRAND_DEEP;
+            return {
+                a1: rgb(base),
+                a2: rgb(deep),
+                soft: rgba(base, dark ? 0.26 : 0.12),
+                ink: dark ? rgb(tint(base, 0.5)) : rgb(shade(base, 0.82)),
+                onAvatar: luminance(base) > 0.72 ? '#1B2028' : '#FFFFFF'
+            };
+        }
+
+        /* ============================ 主题 / 字号 ============================ */
+
+        // midnight / graphite 为深色；default/sand/sage/contrast 明确为浅色；
+        // 主题完全未指定（'' / auto / 未知）时才跟随系统 prefers-color-scheme。
+        function resolveDark(theme) {
+            var t = String(theme || '').trim().toLowerCase();
+            if (t === 'midnight' || t === 'graphite') return true;
+            if (t && t !== 'auto') return false;
+            return prefersDark();
+        }
+
+        function repaintAll() {
+            records.forEach(function (rec) { applyPalette(rec, rec.data); });
+        }
+
+        function applyTheme(theme) {
+            var t = (typeof theme === 'string' && theme.trim()) ? theme.trim().toLowerCase() : '';
+            if (!t) t = themeValue;
+            themeValue = t;
+            var root = document.documentElement;
+            root.dataset.theme = t || 'default';
+            var dark = resolveDark(t);
+            if (dark === darkMode) return;
+            darkMode = dark;
+            root.dataset.dark = dark ? '1' : '0';
+            repaintAll();
+        }
+
+        function applyFontSize(size) {
+            var n = Number(size);
+            if (!isFinite(n) || n <= 0 || n > 40) return;
+            document.documentElement.style.setProperty('--font-size', n + 'px');
+        }
+
+        /* ============================ 数据规范化 ============================ */
+
+        function text(value, maxLen) {
+            if (value == null) return '';
+            var s = String(value).replace(/\s+/g, ' ').trim();
+            if (!s) return '';
+            if (maxLen && s.length > maxLen) s = s.slice(0, maxLen);
+            return s;
+        }
+
+        function firstChar(value) {
+            var s = String(value == null ? '' : value).trim();
+            if (!s) return '?';
+            var arr = Array.from ? Array.from(s) : s.split(''); // emoji / 代理对不劈半
+            return arr[0] || '?';
+        }
+
+        // 时间戳兼容毫秒 / 秒 / ISO 字符串，只取 HH:mm
+        function formatTime(ts) {
+            var n = Number(ts);
+            if (!isFinite(n) || n <= 0) {
+                if (typeof ts === 'string' && ts) n = Date.parse(ts);
+                else return '';
+            }
+            if (!isFinite(n) || n <= 0) return '';
+            if (n < 1e11) n = n * 1000; // 秒级时间戳
+            var d = new Date(n);
+            if (isNaN(d.getTime())) return '';
+            return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+        }
+
+        function normalize(raw) {
+            var chatType = raw.chatType === 'group' ? 'group' : 'user';
+            var targetId = (raw.targetId == null) ? '' : String(raw.targetId);
+            var id = (raw.id == null || raw.id === '') ? (chatType + '_' + targetId) : String(raw.id);
+            if (!id) id = 'anon_' + (++ANON);
+
+            var title = text(raw.title, 200) || (chatType === 'group' ? '群聊' : '新消息');
+            var durationRaw = Number(raw.duration);
+            var duration = (isFinite(durationRaw) && durationRaw > 0) ? Math.min(durationRaw, 60000) : 0;
+            var count = Math.max(1, Math.floor(Number(raw.count) || 1));
+            var position = String(raw.position || 'br').toLowerCase();
+            if (position !== 'br' && position !== 'tr' && position !== 'bl' && position !== 'tl') position = 'br';
+
+            return {
+                id: id,
+                title: title,
+                subtitle: text(raw.subtitle, 120),
+                body: text(raw.body, 800),
+                avatar: firstChar(raw.avatar || title),
+                accent: parseHex(raw.accent) ? String(raw.accent) : '',
+                chatType: chatType,
+                targetId: targetId,
+                mention: raw.mention === true,
+                count: count,
+                timestamp: raw.timestamp,
+                position: position,
+                duration: duration,
+                privacy: raw.privacy === true,
+                theme: raw.theme,
+                fontSize: raw.fontSize
+            };
+        }
+
+        /* ============================ 卡片 DOM ============================ */
+
+        function svgClose() {
+            var ns = 'http://www.w3.org/2000/svg';
+            var svg = document.createElementNS(ns, 'svg');
+            svg.setAttribute('viewBox', '0 0 10 10');
+            svg.setAttribute('aria-hidden', 'true');
+            svg.setAttribute('focusable', 'false');
+            var path = document.createElementNS(ns, 'path');
+            path.setAttribute('d', 'M1.4 1.4 8.6 8.6 M8.6 1.4 1.4 8.6');
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke', 'currentColor');
+            path.setAttribute('stroke-width', '1.5');
+            path.setAttribute('stroke-linecap', 'round');
+            svg.appendChild(path);
+            return svg;
+        }
+
+        function createCard(data) {
+            var el = document.createElement('div');
+            el.className = 'card enter';
+            el.setAttribute('role', 'listitem');
+
+            var avatar = document.createElement('div');
+            avatar.className = 'avatar';
+            var avatarTxt = document.createElement('span');
+            avatarTxt.className = 'avatar-txt';
+            var badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.hidden = true;
+            avatar.appendChild(avatarTxt);
+            avatar.appendChild(badge);
+
+            var main = document.createElement('div');
+            main.className = 'main';
+
+            var head = document.createElement('div');
+            head.className = 'head';
+            var title = document.createElement('span');
+            title.className = 'title';
+            var mention = document.createElement('span');
+            mention.className = 'mention';
+            mention.hidden = true;
+            mention.textContent = '@我';
+            var grow = document.createElement('span');
+            grow.className = 'grow';
+            var time = document.createElement('span');
+            time.className = 'time';
+            var close = document.createElement('button');
+            close.type = 'button';
+            close.className = 'close';
+            close.setAttribute('aria-label', '关闭提醒');
+            close.tabIndex = -1; // 窗口不可聚焦，不从 Tab 序列进入
+            close.appendChild(svgClose());
+            head.appendChild(title);
+            head.appendChild(mention);
+            head.appendChild(grow);
+            head.appendChild(time);
+            head.appendChild(close);
+
+            var subRow = document.createElement('div');
+            subRow.className = 'sub-row';
+            subRow.hidden = true;
+            var sub = document.createElement('span');
+            sub.className = 'sub';
+            subRow.appendChild(sub);
+
+            var body = document.createElement('div');
+            body.className = 'body';
+
+            var progress = document.createElement('div');
+            progress.className = 'progress';
+            var bar = document.createElement('i');
+            progress.appendChild(bar);
+
+            main.appendChild(head);
+            main.appendChild(subRow);
+            main.appendChild(body);
+            el.appendChild(avatar);
+            el.appendChild(main);
+            el.appendChild(progress);
+
+            var rec = {
+                id: data.id,
+                el: el,
+                data: data,
+                parts: {
+                    avatar: avatar,
+                    avatarTxt: avatarTxt,
+                    badge: badge,
+                    title: title,
+                    mention: mention,
+                    time: time,
+                    subRow: subRow,
+                    sub: sub,
+                    body: body,
+                    progress: progress,
+                    bar: bar,
+                    close: close
+                },
+                duration: 0,
+                remaining: 0,
+                startedAt: 0,
+                timerId: 0,
+                paused: false,
+                leaving: false
+            };
+            el.__rec = rec;
+
+            close.addEventListener('click', function (e) {
                 e.stopPropagation();
-                closeWindow();
+                e.preventDefault();
+                dismiss(rec, 'close');
+            });
+            el.addEventListener('click', function (e) {
+                if (e.target && e.target.closest && e.target.closest('.close')) return;
+                activate(rec);
+            });
+            el.addEventListener('mouseenter', function () { pauseTimer(rec); });
+            el.addEventListener('mouseleave', function () { resumeTimer(rec); });
+            el.addEventListener('animationend', function (e) {
+                if (e.animationName === 'notif-out') removeNode(rec);
             });
 
-            document.getElementById('card').addEventListener('click', () => {
-                api.showMainWindow(chatType, targetId);
-                setTimeout(() => closeWindow(), 100);
-            });
-            setTimeout(() => closeWindow(), 10000);
-        })();
+            return rec;
+        }
+
+        function paint(rec) {
+            var d = rec.data;
+            var p = rec.parts;
+
+            p.title.textContent = d.title;
+            p.avatarTxt.textContent = d.avatar;
+            p.mention.hidden = !d.mention;
+
+            p.time.textContent = formatTime(d.timestamp);
+
+            var showSub = !!d.subtitle && !d.privacy;
+            p.subRow.hidden = !showSub;
+            if (showSub) p.sub.textContent = d.subtitle;
+
+            p.body.hidden = !d.body;
+            if (d.body) p.body.textContent = d.body;
+
+            var showBadge = d.count > 1;
+            p.badge.hidden = !showBadge;
+            if (showBadge) p.badge.textContent = d.count > 99 ? '99+' : String(d.count);
+
+            applyPalette(rec, d);
+
+            // 进场方向：左侧锚点从左边滑入，右侧锚点从右边滑入
+            var fromLeft = (d.position === 'bl' || d.position === 'tl');
+            rec.el.style.setProperty('--enter-x', fromLeft ? '-12px' : '12px');
+            rec.duration = d.duration;
+        }
+
+        function applyPalette(rec, d) {
+            if (!d) return;
+            var pal = paletteOf(d.accent, darkMode !== false);
+            var s = rec.el.style;
+            s.setProperty('--a1', pal.a1);
+            s.setProperty('--a2', pal.a2);
+            s.setProperty('--a-soft', pal.soft);
+            s.setProperty('--a-ink', pal.ink);
+            s.setProperty('--avatar-fg', pal.onAvatar);
+        }
+
+        /* ============================ 计时 / 进度条 ============================ */
+
+        function restartProgress(rec) {
+            var bar = rec.parts.bar;
+            bar.style.animation = 'none';
+            // 强制回流，让 animation-name 重新生效（同会话替换时进度条从头跑）
+            void bar.offsetWidth;
+            bar.style.animation = '';
+        }
+
+        function clearTimer(rec) {
+            if (rec.timerId) {
+                clearTimeout(rec.timerId);
+                rec.timerId = 0;
+            }
+        }
+
+        function armTimer(rec) {
+            clearTimer(rec);
+            rec.paused = false;
+            rec.el.classList.remove('paused');
+
+            var total = rec.duration;
+            if (!total) {
+                rec.parts.progress.hidden = true; // duration 0 → 常驻，不显示进度条
+                rec.remaining = 0;
+                return;
+            }
+            rec.parts.progress.hidden = false;
+            rec.el.style.setProperty('--dur', total + 'ms');
+            restartProgress(rec);
+            rec.remaining = total;
+            rec.startedAt = nowMs();
+            rec.timerId = setTimeout(function () { expire(rec); }, total);
+        }
+
+        function pauseTimer(rec) {
+            if (!rec.duration || rec.paused || rec.leaving || !rec.timerId) return;
+            rec.remaining = Math.max(0, rec.remaining - (nowMs() - rec.startedAt));
+            clearTimer(rec);
+            rec.paused = true;
+            rec.el.classList.add('paused');
+        }
+
+        function resumeTimer(rec) {
+            if (!rec.duration || !rec.paused || rec.leaving) return;
+            rec.paused = false;
+            rec.el.classList.remove('paused');
+            if (rec.remaining <= 0) { expire(rec); return; }
+            rec.startedAt = nowMs();
+            rec.timerId = setTimeout(function () { expire(rec); }, rec.remaining);
+        }
+
+        function expire(rec) {
+            rec.timerId = 0;
+            dismiss(rec, 'timeout');
+        }
+
+        /* ============================ 栈管理 ============================ */
+
+        function liveRecords() {
+            var list = [];
+            var nodes = stackEl.children;
+            for (var i = 0; i < nodes.length; i++) {
+                var node = nodes[i];
+                if (!node.classList.contains('leave') && node.__rec) list.push(node.__rec);
+            }
+            return list; // 栈顶（最新）在前
+        }
+
+        function moveToTop(rec) {
+            var first = stackEl.firstElementChild;
+            if (first === rec.el) return;
+            rec.el.classList.remove('enter'); // 换位不重播进场
+            stackEl.insertBefore(rec.el, first);
+        }
+
+        function removeNode(rec) {
+            if (!rec) return;
+            rec.leaving = true;
+            clearTimer(rec);
+            if (records.get(rec.id) === rec) records.delete(rec.id);
+            if (rec.el.parentNode) rec.el.parentNode.removeChild(rec.el);
+            if (!clearing) scheduleHeight();
+        }
+
+        function dismiss(rec, reason) {
+            if (!rec || rec.leaving) return;
+            rec.leaving = true;
+            clearTimer(rec);
+            if (records.get(rec.id) === rec) records.delete(rec.id);
+            rec.el.classList.remove('enter');
+            rec.el.classList.remove('paused');
+            rec.el.classList.add('leave');
+
+            var done = false;
+            var finish = function () {
+                if (done) return;
+                done = true;
+                removeNode(rec);
+                if (reason === 'close' && liveRecords().length === 0) {
+                    // 用户主动关掉最后一张 → 直接销毁弹窗（下次提醒主进程会新建）
+                    callApi('closeNotif');
+                }
+            };
+            rec.el.addEventListener('animationend', function (e) {
+                if (e.animationName === 'notif-out') finish();
+            }, { once: true });
+            setTimeout(finish, LEAVE_MS);
+            if (!clearing) scheduleHeight();
+        }
+
+        function trimOverflow() {
+            var live = liveRecords();
+            while (live.length > MAX_CARDS) {
+                removeNode(live.pop()); // 最旧的一张：立即移除，不播退场
+            }
+        }
+
+        function upsert(raw) {
+            if (!raw || typeof raw !== 'object') return;
+            var data = normalize(raw);
+
+            if (data.fontSize) applyFontSize(data.fontSize);
+            if (data.theme) applyTheme(data.theme);
+
+            var rec = records.get(data.id);
+            if (rec && !rec.leaving) {
+                // 同会话替换：只更新内容与计数、重置计时，并移到栈顶
+                rec.data = data;
+                rec.id = data.id;
+                paint(rec);
+                armTimer(rec);
+                moveToTop(rec);
+            } else {
+                rec = createCard(data);
+                paint(rec);
+                records.set(data.id, rec);
+                stackEl.insertBefore(rec.el, stackEl.firstElementChild);
+                armTimer(rec);
+                setTimeout(function () { rec.el.classList.remove('enter'); }, ENTER_MS);
+            }
+            trimOverflow();
+            scheduleHeight();
+        }
+
+        function activate(rec) {
+            if (!rec || rec.leaving) return;
+            clearTimer(rec);
+            var d = rec.data || {};
+            if (api && typeof api.notificationAction === 'function') {
+                callApi('notificationAction', d.chatType, d.targetId);
+            } else {
+                callApi('showMainWindow', d.chatType, d.targetId); // 旧 preload 兼容
+            }
+        }
+
+        function clearAll() {
+            var live = liveRecords();
+            if (!live.length) {
+                // 栈本来就是空的（例如启动瞬间收到 clear）：不要无端把窗口藏起来
+                if (!clearing && reportedContent && lastHeight !== 0) resizeNow(0);
+                return;
+            }
+            var token = ++clearToken;
+            clearing = true;
+            live.forEach(function (rec) { dismiss(rec, 'clear'); });
+            setTimeout(function () {
+                // 只清「进入 clear 时的那批」：这 240ms 内主进程新推来的卡片不在 live 里，
+                // 绝不能被误删（否则提醒会被静默吞掉，见 verify-desktop #18 建议 1）
+                live.forEach(function (rec) { removeNode(rec); });
+                if (token !== clearToken) return; // 期间又来了新的 clear：由更晚那次负责收尾
+                clearing = false;
+                if (liveRecords().length) scheduleHeight(); // 期间有新卡 → 按新内容重新量高
+                else resizeNow(0);
+            }, LEAVE_MS);
+        }
+
+        /* ============================ 高度回报 ============================ */
+
+        function resizeNow(h) {
+            lastHeight = h;
+            reportedContent = h > 0;
+            callApi('resize', h);
+        }
+
+        function reportHeight() {
+            var hasCards = stackEl.children.length > 0;
+            if (!hasCards) {
+                // 启动时栈本来就是空的：不要抢先 resize(0)，否则会压掉主进程刚做的 showInactive
+                if (!reportedContent) return;
+                if (lastHeight !== 0) resizeNow(0);
+                return;
+            }
+            var h = Math.ceil(stackEl.scrollHeight + PAD_TOTAL);
+            if (h === lastHeight) return;
+            lastHeight = h;
+            reportedContent = true;
+            callApi('resize', h);
+        }
+
+        function scheduleHeight() {
+            if (clearing) return;
+            if (rafId) return;
+            var raf = window.requestAnimationFrame || function (cb) { return setTimeout(cb, 16); };
+            var fired = false;
+            var run = function () {
+                if (fired) return;
+                fired = true;
+                rafId = 0;
+                reportHeight();
+            };
+            rafId = raf(run);
+            // 兜底：窗口不可见/后台时 rAF 可能被节流，50ms 后强制量一次
+            setTimeout(run, 50);
+        }
+
+        /* ============================ 启动 ============================ */
+
+        applyTheme(''); // 先按「主题未指定」判定：深色系统上直接用深色玻璃，避免先白后黑的闪一下
+
+        if (api && typeof api.onNotifData === 'function') {
+            api.onNotifData(function (payload) { upsert(payload); });
+        }
+        if (api && typeof api.onNotifClear === 'function') {
+            api.onNotifClear(function () { clearAll(); });
+        }
+
+        // 配置：字号与主题。缺省 / 失败都按内置默认渲染。
+        if (api && typeof api.loadSetting === 'function') {
+            try {
+                var settingPromise = api.loadSetting();
+                if (settingPromise && typeof settingPromise.then === 'function') {
+                    settingPromise.then(function (setting) {
+                        if (!setting || typeof setting !== 'object') return;
+                        applyFontSize(setting.fontSize || 14);
+                        // setting.theme 为空 = 用户没选主题 → 交给系统深浅色
+                        applyTheme(setting.theme || '');
+                    }).catch(function () { /* 读设置失败：保持默认 */ });
+                }
+            } catch (e) { /* 忽略 */ }
+        }
+
+        // 系统深浅色变化：主题显式给定时 resolveDark 会忽略它，不会乱跳
+        if (window.matchMedia) {
+            try {
+                var mq = window.matchMedia('(prefers-color-scheme: dark)');
+                var onScheme = function () { applyTheme(themeValue); };
+                if (mq.addEventListener) mq.addEventListener('change', onScheme);
+                else if (mq.addListener) mq.addListener(onScheme);
+            } catch (e) { /* 忽略 */ }
+        }
+
+        if (typeof ResizeObserver === 'function') {
+            try { new ResizeObserver(function () { scheduleHeight(); }).observe(stackEl); } catch (e) { /* 忽略 */ }
+        }
+        window.addEventListener('resize', scheduleHeight);
+
+        // 直接双击打开本文件自检用：notification.html?demo
+        if (/[?&]demo\b/.test(String(location.search || ''))) {
+            var demo = [
+                { id: 'group_1001', title: '高二(3)班 通知群', subtitle: '班主任', body: '明天早上 7:30 在操场集合，记得带好准考证和健康码，迟到的同学自行联系班长。', avatar: '高', accent: '#F2994A', chatType: 'group', targetId: '1001', mention: true, count: 3, timestamp: Date.now(), position: 'br', duration: 6000, theme: 'default' },
+                { id: 'user_2002', title: '林一', subtitle: '', body: '在吗？帮我看一下昨天那道几何题的第三问 🙏', avatar: '林', accent: '', chatType: 'user', targetId: '2002', mention: false, count: 1, timestamp: Date.now() - 60000, position: 'br', duration: 8000, theme: 'default' },
+                { id: 'group_1003', title: 'OI 训练队', subtitle: '张老师', body: '这周的模拟赛改到周六下午 14:00，题目已经上传到题库，难度大约在提高组水平。', avatar: 'O', accent: '#27AE60', chatType: 'group', targetId: '1003', mention: false, count: 1, timestamp: Date.now(), position: 'br', duration: 0, theme: 'default' }
+            ];
+            demo.forEach(function (d) { upsert(d); });
+        }
+    })();
     </script>
 </body>
 </html>

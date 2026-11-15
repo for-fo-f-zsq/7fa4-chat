@@ -15,8 +15,7 @@
   width: auto;
 }
 
-.ui-skeleton-line,
-.ui-skeleton-block {
+.ui-skeleton-line, .ui-skeleton-block {
   display: block;
   width: 100%;
   border-radius: var(--radius-sm);

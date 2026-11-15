@@ -1,0 +1,199 @@
+/* ========== 聊天气泡与输入预览 Markdown 共用排版（chat-md.css） ==========
+ * 收敛 MessageList / InputFooter / 公告弹窗中重复的 .luogu-md、.plain-msg、
+ * .unknown-msg、.reply-quote 与 .mention-tag 基础样式。
+ */
+
+.chat-md,
+.luogu-md {
+  color: inherit;
+  font-size: inherit;
+  line-height: var(--leading-normal);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.chat-md > :first-child,
+.luogu-md > :first-child {
+  margin-top: 0;
+}
+
+.chat-md > :last-child,
+.luogu-md > :last-child {
+  margin-bottom: 0;
+}
+
+.chat-md p,
+.luogu-md p {
+  margin: 0.35em 0;
+}
+
+.chat-md h1,
+.chat-md h2,
+.chat-md h3,
+.chat-md h4,
+.chat-md h5,
+.chat-md h6,
+.luogu-md h1,
+.luogu-md h2,
+.luogu-md h3,
+.luogu-md h4,
+.luogu-md h5,
+.luogu-md h6 {
+  margin: 0.65em 0 0.3em;
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+}
+
+.chat-md h1,
+.luogu-md h1 { font-size: 1.3em; }
+.chat-md h2,
+.luogu-md h2 { font-size: 1.18em; }
+.chat-md h3,
+.luogu-md h3 { font-size: 1.08em; }
+.chat-md h4,
+.chat-md h5,
+.chat-md h6,
+.luogu-md h4,
+.luogu-md h5,
+.luogu-md h6 { font-size: 1em; }
+
+.chat-md ul,
+.chat-md ol,
+.luogu-md ul,
+.luogu-md ol {
+  margin: 0.35em 0;
+  padding-left: 1.45em;
+}
+
+.chat-md li + li,
+.luogu-md li + li {
+  margin-top: 0.18em;
+}
+
+.chat-md blockquote,
+.luogu-md blockquote {
+  margin: 0.45em 0;
+  padding: 0.2em 0.75em;
+  border-left: 3px solid var(--line-strong);
+  color: var(--fg-muted);
+}
+
+.chat-md a,
+.luogu-md a {
+  color: var(--brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.chat-md code,
+.luogu-md code {
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-xs);
+  background: var(--surface-2);
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.chat-md pre,
+.luogu-md pre {
+  margin: 0.5em 0;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-base);
+  background: var(--surface-1);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  line-height: var(--leading-normal);
+}
+
+.chat-md pre code,
+.luogu-md pre code {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: inherit;
+}
+
+.chat-md table,
+.luogu-md table {
+  border-collapse: collapse;
+  margin: 0.5em 0;
+  max-width: 100%;
+  display: block;
+  overflow-x: auto;
+  font-size: 0.92em;
+}
+
+.chat-md th,
+.chat-md td,
+.luogu-md th,
+.luogu-md td {
+  padding: 4px 8px;
+  border: var(--border-width) solid var(--line);
+  text-align: left;
+}
+
+.chat-md th,
+.luogu-md th {
+  background: var(--surface-2);
+  font-weight: var(--weight-semibold);
+}
+
+.chat-md hr,
+.luogu-md hr {
+  margin: 0.6em 0;
+  border: 0;
+  border-top: var(--border-width) solid var(--line);
+}
+
+.chat-md img,
+.luogu-md img {
+  max-width: 100%;
+  max-height: 320px;
+  border-radius: var(--radius-base);
+  vertical-align: middle;
+}
+
+.plain-msg {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: var(--leading-normal);
+}
+
+.unknown-msg {
+  color: var(--fg-muted);
+  font-style: italic;
+}
+
+.mention-tag {
+  display: inline-block;
+  padding: 0 4px;
+  border-radius: var(--radius-xs);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: var(--weight-medium);
+}
+
+.reply-quote {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-left: 3px solid var(--brand);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--surface-2);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
+@media (hover: hover) {
+  .reply-quote:hover {
+    background: var(--surface-hover);
+  }
+}

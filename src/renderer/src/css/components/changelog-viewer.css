@@ -1,0 +1,86 @@
+.changelog-viewer {
+  width: 100%;
+  min-height: 0;
+}
+
+.changelog-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4) 0;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+.changelog-body {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+}
+
+.changelog-body :deep(h2) {
+  margin: 0 0 6px 0;
+  padding-bottom: var(--space-1);
+  border-bottom: var(--border-width) solid var(--line);
+  color: var(--brand);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+}
+
+.changelog-body :deep(ul) {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 14px 0;
+}
+
+.changelog-body :deep(li) {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.7;
+}
+
+.changelog-body :deep(.change-tag) {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 0 6px;
+  margin-top: 2px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.changelog-body :deep(.change-tag.new) {
+  background: var(--tag-soft-success);
+  color: var(--tag-ink-success);
+}
+
+.changelog-body :deep(.change-tag.improve) {
+  background: var(--tag-soft);
+  color: var(--brand);
+}
+
+.changelog-body :deep(.change-tag.fix) {
+  background: var(--tag-soft-warning);
+  color: var(--tag-ink-warning);
+}
+
+.changelog-body :deep(.change-tag.base) {
+  background: var(--surface-hover);
+  color: var(--fg-muted);
+}
+
+.changelog-body :deep(.change-tag.notice) {
+  background: var(--tag-soft-notice);
+  color: var(--tag-ink-notice);
+}
+
+.changelog-body :deep(li:has(.change-tag.notice)) {
+  background: var(--brand-soft);
+  border-radius: var(--radius-md);
+  padding: 4px var(--space-2);
+  margin: 2px 0;
+}
