@@ -105,7 +105,31 @@ NEED_RESTART=0
 [[ ! -d node_modules ]] && NEED_NPM_INSTALL=1
 [[ ! -f site/public/web/index.html ]] && NEED_WEB_BUILD=1
 
-if [[ "$POST_PULL" -eq 0 && "$OLD_SHA" == "$NEW_SHA" && "$FORCE" -eq 0 && "$NEED_NPM_INSTALL" -eq 0 && "$NEED_WEB_BUILD" -eq 0 ]]; then
+# 上次成功部署记录的 commit 与当前 HEAD 不一致，说明上一次构建/部署没走完（进程被杀、OOM、npm 卡死等）。
+# 这种状态下 OLD_SHA == NEW_SHA，旧逻辑会每分钟静默退出；而代码已经被 reset 到新版本、只有 site/public/web
+# 还停留在旧构建（表现为 /web/ 版本号、新资源全是旧的）。因此把「未完成的部署」当作待重建状态处理。
+DEPLOYED_SHA=""
+if [[ -f .deploy-meta.json ]]; then
+  DEPLOYED_SHA="$(sed -n 's/.*"commit"[[:space:]]*:[[:space:]]*"\([0-9a-fA-F]\{1,40\}\)".*/\1/p' .deploy-meta.json 2>/dev/null | head -n 1 || true)"
+fi
+PENDING_BUILD=0
+if [[ -n "$DEPLOYED_SHA" && "$DEPLOYED_SHA" != "${NEW_SHA:0:7}" && "$DEPLOYED_SHA" != "$NEW_SHA" ]]; then
+  PENDING_BUILD=1
+fi
+
+# 反复被打断时不要把「每分钟一次」的定时器变成「每分钟一次的长构建」：同一份未完成部署 15 分钟内只重试一次
+PENDING_STAMP="${REPO_DIR}/.deploy-pending.stamp"
+PENDING_THROTTLE=0
+PENDING_AGE=0
+if [[ "$PENDING_BUILD" -eq 1 && "$OLD_SHA" == "$NEW_SHA" && "$FORCE" -eq 0 && -f "$PENDING_STAMP" ]]; then
+  STAMP_MTIME="$(stat -c %Y "$PENDING_STAMP" 2>/dev/null || echo 0)"
+  PENDING_AGE=$(( $(date +%s) - STAMP_MTIME ))
+  if [[ "$PENDING_AGE" -lt 900 ]]; then
+    PENDING_THROTTLE=1
+  fi
+fi
+
+if [[ "$POST_PULL" -eq 0 && "$OLD_SHA" == "$NEW_SHA" && "$FORCE" -eq 0 && "$NEED_NPM_INSTALL" -eq 0 && "$NEED_WEB_BUILD" -eq 0 && "$PENDING_BUILD" -eq 0 ]]; then
   # 无更新且服务健康时静默退出，避免刷屏日志
   if curl --noproxy '*' -fsS -m 2 "$HEALTH_URL" >/dev/null 2>&1; then
     exit 0
@@ -172,6 +196,17 @@ else
   fi
 fi
 
+if [[ "$PENDING_BUILD" -eq 1 ]]; then
+  if [[ "$PENDING_THROTTLE" -eq 1 ]]; then
+    log "WARN: 上次部署未完成（${DEPLOYED_SHA:0:7} != ${NEW_SHA:0:7}），${PENDING_AGE}s 前刚重试过，本次暂缓"
+    exit 0
+  fi
+  log "WARN: 上次成功部署为 ${DEPLOYED_SHA:0:7}，与当前 HEAD ${NEW_SHA:0:7} 不一致，判定上次部署被中断，强制重建网页端"
+  NEED_WEB_BUILD=1
+  NEED_RESTART=1
+  date +%s > "$PENDING_STAMP"
+fi
+
 restart_service() {
   if [[ "$EUID" -eq 0 ]]; then
     systemctl restart "$SERVICE_NAME"
@@ -219,6 +254,7 @@ rollback() {
   write_deploy_meta "$OLD_SHA" || rollback_failed=1
   restart_service || rollback_failed=1
   if [[ "$rollback_failed" -eq 0 ]] && wait_healthy; then
+    rm -f "${PENDING_STAMP:-}" 2>/dev/null || true
     log "已成功回滚至 ${OLD_SHA:0:7}，服务恢复健康"
   else
     log "CRITICAL: 回滚过程出现失败或健康检查未通过，请排查 journalctl -u ${SERVICE_NAME}"
@@ -248,4 +284,5 @@ if ! wait_healthy; then
   rollback
 fi
 
+rm -f "$PENDING_STAMP" 2>/dev/null || true
 log "部署成功！当前线上版本: ${NEW_SHA:0:7}"
