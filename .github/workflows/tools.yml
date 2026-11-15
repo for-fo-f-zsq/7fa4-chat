@@ -17,7 +17,7 @@ name: Build & Publish Tools
 #     上传中途失败时线上仍是「旧清单 + 旧文件」的完整可用状态。
 on:
   push:
-    # main 分支工具或共享 UI/样式源码变更时自动发布；tag 推送由 release.yml 中的 build-tools job 统一发布
+    # 本工作流是 TOOLS/latest 的唯一发布入口；release.yml 的 build-tools 只打包留档，不再写 TOOLS/latest，避免双写冲突
     branches:
       - main
     paths:
@@ -38,7 +38,7 @@ on:
 permissions:
   contents: read
 
-# 整包替换（删除旧包 → 上传新包）必须串行，避免两个 run 的删除/上传互相干扰；
+# 上传优先 + 清理旧条目仍须串行，避免两个 run 互相删除正在切换的文件；
 # 新 run 排队而不是打断正在进行的发布
 concurrency:
   group: tools-publish
@@ -47,6 +47,7 @@ concurrency:
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4

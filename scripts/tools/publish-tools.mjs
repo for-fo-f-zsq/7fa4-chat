@@ -160,7 +160,7 @@ function printUsage() {
        [--message <msg>] [--branch <name>]
 
   默认            dry-run：校验 dist-tools/ 并打印发布计划（删除哪些旧包、上传哪些文件），不做任何写操作
-  --apply         真正发布：先校验本地文件 → 删除旧包 → 逐文件上传 → 匿名校验（需要 GITLAB_TOKEN）
+  --apply         真正发布：先校验本地文件 → 逐文件上传（tools.json 最后切换）→ 清理旧条目 → 匿名校验（需要 GITLAB_TOKEN）
   --offline       跳过远端查询（仅 dry-run；远端状态未知时按待上传估算）
   --probe         用临时包 TOOLS-PROBE 实测：扁平上传 / 嵌套上传对照 / 匿名下载 / 清理（需要 GITLAB_TOKEN）
   --api <url>     GitLab API 基址，默认 $GITLAB_API 或 ${DEFAULT_API}
@@ -537,7 +537,11 @@ async function applyPublish(client, opts, files) {
   let uploadedBytes = 0
   for (let i = 0; i < ordered.length; i++) {
     const file = ordered[i]
-    const status = await client.uploadFile(packageBase, file.flatName, file.buffer)
+    const status = await withRetry(
+      `上传 ${file.flatName}`,
+      () => client.uploadFile(packageBase, file.flatName, file.buffer),
+      { attempts: 3, delayMs: 2000 }
+    )
     uploadedBytes += file.size
     console.log(
       `[upload] ${String(i + 1).padStart(3)}/${ordered.length}  ${formatBytes(file.size).padStart(9)}  ${file.flatName}  (HTTP ${status})${file.isManifest ? '  <- 清单（切换开关）' : ''}`
@@ -898,7 +902,7 @@ async function main() {
       console.log('[publish] 提示：真发布/实测需要环境变量 GITLAB_TOKEN。')
     }
     if (!opts.offline) {
-      console.log('[publish] 注意：--apply 会先删除上方列出的全部旧包，再逐个上传；删除后到上传完成前线上会短暂不可用。')
+      console.log('[publish] 提示：--apply 采用上传优先策略，tools.json 最后上传切换清单，完成后再清理旧条目，中途失败不会中断线上服务。')
     }
     return
   }

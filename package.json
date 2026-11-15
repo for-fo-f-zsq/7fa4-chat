@@ -28,8 +28,9 @@
     "test:store": "node tests/unit/test-store.mjs",
     "test:scroll": "node tests/unit/test-message-scroll.mjs",
     "test:notify": "node tests/unit/test-notify-policy.mjs",
+    "test:release": "node tests/unit/test-release-scripts.mjs",
     "test:tools": "node src/renderer/src/views/tools/graph/__tests__/graph-editor.test.mjs && node src/renderer/src/views/tools/image/__tests__/image-editor.test.mjs && node src/renderer/src/views/tools/calculator/__tests__/calculator.test.mjs && node src/renderer/src/views/tools/timer/__tests__/timer.test.mjs",
-    "test": "npm run check:sfc && npm run check:css && npm run test:md && npm run test:store && npm run test:scroll && npm run test:notify && npm run test:tools",
+    "test": "npm run check:sfc && npm run check:css && npm run test:md && npm run test:store && npm run test:scroll && npm run test:notify && npm run test:release && npm run test:tools",
     "sync:luogu": "node scripts/data/sync-luogu.mjs",
     "clean": "node scripts/clean.mjs"
   },

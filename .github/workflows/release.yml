@@ -1,9 +1,10 @@
 name: Build & Release
 
 # 触发方式：
-#   1. 推送形如 v3.1.1 的 tag -> 打包并发布：
-#        - GitHub Releases：保留全部历史版本（每个 tag 一个 Release，附各平台构建产物）
-#        - GitLab（项目 886）：只保留最新一版 generic 包（latest/），并自动创建/更新 Release
+#   1. 推送形如 v4.0.0 的 tag -> 打包并发布：
+#        - GitHub Releases：保留全部历史版本（每个 tag 一个 Release，附全部构建产物）
+#        - GitLab（项目 886）：只保留最新一版 generic 包（latest/，先上传安装包→再上传元数据→校验→再清理旧包），
+#          并自动创建/更新 Release
 #   2. 手动触发 (workflow_dispatch) -> 仅打包，产物在本次 Actions run 的 Artifacts 中下载
 on:
   push:
@@ -15,9 +16,45 @@ permissions:
   contents: read    # 默认只读；仅 release job 提升为 write
 
 jobs:
+  # ============ 前置门禁：10 秒内校验版本号与 CHANGELOG，失败立即拦截 ============
+  # 避免忘记改 package.json 或漏写 CHANGELOG 段落时，空跑完四平台编译（15+ 分钟）才在 release 阶段报错。
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve & validate version and CHANGELOG
+        id: meta
+        run: |
+          set -euo pipefail
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            if [ -z "$VERSION" ]; then
+              echo "::error::无法从 tag ${GITHUB_REF_NAME} 解析版本号"
+              exit 1
+            fi
+            if [ "$PKG_VERSION" != "$VERSION" ]; then
+              echo "::error::package.json version ($PKG_VERSION) 与 tag 版本 ($VERSION) 不一致"
+              exit 1
+            fi
+            node scripts/release/build-release-body.mjs "$VERSION" > /dev/null
+            echo "前置校验通过：version=$VERSION（package.json 与 CHANGELOG 均匹配）"
+          else
+            VERSION="$PKG_VERSION"
+            echo "手动构建：version=$VERSION"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
   # ============ 单测门禁：阻止失败测试的产物发布 ============
   test:
+    needs: preflight
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,6 +75,8 @@ jobs:
 
   # ============ 构建：Windows / Linux / macOS 并行 ============
   build:
+    needs: preflight
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -60,6 +99,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -93,7 +133,9 @@ jobs:
 
   # ============ 构建：Android（Capacitor，复用同一渲染层）============
   build-android:
+    needs: preflight
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -106,6 +148,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
 
       # Capacitor 7 插件源码要求 JDK 21 工具链编译
       - name: Setup JDK 21
@@ -174,8 +217,7 @@ jobs:
           fi
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
-          VERSION="${GITHUB_REF_NAME#v}"
-          [ -z "$VERSION" ] && VERSION=$(node -p "require('../package.json').version")
+          VERSION="${{ needs.preflight.outputs.version }}"
           mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/7FA4-Chat-${VERSION}-android.apk"
 
       - name: Upload artifacts
@@ -186,12 +228,14 @@ jobs:
           retention-days: 7
           path: android/app/build/outputs/apk/release/*.apk
 
-  # ============ 构建工具包（产物留档 + 校验线上清单；发布由 tools.yml 负责）============
+  # ============ 构建工具包（产物留档；发布由 tools.yml 独占负责）============
   # 为什么这里不再发布：tools.yml 在 main 分支工具相关改动时已发布同一份产物，
-  # 两个工作流同时向 TOOLS/latest 做「删包 → 重传」会互相干扰（曾导致 v4.0.0 首发 release job 被阻塞）。
-  # 单一发布者 = tools.yml；本 job 只负责在 tag 上校验工具包可构建、并核对线上清单版本。
+  # 两个工作流同时写 TOOLS/latest 会互相干扰（曾导致 v4.0.0 首发 release job 被阻塞）。
+  # 线上 TOOLS/latest/tools.json 的只读核对延后到 release job 末尾执行，避免和 tools.yml 竞态。
   build-tools:
+    needs: preflight
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -221,55 +265,9 @@ jobs:
           retention-days: 7
           path: dist-tools/
 
-      # 只读校验：确认线上 TOOLS/latest/tools.json 与本次 tag 内的工具版本一致。
-      # 不发布、不阻塞 release（tools.yml 与之并行，可能稍晚才切换清单）。
-      - name: Verify published tool manifest (read-only)
-        continue-on-error: true
-        env:
-          GITLAB_TOOLS_MANIFEST: https://jx.7fa4.cn:9080/api/v4/projects/886/packages/generic/TOOLS/latest/tools.json
-        run: |
-          node --input-type=module - <<'NODE'
-          import { readFileSync, readdirSync, existsSync } from 'node:fs';
-          import { join } from 'node:path';
-
-          const local = {};
-          for (const id of readdirSync('tools')) {
-            const file = join('tools', id, 'tool.json');
-            if (!existsSync(file)) continue;
-            const meta = JSON.parse(readFileSync(file, 'utf8'));
-            if (meta && meta.id) local[meta.id] = String(meta.version || '');
-          }
-          const res = await fetch(process.env.GITLAB_TOOLS_MANIFEST, { headers: { 'Cache-Control': 'no-cache' } });
-          if (!res.ok) {
-            console.log(`::warning::线上工具清单不可达（HTTP ${res.status}），跳过版本核对`);
-            process.exit(0);
-          }
-          const data = await res.json();
-          const remote = {};
-          for (const item of Array.isArray(data) ? data : data.tools || []) {
-            if (item && item.id) remote[item.id] = String(item.version || '');
-          }
-          let mismatch = 0;
-          for (const [id, version] of Object.entries(local)) {
-            if (remote[id] === version) {
-              console.log(`  ok   ${id}@${version}`);
-            } else {
-              mismatch++;
-              console.log(`::warning::工具 ${id} 线上版本 ${remote[id] || '(缺失)'} != 本地 ${version}（若 tools.yml 仍在运行属正常）`);
-            }
-          }
-          console.log(mismatch ? `校验完成：${mismatch} 个工具版本待 tools.yml 切换` : '校验完成：线上工具版本与本地一致');
-          NODE
-
   # ============ 发布：仅在 tag 推送时执行 ============
-  # 发布策略（2026-11 起）：
-  #   - GitHub Releases：历史版本全量归档（仓库将公开），每个 tag 一个 Release，附全部构建产物，
-  #     正文为「本版本」更新日志（Markdown，由 scripts/build-release-body.mjs 从 CHANGELOG 生成）
-  #   - GitLab（项目 886）：只保留最新一版 generic 包（latest/，供客户端自动更新 / 更新日志 / 官网下载），
-  #     历史版本包全部删除以减小仓库体积；同时自动创建 GitLab Release（正文同上），
-  #     资源链接指向 latest/ 下的绝对地址；旧 Release 的资源链接全部清除（保留 Release 本体与正文）
   release:
-    needs: [test, build, build-android]
+    needs: [preflight, test, build, build-android]
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
@@ -277,6 +275,9 @@ jobs:
       group: release-publish-${{ github.ref }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VERSION: ${{ needs.preflight.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -286,19 +287,6 @@ jobs:
         with:
           node-version: '22'
 
-      # tag -> 版本号（与 package.json 一致，形如 v3.7.0 -> 3.7.0），后续步骤统一用 $VERSION
-      - name: Resolve version from tag
-        run: |
-          set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
-          if [ -z "$VERSION" ]; then
-            echo "::error::无法从 tag ${GITHUB_REF_NAME} 解析版本号"
-            exit 1
-          fi
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          echo "发布版本：$VERSION"
-
-      # 先于任何破坏性操作执行：CHANGELOG 缺段落时在删除 GitLab 旧包之前就失败
       - name: Build release body (Markdown)
         run: |
           set -euo pipefail
@@ -316,331 +304,10 @@ jobs:
       - name: List collected files
         run: ls -la dist
 
-      # ---- 自建 GitLab：只保留最新一版 generic 包 + 自动创建 Release ----
-      # 依赖 secret GITLAB_TOKEN（api scope，项目 886 的 Maintainer/Owner）
-      - name: Publish to GitLab (only latest package + release)
-        env:
-          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
-          GITLAB_API: https://jx.7fa4.cn:9080/api/v4/projects/886
-          GITLAB_REF: master   # Release 的 tag 在 GitLab 侧不存在时，用默认分支自动创建
-          PACKAGE_NAME: 7FA4-Chat
-          DIST_DIR: dist
-          CHANGELOG_FILE: CHANGELOG
-          RELEASE_BODY_FILE: release-body.md
-        run: |
-          set -euo pipefail
-          if [ -z "${GITLAB_TOKEN:-}" ]; then
-            echo "::error::缺少 secret GITLAB_TOKEN，请在仓库 Settings→Secrets→Actions 添加后重试"
-            exit 1
-          fi
-          echo "GitLab 项目 API：${GITLAB_API}；发布版本：${VERSION}"
-          node --input-type=module - <<'NODE'
-          // ================= GitLab 发布逻辑 =================
-          // 1) 删除 GitLab 上所有 <PACKAGE_NAME> 的 generic 包（分页，含历史版本与 latest）→ 只留最新一版
-          // 2) 把 dist/ 下的下载文件 + CHANGELOG 上传到 packages/generic/<PACKAGE_NAME>/latest/
-          // 3) 删除所有已有 Release 的资源链接（Release 本体与正文保留）
-          // 4) 删除并重建当前 tag 的 Release（workflow 重跑幂等），资源链接指向 latest/ 绝对地址
-          import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-          import { basename, join } from 'node:path';
-          import { spawnSync } from 'node:child_process';
+      - name: Validate release upload plan (dry-run)
+        run: node scripts/release/publish-gitlab.mjs --version "$VERSION"
 
-          const TOKEN = process.env.GITLAB_TOKEN || '';
-          const API = (process.env.GITLAB_API || '').replace(/\/+$/, '');
-          const VERSION = (process.env.VERSION || '').replace(/^v/i, '');
-          const PACKAGE_NAME = process.env.PACKAGE_NAME || '7FA4-Chat';
-          const DIST_DIR = process.env.DIST_DIR || 'dist';
-          const CHANGELOG_FILE = process.env.CHANGELOG_FILE || 'CHANGELOG';
-          const RELEASE_BODY_FILE = process.env.RELEASE_BODY_FILE || 'release-body.md';
-          const GITLAB_REF = process.env.GITLAB_REF || 'master';
-          const TAG = `v${VERSION}`;
-          const PACKAGE_URL = `${API}/packages/generic/${encodeURIComponent(PACKAGE_NAME)}`;
-          const LATEST_URL = `${PACKAGE_URL}/latest`;
-          // 与 actions/upload-artifact 的产物过滤保持一致（扩展名比较时统一转小写）
-          // 注意：yml/CHANGELOG 仍需上传（自动更新清单与客户端更新日志依赖 latest/），但**不挂** Release 资源链接
-          const FILE_EXTS = ['.exe', '.zip', '.appimage', '.deb', '.dmg', '.yml', '.apk'];
-          // Release 资源链接：只挂可下载安装包，按 平台 → 格式 → 架构 → 文件名 排序（与 scripts/release/release-assets.mjs 同口径）
-          const LINK_TYPE_ORDER = ['windows', 'macos', 'linux', 'android', 'archive'];
-          const LINK_TYPE_BY_EXT = {
-            '.exe': 'windows', '.msi': 'windows',
-            '.dmg': 'macos', '.pkg': 'macos',
-            '.appimage': 'linux', '.deb': 'linux', '.rpm': 'linux',
-            '.apk': 'android',
-            '.zip': 'archive',
-          };
-          const LINK_ARCH_ORDER = ['x64', 'arm64', 'universal'];
-          // 架构别名：x86_64 / amd64 视同 x64；aarch64 视同 arm64（Linux 产物命名不一致）
-          const LINK_ARCH_ALIASES = {
-            x64: ['x64', 'x86_64', 'amd64'],
-            arm64: ['arm64', 'aarch64'],
-            universal: ['universal'],
-          };
-          // 平台内格式顺序：AppImage 优先于 deb/rpm，dmg 优先于 pkg，exe 优先于 msi
-          const LINK_FORMAT_ORDER = {
-            '.appimage': 0, '.deb': 1, '.rpm': 2,
-            '.dmg': 0, '.pkg': 1,
-            '.exe': 0, '.msi': 1,
-          };
-          const LINK_SKIP_NAMES = new Set(['changelog', 'changelog.md', 'builder-debug.yml', 'builder-effective-config.yaml']);
-          const extOf = (name) => { const i = name.lastIndexOf('.'); return i === -1 ? '' : name.slice(i).toLowerCase(); };
-          const isLinkableAsset = (name) => {
-            const lower = String(name).toLowerCase();
-            if (LINK_SKIP_NAMES.has(lower)) return false;
-            const ext = extOf(lower);
-            if (ext === '.yml' || ext === '.yaml' || ext === '.blockmap' || ext === '.json') return false;
-            return Boolean(LINK_TYPE_BY_EXT[ext]);
-          };
-          const linkType = (name) => LINK_TYPE_BY_EXT[extOf(String(name))] || 'archive';
-          const archRank = (name) => {
-            const lower = String(name).toLowerCase();
-            for (let i = 0; i < LINK_ARCH_ORDER.length; i++) {
-              const aliases = LINK_ARCH_ALIASES[LINK_ARCH_ORDER[i]];
-              if (aliases.some((alias) => lower.includes(`-${alias}`) || lower.includes(`_${alias}`))) return i;
-            }
-            return LINK_ARCH_ORDER.length;
-          };
-          const sortLinkNames = (names) => [...names].sort((a, b) => {
-            const ta = LINK_TYPE_ORDER.indexOf(linkType(a));
-            const tb = LINK_TYPE_ORDER.indexOf(linkType(b));
-            if (ta !== tb) return ta - tb;
-            const fa = LINK_FORMAT_ORDER[extOf(a)] ?? 9;
-            const fb = LINK_FORMAT_ORDER[extOf(b)] ?? 9;
-            if (fa !== fb) return fa - fb;
-            const ra = archRank(a);
-            const rb = archRank(b);
-            if (ra !== rb) return ra - rb;
-            return a.localeCompare(b, 'en');
-          });
-          const REQUEST_TIMEOUT_MS = 15 * 60 * 1000;
-
-          const log = (msg) => console.log(`[gitlab] ${msg}`);
-          const warn = (msg) => console.log(`::warning::[gitlab] ${String(msg).replace(/\r?\n/g, ' ')}`);
-          const die = (msg) => { throw new Error(msg); };
-          const isOk = (status) => status >= 200 && status < 300;
-          const brief = (data) => {
-            if (data === null || data === undefined) return '';
-            const text = typeof data === 'string' ? data : JSON.stringify(data);
-            return text.length > 300 ? `${text.slice(0, 300)}…` : text;
-          };
-
-          async function request(method, path, { body, headers } = {}) {
-            const url = path.startsWith('http') ? path : API + path;
-            let res;
-            try {
-              res = await fetch(url, {
-                method,
-                body,
-                headers: { 'PRIVATE-TOKEN': TOKEN, ...(headers || {}) },
-                signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-              });
-            } catch (e) {
-              throw new Error(`${method} ${url} 请求异常: ${e.cause?.code || e.message}`);
-            }
-            const text = await res.text();
-            let data = null;
-            if (text) {
-              try { data = JSON.parse(text); } catch { data = text; }
-            }
-            return { status: res.status, headers: res.headers, data };
-          }
-
-          try {
-            // ---------- 前置校验 ----------
-            if (!TOKEN) die('缺少 GITLAB_TOKEN');
-            if (!API) die('缺少 GITLAB_API');
-            if (!VERSION) die('缺少 VERSION（应由 tag 去掉 v 得到）');
-            if (!existsSync(RELEASE_BODY_FILE)) die(`Release 正文文件不存在: ${RELEASE_BODY_FILE}`);
-            const releaseBody = readFileSync(RELEASE_BODY_FILE, 'utf8').trim();
-            if (!releaseBody) die(`Release 正文为空: ${RELEASE_BODY_FILE}`);
-            if (!existsSync(CHANGELOG_FILE)) die(`更新日志文件不存在: ${CHANGELOG_FILE}（客户端「更新日志」依赖 latest/CHANGELOG）`);
-
-            // ---------- 待上传文件清单 ----------
-            if (!existsSync(DIST_DIR)) die(`构建产物目录不存在: ${DIST_DIR}`);
-            const artifactFiles = readdirSync(DIST_DIR, { withFileTypes: true })
-              .filter((entry) => entry.isFile() && !entry.name.startsWith('.'))
-              .map((entry) => entry.name)
-              .filter((name) => name !== 'builder-debug.yml')
-              .filter((name) => FILE_EXTS.some((ext) => name.toLowerCase().endsWith(ext)))
-              .sort();
-            const uploads = artifactFiles.map((name) => ({ name, path: join(DIST_DIR, name) }));
-            const changelogName = basename(CHANGELOG_FILE);
-            if (!uploads.some((item) => item.name === changelogName)) {
-              uploads.push({ name: changelogName, path: CHANGELOG_FILE });
-            }
-            if (uploads.length === 0) die(`${DIST_DIR} 下没有可上传的构建产物`);
-            log(`待上传 ${uploads.length} 个文件 → ${LATEST_URL}/`);
-
-            // ---------- 1. 先上传到 latest/（上传成功后再清理旧文件与旧版本包）----------
-            // 顺序很重要：旧实现是「先删除所有包 → 再上传」，一旦上传失败线上就彻底消失
-            // （v4.0.0 首发即因此让 GitLab latest 包连同官网下载区全部变空）。
-            // 上传用 curl：undici fetch 的 headersTimeout 默认 5 分钟，>100MB 的 deb/AppImage
-            // PUT 很容易触发 UND_ERR_HEADERS_TIMEOUT；curl 支持长超时与整请求重试。
-            const uploadedNames = [];
-            for (const item of uploads) {
-              const sizeMb = (statSync(item.path).size / 1024 / 1024).toFixed(1);
-              const target = `${LATEST_URL}/${encodeURIComponent(item.name)}`;
-              let lastErr = '';
-              let ok = false;
-              for (let attempt = 1; attempt <= 4 && !ok; attempt++) {
-                const res = spawnSync(
-                  'curl',
-                  [
-                    '-sS', '-L', '-X', 'PUT', target,
-                    '-H', `PRIVATE-TOKEN: ${TOKEN}`,
-                    '-H', 'content-type: application/octet-stream',
-                    '--data-binary', `@${item.path}`,
-                    '--max-time', '1800',
-                    '--retry', '3', '--retry-delay', '10', '--retry-all-errors',
-                    '-w', '%{http_code}',
-                  ],
-                  { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 },
-                );
-                const code = Number((String(res.stdout || '').trim().slice(-3)) || 0);
-                if (res.error) lastErr = res.error.message;
-                else if (code >= 200 && code < 300) ok = true;
-                else lastErr = `HTTP ${code || '?'} ${String(res.stdout || '').trim().slice(0, 200)} ${String(res.stderr || '').trim().slice(0, 200)}`;
-                if (!ok) log(`  上传 ${item.name} 第 ${attempt} 次失败：${lastErr}`);
-              }
-              if (!ok) die(`上传 ${item.name} 失败（${lastErr}）——线上包未被删除，旧版本仍可下载`);
-              uploadedNames.push(item.name);
-              log(`  上传 ${item.name}（${sizeMb} MB）完成`);
-            }
-            log(`上传完成：${uploadedNames.length} 个文件 → ${LATEST_URL}/`);
-
-            // ---------- 1.5 校验：latest 包内本次上传的文件全部可见 ----------
-            const listedPkg = await request(
-              'GET',
-              `/packages?package_name=${encodeURIComponent(PACKAGE_NAME)}&package_type=generic&per_page=100&page=1`,
-            );
-            if (listedPkg.status !== 200) die(`上传后获取包列表失败: HTTP ${listedPkg.status} ${brief(listedPkg.data)}`);
-            const latestPkg = (Array.isArray(listedPkg.data) ? listedPkg.data : []).find((p) => p.version === 'latest')
-              || (Array.isArray(listedPkg.data) ? listedPkg.data[0] : null);
-            if (!latestPkg) die('上传后仍未找到 latest 包，中止（旧文件未清理）');
-            const listedFiles = await request('GET', `/packages/${latestPkg.id}/package_files?per_page=100`);
-            if (listedFiles.status !== 200) die(`上传后获取文件列表失败: HTTP ${listedFiles.status} ${brief(listedFiles.data)}`);
-            const presentNames = new Set((Array.isArray(listedFiles.data) ? listedFiles.data : []).map((f) => f.file_name));
-            const missingNames = uploadedNames.filter((name) => !presentNames.has(name));
-            if (missingNames.length) die(`上传校验失败，latest 包内缺少：${missingNames.join(', ')}（旧文件未清理）`);
-            log(`上传校验通过：latest 包内 ${uploadedNames.length} 个文件全部可见`);
-
-            // ---------- 1.6 清理：删除本次未上传的旧文件（旧版本安装包）与旧版本包 ----------
-            // 同名文件的 PUT 会新增条目（内容以最新一条为准），历史同名条目 best-effort 一并清掉。
-            const keep = new Set(uploadedNames);
-            const sortedFiles = (Array.isArray(listedFiles.data) ? listedFiles.data : [])
-              .slice()
-              // 倒序处理：同名文件里最新的一条（id 最大）才是本次上传的，必须保留
-              .sort((a, b) => (b.id || 0) - (a.id || 0));
-            const seenAfterCleanup = new Set();
-            for (const file of sortedFiles) {
-              const name = file.file_name;
-              const isStaleVersion = !keep.has(name);
-              const isOlderDuplicate = keep.has(name) && seenAfterCleanup.has(name);
-              if (keep.has(name)) seenAfterCleanup.add(name);
-              if (!isStaleVersion && !isOlderDuplicate) continue;
-              const removed = await request('DELETE', `/packages/${latestPkg.id}/package_files/${file.id}`);
-              if (isOk(removed.status) || removed.status === 404) {
-                log(`  已清理${isStaleVersion ? '旧版本文件' : '重复条目'} ${name}（file id=${file.id}）`);
-              } else {
-                warn(`清理 ${name}（file id=${file.id}）失败 HTTP ${removed.status}，跳过`);
-              }
-            }
-
-            // 只保留 version=latest 的包，其余旧版本包整体删除
-            const allPkgs = await request(
-              'GET',
-              `/packages?package_name=${encodeURIComponent(PACKAGE_NAME)}&package_type=generic&per_page=100&page=1`,
-            );
-            if (allPkgs.status === 200) {
-              for (const pkg of Array.isArray(allPkgs.data) ? allPkgs.data : []) {
-                if (pkg.version === 'latest' || pkg.id === latestPkg.id) continue;
-                const removed = await request('DELETE', `/packages/${pkg.id}`);
-                if (isOk(removed.status) || removed.status === 404) log(`  已删除旧版本包 id=${pkg.id} version=${pkg.version}`);
-                else warn(`删除旧版本包 id=${pkg.id} 失败 HTTP ${removed.status}，跳过`);
-              }
-            }
-
-            // ---------- 3. 删除所有已有 Release 的资源链接（Release 本体与正文保留）----------
-            let releasesScanned = 0;
-            let deletedLinks = 0;
-            let failedLinks = 0;
-            let page = 1;
-            for (;;) {
-              const listed = await request('GET', `/releases?per_page=100&page=${page}`);
-              if (listed.status !== 200) die(`获取 GitLab Release 列表失败: HTTP ${listed.status} ${brief(listed.data)}`);
-              const releases = Array.isArray(listed.data) ? listed.data : [];
-              releasesScanned += releases.length;
-              for (const release of releases) {
-                for (const link of release.assets?.links || []) {
-                  const deleted = await request(
-                    'DELETE',
-                    `/releases/${encodeURIComponent(release.tag_name)}/assets/links/${link.id}`,
-                  );
-                  if (isOk(deleted.status)) {
-                    deletedLinks++;
-                    log(`  已删除 ${release.tag_name} 的资源链接 ${link.name}（id=${link.id}）`);
-                  } else if (deleted.status === 404) {
-                    log(`  ${release.tag_name} 的资源链接 id=${link.id} 已不存在，跳过`);
-                  } else {
-                    failedLinks++;
-                    warn(`删除 ${release.tag_name} 的资源链接 id=${link.id} 失败（HTTP ${deleted.status}），继续`);
-                  }
-                }
-              }
-              const nextPage = Number(listed.headers.get('x-next-page') || 0);
-              if (!nextPage) break;
-              page = nextPage;
-            }
-            log(`旧 Release 资源链接清理完成：扫描 ${releasesScanned} 个 Release，删除 ${deletedLinks} 个链接${failedLinks ? `，失败 ${failedLinks} 个` : ''}`);
-
-            // ---------- 4. 重建本版本 Release ----------
-            // 资源链接只含安装包（排除 CHANGELOG、latest*.yml、.blockmap 等更新元数据），按平台/架构排序
-            const linkableNames = sortLinkNames(uploadedNames.filter(isLinkableAsset));
-            if (linkableNames.length === 0) warn('没有可挂到 Release 资源链接的安装包，Release 将不带资源链接');
-            const links = linkableNames.map((name) => ({
-              name,
-              url: `${LATEST_URL}/${encodeURIComponent(name)}`,
-              link_type: 'package',
-            }));
-            log(`Release 资源链接 ${links.length} 个（已排除 CHANGELOG/yml 等非安装包，按平台/架构排序）：${linkableNames.join(' | ')}`);
-            const encodedTag = encodeURIComponent(TAG);
-            const existing = await request('GET', `/releases/${encodedTag}`);
-            if (existing.status === 200) {
-              const deleted = await request('DELETE', `/releases/${encodedTag}`);
-              if (!isOk(deleted.status) && deleted.status !== 404) {
-                die(`删除已有 Release ${TAG} 失败: HTTP ${deleted.status} ${brief(deleted.data)}`);
-              }
-              log(`已删除已有 Release ${TAG}（workflow 重跑场景），将重新创建`);
-            } else if (existing.status !== 404) {
-              die(`查询 Release ${TAG} 失败: HTTP ${existing.status} ${brief(existing.data)}`);
-            }
-
-            const payload = {
-              tag_name: TAG,
-              name: `${PACKAGE_NAME} v${VERSION}`,
-              description: releaseBody,
-              ref: GITLAB_REF, // tag 已存在时该字段被忽略；不存在时用于从默认分支自动建 tag
-              // GitLab 按创建时间倒序展示资源链接，因此创建顺序取目标顺序的逆序，页面上才是正序
-              assets: { links: [...links].reverse() },
-            };
-            const created = await request('POST', '/releases', {
-              body: JSON.stringify(payload),
-              headers: { 'content-type': 'application/json' },
-            });
-            if (created.status !== 201) die(`创建 Release ${TAG} 失败: HTTP ${created.status} ${brief(created.data)}`);
-            const createdLinks = created.data?.assets?.links?.length || 0;
-            if (createdLinks !== links.length) {
-              warn(`Release 资源链接数量不符：期望 ${links.length}，实际 ${createdLinks}`);
-            }
-            log(`已创建 Release ${TAG}（name=${PACKAGE_NAME} v${VERSION}，正文 ${releaseBody.length} 字符，资源链接 ${createdLinks} 个）`);
-            if (created.data?.web_url) log(`Release 地址：${created.data.web_url}`);
-            log('GitLab 发布完成：仅保留最新一版安装包，Release 已自动创建');
-          } catch (error) {
-            console.log(`::error::[gitlab] 发布失败：${String(error && error.message ? error.message : error).replace(/\r?\n/g, ' ')}`);
-            process.exit(1);
-          }
-          NODE
-          echo "GitLab 发布步骤结束"
-
-      # ---- GitHub：保留全部历史版本，正文为本版本 changelog ----
+      # ---- GitHub：保留全部历史版本，先归档再写 GitLab ----
       - name: Create / update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -657,3 +324,29 @@ jobs:
             dist/*.dmg
             dist/*.yml
             dist/*.apk
+
+      # ---- 自建 GitLab：先传安装包→再传元数据→校验→再清理旧包与旧链接→重建 Release ----
+      # 逻辑已收敛至 scripts/release/publish-gitlab.mjs（复用 release-assets.mjs，支持本地 --dry-run 与单测）。
+      - name: Publish to GitLab (only latest package + release)
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_API: https://jx.7fa4.cn:9080/api/v4/projects/886
+          GITLAB_REF: master
+          PACKAGE_NAME: 7FA4-Chat
+          DIST_DIR: dist
+          CHANGELOG_FILE: CHANGELOG
+          RELEASE_BODY_FILE: release-body.md
+        run: |
+          set -euo pipefail
+          if [ -z "${GITLAB_TOKEN:-}" ]; then
+            echo "::error::缺少 secret GITLAB_TOKEN，请在仓库 Settings→Secrets→Actions 添加后重试"
+            exit 1
+          fi
+          node scripts/release/publish-gitlab.mjs --apply
+
+      # ---- 只读收尾核对：TOOLS 清单、官网 /api/downloads（含缓存等待）与 Actions 摘要 ----
+      - name: Verify published endpoints & write summary
+        continue-on-error: true
+        env:
+          DIST_DIR: dist
+        run: node scripts/release/verify-release.mjs
