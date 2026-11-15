@@ -340,8 +340,9 @@ jobs:
           // 2) 把 dist/ 下的下载文件 + CHANGELOG 上传到 packages/generic/<PACKAGE_NAME>/latest/
           // 3) 删除所有已有 Release 的资源链接（Release 本体与正文保留）
           // 4) 删除并重建当前 tag 的 Release（workflow 重跑幂等），资源链接指向 latest/ 绝对地址
-          import { existsSync, readFileSync, readdirSync } from 'node:fs';
+          import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
           import { basename, join } from 'node:path';
+          import { spawnSync } from 'node:child_process';
 
           const TOKEN = process.env.GITLAB_TOKEN || '';
           const API = (process.env.GITLAB_API || '').replace(/\/+$/, '');
@@ -468,46 +469,94 @@ jobs:
             if (uploads.length === 0) die(`${DIST_DIR} 下没有可上传的构建产物`);
             log(`待上传 ${uploads.length} 个文件 → ${LATEST_URL}/`);
 
-            // ---------- 1. 删除所有旧包（分页；每轮都取 page=1，避免删除导致偏移错位）----------
-            let deletedPackages = 0;
-            for (let round = 1; ; round++) {
-              if (round > 1000) die('删除旧包的轮询超过 1000 轮，中止（请检查 GitLab 包列表接口）');
-              const listed = await request(
-                'GET',
-                `/packages?package_name=${encodeURIComponent(PACKAGE_NAME)}&package_type=generic&per_page=100&page=1`,
-              );
-              if (listed.status !== 200) die(`获取 GitLab 包列表失败: HTTP ${listed.status} ${brief(listed.data)}`);
-              const packages = Array.isArray(listed.data) ? listed.data : [];
-              if (packages.length === 0) break;
-              log(`本轮发现 ${packages.length} 个旧包，逐个删除…`);
-              for (const pkg of packages) {
-                const deleted = await request('DELETE', `/packages/${pkg.id}`);
-                if (deleted.status === 200 || deleted.status === 204) {
-                  deletedPackages++;
-                  log(`  已删除包 id=${pkg.id} version=${pkg.version}`);
-                } else if (deleted.status === 404) {
-                  log(`  包 id=${pkg.id} 已不存在，跳过`);
-                } else {
-                  die(`删除包 id=${pkg.id} (version=${pkg.version}) 失败: HTTP ${deleted.status} ${brief(deleted.data)}`);
-                }
-              }
-            }
-            log(`旧包清理完成：共删除 ${deletedPackages} 个包（含所有历史版本与 latest）`);
-
-            // ---------- 2. 上传到 latest/（不建版本目录，避免双份占用）----------
+            // ---------- 1. 先上传到 latest/（上传成功后再清理旧文件与旧版本包）----------
+            // 顺序很重要：旧实现是「先删除所有包 → 再上传」，一旦上传失败线上就彻底消失
+            // （v4.0.0 首发即因此让 GitLab latest 包连同官网下载区全部变空）。
+            // 上传用 curl：undici fetch 的 headersTimeout 默认 5 分钟，>100MB 的 deb/AppImage
+            // PUT 很容易触发 UND_ERR_HEADERS_TIMEOUT；curl 支持长超时与整请求重试。
             const uploadedNames = [];
             for (const item of uploads) {
-              const content = readFileSync(item.path);
-              const uploaded = await request(
-                'PUT',
-                `/packages/generic/${encodeURIComponent(PACKAGE_NAME)}/latest/${encodeURIComponent(item.name)}`,
-                { body: content, headers: { 'content-type': 'application/octet-stream' } },
-              );
-              if (!isOk(uploaded.status)) die(`上传 ${item.name} 失败: HTTP ${uploaded.status} ${brief(uploaded.data)}`);
+              const sizeMb = (statSync(item.path).size / 1024 / 1024).toFixed(1);
+              const target = `${LATEST_URL}/${encodeURIComponent(item.name)}`;
+              let lastErr = '';
+              let ok = false;
+              for (let attempt = 1; attempt <= 4 && !ok; attempt++) {
+                const res = spawnSync(
+                  'curl',
+                  [
+                    '-sS', '-L', '-X', 'PUT', target,
+                    '-H', `PRIVATE-TOKEN: ${TOKEN}`,
+                    '-H', 'content-type: application/octet-stream',
+                    '--data-binary', `@${item.path}`,
+                    '--max-time', '1800',
+                    '--retry', '3', '--retry-delay', '10', '--retry-all-errors',
+                    '-w', '%{http_code}',
+                  ],
+                  { encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 },
+                );
+                const code = Number((String(res.stdout || '').trim().slice(-3)) || 0);
+                if (res.error) lastErr = res.error.message;
+                else if (code >= 200 && code < 300) ok = true;
+                else lastErr = `HTTP ${code || '?'} ${String(res.stdout || '').trim().slice(0, 200)} ${String(res.stderr || '').trim().slice(0, 200)}`;
+                if (!ok) log(`  上传 ${item.name} 第 ${attempt} 次失败：${lastErr}`);
+              }
+              if (!ok) die(`上传 ${item.name} 失败（${lastErr}）——线上包未被删除，旧版本仍可下载`);
               uploadedNames.push(item.name);
-              log(`  上传 ${item.name}（${(content.length / 1024 / 1024).toFixed(1)} MB）→ HTTP ${uploaded.status}`);
+              log(`  上传 ${item.name}（${sizeMb} MB）完成`);
             }
             log(`上传完成：${uploadedNames.length} 个文件 → ${LATEST_URL}/`);
+
+            // ---------- 1.5 校验：latest 包内本次上传的文件全部可见 ----------
+            const listedPkg = await request(
+              'GET',
+              `/packages?package_name=${encodeURIComponent(PACKAGE_NAME)}&package_type=generic&per_page=100&page=1`,
+            );
+            if (listedPkg.status !== 200) die(`上传后获取包列表失败: HTTP ${listedPkg.status} ${brief(listedPkg.data)}`);
+            const latestPkg = (Array.isArray(listedPkg.data) ? listedPkg.data : []).find((p) => p.version === 'latest')
+              || (Array.isArray(listedPkg.data) ? listedPkg.data[0] : null);
+            if (!latestPkg) die('上传后仍未找到 latest 包，中止（旧文件未清理）');
+            const listedFiles = await request('GET', `/packages/${latestPkg.id}/package_files?per_page=100`);
+            if (listedFiles.status !== 200) die(`上传后获取文件列表失败: HTTP ${listedFiles.status} ${brief(listedFiles.data)}`);
+            const presentNames = new Set((Array.isArray(listedFiles.data) ? listedFiles.data : []).map((f) => f.file_name));
+            const missingNames = uploadedNames.filter((name) => !presentNames.has(name));
+            if (missingNames.length) die(`上传校验失败，latest 包内缺少：${missingNames.join(', ')}（旧文件未清理）`);
+            log(`上传校验通过：latest 包内 ${uploadedNames.length} 个文件全部可见`);
+
+            // ---------- 1.6 清理：删除本次未上传的旧文件（旧版本安装包）与旧版本包 ----------
+            // 同名文件的 PUT 会新增条目（内容以最新一条为准），历史同名条目 best-effort 一并清掉。
+            const keep = new Set(uploadedNames);
+            const sortedFiles = (Array.isArray(listedFiles.data) ? listedFiles.data : [])
+              .slice()
+              // 倒序处理：同名文件里最新的一条（id 最大）才是本次上传的，必须保留
+              .sort((a, b) => (b.id || 0) - (a.id || 0));
+            const seenAfterCleanup = new Set();
+            for (const file of sortedFiles) {
+              const name = file.file_name;
+              const isStaleVersion = !keep.has(name);
+              const isOlderDuplicate = keep.has(name) && seenAfterCleanup.has(name);
+              if (keep.has(name)) seenAfterCleanup.add(name);
+              if (!isStaleVersion && !isOlderDuplicate) continue;
+              const removed = await request('DELETE', `/packages/${latestPkg.id}/package_files/${file.id}`);
+              if (isOk(removed.status) || removed.status === 404) {
+                log(`  已清理${isStaleVersion ? '旧版本文件' : '重复条目'} ${name}（file id=${file.id}）`);
+              } else {
+                warn(`清理 ${name}（file id=${file.id}）失败 HTTP ${removed.status}，跳过`);
+              }
+            }
+
+            // 只保留 version=latest 的包，其余旧版本包整体删除
+            const allPkgs = await request(
+              'GET',
+              `/packages?package_name=${encodeURIComponent(PACKAGE_NAME)}&package_type=generic&per_page=100&page=1`,
+            );
+            if (allPkgs.status === 200) {
+              for (const pkg of Array.isArray(allPkgs.data) ? allPkgs.data : []) {
+                if (pkg.version === 'latest' || pkg.id === latestPkg.id) continue;
+                const removed = await request('DELETE', `/packages/${pkg.id}`);
+                if (isOk(removed.status) || removed.status === 404) log(`  已删除旧版本包 id=${pkg.id} version=${pkg.version}`);
+                else warn(`删除旧版本包 id=${pkg.id} 失败 HTTP ${removed.status}，跳过`);
+              }
+            }
 
             // ---------- 3. 删除所有已有 Release 的资源链接（Release 本体与正文保留）----------
             let releasesScanned = 0;
