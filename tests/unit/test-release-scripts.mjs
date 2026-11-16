@@ -13,6 +13,7 @@ import {
   orderUploads,
   parseManifestVersion,
 } from '../../scripts/release/publish-gitlab.mjs';
+import { partitionToolUploads } from '../../scripts/tools/publish-tools.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const results = [];
@@ -164,6 +165,28 @@ const badTools = toolMetaFiles.filter((x) => {
 chk('tools/*/tool.json 均包含 id 与 version（且至少 5 个工具）',
   toolMetaFiles.length >= 5 && badTools.length === 0,
   `count=${toolMetaFiles.length} bad=${badTools.map((x) => x.dir).join(',')}`,
+);
+
+// 7. publish-tools.mjs 增量上传过滤：未改动文件按 sha256/size 跳过，tools.json 始终在最后上传
+const part = partitionToolUploads(
+  [
+    { flatName: 'tools.json', size: 50, sha256: 'abc', isManifest: true },
+    { flatName: 'math__1.0.2__a.js', size: 100, sha256: 'aaa' },
+    { flatName: 'timer__1.0.8__index.html', size: 200, sha256: 'bbb' },
+  ],
+  [
+    { id: 10, fileName: 'math__1.0.2__a.js', size: 100, fileSha256: 'old' },
+    { id: 20, fileName: 'math__1.0.2__a.js', size: 100, fileSha256: 'aaa' },
+    { id: 21, fileName: 'tools.json', size: 50, fileSha256: 'abc' },
+  ],
+);
+chk('partitionToolUploads 跳过 sha256 一致文件并保留 tools.json 压轴',
+  part.skipped.length === 1
+    && part.skipped[0].flatName === 'math__1.0.2__a.js'
+    && part.toUpload.length === 2
+    && part.toUpload[0].flatName === 'timer__1.0.8__index.html'
+    && part.toUpload[1].flatName === 'tools.json',
+  part.toUpload.map((x) => x.flatName).join(' -> '),
 );
 
 let failed = 0;

@@ -160,7 +160,8 @@ function printUsage() {
        [--message <msg>] [--branch <name>]
 
   默认            dry-run：校验 dist-tools/ 并打印发布计划（删除哪些旧包、上传哪些文件），不做任何写操作
-  --apply         真正发布：先校验本地文件 → 逐文件上传（tools.json 最后切换）→ 清理旧条目 → 匿名校验（需要 GITLAB_TOKEN）
+  --apply         真正发布：先校验本地文件 → 按 sha256 增量上传（tools.json 最后切换）→ 清理旧条目 → 匿名校验（需要 GITLAB_TOKEN）
+  --full          与 --apply 联用：忽略远端 sha256 缓存，强制重传全部文件
   --offline       跳过远端查询（仅 dry-run；远端状态未知时按待上传估算）
   --probe         用临时包 TOOLS-PROBE 实测：扁平上传 / 嵌套上传对照 / 匿名下载 / 清理（需要 GITLAB_TOKEN）
   --api <url>     GitLab API 基址，默认 $GITLAB_API 或 ${DEFAULT_API}
@@ -182,6 +183,7 @@ function printUsage() {
 function parseArgs(argv) {
   const opts = {
     apply: false,
+    full: false,
     offline: false,
     probe: false,
     message: '',
@@ -199,6 +201,7 @@ function parseArgs(argv) {
       return value
     }
     if (arg === '--apply') opts.apply = true
+    else if (arg === '--full') opts.full = true
     else if (arg === '--dry-run') opts.apply = false
     else if (arg === '--offline') opts.offline = true
     else if (arg === '--probe') opts.probe = true
@@ -428,7 +431,12 @@ function createClient(opts) {
         if (!item || typeof item.id !== 'number') continue
         if (seen.has(item.id)) continue
         seen.add(item.id)
-        files.push({ id: item.id, fileName: item.file_name, size: item.size })
+        files.push({
+          id: item.id,
+          fileName: item.file_name,
+          size: item.size,
+          fileSha256: item.file_sha256 ? String(item.file_sha256).toLowerCase() : null
+        })
       }
       const next = Number(response.headers.get('x-next-page') || 0)
       if (!next || next <= page) break
@@ -522,6 +530,47 @@ function printRemotePackages(packages, packageName) {
   }
 }
 
+function partitionToolUploads(files, existingFiles, { forceFull = false } = {}) {
+  const newestByName = new Map()
+  for (const entry of existingFiles || []) {
+    const prev = newestByName.get(entry.fileName)
+    if (!prev || entry.id > prev.id) newestByName.set(entry.fileName, entry)
+  }
+
+  const ordered = [...files.filter((file) => !file.isManifest), ...files.filter((file) => file.isManifest)]
+  const toUpload = []
+  const skipped = []
+
+  for (const file of ordered) {
+    if (!forceFull && !file.isManifest) {
+      const remote = newestByName.get(file.flatName)
+      if (
+        remote &&
+        remote.size === file.size &&
+        remote.fileSha256 &&
+        remote.fileSha256 === file.sha256.toLowerCase()
+      ) {
+        skipped.push(file)
+        continue
+      }
+    }
+    toUpload.push(file)
+  }
+
+  return { ordered, toUpload, skipped, newestByName }
+}
+
+async function mapConcurrent(items, limit, worker) {
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const idx = cursor++
+      await worker(items[idx], idx)
+    }
+  })
+  await Promise.all(workers)
+}
+
 async function applyPublish(client, opts, files) {
   if (!client.hasToken) {
     fail('--apply 需要环境变量 GITLAB_TOKEN（api scope + 项目 886 的 Maintainer/Owner 权限）')
@@ -529,14 +578,23 @@ async function applyPublish(client, opts, files) {
   await client.verifyToken()
 
   const packageBase = client.packageBaseUrl(opts.packageName, opts.packageVersion)
-  const ordered = [...files.filter((file) => !file.isManifest), ...files.filter((file) => file.isManifest)]
+  const existingPackage = (await client.listPackages(opts.packageName)).find(
+    (item) => item.version === opts.packageVersion
+  )
+  const preExistingFiles = existingPackage ? await client.listPackageFiles(existingPackage.id) : []
+  const { ordered, toUpload, skipped } = partitionToolUploads(files, preExistingFiles, {
+    forceFull: opts.full
+  })
   const nextNames = new Set(ordered.map((file) => file.flatName))
 
-  // 1) 逐文件上传；tools.json 最后上传，作为「清单切换」开关。
-  //    切换前客户端读到的仍是旧清单 + 旧文件（完整可用），上传中途失败也不会出现空包。
+  // 1) 逐文件增量上传；跳过 sha256 与 size 均已一致的远端条目（可用 --full 强制全量重传），
+  //    tools.json 最后上传作为「清单切换」开关。
+  if (skipped.length > 0) {
+    console.log(`[upload] 增量跳过 ${skipped.length} 个未改动文件（远端最新条目 sha256/size 完全一致）`)
+  }
   let uploadedBytes = 0
-  for (let i = 0; i < ordered.length; i++) {
-    const file = ordered[i]
+  for (let i = 0; i < toUpload.length; i++) {
+    const file = toUpload[i]
     const status = await withRetry(
       `上传 ${file.flatName}`,
       () => client.uploadFile(packageBase, file.flatName, file.buffer),
@@ -544,14 +602,14 @@ async function applyPublish(client, opts, files) {
     )
     uploadedBytes += file.size
     console.log(
-      `[upload] ${String(i + 1).padStart(3)}/${ordered.length}  ${formatBytes(file.size).padStart(9)}  ${file.flatName}  (HTTP ${status})${file.isManifest ? '  <- 清单（切换开关）' : ''}`
+      `[upload] ${String(i + 1).padStart(3)}/${toUpload.length}  ${formatBytes(file.size).padStart(9)}  ${file.flatName}  (HTTP ${status})${file.isManifest ? '  <- 清单（切换开关）' : ''}`
     )
   }
-  console.log(`[upload] 完成：${ordered.length} 个文件，${formatBytes(uploadedBytes)}`)
+  console.log(`[upload] 完成：上传 ${toUpload.length} 个（跳过 ${skipped.length} 个），${formatBytes(uploadedBytes)}`)
 
-  // 2) 清单已切换：清理旧条目。
+  // 2) 清单已切换：清理旧条目（并发删除以加速大量重复条目回收）。
   //    该 GitLab 实例的 Generic Package 对同名 PUT 会新增条目而不是原地覆盖，
-  //    因此按 file_name 保留 id 最大的条目（最新上传），删除其余旧条目与新清单之外的文件。
+  //    因此按 file_name 保留 id 最大的条目（最新上传或复用条目），删除其余旧条目与新清单之外的文件。
   const currentPackage = (await client.listPackages(opts.packageName)).find(
     (item) => item.version === opts.packageVersion
   )
@@ -562,16 +620,22 @@ async function applyPublish(client, opts, files) {
       const prev = newestIdByName.get(file.fileName)
       if (prev === undefined || file.id > prev) newestIdByName.set(file.fileName, file.id)
     }
-    let removedFiles = 0
-    for (const file of onlineFiles) {
-      const keep = nextNames.has(file.fileName) && newestIdByName.get(file.fileName) === file.id
-      if (keep) continue
-      console.log(`[cleanup] 删除旧条目 ${file.fileName}（id=${file.id}）…`)
-      await client.deletePackageFile(currentPackage.id, file.id)
-      removedFiles++
+    const staleFiles = onlineFiles.filter(
+      (file) => !(nextNames.has(file.fileName) && newestIdByName.get(file.fileName) === file.id)
+    )
+    if (staleFiles.length > 0) {
+      console.log(`[cleanup] 正在并发清理 ${staleFiles.length} 个旧/重复条目…`)
+      await mapConcurrent(staleFiles, 4, async (file) => {
+        await withRetry(
+          `删除 ${file.fileName}#${file.id}`,
+          () => client.deletePackageFile(currentPackage.id, file.id),
+          { attempts: 2, delayMs: 1000 }
+        )
+      })
+      console.log(`[cleanup] 完成：删除 ${staleFiles.length} 个旧条目`)
+    } else {
+      console.log('[cleanup] 无旧条目需要清理')
     }
-    if (removedFiles > 0) console.log(`[cleanup] 完成：删除 ${removedFiles} 个旧条目`)
-    else console.log('[cleanup] 无旧条目需要清理')
   }
 
   // 3) 清理同包名的旧版本包（GITLAB_TOOLS_VERSION 之外的历史版本；正常应不存在）
@@ -914,8 +978,13 @@ async function main() {
   )
 }
 
-main().catch((error) => {
-  console.error('')
-  console.error(`[publish] 失败：${error && error.message ? error.message : error}`)
-  process.exitCode = 1
-})
+export { partitionToolUploads }
+
+const isEntry = Boolean(process.argv[1]) && resolve(fileURLToPath(import.meta.url)).toLowerCase() === resolve(process.argv[1]).toLowerCase()
+if (isEntry) {
+  main().catch((error) => {
+    console.error('')
+    console.error(`[publish] 失败：${error && error.message ? error.message : error}`)
+    process.exitCode = 1
+  })
+}
