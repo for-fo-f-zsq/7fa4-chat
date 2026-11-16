@@ -71,10 +71,7 @@
   line-height: 1;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-  /* 压深每格强调色保证浅色/深色主题下数字对比度 */
   color: var(--c, var(--brand));
-  color: color-mix(in srgb, var(--c, var(--brand)) 62%, var(--fg));
-  filter: drop-shadow(0 0 0.08em currentColor);
   user-select: none;
 }
 
