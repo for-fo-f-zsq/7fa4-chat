@@ -97,7 +97,8 @@ const layoutItems = LAYOUTS.map((n) => ({ value: n, label: `${n} 格` }))
 }
 
 .tm-float-pop {
-  width: 224px;
+  width: 232px;
+  padding: var(--space-2);
   color: var(--fg);
   text-align: left;
 }

@@ -49,11 +49,12 @@ const user = computed(() => panelUser(props.panel))
   gap: var(--space-2);
   flex: 1 1 0;
   min-width: 0;
+  height: var(--control-h-lg);
   font: inherit;
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  padding: 9px 10px;
-  border-radius: var(--radius-md);
+  padding: 0 10px;
+  border-radius: var(--radius-base);
   border: var(--border-width) solid var(--line-hairline);
   background: var(--surface-0);
   color: var(--fg);
@@ -89,21 +90,21 @@ const user = computed(() => panelUser(props.panel))
 }
 
 .tm-who-avatar {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   font-weight: var(--weight-bold);
   background: var(--surface-2);
 }
 
 .tm-who-none {
   color: var(--fg-placeholder);
-  font-size: var(--text-lg);
+  font-size: var(--text-base);
 }
 
 .tm-who-name {
@@ -131,6 +132,6 @@ const user = computed(() => panelUser(props.panel))
 }
 
 :global(.tm-tool.narrow) .tm-who {
-  padding: 8px var(--space-3);
+  padding: 0 var(--space-3);
 }
 </style>

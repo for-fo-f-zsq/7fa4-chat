@@ -4,27 +4,29 @@
       <TimerHeaderBar />
     </template>
 
-    <div class="tm-actions">
-      <UiButton
-        size="md"
-        :variant="anyRunning ? 'secondary' : 'primary'"
-        :icon="anyRunning ? 'fas fa-pause' : 'fas fa-play'"
-        @click="toggleAll"
-      >{{ anyRunning ? '全部暂停' : '全部开始' }}</UiButton>
-      <UiButton size="md" variant="secondary" icon="fas fa-rotate-left" @click="resetAll">全部重置</UiButton>
-      <span v-if="!isNarrow" class="tm-hint">输入框回车即开始</span>
-    </div>
+    <div class="tm-body">
+      <div class="tm-actions">
+        <UiButton
+          size="md"
+          :variant="anyRunning ? 'secondary' : 'primary'"
+          :icon="anyRunning ? 'fas fa-pause' : 'fas fa-play'"
+          @click="toggleAll"
+        >{{ anyRunning ? '全部暂停' : '全部开始' }}</UiButton>
+        <UiButton size="md" variant="secondary" icon="fas fa-rotate-left" @click="resetAll">全部重置</UiButton>
+        <span v-if="!isNarrow" class="tm-hint">输入框回车即开始</span>
+      </div>
 
-    <div class="tm-stage" :class="`layout-${timer.layout}`">
-      <TimerPanelCard
-        v-for="cell in shownPanels"
-        :key="cell.i"
-        :panel="cell.p"
-        :color="PALETTE[cell.i]"
-        :picker-open="pickerOpen === cell.i"
-        @toggle-picker="pickerOpen = pickerOpen === cell.i ? null : cell.i"
-        @close-picker="pickerOpen = null"
-      />
+      <div class="tm-stage" :class="`layout-${timer.layout}`">
+        <TimerPanelCard
+          v-for="cell in shownPanels"
+          :key="cell.i"
+          :panel="cell.p"
+          :color="PALETTE[cell.i]"
+          :picker-open="pickerOpen === cell.i"
+          @toggle-picker="pickerOpen = pickerOpen === cell.i ? null : cell.i"
+          @close-picker="pickerOpen = null"
+        />
+      </div>
     </div>
   </ToolWorkspaceShell>
 </template>

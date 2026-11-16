@@ -14,7 +14,7 @@
 
       <UiInput
         class="tm-task"
-        size="sm"
+        size="md"
         :model-value="panel.task"
         maxlength="40"
         placeholder="任务（可选）"

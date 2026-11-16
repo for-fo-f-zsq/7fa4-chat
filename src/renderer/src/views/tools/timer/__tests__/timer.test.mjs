@@ -54,4 +54,12 @@ assert.equal(nextBreakTarget(at(23, 0)), expectAt(12, 0, 1), '全部过点后应
 assert.equal(toLocalInput(expectAt(9, 5)), '2026-05-12T09:05', 'toLocalInput 应输出 datetime-local 格式')
 console.log('✓ nextBreakTarget 通过')
 
+// 4. 布局结构：ToolWorkspaceShell 默认横向排列，TimerTool 必须用纵向 .tm-body 包裹操作条与舞台
+console.log('4. 验证 TimerTool 纵向布局容器...')
+const timerVue = fs.readFileSync(path.resolve('src/renderer/src/views/tools/timer/TimerTool.vue'), 'utf-8')
+const timerCss = fs.readFileSync(path.resolve('src/renderer/src/views/tools/timer/timer-tool.css'), 'utf-8')
+assert.match(timerVue, /<div class="tm-body">[\s\S]*tm-actions[\s\S]*tm-stage/, 'TimerTool.vue 必须用 .tm-body 包裹 .tm-actions 与 .tm-stage')
+assert.match(timerCss, /\.tm-body\s*\{[^}]*flex-direction:\s*column/, 'timer-tool.css 中的 .tm-body 必须设置 flex-direction: column')
+console.log('✓ TimerTool 纵向布局容器通过')
+
 console.log('--- 全部 Timer 单元测试验证通过！ ---')
