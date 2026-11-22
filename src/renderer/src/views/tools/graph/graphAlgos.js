@@ -11,6 +11,17 @@ export function weightOf(e) {
   return n == null ? 1 : n
 }
 
+export function numericNodeWeight(n) {
+  if (!n || n.weight == null || n.weight === '') return null
+  const v = Number(n.weight)
+  return Number.isFinite(v) ? v : null
+}
+
+export function nodeWeightOf(n, fallback = 0) {
+  const v = numericNodeWeight(n)
+  return v == null ? fallback : v
+}
+
 /**
  * 丢掉端点不在节点集合里的脏边。文本解析与手输都可能带出这种边，
  * 各算法里 `adj.get(u).push(...)` 会直接抛 TypeError 并让整个工具白屏。
@@ -283,10 +294,11 @@ export function treeDiameter(nodes, edges) {
   }
 }
 
-// 树的重心（仅对树有意义：m === n-1 且连通）
+// 树的重心（仅对无向连通树有意义：m === n-1 且连通；若节点含数字点权则按带权重心计算）
 export function centroids(nodes, edges) {
+  edges = validEdges(nodes, edges)
   const n = nodes.length
-  if (!n || edges.length !== n - 1) return { ids: [], valid: false }
+  if (!n || edges.length !== n - 1) return { ids: [], valid: false, weighted: false }
   const adj = buildAdj(nodes, edges, false)
   const parent = new Map()
   const order = []
@@ -305,7 +317,50 @@ export function centroids(nodes, edges) {
       st.push(to)
     }
   }
-  if (order.length !== n) return { ids: [], valid: false }
+  if (order.length !== n) return { ids: [], valid: false, weighted: false }
+
+  const hasNodeWeights = nodes.some((node) => numericNodeWeight(node) !== null)
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]))
+  const weightAt = (id) => {
+    if (!hasNodeWeights) return 1
+    return Math.max(0, nodeWeightOf(nodeMap.get(id), 0))
+  }
+  let totalWeight = 0
+  for (const node of nodes) totalWeight += weightAt(node.id)
+  if (hasNodeWeights && totalWeight <= 0) {
+    // 全部为 0 或负点权时退回等权重心，避免全树重为 0 让所有节点都被标成重心
+    totalWeight = n
+    return unweightedCentroids(nodes, adj, parent, order, n)
+  }
+
+  const subSum = new Map()
+  const maxParts = new Map()
+  let bestMaxPart = Infinity
+  for (let i = order.length - 1; i >= 0; i--) {
+    const v = order[i]
+    let s = weightAt(v)
+    let maxPart = 0
+    for (const { to } of adj.get(v) || []) {
+      if (to === parent.get(v)) continue
+      const cs = subSum.get(to) || 0
+      s += cs
+      maxPart = Math.max(maxPart, cs)
+    }
+    subSum.set(v, s)
+    maxPart = Math.max(maxPart, totalWeight - s)
+    maxParts.set(v, maxPart)
+    if (maxPart < bestMaxPart) bestMaxPart = maxPart
+  }
+  const ids = []
+  for (const [id, mp] of maxParts) {
+    if (Math.abs(mp - bestMaxPart) <= 1e-9 || (!hasNodeWeights && mp <= totalWeight / 2)) {
+      ids.push(id)
+    }
+  }
+  return { ids, valid: true, weighted: hasNodeWeights, totalWeight, maxPart: bestMaxPart }
+}
+
+function unweightedCentroids(nodes, adj, parent, order, n) {
   const size = new Map()
   const ids = []
   for (let i = order.length - 1; i >= 0; i--) {
@@ -322,7 +377,7 @@ export function centroids(nodes, edges) {
     maxPart = Math.max(maxPart, n - s)
     if (maxPart <= n / 2) ids.push(v)
   }
-  return { ids, valid: true }
+  return { ids, valid: true, weighted: false, totalWeight: n }
 }
 
 // 二分图最大匹配（匈牙利算法）
@@ -530,4 +585,301 @@ export function eulerPath(nodes, edges, directed) {
     ? deg.get(start).out === deg.get(start).in
     : (deg.get(start).in + deg.get(start).out) % 2 === 0
   return { exists: true, trail, seq: walk, circuit: isCircuit }
+}
+
+// 树上最大权独立集（Tree DP / 没有上司的舞会，适用于无向树/森林）
+export function treeMwis(nodes, edges, directed = false) {
+  if (directed) return { valid: false, reason: '请关闭「有向图」开关后在无向树/森林上运行' }
+  edges = validEdges(nodes, edges)
+  if (!nodes.length) return { valid: false, reason: '画布为空' }
+  for (const e of edges) {
+    if (e.u === e.v) return { valid: false, reason: '包含自环（非无向树/森林）' }
+  }
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]))
+  const adj = buildAdj(nodes, edges, false)
+  const seen = new Set()
+  const roots = []
+  const parent = new Map()
+  const parentEdge = new Map()
+  const children = new Map()
+  const postOrder = []
+
+  for (const n of nodes) children.set(n.id, [])
+
+  for (const n of nodes) {
+    if (seen.has(n.id)) continue
+    roots.push(n.id)
+    const stack = [n.id]
+    const compOrder = []
+    seen.add(n.id)
+    parent.set(n.id, null)
+    parentEdge.set(n.id, null)
+    while (stack.length) {
+      const u = stack.pop()
+      compOrder.push(u)
+      for (const { to, e } of adj.get(u) || []) {
+        if (e === parentEdge.get(u)) continue
+        if (seen.has(to)) {
+          return { valid: false, reason: '检测到环（包含重边或环的图无法直接跑树形 DP）' }
+        }
+        seen.add(to)
+        parent.set(to, u)
+        parentEdge.set(to, e)
+        children.get(u).push(to)
+        stack.push(to)
+      }
+    }
+    for (let i = compOrder.length - 1; i >= 0; i--) postOrder.push(compOrder[i])
+  }
+
+  const dp0 = new Map()
+  const dp1 = new Map()
+  for (const u of postOrder) {
+    const w = nodeWeightOf(nodeMap.get(u), 0)
+    let sum0 = 0
+    let sum1 = w
+    for (const v of children.get(u) || []) {
+      sum0 += Math.max(dp0.get(v), dp1.get(v))
+      sum1 += dp0.get(v)
+    }
+    dp0.set(u, sum0)
+    dp1.set(u, sum1)
+  }
+
+  const chosenSet = new Set()
+  let maxWeight = 0
+  for (const r of roots) {
+    const takeRoot = dp1.get(r) > dp0.get(r)
+    maxWeight += Math.max(dp0.get(r), dp1.get(r))
+    const q = [{ id: r, take: takeRoot }]
+    for (let i = 0; i < q.length; i++) {
+      const { id, take } = q[i]
+      if (take) chosenSet.add(id)
+      for (const ch of children.get(id) || []) {
+        const takeChild = take ? false : dp1.get(ch) > dp0.get(ch)
+        q.push({ id: ch, take: takeChild })
+      }
+    }
+  }
+  return { valid: true, chosenSet, maxWeight, dp0, dp1 }
+}
+
+// 子树点权和（从指定根节点出发：无向图要求所在连通块为树；有向图要求可达子图为外向树）
+export function subtreeWeights(nodes, edges, directed = false, rootId = null) {
+  edges = validEdges(nodes, edges)
+  if (!nodes.length) return { valid: false, reason: '画布为空' }
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]))
+  const root = nodeMap.has(rootId) ? rootId : nodes[0].id
+  for (const e of edges) {
+    if (e.u === e.v && e.u === root) return { valid: false, reason: '包含自环（非树结构）' }
+  }
+
+  const adj = buildAdj(nodes, edges, directed)
+  const seen = new Set([root])
+  const parentEdge = new Map([[root, null]])
+  const children = new Map([[root, []]])
+  const order = []
+  const treeEdges = new Set()
+
+  const q = [root]
+  for (let i = 0; i < q.length; i++) {
+    const u = q[i]
+    order.push(u)
+    for (const { to, e } of adj.get(u) || []) {
+      if (!directed && e === parentEdge.get(u)) continue
+      if (seen.has(to)) {
+        return {
+          valid: false,
+          reason: directed ? '从根节点可达的有向子图含环或合流边，不是有根外向树' : '根节点所在连通块含环，非树结构'
+        }
+      }
+      seen.add(to)
+      parentEdge.set(to, e)
+      children.get(u).push(to)
+      children.set(to, [])
+      treeEdges.add(e)
+      q.push(to)
+    }
+  }
+
+  const subSum = new Map()
+  const subSize = new Map()
+  for (let i = order.length - 1; i >= 0; i--) {
+    const u = order[i]
+    let sum = nodeWeightOf(nodeMap.get(u), 0)
+    let sz = 1
+    for (const ch of children.get(u) || []) {
+      sum += subSum.get(ch) || 0
+      sz += subSize.get(ch) || 0
+    }
+    subSum.set(u, sum)
+    subSize.set(u, sz)
+  }
+
+  return { valid: true, rootId: root, subSum, subSize, treeEdges, order }
+}
+
+// DAG 最大点权路径（按拓扑序 DP：dp[v] = w[v] + max(0, max_{u->v} dp[u])）
+export function dagMaxNodePath(nodes, edges) {
+  edges = validEdges(nodes, edges)
+  if (!nodes.length) return { valid: false, cycle: false, reason: '画布为空' }
+  const { order, cycle } = topoSort(nodes, edges)
+  if (cycle) return { valid: false, cycle: true, reason: '图存在环（不是 DAG），可改用「缩点点权 DP」' }
+
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]))
+  const inEdges = new Map(nodes.map((n) => [n.id, []]))
+  for (const e of edges) {
+    if (e.u === e.v) return { valid: false, cycle: true, reason: '图存在自环' }
+    inEdges.get(e.v)?.push(e)
+  }
+
+  const seq = [...order.entries()].sort((a, b) => a[1] - b[1]).map(([id]) => id)
+  const dp = new Map()
+  const prev = new Map()
+  let bestEnd = seq[0]
+  let bestWeight = -Infinity
+
+  for (const v of seq) {
+    const w = nodeWeightOf(nodeMap.get(v), 0)
+    let bestPre = 0
+    let preInfo = null
+    for (const e of inEdges.get(v) || []) {
+      const cand = dp.get(e.u)
+      if (cand > bestPre) {
+        bestPre = cand
+        preInfo = { from: e.u, e }
+      }
+    }
+    const val = w + bestPre
+    dp.set(v, val)
+    if (preInfo) prev.set(v, preInfo)
+    if (val > bestWeight) {
+      bestWeight = val
+      bestEnd = v
+    }
+  }
+
+  const pathSeq = []
+  const pathNodes = new Set()
+  const pathEdges = new Set()
+  let cur = bestEnd
+  while (cur != null) {
+    pathSeq.push(cur)
+    pathNodes.add(cur)
+    const p = prev.get(cur)
+    if (!p) break
+    pathEdges.add(p.e)
+    cur = p.from
+  }
+  pathSeq.reverse()
+  return { valid: true, cycle: false, maxWeight: bestWeight, pathSeq, pathNodes, pathEdges, dp }
+}
+
+// Tarjan 强连通分量缩点 + DAG 最大点权和 DP（支持任意有向图含环）
+export function sccDagDp(nodes, edges) {
+  edges = validEdges(nodes, edges)
+  if (!nodes.length) return { valid: false, reason: '画布为空' }
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]))
+  const comp = scc(nodes, edges)
+  const sccMembers = new Map()
+  const sccWeights = new Map()
+  for (const n of nodes) {
+    const c = comp.get(n.id)
+    if (!sccMembers.has(c)) {
+      sccMembers.set(c, [])
+      sccWeights.set(c, 0)
+    }
+    sccMembers.get(c).push(n.id)
+    sccWeights.set(c, sccWeights.get(c) + nodeWeightOf(nodeMap.get(n.id), 0))
+  }
+
+  const sccCount = sccMembers.size
+  const inDegree = new Map()
+  const outMap = new Map() // cu -> Map<cv, edge[]>
+  for (const c of sccMembers.keys()) {
+    inDegree.set(c, 0)
+    outMap.set(c, new Map())
+  }
+  for (const e of edges) {
+    const cu = comp.get(e.u)
+    const cv = comp.get(e.v)
+    if (cu == null || cv == null || cu === cv) continue
+    if (!outMap.get(cu).has(cv)) {
+      outMap.get(cu).set(cv, [])
+      inDegree.set(cv, inDegree.get(cv) + 1)
+    }
+    outMap.get(cu).get(cv).push(e)
+  }
+
+  const q = []
+  for (const [c, deg] of inDegree) if (deg === 0) q.push(c)
+  const topo = []
+  for (let i = 0; i < q.length; i++) {
+    const cu = q[i]
+    topo.push(cu)
+    for (const cv of outMap.get(cu).keys()) {
+      inDegree.set(cv, inDegree.get(cv) - 1)
+      if (inDegree.get(cv) === 0) q.push(cv)
+    }
+  }
+
+  const inSccs = new Map()
+  for (const c of topo) inSccs.set(c, [])
+  for (const cu of topo) {
+    for (const [cv, es] of outMap.get(cu)) {
+      inSccs.get(cv).push({ from: cu, edges: es })
+    }
+  }
+
+  const dp = new Map()
+  const prevScc = new Map()
+  let bestScc = topo[0]
+  let bestWeight = -Infinity
+
+  for (const c of topo) {
+    const w = sccWeights.get(c)
+    let bestPre = 0
+    let pre = null
+    for (const { from, edges: es } of inSccs.get(c) || []) {
+      const cand = dp.get(from)
+      if (cand > bestPre) {
+        bestPre = cand
+        pre = { from, edges: es }
+      }
+    }
+    const val = w + bestPre
+    dp.set(c, val)
+    if (pre) prevScc.set(c, pre)
+    if (val > bestWeight) {
+      bestWeight = val
+      bestScc = c
+    }
+  }
+
+  const bestSccSeq = []
+  const pathEdges = new Set()
+  const pathSccs = new Set()
+  let cur = bestScc
+  while (cur != null) {
+    bestSccSeq.push(cur)
+    pathSccs.add(cur)
+    const p = prevScc.get(cur)
+    if (!p) break
+    if (p.edges && p.edges.length) pathEdges.add(p.edges[0])
+    cur = p.from
+  }
+  bestSccSeq.reverse()
+
+  return {
+    valid: true,
+    comp,
+    sccCount,
+    sccMembers,
+    sccWeights,
+    dp,
+    bestSccSeq,
+    bestWeight,
+    pathEdges,
+    pathSccs
+  }
 }

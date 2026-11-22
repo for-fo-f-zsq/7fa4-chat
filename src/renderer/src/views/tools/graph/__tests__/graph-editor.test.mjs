@@ -551,4 +551,132 @@ console.log('11. 验证侧栏结构合并与 GeoGebra 防闪烁修复...')
 }
 console.log('✓ 侧栏结构合并与 GeoGebra 防闪烁修复验证通过')
 
+// 12. 点权算法（带权重心、树上最大权独立集、子树点权和、DAG 最大点权路、SCC 缩点点权 DP、分量点权和）
+console.log('12. 验证点权驱动图论算法...')
+{
+  const wTreeNodes = [
+    { id: 1, weight: 1, x: 0, y: 0 },
+    { id: 2, weight: 2, x: 0, y: 0 },
+    { id: 3, weight: 100, x: 0, y: 0 },
+    { id: 4, weight: 3, x: 0, y: 0 }
+  ]
+  const wTreeEdges = [
+    { u: 1, v: 2 },
+    { u: 2, v: 3 },
+    { u: 3, v: 4 }
+  ]
+  const wById = (id) => wTreeNodes.find((n) => n.id === id) || null
+
+  // 12.1 带权重心：节点 3 点权 100，应成为唯一重心
+  const wCent = computeHighlightState({
+    nodes: wTreeNodes,
+    edges: wTreeEdges,
+    highlight: 'centroid',
+    directed: false,
+    algoSrc: 1,
+    algoSink: 4,
+    byId: wById,
+    isDark: false
+  })
+  assert.deepEqual([...wCent.hl.centSet], [3], '带权重心应选中权重占绝对优势的节点 3')
+  assert(wCent.analysisDetail.includes('带权重心'), '摘要应标明带权重心')
+
+  // 12.2 树上最大权独立集：节点 1(1) + 节点 3(100) = 101 > 节点 2(2) + 节点 4(3) = 5
+  const mwis = computeHighlightState({
+    nodes: wTreeNodes,
+    edges: wTreeEdges,
+    highlight: 'tree_mwis',
+    directed: false,
+    algoSrc: 1,
+    algoSink: 4,
+    byId: wById,
+    isDark: false
+  })
+  assert.equal(mwis.analysis.status, 'ok')
+  assert.equal(mwis.analysis.metrics.find((m) => m.label === '最大点权和').value, '101')
+  assert.deepEqual([...mwis.hl.selectedNodes].sort((a, b) => a - b), [1, 3])
+
+  // 12.3 子树点权和（以节点 2 为根）：1(1) 在左，3(100)+4(3)=103 在右，根总重=106
+  const subRes = computeHighlightState({
+    nodes: wTreeNodes,
+    edges: wTreeEdges,
+    highlight: 'subtree',
+    directed: false,
+    algoSrc: 2,
+    algoSink: 4,
+    byId: wById,
+    isDark: false
+  })
+  assert.equal(subRes.hl.rootNode, 2)
+  assert.equal(subRes.hl.nodeSubLabels.get(3), 'sum=103')
+  assert.equal(subRes.analysis.metrics.find((m) => m.label === '根总点权和').value, '106')
+
+  // 12.4 DAG 最大点权路：含负点权节点，1(5) -> 2(-10) -> 4(8) vs 1(5) -> 3(4) -> 4(8) = 17
+  const dagNodes = [
+    { id: 1, weight: 5, x: 0, y: 0 },
+    { id: 2, weight: -10, x: 0, y: 0 },
+    { id: 3, weight: 4, x: 0, y: 0 },
+    { id: 4, weight: 8, x: 0, y: 0 }
+  ]
+  const dagEdges = [
+    { u: 1, v: 2 },
+    { u: 2, v: 4 },
+    { u: 1, v: 3 },
+    { u: 3, v: 4 }
+  ]
+  const dagRes = computeHighlightState({
+    nodes: dagNodes,
+    edges: dagEdges,
+    highlight: 'dag_lp',
+    directed: true,
+    algoSrc: 1,
+    algoSink: 4,
+    byId: (id) => dagNodes.find((n) => n.id === id) || null,
+    isDark: false
+  })
+  assert.equal(dagRes.analysis.status, 'ok')
+  assert.equal(dagRes.analysis.metrics.find((m) => m.label === '最大点权和').value, '17')
+  assert.deepEqual([...dagRes.hl.pathNodes].sort((a, b) => a - b), [1, 3, 4])
+
+  // 12.5 强连通分量缩点 + DAG 点权 DP：1<->2（权 3+4=7）-> 3（权 5），总链权=12
+  const sccNodes = [
+    { id: 1, weight: 3, x: 0, y: 0 },
+    { id: 2, weight: 4, x: 0, y: 0 },
+    { id: 3, weight: 5, x: 0, y: 0 }
+  ]
+  const sccEdges = [
+    { u: 1, v: 2 },
+    { u: 2, v: 1 },
+    { u: 2, v: 3 }
+  ]
+  const sccRes = computeHighlightState({
+    nodes: sccNodes,
+    edges: sccEdges,
+    highlight: 'scc_dag',
+    directed: true,
+    algoSrc: 1,
+    algoSink: 3,
+    byId: (id) => sccNodes.find((n) => n.id === id) || null,
+    isDark: false
+  })
+  assert.equal(sccRes.analysis.status, 'ok')
+  assert.equal(sccRes.analysis.metrics.find((m) => m.label === 'SCC 数量').value, '2')
+  assert.equal(sccRes.analysis.metrics.find((m) => m.label === '最大路径点权和').value, '12')
+
+  // 12.6 连通分量展示全图点权和
+  const compWithW = computeHighlightState({
+    nodes: sccNodes,
+    edges: sccEdges,
+    highlight: 'components',
+    directed: true,
+    algoSrc: 1,
+    algoSink: 3,
+    byId: (id) => sccNodes.find((n) => n.id === id) || null,
+    isDark: false
+  })
+  assert.equal(compWithW.analysis.metrics.find((m) => m.label === '全图点权和').value, '12')
+  assert(compWithW.analysis.lists[0].items.some((t) => t.includes('权=7')))
+}
+console.log('✓ 点权算法与可视化高亮验证通过')
+
 console.log('--- 全部 Graph Editor 单元测试验证通过！ ---')

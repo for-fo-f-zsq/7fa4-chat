@@ -155,17 +155,17 @@
           />
 
           <div
-            v-if="highlight === 'shortest' || highlight === 'flow'"
+            v-if="highlight === 'shortest' || highlight === 'flow' || highlight === 'subtree'"
             class="graph-field-grid"
             :class="{ 'is-single': highlight !== 'flow' }"
           >
             <label class="graph-field-cell">
-              <span class="graph-field-label">源点 Source</span>
+              <span class="graph-field-label">{{ highlight === 'subtree' ? '根节点 Root' : '源点 Source' }}</span>
               <UiInput
                 type="number"
                 size="sm"
                 :model-value="algoSrc"
-                aria-label="源点"
+                :aria-label="highlight === 'subtree' ? '根节点' : '源点'"
                 @update:model-value="$emit('update:algoSrc', Number($event) || 0)"
               />
             </label>

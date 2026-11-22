@@ -64,7 +64,11 @@ export const HIGHLIGHT_OPTIONS = [
   { value: 'shortest', label: '单源最短路' },
   { value: 'topo', label: '拓扑排序' },
   { value: 'diameter', label: '树的直径' },
-  { value: 'centroid', label: '树的重心' },
+  { value: 'centroid', label: '树的重心（支持点权）' },
+  { value: 'tree_mwis', label: '树上最大权独立集（点权）' },
+  { value: 'subtree', label: '子树点权和（点权）' },
+  { value: 'dag_lp', label: 'DAG 最大点权路（点权）' },
+  { value: 'scc_dag', label: '缩点点权 DP（点权）' },
   { value: 'matching', label: '二分图最大匹配' },
   { value: 'flow', label: '最大流' },
   { value: 'euler', label: '欧拉路径/回路' }

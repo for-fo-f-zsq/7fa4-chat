@@ -42,7 +42,12 @@ export function createEmptyHighlight() {
     flowUsed: new Map(),
     flowSrc: null,
     flowSink: null,
-    eulerOrder: new Map()
+    eulerOrder: new Map(),
+    selectedNodes: new Set(),
+    pathEdges: new Set(),
+    pathNodes: new Set(),
+    nodeSubLabels: new Map(),
+    rootNode: null
   }
 }
 
@@ -94,14 +99,23 @@ export function computeHighlightState({ nodes, edges, highlight, directed, algoS
       hl.compColors.set(n.id, colorOf.get(c))
     }
     const ordered = [...groups.values()].sort((a, b) => b.length - a.length)
+    const hasNodeWeights = nodes.some((n) => algos.numericNodeWeight(n) !== null)
+    const compWeightSum = (ids) => ids.reduce((s, id) => s + algos.nodeWeightOf(byId(id), 0), 0)
+    const totalNodeWeight = hasNodeWeights ? nodes.reduce((s, n) => s + algos.nodeWeightOf(n, 0), 0) : 0
     setStatus('ok', `共 ${unique} 个${directed ? '强连通' : '连通'}分量`)
     analysis.metrics = [
       { label: '分量数', value: String(unique) },
-      { label: '最大分量', value: `${ordered[0] ? ordered[0].length : 0} 个节点` }
+      { label: '最大分量', value: `${ordered[0] ? ordered[0].length : 0} 个节点` },
+      ...(hasNodeWeights ? [{ label: '全图点权和', value: fmtNum(totalNodeWeight) }] : [])
     ]
     analysis.lists = [{
       label: '每个分量的节点',
-      items: ordered.map((g, i) => `C${i + 1}（${g.length}）：${g.slice().sort(byNumeric).map(nodeName).join(', ')}`)
+      items: ordered.map((g, i) => {
+        const listStr = g.slice().sort(byNumeric).map(nodeName).join(', ')
+        return hasNodeWeights
+          ? `C${i + 1}（${g.length} · 权=${fmtNum(compWeightSum(g))}）：${listStr}`
+          : `C${i + 1}（${g.length}）：${listStr}`
+      })
     }]
   } else if (highlight === 'bridges') {
     if (directed) {
@@ -242,14 +256,119 @@ export function computeHighlightState({ nodes, edges, highlight, directed, algoS
       items: (d.seq && d.seq.length ? d.seq.map(nodeName).join(' → ') : '—').split('\n')
     }]
   } else if (highlight === 'centroid') {
-    const c = algos.centroids(nodes, edges)
-    if (!c.valid) {
-      setStatus('warn', '重心仅适用于树（m = n-1 且连通）')
+    if (directed) {
+      setStatus('warn', '树的重心仅支持无向图')
     } else {
-      hl.centSet = new Set(c.ids)
-      setStatus('ok', `重心 ${c.ids.length} 个：${c.ids.map(nodeName).join(', ')}`)
-      analysis.metrics = [{ label: '重心数', value: String(c.ids.length) }]
-      analysis.lists = [{ label: '重心节点', items: c.ids.slice().sort(byNumeric).map(nodeName) }]
+      const c = algos.centroids(nodes, edges)
+      if (!c.valid) {
+        setStatus('warn', '重心仅适用于树（m = n-1 且连通）')
+      } else {
+        hl.centSet = new Set(c.ids)
+        setStatus('ok', `${c.weighted ? '带权重心' : '重心'} ${c.ids.length} 个：${c.ids.map(nodeName).join(', ')}`)
+        analysis.metrics = [
+          { label: '重心数', value: String(c.ids.length) },
+          { label: '计算模式', value: c.weighted ? `点权（总重 ${fmtNum(c.totalWeight)}）` : '等权（各 1）' }
+        ]
+        analysis.lists = [{ label: '重心节点', items: c.ids.slice().sort(byNumeric).map(nodeName) }]
+      }
+    }
+  } else if (highlight === 'tree_mwis') {
+    const r = algos.treeMwis(nodes, edges, directed)
+    if (!r.valid) {
+      setStatus('warn', r.reason || '不满足树形 DP 条件')
+    } else {
+      hl.selectedNodes = r.chosenSet
+      const chosenIds = [...r.chosenSet].sort(byNumeric)
+      setStatus('ok', `最大独立集点权和 = ${fmtNum(r.maxWeight)}`)
+      analysis.metrics = [
+        { label: '最大点权和', value: fmtNum(r.maxWeight) },
+        { label: '选中节点数', value: `${chosenIds.length}/${nodes.length}` }
+      ]
+      analysis.lists = [{
+        label: '选中的独立集节点（未填点权按 0 计）',
+        items: chosenIds.length
+          ? chosenIds.map((id) => `节点 ${nodeName(id)} · w=${fmtNum(algos.nodeWeightOf(byId(id), 0))}`)
+          : ['未选中任何正权节点（最优和为 0）']
+      }]
+    }
+  } else if (highlight === 'subtree') {
+    const rootNode = byId(algoSrc) || nodes[0]
+    const r = algos.subtreeWeights(nodes, edges, directed, rootNode.id)
+    if (!r.valid) {
+      setStatus('warn', r.reason || '非有效树结构')
+    } else {
+      hl.rootNode = r.rootId
+      hl.pathEdges = r.treeEdges
+      for (const id of r.order) hl.nodeSubLabels.set(id, `sum=${fmtNum(r.subSum.get(id))}`)
+      setStatus('ok', `以 ${nodeName(r.rootId)} 为根，全树点权和 = ${fmtNum(r.subSum.get(r.rootId))}`)
+      analysis.metrics = [
+        { label: '根总点权和', value: fmtNum(r.subSum.get(r.rootId)) },
+        { label: '子树节点数', value: `${r.order.length}/${nodes.length}` }
+      ]
+      analysis.lists = [{
+        label: '各节点子树点权和',
+        items: r.order.slice().sort(byNumeric).map((id) => `节点 ${nodeName(id)} · sum=${fmtNum(r.subSum.get(id))} · size=${r.subSize.get(id)}`)
+      }]
+    }
+  } else if (highlight === 'dag_lp') {
+    if (!directed) {
+      setStatus('warn', 'DAG 最大点权路仅支持有向图（请开启右上角「有向图」）')
+    } else {
+      const r = algos.dagMaxNodePath(nodes, edges)
+      if (!r.valid) {
+        setStatus('error', r.reason || '无法计算 DAG 最长路')
+      } else {
+        hl.pathNodes = r.pathNodes
+        hl.pathEdges = r.pathEdges
+        for (const [id, v] of r.dp) hl.nodeSubLabels.set(id, fmtNum(v))
+        setStatus('ok', `DAG 最大点权路径和 = ${fmtNum(r.maxWeight)}`)
+        analysis.metrics = [
+          { label: '最大点权和', value: fmtNum(r.maxWeight) },
+          { label: '路径点数', value: String(r.pathSeq.length) }
+        ]
+        analysis.lists = [
+          { label: '最优路径序列', items: [r.pathSeq.map(nodeName).join(' → ')] },
+          {
+            label: '各点最大到达点权 DP',
+            items: [...r.dp.entries()].sort((a, b) => b[1] - a[1]).map(([id, v]) => `节点 ${nodeName(id)} · dp=${fmtNum(v)}`)
+          }
+        ]
+      }
+    }
+  } else if (highlight === 'scc_dag') {
+    if (!directed) {
+      setStatus('warn', 'SCC 缩点点权 DP 仅支持有向图（请开启右上角「有向图」）')
+    } else {
+      const r = algos.sccDagDp(nodes, edges)
+      if (!r.valid) {
+        setStatus('warn', r.reason || '画布为空')
+      } else {
+        const sccOrder = [...r.sccMembers.keys()].sort((a, b) => (r.sccMembers.get(b).length - r.sccMembers.get(a).length) || (a - b))
+        const colorByScc = new Map()
+        sccOrder.forEach((c, idx) => colorByScc.set(c, palette[idx % palette.length]))
+        for (const n of nodes) {
+          const c = r.comp.get(n.id)
+          if (c != null) hl.compColors.set(n.id, colorByScc.get(c))
+        }
+        hl.pathEdges = r.pathEdges
+        for (const n of nodes) {
+          const c = r.comp.get(n.id)
+          if (r.pathSccs.has(c)) hl.pathNodes.add(n.id)
+        }
+        setStatus('ok', `缩点后 ${r.sccCount} 个分量 · 最大链点权和 = ${fmtNum(r.bestWeight)}`)
+        analysis.metrics = [
+          { label: 'SCC 数量', value: String(r.sccCount) },
+          { label: '最大路径点权和', value: fmtNum(r.bestWeight) }
+        ]
+        const sccLabel = (c) => `SCC#${c + 1}`
+        analysis.lists = [
+          { label: '最优缩点路径', items: [r.bestSccSeq.map((c) => `${sccLabel(c)}(${fmtNum(r.sccWeights.get(c))})`).join(' → ')] },
+          {
+            label: '各强连通分量与点权和',
+            items: sccOrder.map((c) => `${sccLabel(c)} · 权=${fmtNum(r.sccWeights.get(c))} · dp=${fmtNum(r.dp.get(c))} · [${r.sccMembers.get(c).slice().sort(byNumeric).map(nodeName).join(', ')}]`)
+          }
+        ]
+      }
     }
   } else if (highlight === 'matching') {
     const r = algos.maxMatching(nodes, edges)
@@ -461,6 +580,9 @@ function drawEdges(ctx, { nodes, edges, byId, theme, interaction, hl, treeEdgeSe
     } else if (hl.spTree.has(e)) {
       color = theme.accent
       lw = 2.2
+    } else if (hl.pathEdges.has(e)) {
+      color = theme.accent
+      lw = 3
     } else if (treeEdgeSet.has(e)) {
       color = theme.accent
       lw = 3
@@ -607,6 +729,21 @@ function drawNodes(ctx, { nodes, edges, theme, interaction, hl, highlight }) {
         stroke = theme.danger
         lw = 3
       }
+    } else if (hl.selectedNodes.has(n.id)) {
+      fill = accentFill(theme.success || '#16a34a', theme.isDark ? 0.34 : 0.22)
+      stroke = theme.success || '#16a34a'
+      lw = 3
+    } else if (hl.rootNode === n.id) {
+      fill = accentFill(theme.accent, theme.isDark ? 0.36 : 0.24)
+      stroke = theme.accent
+      lw = 3
+    } else if (hl.pathNodes.has(n.id)) {
+      if (!pc) fill = accentFill(theme.accent, theme.isDark ? 0.3 : 0.2)
+      stroke = theme.accent
+      lw = 2.8
+    }
+    if (sub === null && hl.nodeSubLabels.has(n.id)) {
+      sub = hl.nodeSubLabels.get(n.id)
     }
     if (isFocus || isNeighbor || interaction.selected === n || interaction.edgeStart === n) {
       stroke = theme.accent
