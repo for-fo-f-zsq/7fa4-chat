@@ -556,41 +556,129 @@
   color: var(--fg-muted);
 }
 
+.settings-status-bars-wrap {
+  position: relative;
+}
+
+.settings-status-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: var(--tip-left, 50%);
+  transform: translateX(-50%);
+  z-index: var(--z-popover);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: min(360px, 100%);
+  padding: 5px 10px;
+  background: var(--surface-raised);
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elev-2);
+  color: var(--fg);
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.settings-status-tooltip.is-align-left {
+  left: 0;
+  transform: none;
+}
+
+.settings-status-tooltip.is-align-right {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.settings-status-tooltip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--fg-subtle);
+}
+
+.settings-status-tooltip-dot.is-success {
+  background: var(--status-success);
+}
+
+.settings-status-tooltip-dot.is-brand {
+  background: var(--brand-fill);
+}
+
+.settings-status-tooltip-dot.is-warning {
+  background: var(--status-warning);
+}
+
+.settings-status-tooltip-dot.is-danger {
+  background: var(--status-danger);
+}
+
+.settings-status-tooltip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .settings-status-bars {
   display: grid;
   grid-template-columns: repeat(24, minmax(0, 1fr));
   gap: 4px;
   align-items: stretch;
-  height: 24px;
+  height: 28px;
 }
 
 .settings-status-bar {
+  display: flex;
+  align-items: stretch;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+}
+
+.settings-status-bar:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+.settings-status-bar-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
   border-radius: 4px;
   background: var(--line-hairline);
-  transition: transform var(--motion-dur-fast) var(--motion-ease-standard);
+  transition: transform var(--motion-dur-fast) var(--motion-ease-standard),
+    filter var(--motion-dur-fast) var(--motion-ease-standard);
 }
 
-.settings-status-bar:hover {
+.settings-status-bar.is-hovered .settings-status-bar-fill,
+.settings-status-bar:hover .settings-status-bar-fill {
   transform: scaleY(1.16);
+  filter: brightness(1.06);
 }
 
-.settings-status-bar.is-empty {
+.settings-status-bar.is-empty .settings-status-bar-fill {
   opacity: 0.4;
 }
 
-.settings-status-bar.is-success {
+.settings-status-bar.is-success .settings-status-bar-fill {
   background: var(--status-success);
 }
 
-.settings-status-bar.is-brand {
+.settings-status-bar.is-brand .settings-status-bar-fill {
   background: var(--brand-fill);
 }
 
-.settings-status-bar.is-warning {
+.settings-status-bar.is-warning .settings-status-bar-fill {
   background: var(--status-warning);
 }
 
-.settings-status-bar.is-danger {
+.settings-status-bar.is-danger .settings-status-bar-fill {
   background: var(--status-danger);
 }
 

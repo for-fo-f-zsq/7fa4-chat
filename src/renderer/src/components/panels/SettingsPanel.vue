@@ -370,14 +370,32 @@
                 <span class="settings-status-history-title">最近 24 小时状态（按小时 · 可用率）</span>
                 <span class="settings-status-history-meta u-tabular-nums">{{ statusUptimeSummary }}</span>
               </div>
-              <div class="settings-status-bars" role="img" :aria-label="statusUptimeSummary">
-                <span
-                  v-for="slot in statusHourlySlots"
-                  :key="slot.hourTs"
-                  class="settings-status-bar"
-                  :class="`is-${slot.tone}`"
-                  :title="slot.tooltip"
-                ></span>
+              <div class="settings-status-bars-wrap" @mouseleave="clearHoveredSlot">
+                <div
+                  v-if="hoveredSlotInfo"
+                  class="settings-status-tooltip"
+                  :class="hoveredSlotAlignClass"
+                  :style="{ '--tip-left': hoveredSlotLeft }"
+                  role="tooltip"
+                >
+                  <span class="settings-status-tooltip-dot" :class="`is-${hoveredSlotInfo.tone}`" aria-hidden="true"></span>
+                  <span class="settings-status-tooltip-text u-tabular-nums">{{ hoveredSlotInfo.tooltip }}</span>
+                </div>
+                <div class="settings-status-bars" role="img" :aria-label="statusUptimeSummary">
+                  <button
+                    v-for="(slot, idx) in statusHourlySlots"
+                    :key="slot.hourTs"
+                    type="button"
+                    class="settings-status-bar"
+                    :class="[`is-${slot.tone}`, { 'is-hovered': hoveredHourTs === slot.hourTs }]"
+                    :aria-label="slot.tooltip"
+                    @mouseenter="onHoverSlot(slot.hourTs, idx)"
+                    @focus="onHoverSlot(slot.hourTs, idx)"
+                    @blur="onBlurSlot(slot.hourTs)"
+                  >
+                    <span class="settings-status-bar-fill"></span>
+                  </button>
+                </div>
               </div>
               <div class="settings-status-axis">
                 <span>{{ statusAxisStart }}</span>
@@ -849,20 +867,59 @@ const effectOptions = [
 ]
 
 // ---------- 连接状态展示（#6 含历史状态与变更日志） ----------
+const LATENCY_REFRESH_MS = 10 * 1000
 const conn = computed(() => props.connStatus || store.connStatus || {})
 const nowMs = ref(Date.now())
+const slowNowMs = ref(Date.now())
+const displayLatencyMs = ref(null)
+let lastLatencySyncAt = 0
 let statusClockTimer = null
+let statusSlowTimer = null
+
+function syncLatencyDisplay(force = false) {
+  const raw = Number(conn.value.latencyMs)
+  if (!Number.isFinite(raw) || raw < 0) return
+  const now = Date.now()
+  if (force || displayLatencyMs.value === null || now - lastLatencySyncAt >= LATENCY_REFRESH_MS) {
+    displayLatencyMs.value = raw
+    lastLatencySyncAt = now
+  }
+}
+
+watch(
+  () => conn.value.latencyMs,
+  () => {
+    if (displayLatencyMs.value === null) syncLatencyDisplay(true)
+  },
+  { immediate: true }
+)
+
+watch(
+  () => conn.value.state,
+  () => {
+    slowNowMs.value = Date.now()
+  }
+)
 
 onMounted(() => {
+  syncLatencyDisplay(true)
   statusClockTimer = setInterval(() => {
     nowMs.value = Date.now()
   }, 1000)
+  statusSlowTimer = setInterval(() => {
+    slowNowMs.value = Date.now()
+    syncLatencyDisplay(true)
+  }, LATENCY_REFRESH_MS)
 })
 
 onBeforeUnmount(() => {
   if (statusClockTimer) {
     clearInterval(statusClockTimer)
     statusClockTimer = null
+  }
+  if (statusSlowTimer) {
+    clearInterval(statusSlowTimer)
+    statusSlowTimer = null
   }
 })
 
@@ -897,7 +954,7 @@ const serverTile = computed(() => {
 })
 
 const latencyText = computed(() => {
-  const ms = Number(conn.value.latencyMs)
+  const ms = Number(displayLatencyMs.value)
   if (!Number.isFinite(ms) || ms < 0) return '—'
   return `${Math.round(ms)} ms`
 })
@@ -975,7 +1032,7 @@ function stateToneAndLabel(st) {
 }
 
 const statusHourlySlots = computed(() => {
-  const buckets = getConnHourlySnapshot(STATUS_HOURS, nowMs.value)
+  const buckets = getConnHourlySnapshot(STATUS_HOURS, slowNowMs.value)
   return buckets.map((b) => {
     const range = formatHourRange(b.hourTs)
     if (b.totalMs <= 0) {
@@ -1003,8 +1060,43 @@ const statusHourlySlots = computed(() => {
   })
 })
 
+const hoveredHourTs = ref(null)
+const hoveredSlotIdx = ref(-1)
+
+function onHoverSlot(hourTs, idx) {
+  hoveredHourTs.value = hourTs
+  hoveredSlotIdx.value = idx
+}
+
+function onBlurSlot(hourTs) {
+  if (hoveredHourTs.value === hourTs) clearHoveredSlot()
+}
+
+function clearHoveredSlot() {
+  hoveredHourTs.value = null
+  hoveredSlotIdx.value = -1
+}
+
+const hoveredSlotInfo = computed(() => {
+  if (hoveredHourTs.value == null) return null
+  return statusHourlySlots.value.find((s) => s.hourTs === hoveredHourTs.value) || null
+})
+
+const hoveredSlotLeft = computed(() => {
+  const idx = hoveredSlotIdx.value
+  if (idx < 0) return '50%'
+  return `${((idx + 0.5) / STATUS_HOURS) * 100}%`
+})
+
+const hoveredSlotAlignClass = computed(() => {
+  const idx = hoveredSlotIdx.value
+  if (idx >= 0 && idx <= 4) return 'is-align-left'
+  if (idx >= STATUS_HOURS - 5) return 'is-align-right'
+  return ''
+})
+
 const statusUptimeSummary = computed(() => {
-  const buckets = getConnHourlySnapshot(STATUS_HOURS, nowMs.value)
+  const buckets = getConnHourlySnapshot(STATUS_HOURS, slowNowMs.value)
   let okMs = 0
   let totalMs = 0
   for (const b of buckets) {
@@ -1018,7 +1110,7 @@ const statusUptimeSummary = computed(() => {
 })
 
 const statusAxisStart = computed(() => {
-  const buckets = getConnHourlySnapshot(STATUS_HOURS, nowMs.value)
+  const buckets = getConnHourlySnapshot(STATUS_HOURS, slowNowMs.value)
   if (!buckets.length) return '24 小时前'
   const d = new Date(buckets[0].hourTs)
   const pad = (x) => String(x).padStart(2, '0')
@@ -1046,6 +1138,8 @@ function onReconnectClick() {
   emit('reconnect')
   setTimeout(() => {
     reconnectBusy.value = false
+    slowNowMs.value = Date.now()
+    syncLatencyDisplay(true)
   }, 800)
 }
 
