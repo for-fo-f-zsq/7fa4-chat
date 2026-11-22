@@ -98,7 +98,6 @@
     @download="emit('previewDownload')"
     @edit="emit('previewEdit')"
   />
-  <NoticeModal v-if="store.logined" />
 </template>
 
 <script setup>
@@ -115,7 +114,6 @@ import GroupModal from '../modals/GroupModal.vue'
 import ShortcutModal from '../modals/ShortcutModal.vue'
 import InputModal from '../modals/InputModal.vue'
 import AddFriendModal from '../modals/AddFriendModal.vue'
-import NoticeModal from '../modals/NoticeModal.vue'
 
 const props = defineProps({
   pageId: { type: [Number, String], default: null },

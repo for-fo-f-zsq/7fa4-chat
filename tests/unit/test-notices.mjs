@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import {
@@ -66,7 +66,7 @@ assert.equal(fromEnvelope.ok, true)
 assert.equal(fromEnvelope.notices.length, 1)
 assert.equal(parseNoticesPayload({ success: false, notices: [] }).ok, false)
 
-// 4. buildNoticeUpdateUrl supports '1' and '' (empty string to mark unread)
+// 4. buildNoticeUpdateUrl supports '1' and ''
 assert.equal(buildNoticeUpdateUrl(42, 'noticed', '1'), '/notice/42/noticed/1')
 assert.equal(buildNoticeUpdateUrl(42, 'checked', '1'), '/notice/42/checked/1')
 assert.equal(buildNoticeUpdateUrl(42, 'checked', ''), '/notice/42/checked/')
@@ -91,12 +91,14 @@ assert.deepEqual(segs, [
   { type: 'text', text: '，勿信alert(1)坏链接' },
 ])
 
-// 7. Proxy wiring & no auto-dismiss timer check on NoticePopup
+// 7. Proxy wiring, no extra list/nav UI, settings entry, and no auto-dismiss timer on NoticePopup
 const root = resolve(process.cwd())
 const mainSrc = readFileSync(resolve(root, 'src/main/index.js'), 'utf8')
 const viteCfg = readFileSync(resolve(root, 'config/electron.vite.config.js'), 'utf8')
 const webApiSrc = readFileSync(resolve(root, 'src/renderer/src/platform/web-api.js'), 'utf8')
 const popupSrc = readFileSync(resolve(root, 'src/renderer/src/components/modals/NoticePopup.vue'), 'utf8')
+const navSrc = readFileSync(resolve(root, 'src/renderer/src/components/common/NavBar.vue'), 'utf8')
+const settingsSrc = readFileSync(resolve(root, 'src/renderer/src/components/panels/SettingsPanel.vue'), 'utf8')
 
 assert.match(mainSrc, /serverApp\.use\('\/notices'/)
 assert.match(mainSrc, /serverApp\.use\('\/notice'/)
@@ -105,5 +107,9 @@ assert.match(viteCfg, /'\/notice'/)
 assert.match(webApiSrc, /'\/notices'/)
 assert.match(webApiSrc, /'\/notice'/)
 assert.equal(/setTimeout|setInterval/.test(popupSrc), false, 'NoticePopup must not auto-close on a timer')
+assert.equal(existsSync(resolve(root, 'src/renderer/src/components/modals/NoticeModal.vue')), false)
+assert.equal(/useNotices|openNoticeModal|fa-bell/.test(navSrc), false, 'NavBar must not add notice UI')
+assert.match(settingsSrc, /sendTestSiteNotice/)
+assert.match(settingsSrc, /不可关闭/)
 
 console.log('test-notices passed')

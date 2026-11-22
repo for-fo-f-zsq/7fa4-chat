@@ -4,7 +4,6 @@ import { isWebBrowser } from '../../utils/env.js'
 import { safeFetch } from '../../utils/chatSync.js'
 import {
   buildNoticeUpdateUrl,
-  normalizeNoticeFlag,
   parseNoticeTextSegments,
   parseNoticesPayload,
   resolveNoticeJumpUrl,
@@ -13,13 +12,13 @@ import {
 const DEFAULT_API_URL = 'https://jx.7fa4.cn'
 
 const noticeState = reactive({
-  modalOpen: false,
   loading: false,
   error: '',
   pendingActionIds: {},
 })
 
 let fetchInflight = null
+let testNoticeSeq = 0
 
 export function getNoticeOriginBase() {
   if (isWebBrowser() && typeof location !== 'undefined') return location.origin
@@ -87,7 +86,7 @@ async function requestNoticeMutation(url) {
 
 export async function fetchNotices({ silent = true } = {}) {
   if (!store.logined) {
-    store.notices = []
+    store.notices = (store.notices || []).filter((n) => n._isTest && !n.noticed)
     return { ok: false, notices: [] }
   }
   if (fetchInflight) return fetchInflight
@@ -99,7 +98,8 @@ export async function fetchNotices({ silent = true } = {}) {
       const data = await res.json()
       const parsed = parseNoticesPayload(data)
       if (parsed.ok) {
-        store.notices = parsed.notices
+        const localTests = (store.notices || []).filter((n) => n._isTest && !n.noticed)
+        store.notices = [...localTests, ...parsed.notices]
         noticeState.error = ''
       } else if (!silent) {
         noticeState.error = data?.err?.message || data?.message || '获取通知失败'
@@ -116,44 +116,56 @@ export async function fetchNotices({ silent = true } = {}) {
   return fetchInflight
 }
 
-export async function setNoticeField(id, field, result) {
+export async function confirmNoticed(id) {
   const nid = Number(id)
-  if (!Number.isInteger(nid) || nid <= 0) return { success: false, message: '无效的通知编号' }
-  const key = `${field}:${nid}`
+  if (!Number.isInteger(nid) || nid === 0) return { success: false, message: '无效的通知编号' }
+  const target = Array.isArray(store.notices) ? store.notices.find((n) => n.id === nid) : null
+
+  if (nid < 0 || target?._isTest) {
+    store.notices = (store.notices || []).filter((n) => n.id !== nid)
+    noticeState.error = ''
+    return { success: true }
+  }
+
+  const key = `noticed:${nid}`
   if (noticeState.pendingActionIds[key]) return { success: false, busy: true }
 
-  const nextValue = normalizeNoticeFlag(result)
-  const url = buildNoticeUpdateUrl(nid, field, nextValue ? '1' : '')
+  const url = buildNoticeUpdateUrl(nid, 'noticed', '1')
   noticeState.pendingActionIds[key] = true
   noticeState.error = ''
   try {
     const res = await requestNoticeMutation(url)
     if (!res.success) {
-      noticeState.error = res.message || '更新通知状态失败'
+      noticeState.error = res.message || '确认通知失败'
       return res
     }
-    const target = Array.isArray(store.notices) ? store.notices.find((n) => n.id === nid) : null
-    if (target) target[field] = nextValue
+    if (target) target.noticed = true
     return { success: true }
   } finally {
     delete noticeState.pendingActionIds[key]
   }
 }
 
-export async function markAllNoticesChecked() {
-  const list = (store.notices || []).filter((n) => !n.checked)
-  if (!list.length) return { success: true, count: 0 }
-  let done = 0
-  for (const item of list) {
-    const res = await setNoticeField(item.id, 'checked', '1')
-    if (res.success) done++
+export function sendTestSiteNotice() {
+  testNoticeSeq += 1
+  const existing = (store.notices || []).filter((n) => !n._isTest)
+  const testNotice = {
+    id: -testNoticeSeq,
+    user_id: store.self?.uid || 0,
+    date: Math.floor(Date.now() / 1000),
+    notice_text: '这是一条站点测试通知：有未读通知时将在右下角强制显示，不定时关闭，请手动点击「已读 / 确认」。',
+    jump_url: '',
+    checked: false,
+    noticed: false,
+    _isTest: true,
   }
-  return { success: done === list.length, count: done }
+  store.notices = [testNotice, ...existing]
+  noticeState.error = ''
+  return testNotice
 }
 
 export function resetNoticeState() {
   store.notices = []
-  noticeState.modalOpen = false
   noticeState.loading = false
   noticeState.error = ''
   for (const k of Object.keys(noticeState.pendingActionIds)) {
@@ -161,38 +173,20 @@ export function resetNoticeState() {
   }
 }
 
-export function openNoticeModal() {
-  noticeState.modalOpen = true
-  fetchNotices({ silent: false })
-}
-
-export function closeNoticeModal() {
-  noticeState.modalOpen = false
-}
-
 export function useNotices() {
   const notices = computed(() => store.notices || [])
   const unNoticedList = computed(() => notices.value.filter((n) => !n.noticed))
   const currentPopupNotice = computed(() => unNoticedList.value[0] || null)
-  const uncheckedCount = computed(() => notices.value.filter((n) => !n.checked).length)
-  const hasUnreadOrPending = computed(() => uncheckedCount.value > 0 || unNoticedList.value.length > 0)
-
-  const isPending = (id, field) => Boolean(noticeState.pendingActionIds[`${field}:${id}`])
+  const isPending = (id) => Boolean(noticeState.pendingActionIds[`noticed:${id}`])
 
   return {
     noticeState,
     notices,
     unNoticedList,
     currentPopupNotice,
-    uncheckedCount,
-    hasUnreadOrPending,
     isPending,
-    fetchNotices,
-    confirmNoticed: (id) => setNoticeField(id, 'noticed', '1'),
-    markNoticeChecked: (id, checked = true) => setNoticeField(id, 'checked', checked ? '1' : ''),
-    markAllNoticesChecked,
-    openNoticeModal,
-    closeNoticeModal,
+    confirmNoticed,
+    sendTestSiteNotice,
     openNoticeJumpUrl,
     formatNoticeSegments,
     getNoticeJumpHref,

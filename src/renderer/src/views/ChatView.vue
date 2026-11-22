@@ -126,7 +126,7 @@
     </div>
   </div>
 
-  <NoticePopup :visible="store.logined" :narrow="isNarrowLayout" />
+  <NoticePopup :narrow="isNarrowLayout" />
 
   <ChatModalHost
     ref="modalHostRef"

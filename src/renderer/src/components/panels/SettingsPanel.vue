@@ -205,6 +205,37 @@
           </section>
 
           <section class="p-panel-section">
+            <h3 class="p-panel-section__title">站点通知</h3>
+            <p class="settings-section-desc">
+              自动轮询 OJ 站点未读通知。收到未读通知时将在右下角强制弹出，不设定时自动关闭，必须手动点击「已读 / 确认」。
+            </p>
+
+            <SettingRow
+              label="右下角强制通知"
+              description="站点通知功能始终开启，不可关闭"
+            >
+              <UiBadge size="sm" variant="brand">不可关闭</UiBadge>
+            </SettingRow>
+
+            <SettingRow
+              label="发送测试通知"
+              description="立即在右下角弹出一条测试站点通知，用于验证强提示弹窗与手动「已读 / 确认」交互"
+              clickable
+              @activate="onSendSiteTestNotice"
+            >
+              <UiButton
+                size="sm"
+                variant="secondary"
+                icon="fas fa-bell"
+                aria-label="发送测试通知"
+                @click.stop="onSendSiteTestNotice"
+              >
+                发送测试通知
+              </UiButton>
+            </SettingRow>
+          </section>
+
+          <section class="p-panel-section">
             <h3 class="p-panel-section__title">声音与提醒</h3>
             <p class="settings-section-desc">用什么方式提示我，以及哪些消息值得打扰。</p>
 
@@ -692,6 +723,7 @@ import {
   localGradeColorKey,
 } from '@/utils.js'
 import { previewNotificationSound, sendTestNotification } from '@/utils/notify.js'
+import { sendTestSiteNotice } from '@/composables/chat/useNotices.js'
 import { useDataBackup } from '@/composables/modals/useDataBackup.js'
 import { useThemeEditor } from '@/composables/modals/useThemeEditor.js'
 import PanelShell from '@/components/common/PanelShell.vue'
@@ -1202,6 +1234,10 @@ async function onSendTestNotification() {
   } finally {
     testNotifBusy.value = false
   }
+}
+
+function onSendSiteTestNotice() {
+  sendTestSiteNotice()
 }
 
 // 拖动滑块会连发 update，节流到 200ms 一次：既不叠成噪音，又能边拖边听到音量
