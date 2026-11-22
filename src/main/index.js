@@ -55,6 +55,8 @@ const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 const OWN_LOCAL_PAGES = [
     'out/renderer/timer-float.html',
     'src/renderer/timer-float.html',
+    'out/renderer/site-notice.html',
+    'src/renderer/site-notice.html',
     'out/renderer/tool-window.html',
     'src/renderer/tool-window.html'
 ];
@@ -97,6 +99,7 @@ function isAllowedSender(event, targets = 'main') {
         if (t === 'main') return matchesAppWindow(mainWindow, event);
         if (t === 'tool') return !!(toolWindowManager && toolWindowManager.isToolWebContents(event.sender));
         if (t === 'timer-float') return matchesAppWindow(timerFloatWin, event);
+        if (t === 'site-notice') return matchesAppWindow(siteNoticeWin, event);
         return false;
     });
     if (!matched) return false;
@@ -163,6 +166,7 @@ function getWindowIconPath() {
 
 function closeAuxiliaryWindows() {
   try { closeTimerFloat(); } catch {}
+  try { closeSiteNoticeWindow(); } catch {}
   try { if (toolWindowManager) toolWindowManager.closeAll(); } catch {}
 }
 
@@ -1111,6 +1115,124 @@ ipcMain.on('timer-float-cmd', (event, payload) => {
     if (type === 'close') { closeTimerFloat(); return; }
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('timer-float-command', payload);
     if (toolWindowManager) toolWindowManager.broadcast('timer-float-command', payload);
+});
+
+// ========== 屏幕右下角强制站点通知窗（file://renderer/site-notice.html） ==========
+const SITE_NOTICE_WIDTH = 380;
+const SITE_NOTICE_MIN_H = 120;
+const SITE_NOTICE_MAX_H = 440;
+const SITE_NOTICE_MARGIN = 16;
+let siteNoticeHeight = 168;
+let siteNoticeWin = null;
+let siteNoticeState = null;
+
+function siteNoticePagePath() {
+    return app.isPackaged
+        ? path.join(__dirname, '../renderer/site-notice.html')
+        : path.join(app.getAppPath(), 'src/renderer/site-notice.html');
+}
+
+function siteNoticeBottomRightPos(height = siteNoticeHeight) {
+    const { workArea } = screen.getPrimaryDisplay();
+    return {
+        x: workArea.x + workArea.width - SITE_NOTICE_WIDTH - SITE_NOTICE_MARGIN,
+        y: workArea.y + workArea.height - height - SITE_NOTICE_MARGIN
+    };
+}
+
+function closeSiteNoticeWindow() {
+    siteNoticeState = null;
+    if (siteNoticeWin && !siteNoticeWin.isDestroyed()) {
+        try { siteNoticeWin.destroy(); } catch {}
+    }
+    siteNoticeWin = null;
+}
+
+function openOrUpdateSiteNoticeWindow(payload) {
+    siteNoticeState = payload;
+    if (siteNoticeWin && !siteNoticeWin.isDestroyed()) {
+        try { siteNoticeWin.webContents.send('site-notice-state', siteNoticeState); } catch {}
+        const pos = siteNoticeBottomRightPos(siteNoticeHeight);
+        try {
+            siteNoticeWin.setBounds({ x: pos.x, y: pos.y, width: SITE_NOTICE_WIDTH, height: siteNoticeHeight });
+            if (!siteNoticeWin.isVisible()) siteNoticeWin.showInactive();
+        } catch {}
+        return;
+    }
+
+    const pos = siteNoticeBottomRightPos(siteNoticeHeight);
+    siteNoticeWin = new BrowserWindow({
+        width: SITE_NOTICE_WIDTH,
+        height: siteNoticeHeight,
+        x: pos.x,
+        y: pos.y,
+        frame: false,
+        transparent: true,
+        resizable: false,
+        maximizable: false,
+        minimizable: false,
+        fullscreenable: false,
+        closable: false,
+        skipTaskbar: true,
+        hasShadow: false,
+        alwaysOnTop: true,
+        show: false,
+        webPreferences: {
+            preload: path.join(__dirname, '../preload/site-notice.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true
+        }
+    });
+    siteNoticeWin.setAlwaysOnTop(true, 'floating');
+    siteNoticeWin.on('closed', () => {
+        siteNoticeWin = null;
+    });
+    siteNoticeWin.loadFile(siteNoticePagePath());
+    siteNoticeWin.webContents.on('did-finish-load', () => {
+        if (!siteNoticeWin || siteNoticeWin.isDestroyed()) return;
+        if (!siteNoticeState) { closeSiteNoticeWindow(); return; }
+        siteNoticeWin.webContents.send('site-notice-state', siteNoticeState);
+        siteNoticeWin.showInactive();
+    });
+}
+
+ipcMain.on('site-notice-sync', (event, payload) => {
+    if (!isAllowedSender(event, 'main')) return;
+    if (!payload || !payload.notice) {
+        closeSiteNoticeWindow();
+        return;
+    }
+    openOrUpdateSiteNoticeWindow(payload);
+});
+
+ipcMain.on('site-notice-resize', (event, raw) => {
+    if (!isAllowedSender(event, 'site-notice')) return;
+    const h = Math.round(Number(raw));
+    if (!Number.isFinite(h) || h <= 0) return;
+    const next = Math.min(SITE_NOTICE_MAX_H, Math.max(SITE_NOTICE_MIN_H, h));
+    if (next === siteNoticeHeight && (!siteNoticeWin || siteNoticeWin.isDestroyed())) return;
+    siteNoticeHeight = next;
+    if (!siteNoticeWin || siteNoticeWin.isDestroyed()) return;
+    const pos = siteNoticeBottomRightPos(next);
+    siteNoticeWin.setBounds({ x: pos.x, y: pos.y, width: SITE_NOTICE_WIDTH, height: next });
+});
+
+ipcMain.on('site-notice-cmd', (event, payload) => {
+    if (!isAllowedSender(event, 'site-notice')) return;
+    if (!payload || typeof payload !== 'object') return;
+    if (payload.type === 'confirm') {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('site-notice-confirm', payload.id);
+        }
+        return;
+    }
+    if (payload.type === 'jump') {
+        try {
+            const u = new URL(String(payload.url || ''));
+            if (SAFE_URL_PROTOCOLS.has(u.protocol)) shell.openExternal(u.href);
+        } catch {}
+    }
 });
 
 // ========== 独立工具窗口 IPC（#25） ==========

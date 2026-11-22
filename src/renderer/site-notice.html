@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>站点通知</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    background: transparent;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
+    user-select: text;
+  }
+  #root {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(24, 28, 36, 0.94);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(96, 165, 250, 0.35);
+    color: #F3F6FC;
+  }
+  .head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    background: rgba(59, 130, 246, 0.22);
+    color: #7DB5FF;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .title-wrap {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
+  }
+  .title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #FFFFFF;
+    white-space: nowrap;
+  }
+  .time {
+    font-size: 11px;
+    color: #9CA6B8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .badges {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.22);
+    color: #93C5FD;
+    border: 1px solid rgba(96, 165, 250, 0.35);
+    white-space: nowrap;
+  }
+  .badge.warn {
+    background: rgba(245, 158, 11, 0.2);
+    color: #FCD34D;
+    border-color: rgba(245, 158, 11, 0.38);
+  }
+  .body {
+    font-size: 13px;
+    line-height: 1.55;
+    color: #E8EEF8;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 220px;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+  .body::-webkit-scrollbar { width: 5px; }
+  .body::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+  }
+  .body a {
+    color: #7DB5FF;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .error {
+    display: none;
+    font-size: 11.5px;
+    color: #FCA5A5;
+    background: rgba(239, 68, 68, 0.16);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-radius: 6px;
+    padding: 5px 8px;
+  }
+  .error.show { display: block; }
+  .footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-top: 2px;
+  }
+  .hint {
+    font-size: 11px;
+    color: #9CA6B8;
+  }
+  .actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+  button {
+    border: none;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.14s ease, opacity 0.14s ease, transform 0.1s ease;
+  }
+  button:active:not(:disabled) { transform: scale(0.97); }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #E8EEF8;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+  }
+  .btn-secondary:hover:not(:disabled) { background: rgba(255, 255, 255, 0.18); }
+  .btn-primary {
+    background: #3B82F6;
+    color: #FFFFFF;
+  }
+  .btn-primary:hover:not(:disabled) { background: #2563EB; }
+</style>
+</head>
+<body>
+  <div id="root" role="alertdialog" aria-live="assertive" aria-label="系统通知">
+    <div class="head">
+      <span class="icon" aria-hidden="true">!</span>
+      <div class="title-wrap">
+        <span class="title">未读通知</span>
+        <span id="time" class="time"></span>
+      </div>
+      <div class="badges">
+        <span id="test-badge" class="badge warn" style="display: none;">测试</span>
+        <span id="count-badge" class="badge" style="display: none;"></span>
+      </div>
+    </div>
+    <div id="body" class="body"></div>
+    <div id="error" class="error"></div>
+    <div class="footer">
+      <span class="hint">不定时关闭，请手动确认</span>
+      <div class="actions">
+        <button id="jump-btn" type="button" class="btn-secondary" style="display: none;">查看页面</button>
+        <button id="confirm-btn" type="button" class="btn-primary">已读 / 确认</button>
+      </div>
+    </div>
+  </div>
+  <script>
+  (function () {
+    const rootEl = document.getElementById('root');
+    const timeEl = document.getElementById('time');
+    const testBadgeEl = document.getElementById('test-badge');
+    const countBadgeEl = document.getElementById('count-badge');
+    const bodyEl = document.getElementById('body');
+    const errorEl = document.getElementById('error');
+    const jumpBtn = document.getElementById('jump-btn');
+    const confirmBtn = document.getElementById('confirm-btn');
+
+    let currentNotice = null;
+    let lastReportedHeight = 0;
+
+    function reportSize() {
+      if (!window.siteNotice) return;
+      const h = Math.ceil(rootEl.getBoundingClientRect().height || rootEl.offsetHeight || 0);
+      if (h > 0 && h !== lastReportedHeight) {
+        lastReportedHeight = h;
+        window.siteNotice.resize(h);
+      }
+    }
+
+    function renderBody(segments) {
+      bodyEl.textContent = '';
+      if (!Array.isArray(segments)) return;
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i];
+        if (!seg) continue;
+        if (seg.type === 'link' && seg.url) {
+          const a = document.createElement('a');
+          a.textContent = String(seg.text || seg.url);
+          a.href = '#';
+          a.addEventListener('click', function (e) {
+            e.preventDefault();
+            window.siteNotice && window.siteNotice.openJump(seg.url);
+          });
+          bodyEl.appendChild(a);
+        } else {
+          bodyEl.appendChild(document.createTextNode(String(seg.text || '')));
+        }
+      }
+    }
+
+    function applyState(payload) {
+      const data = payload || {};
+      const notice = data.notice || null;
+      currentNotice = notice;
+      if (!notice) return;
+
+      timeEl.textContent = notice.relTimeText || '';
+      timeEl.title = notice.fullTimeText || '';
+      testBadgeEl.style.display = notice.isTest ? '' : 'none';
+
+      const total = Number(data.totalPending) || 0;
+      if (total > 1) {
+        countBadgeEl.textContent = '还有 ' + total + ' 条';
+        countBadgeEl.style.display = '';
+      } else {
+        countBadgeEl.style.display = 'none';
+      }
+
+      renderBody(notice.segments);
+
+      if (notice.jumpHref) {
+        jumpBtn.style.display = '';
+      } else {
+        jumpBtn.style.display = 'none';
+      }
+
+      if (data.error) {
+        errorEl.textContent = String(data.error);
+        errorEl.classList.add('show');
+      } else {
+        errorEl.textContent = '';
+        errorEl.classList.remove('show');
+      }
+
+      const pending = Boolean(data.pending);
+      confirmBtn.disabled = pending;
+      confirmBtn.textContent = pending ? '确认中…' : '已读 / 确认';
+
+      requestAnimationFrame(reportSize);
+    }
+
+    jumpBtn.addEventListener('click', function () {
+      if (!currentNotice || !currentNotice.jumpHref || !window.siteNotice) return;
+      window.siteNotice.openJump(currentNotice.jumpHref);
+    });
+
+    confirmBtn.addEventListener('click', function () {
+      if (!currentNotice || !window.siteNotice) return;
+      window.siteNotice.confirm(currentNotice.id);
+    });
+
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(function () { requestAnimationFrame(reportSize); }).observe(rootEl);
+    }
+    window.addEventListener('load', reportSize);
+
+    if (window.siteNotice) {
+      window.siteNotice.onState(applyState);
+    }
+  })();
+  </script>
+</body>
+</html>

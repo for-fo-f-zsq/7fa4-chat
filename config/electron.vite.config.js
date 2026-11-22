@@ -76,7 +76,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/preload/index.js'),
-          'timer-float': resolve('src/preload/timer-float.js')
+          'timer-float': resolve('src/preload/timer-float.js'),
+          'site-notice': resolve('src/preload/site-notice.js')
         }
       }
     }
@@ -96,6 +97,7 @@ export default defineConfig({
         input: {
           index: resolve('src/renderer/index.html'),
           'timer-float': resolve('src/renderer/timer-float.html'),
+          'site-notice': resolve('src/renderer/site-notice.html'),
           'tool-window': resolve('src/renderer/tool-window.html')
         }
       }

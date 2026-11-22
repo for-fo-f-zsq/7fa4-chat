@@ -153,4 +153,7 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('timer-float-moved', handler);
     return () => ipcRenderer.removeListener('timer-float-moved', handler);
   },
+  // --- 屏幕右下角强制站点通知窗（桌面端，由主进程定位到屏幕工作区右下角） ---
+  syncSiteNotice: (payload) => ipcRenderer.send('site-notice-sync', payload),
+  onSiteNoticeConfirm: (callback) => subscribeIpc('site-notice-confirm', callback),
 });

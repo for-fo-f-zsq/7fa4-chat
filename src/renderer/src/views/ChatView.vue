@@ -126,7 +126,7 @@
     </div>
   </div>
 
-  <NoticePopup :narrow="isNarrowLayout" />
+  <NoticePopup v-if="!hasDesktopNoticeWindow" :narrow="isNarrowLayout" />
 
   <ChatModalHost
     ref="modalHostRef"
@@ -161,7 +161,7 @@
 <style scoped src="../css/components/chat-view.css"></style>
 
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { store } from '../store.js'
 import { UiBanner } from '../ui'
 
@@ -182,6 +182,7 @@ import UpdatePanel from '../components/panels/UpdatePanel.vue'
 import DonatePanel from '../components/panels/DonatePanel.vue'
 import ToolsView from './ToolsView.vue'
 import { useChatWorkspace } from '../composables/chat/useChatWorkspace.js'
+import { bindDesktopSiteNoticeBridge, hasDesktopSiteNoticeWindow } from '../composables/chat/useNotices.js'
 
 const messageListRef = ref(null)
 const inputFooterRef = ref(null)
@@ -218,4 +219,10 @@ const {
   startForward, onForwardConfirm, closeForwardModal, onImageToolSend, onDropFile,
   sendPat, onPollVote, batchForward, onOpenPreview, onPreviewCopy, onPreviewForward, onPreviewDownload, onPreviewEdit,
 } = chatActions
+
+const hasDesktopNoticeWindow = hasDesktopSiteNoticeWindow()
+const stopDesktopSiteNoticeBridge = hasDesktopNoticeWindow ? bindDesktopSiteNoticeBridge() : () => {}
+onBeforeUnmount(() => {
+  stopDesktopSiteNoticeBridge()
+})
 </script>

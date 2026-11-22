@@ -1,6 +1,7 @@
-import { computed, reactive } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import { store } from '../../store.js'
 import { isWebBrowser } from '../../utils/env.js'
+import { gettime1, gettime2 } from '../../utils/format.js'
 import { safeFetch } from '../../utils/chatSync.js'
 import {
   buildNoticeUpdateUrl,
@@ -170,6 +171,54 @@ export function resetNoticeState() {
   noticeState.error = ''
   for (const k of Object.keys(noticeState.pendingActionIds)) {
     delete noticeState.pendingActionIds[k]
+  }
+}
+
+export function hasDesktopSiteNoticeWindow() {
+  return typeof window !== 'undefined' && typeof window.api?.syncSiteNotice === 'function'
+}
+
+export function bindDesktopSiteNoticeBridge() {
+  if (!hasDesktopSiteNoticeWindow()) return () => {}
+
+  const payload = computed(() => {
+    const unNoticed = (store.notices || []).filter((n) => !n.noticed)
+    const cur = unNoticed[0] || null
+    if (!cur || (!store.logined && !cur._isTest)) return null
+    return {
+      notice: {
+        id: cur.id,
+        relTimeText: cur.date ? gettime1(cur.date) : '',
+        fullTimeText: cur.date ? gettime2(cur.date) : '',
+        isTest: Boolean(cur._isTest),
+        segments: parseNoticeTextSegments(cur.notice_text, getNoticeOriginBase()).map((s) => ({ ...s })),
+        jumpHref: resolveNoticeJumpUrl(cur.jump_url, getNoticeOriginBase()),
+      },
+      totalPending: unNoticed.length,
+      error: String(noticeState.error || ''),
+      pending: Boolean(noticeState.pendingActionIds[`noticed:${cur.id}`]),
+    }
+  })
+
+  const stopWatch = watch(
+    payload,
+    (next) => {
+      try { window.api.syncSiteNotice(next) } catch {}
+    },
+    { immediate: true },
+  )
+
+  const offConfirm =
+    typeof window.api.onSiteNoticeConfirm === 'function'
+      ? window.api.onSiteNoticeConfirm((id) => {
+          confirmNoticed(id)
+        })
+      : () => {}
+
+  return () => {
+    stopWatch()
+    offConfirm()
+    try { window.api.syncSiteNotice(null) } catch {}
   }
 }
 
