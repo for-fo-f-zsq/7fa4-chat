@@ -1154,8 +1154,10 @@ function openOrUpdateSiteNoticeWindow(payload) {
         try { siteNoticeWin.webContents.send('site-notice-state', siteNoticeState); } catch {}
         const pos = siteNoticeBottomRightPos(siteNoticeHeight);
         try {
+            siteNoticeWin.setAlwaysOnTop(true, 'screen-saver');
             siteNoticeWin.setBounds({ x: pos.x, y: pos.y, width: SITE_NOTICE_WIDTH, height: siteNoticeHeight });
             if (!siteNoticeWin.isVisible()) siteNoticeWin.showInactive();
+            else siteNoticeWin.moveTop();
         } catch {}
         return;
     }
@@ -1184,7 +1186,8 @@ function openOrUpdateSiteNoticeWindow(payload) {
             sandbox: true
         }
     });
-    siteNoticeWin.setAlwaysOnTop(true, 'floating');
+    siteNoticeWin.setAlwaysOnTop(true, 'screen-saver');
+    try { siteNoticeWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch {}
     siteNoticeWin.on('closed', () => {
         siteNoticeWin = null;
     });
@@ -1193,7 +1196,9 @@ function openOrUpdateSiteNoticeWindow(payload) {
         if (!siteNoticeWin || siteNoticeWin.isDestroyed()) return;
         if (!siteNoticeState) { closeSiteNoticeWindow(); return; }
         siteNoticeWin.webContents.send('site-notice-state', siteNoticeState);
+        siteNoticeWin.setAlwaysOnTop(true, 'screen-saver');
         siteNoticeWin.showInactive();
+        siteNoticeWin.moveTop();
     });
 }
 
