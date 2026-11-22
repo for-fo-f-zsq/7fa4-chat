@@ -572,7 +572,14 @@ await test('main/index.js: 退出flush、原生通知、自启动、工具锁与
     assert.equal(inst2.success, true)
     assert.equal(toolWin.destroyed, true, '更新工具前应关闭对应独立工具窗')
 
-    // 6) save-setting 开机自启动
+    // 6) save-setting 开机自启动（默认开启，可关闭后再开启）
+    if (process.platform === 'win32' || process.platform === 'darwin') {
+      assert.equal(loginItems.at(-1).openAtLogin, true, '开机自启动默认应开启')
+    }
+    await ipcHandlers.get('save-setting')(mainEvent, { launchAtStartup: false })
+    if (process.platform === 'win32' || process.platform === 'darwin') {
+      assert.equal(loginItems.at(-1).openAtLogin, false)
+    }
     await ipcHandlers.get('save-setting')(mainEvent, { launchAtStartup: true })
     if (process.platform === 'win32' || process.platform === 'darwin') {
       assert.equal(loginItems.at(-1).openAtLogin, true)

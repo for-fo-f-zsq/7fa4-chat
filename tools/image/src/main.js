@@ -10,4 +10,8 @@ import '../../shared/tool-base.css'
 import { createApp } from 'vue'
 import ImageTool from '../../../src/renderer/src/views/tools/image/ImageTool.vue'
 
-createApp(ImageTool).mount('#app')
+createApp(ImageTool, {
+  onSendImage: (payload) => {
+    window.__toolBridge?.emitEvent?.('sendImage', payload)
+  }
+}).mount('#app')

@@ -364,6 +364,39 @@
                 </span>
               </div>
             </div>
+
+            <div class="settings-status-history">
+              <div class="settings-status-history-head">
+                <span class="settings-status-history-title">近期状态记录</span>
+                <span class="settings-status-history-meta u-tabular-nums">{{ statusUptimeSummary }}</span>
+              </div>
+              <div class="settings-status-bars" role="img" :aria-label="statusUptimeSummary">
+                <span
+                  v-for="(slot, idx) in statusTimelineSlots"
+                  :key="idx"
+                  class="settings-status-bar"
+                  :class="`is-${slot.tone}`"
+                  :title="slot.tooltip"
+                ></span>
+              </div>
+              <div class="settings-status-axis">
+                <span>{{ statusAxisStart }}</span>
+                <span>现在</span>
+              </div>
+
+              <div v-if="statusRecentEvents.length" class="settings-status-events">
+                <div
+                  v-for="(evt, idx) in statusRecentEvents"
+                  :key="`${evt.ts}-${idx}`"
+                  class="settings-status-event"
+                >
+                  <span class="settings-status-event-dot" :class="`is-${evt.tone}`" aria-hidden="true"></span>
+                  <span class="settings-status-event-time u-tabular-nums">{{ evt.timeText }}</span>
+                  <span class="settings-status-event-title">{{ evt.title }}</span>
+                  <span v-if="evt.detail" class="settings-status-event-detail">{{ evt.detail }}</span>
+                </div>
+              </div>
+            </div>
           </section>
 
           <section class="p-panel-section">
@@ -381,20 +414,6 @@
                 :options="apiUrlOptions"
                 aria-label="API 地址"
                 @update:model-value="selectApiUrl"
-              />
-            </SettingRow>
-
-            <SettingRow
-              v-if="!isWeb"
-              label="历史消息拉取范围"
-              description="仅拉取最近 30 天可加快首次同步速度；切换为「全部」后将后台补全更早历史"
-            >
-              <UiDropdown
-                class="settings-select"
-                :model-value="syncRangeValue"
-                :options="syncRangeOptions"
-                aria-label="历史消息拉取范围"
-                @update:model-value="onSettingChange('syncRange', $event)"
               />
             </SettingRow>
 
@@ -554,7 +573,7 @@
               description="登录系统后自动启动 7FA4 Chat（若开启「保持后台运行」，将静默启动到系统托盘）"
             >
               <UiSwitch
-                :model-value="!!setting.launchAtStartup"
+                :model-value="setting.launchAtStartup !== false"
                 aria-label="开机自启动"
                 @update:model-value="onSettingChange('launchAtStartup', $event)"
               />
@@ -817,20 +836,13 @@ const apiUrlOptions = [
   { value: 'https://in.7fa4.cn', label: 'in.7fa4.cn', color: '#12B7F5' },
 ]
 
-const syncRangeOptions = [
-  { value: '30d', label: '最近 30 天（默认）' },
-  { value: 'all', label: '全部历史' },
-]
-
 const effectOptions = [
   { value: 'performance', label: '性能', desc: '无粒子和鼠标渐变', icon: 'fas fa-bolt' },
   { value: 'efficiency', label: '效率', desc: '无粒子效果', icon: 'fas fa-feather' },
   { value: 'fancy', label: '精美', desc: '全部效果', icon: 'fas fa-magic' },
 ]
 
-const syncRangeValue = computed(() => (props.setting?.syncRange === 'all' ? 'all' : '30d'))
-
-// ---------- 连接状态展示（#6） ----------
+// ---------- 连接状态展示（#6 含历史状态与变更日志） ----------
 const conn = computed(() => props.connStatus || store.connStatus || {})
 const nowMs = ref(Date.now())
 let statusClockTimer = null
@@ -912,6 +924,72 @@ const cooldownText = computed(() => {
   const s = leftSec % 60
   const span = m > 0 ? `${m} 分 ${s} 秒` : `${s} 秒`
   return `静默重试冷却中（剩余 ${span}），点击「立即重连 / 刷新」可跳过等待`
+})
+
+const STATUS_SLOTS = 36
+function formatClockTime(rawTs) {
+  const ts = normalizeTsMs(rawTs)
+  if (!ts) return ''
+  const d = new Date(ts)
+  const pad = (x) => String(x).padStart(2, '0')
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+function stateToneAndLabel(st) {
+  if (st === 'ok') return { tone: 'success', label: '正常' }
+  if (st === 'connecting') return { tone: 'brand', label: '连接中' }
+  if (st === 'reconnecting') return { tone: 'warning', label: '重连中' }
+  if (st === 'rejected') return { tone: 'danger', label: '会话拒绝' }
+  if (st === 'offline') return { tone: 'danger', label: '离线' }
+  return { tone: 'neutral', label: '未记录' }
+}
+
+const statusTimelineSlots = computed(() => {
+  const hist = Array.isArray(conn.value.history) ? conn.value.history.slice(-STATUS_SLOTS) : []
+  const padCount = Math.max(0, STATUS_SLOTS - hist.length)
+  const slots = []
+  for (let i = 0; i < padCount; i++) {
+    slots.push({ tone: 'empty', tooltip: '暂无采样记录' })
+  }
+  for (const item of hist) {
+    const info = stateToneAndLabel(item.state)
+    const timeText = formatClockTime(item.ts)
+    const lat = Number.isFinite(Number(item.latencyMs)) ? ` · ${Math.round(item.latencyMs)} ms` : ''
+    const err = item.error ? ` · ${item.error}` : ''
+    slots.push({
+      tone: info.tone,
+      tooltip: `${timeText} · ${info.label}${lat}${err}`,
+    })
+  }
+  return slots
+})
+
+const statusUptimeSummary = computed(() => {
+  const hist = Array.isArray(conn.value.history) ? conn.value.history : []
+  if (!hist.length) return isLoggedIn.value ? '等待首次采样…' : '未登录'
+  const okCount = hist.filter((x) => x.state === 'ok').length
+  const pct = Math.round((okCount / hist.length) * 100)
+  return `最近 ${hist.length} 次采样 · 可用率 ${pct}%`
+})
+
+const statusAxisStart = computed(() => {
+  const hist = Array.isArray(conn.value.history) ? conn.value.history.slice(-STATUS_SLOTS) : []
+  if (!hist.length) return '更早'
+  return formatClockTime(hist[0].ts) || '更早'
+})
+
+const statusRecentEvents = computed(() => {
+  const events = Array.isArray(conn.value.events) ? conn.value.events : []
+  return events.slice(0, 6).map((evt) => {
+    const info = stateToneAndLabel(evt.state)
+    return {
+      ts: evt.ts,
+      tone: info.tone,
+      timeText: formatClockTime(evt.ts),
+      title: evt.title || info.label,
+      detail: evt.detail || '',
+    }
+  })
 })
 
 const reconnectBusy = ref(false)

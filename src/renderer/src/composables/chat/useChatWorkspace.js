@@ -84,6 +84,8 @@ export function useChatWorkspace({
     getPage: () => ({ pageType: nav.pageType.value, pageId: nav.pageId.value }),
     getInputFooter: () => inputFooterRef.value,
     onExitMultiSelect: () => messageListRef.value?.exitMultiSelect(),
+    onOpenTool: nav.onOpenTool,
+    openToolsPage: () => nav.switchPage('tools'),
   })
   chatActions.forwardModalRef.value = { focus: () => modalHostRef.value?.focusForward?.() }
 

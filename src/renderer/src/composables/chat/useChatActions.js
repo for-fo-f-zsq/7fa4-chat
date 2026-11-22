@@ -1,5 +1,6 @@
 import { ref, reactive, nextTick, getCurrentInstance, onUnmounted } from 'vue'
 import { store } from '../../store.js'
+import { isWebBrowser } from '../../utils/env.js'
 import { safeFetch, applyChatToStore, sendChatMessage } from '../../utils/chatSync.js'
 import { compressImage, compressBase64Image } from '../../utils/media.js'
 import { makeVoteContent } from '../../utils/poll.js'
@@ -36,6 +37,8 @@ export function useChatActions({
   getPage,
   getInputFooter,
   onExitMultiSelect,
+  onOpenTool,
+  openToolsPage,
 }) {
   const forwardModalVisible = ref(false)
   const forwardMsgContent = ref('')
@@ -288,52 +291,108 @@ export function useChatActions({
     startForward(previewData.rawContent)
   }
 
-  async function onPreviewDownload() {
-    if (previewData.type === 'image') {
-      let data = previewData.mediaData || ''
-      let mime = previewData.mediaMime || ''
-      const src = previewData.src || ''
-      if (!data && src.startsWith('data:')) {
-        const m = src.match(/^data:([^;,]+);base64,(.*)$/)
-        if (m) { mime = m[1]; data = m[2] }
+  async function resolvePreviewImagePayload() {
+    let data = previewData.mediaData || ''
+    let mime = previewData.mediaMime || ''
+    const src = previewData.src || ''
+    if (!data && src.startsWith('data:')) {
+      const m = src.match(/^data:([^;,]+);base64,(.*)$/)
+      if (m) { mime = m[1]; data = m[2] }
+    }
+    if (!data && src) {
+      const candidates = [src]
+      if (/^https?:\/\//i.test(src)) {
+        candidates.push(`/image-proxy?url=${encodeURIComponent(src)}`)
       }
-      if (!data && src) {
+      for (const fetchUrl of candidates) {
         try {
-          const res = await fetch(src, { credentials: 'omit' })
-          if (res.ok) {
-            const blob = await res.blob()
-            const bytes = new Uint8Array(await blob.arrayBuffer())
-            let bin = ''
-            const CHUNK = 0x8000
-            for (let i = 0; i < bytes.length; i += CHUNK) {
-              bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK))
-            }
-            data = btoa(bin)
-            mime = mime || blob.type || 'image/png'
+          const res = await fetch(fetchUrl, { credentials: 'omit' })
+          if (!res.ok) continue
+          const blob = await res.blob()
+          const bytes = new Uint8Array(await blob.arrayBuffer())
+          let bin = ''
+          const CHUNK = 0x8000
+          for (let i = 0; i < bytes.length; i += CHUNK) {
+            bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK))
           }
+          data = btoa(bin)
+          mime = mime || blob.type || 'image/png'
+          if (data) break
         } catch {}
       }
+    }
+    let ext = (mime.split('/')[1] || 'png').replace('jpeg', 'jpg')
+    if (!mime && src) {
+      const m = src.split(/[?#]/)[0].match(/\.([a-zA-Z0-9]{2,5})$/)
+      if (m) ext = m[1].toLowerCase()
+    }
+    const name = /\.(png|jpe?g|gif|webp|bmp|ico)$/i.test(previewData.title || '')
+      ? previewData.title
+      : `${previewData.title || '图片'}.${ext}`
+    return { data, mime: mime || 'image/png', name, src }
+  }
+
+  async function onPreviewDownload() {
+    if (previewData.type === 'image') {
+      const { data, mime, name, src } = await resolvePreviewImagePayload()
       if (!data && src && /^https?:\/\//i.test(src) && typeof window.api?.downloadUrl === 'function') {
-        const urlExtMatch = src.split(/[?#]/)[0].match(/\.([a-zA-Z0-9]{2,5})$/)
-        const fallbackExt = urlExtMatch ? urlExtMatch[1].toLowerCase() : 'png'
-        const targetName = /\.(png|jpe?g|gif|webp|bmp|ico)$/i.test(previewData.title || '')
-          ? previewData.title
-          : `${previewData.title || '图片'}.${fallbackExt}`
-        const r = await window.api.downloadUrl(src, targetName)
+        const r = await window.api.downloadUrl(src, name)
         if (r?.success || r?.canceled) return
       }
       if (!data) {
         showToast('该图片无法下载（缺少原始数据）', 'warning')
         return
       }
-      const name = /\.(png|jpe?g|gif|webp|bmp|ico)$/i.test(previewData.title || '')
-        ? previewData.title
-        : `${previewData.title || '图片'}.${(mime.split('/')[1] || 'png').replace('jpeg', 'jpg')}`
-      window.api.downloadFile(data, name, mime || 'image/png')
+      window.api.downloadFile(data, name, mime)
       return
     }
     if (!previewData.rawContent) return
     downloadMsgContent(previewData.rawContent)
+  }
+
+  async function onPreviewEdit() {
+    if (previewData.type !== 'image' || isWebBrowser()) return
+    const { data, mime, name } = await resolvePreviewImagePayload()
+    previewData.show = false
+    if (!data) {
+      showToast('无法读取该图片内容，请先下载后在图片编辑器中打开', 'warning')
+      return
+    }
+    const api = window.api || {}
+    if (typeof api.getToolEntryUrl !== 'function') {
+      showToast('当前客户端暂不支持在此打开图片编辑器', 'warning')
+      return
+    }
+    try {
+      const entry = await api.getToolEntryUrl('image')
+      if (!entry || !entry.success || !entry.url) {
+        showToast('请先在「工具」页下载安装「图片编辑」工具', 'info')
+        openToolsPage?.()
+        return
+      }
+      const event = { name: 'openImage', data: { data, mime, name } }
+      if (typeof api.openToolWindow === 'function') {
+        const res = await api.openToolWindow({
+          id: 'image',
+          name: '图片编辑',
+          url: entry.url,
+          event,
+        })
+        if (res && res.success === false) {
+          showToast(res.error || '打开图片编辑器失败', 'error')
+        }
+        return
+      }
+      onOpenTool?.({
+        remote: true,
+        id: 'image',
+        name: '图片编辑',
+        url: entry.url,
+        pendingEvent: event,
+      })
+    } catch (e) {
+      showToast('打开图片编辑器失败：' + ((e && e.message) || e), 'error')
+    }
   }
 
   return {
@@ -354,5 +413,6 @@ export function useChatActions({
     onPreviewCopy,
     onPreviewForward,
     onPreviewDownload,
+    onPreviewEdit,
   }
 }

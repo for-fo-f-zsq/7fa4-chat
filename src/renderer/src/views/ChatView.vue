@@ -152,6 +152,7 @@
     @previewCopy="onPreviewCopy"
     @previewForward="onPreviewForward"
     @previewDownload="onPreviewDownload"
+    @previewEdit="onPreviewEdit"
   />
 </template>
 
@@ -212,6 +213,6 @@ const { groupActionProgress, muteModalVisible, onMuteMinutesConfirm, submitGroup
 const {
   forwardModalVisible, forwardMsgContent, imageSendPending, previewData,
   startForward, onForwardConfirm, closeForwardModal, onImageToolSend, onDropFile,
-  sendPat, onPollVote, batchForward, onOpenPreview, onPreviewCopy, onPreviewForward, onPreviewDownload,
+  sendPat, onPollVote, batchForward, onOpenPreview, onPreviewCopy, onPreviewForward, onPreviewDownload, onPreviewEdit,
 } = chatActions
 </script>

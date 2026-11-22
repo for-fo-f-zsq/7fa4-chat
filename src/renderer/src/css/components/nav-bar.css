@@ -8,7 +8,7 @@
   flex-shrink: 0;
   gap: var(--space-2);
   padding: var(--space-4) 0;
-  background: var(--surface-1);
+  background: linear-gradient(180deg, var(--surface-1), var(--surface-0));
   border-right: var(--border-width) solid var(--line-hairline);
   position: relative;
   z-index: var(--z-raised);
@@ -83,7 +83,7 @@
   left: calc(-1 * var(--space-2));
   top: 50%;
   width: 3px;
-  height: 24px;
+  height: 22px;
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
   background: var(--brand);
   opacity: 0;
@@ -106,16 +106,16 @@
   --ibtn-fg: var(--brand);
   --ibtn-hover-bg: var(--surface-active);
   --ibtn-hover-fg: var(--brand);
-  box-shadow: var(--elev-brand), inset 0 0 0 var(--border-width) var(--brand-line);
+  box-shadow: var(--elev-brand);
   animation: activeGlow var(--motion-loop-pulse) var(--motion-ease-standard) infinite alternate;
 }
 
 @keyframes activeGlow {
   from {
-    box-shadow: var(--elev-brand), inset 0 0 0 var(--border-width) var(--brand-line);
+    box-shadow: var(--elev-brand);
   }
   to {
-    box-shadow: var(--elev-brand-hover), inset 0 0 0 var(--border-width) var(--brand-line);
+    box-shadow: var(--elev-brand-hover);
   }
 }
 
@@ -132,8 +132,7 @@
 @media (hover: hover) {
   .navbar .nav-icon:hover:not(.is-active):not(.is-disabled) {
     --ibtn-hover-bg: var(--surface-hover);
-    box-shadow: var(--elev-1);
-    transform: translateY(-1px) scale(1.08);
+    --ibtn-hover-fg: var(--fg);
   }
 
   .navbar .nav-icon:hover:not(.is-active):not(.is-disabled) .nav-icon-stack i {

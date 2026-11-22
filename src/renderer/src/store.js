@@ -32,6 +32,8 @@ export const store = reactive({
     failCount: 0,
     retryCooldownUntil: 0,
     lastError: '',
+    history: [],        // 近期状态采样 [{ ts, state, latencyMs, error }]（最多 40 条，从旧到新）
+    events: [],         // 状态变更日志 [{ ts, state, title, detail }]（最多 15 条，最新在前）
   },
   multiSelectMode: false, // 多选模式
   selectedMsgIds: [],   // 多选选中的消息ID
@@ -48,3 +50,68 @@ export const store = reactive({
     error: ''
   },
 });
+
+const CONN_HISTORY_MAX = 40;
+const CONN_EVENTS_MAX = 15;
+const CONN_SAMPLE_INTERVAL_MS = 15000;
+
+const CONN_STATE_LABELS = {
+  ok: '服务连接正常',
+  connecting: '正在建立连接',
+  reconnecting: '连接异常，尝试重连',
+  offline: '网络离线',
+  rejected: '登录会话被拒绝或失效',
+};
+
+export function updateConnStatus(patch = {}, opts = {}) {
+  const cs = store.connStatus;
+  if (!cs) return;
+  if (!Array.isArray(cs.history)) cs.history = [];
+  if (!Array.isArray(cs.events)) cs.events = [];
+
+  const prevState = cs.state;
+  const prevError = cs.lastError || '';
+  Object.assign(cs, patch);
+
+  const now = Date.now();
+  const nextState = cs.state || 'ok';
+  const nextError = cs.lastError || '';
+  const stateChanged = prevState !== nextState;
+  const newError = Boolean(nextError && nextError !== prevError && nextState !== 'ok');
+
+  if (opts.forceEvent || stateChanged || newError) {
+    const title = opts.title || CONN_STATE_LABELS[nextState] || nextState;
+    const detail = opts.detail !== undefined
+      ? opts.detail
+      : (nextError || (nextState === 'ok' && cs.latencyMs != null ? `延迟 ${Math.round(cs.latencyMs)} ms` : ''));
+    const lastEvt = cs.events[0];
+    if (!lastEvt || lastEvt.state !== nextState || lastEvt.title !== title || lastEvt.detail !== detail || now - lastEvt.ts >= 3000) {
+      cs.events.unshift({ ts: now, state: nextState, title, detail });
+      if (cs.events.length > CONN_EVENTS_MAX) cs.events.length = CONN_EVENTS_MAX;
+    }
+  }
+
+  const lastSample = cs.history[cs.history.length - 1];
+  const sampleMode = opts.sample;
+  const shouldSample =
+    sampleMode === 'force' ||
+    stateChanged ||
+    (sampleMode === true && (nextState !== 'ok' || !lastSample || now - lastSample.ts >= CONN_SAMPLE_INTERVAL_MS));
+  if (shouldSample) {
+    cs.history.push({
+      ts: now,
+      state: nextState,
+      latencyMs: Number.isFinite(Number(cs.latencyMs)) ? Number(cs.latencyMs) : null,
+      error: nextError,
+    });
+    if (cs.history.length > CONN_HISTORY_MAX) {
+      cs.history.splice(0, cs.history.length - CONN_HISTORY_MAX);
+    }
+  }
+}
+
+export function resetConnStatusHistory() {
+  if (!store.connStatus) return;
+  store.connStatus.history = [];
+  store.connStatus.events = [];
+}

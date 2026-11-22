@@ -361,7 +361,7 @@ function chk(name, cond, detail = '') {
 
   const polling = m.usePollingSync({
     getPage: () => currentPage,
-    getSetting: () => ({ syncRange: '30d' }),
+    getSetting: () => ({}),
     isChatPage: () => true,
     persistence: { scheduleSave: () => {}, saveAll: async () => {}, flushData: async () => {}, resetLoadedUid: () => {} },
     banners: { serverNotice: { value: '' }, noteServerFailure: () => false, gotoLogin: () => {} },
@@ -376,7 +376,14 @@ function chk(name, cond, detail = '') {
   })
 
   const rc = await polling.reconnectNow()
-  chk('reconnectNow 更新 store.connStatus.state === ok 且记录 latencyMs', rc.ok && m.store.connStatus.state === 'ok' && typeof m.store.connStatus.latencyMs === 'number')
+  chk('reconnectNow 更新 store.connStatus.state === ok 且记录 latencyMs 与历史状态',
+    rc.ok &&
+    m.store.connStatus.state === 'ok' &&
+    typeof m.store.connStatus.latencyMs === 'number' &&
+    Array.isArray(m.store.connStatus.history) &&
+    m.store.connStatus.history.length >= 1 &&
+    Array.isArray(m.store.connStatus.events) &&
+    m.store.connStatus.events.length >= 1)
   chk('target-times 携带 scope=""', fetchedUrls.some((u) => u.includes('/chat/target-times') && u.includes('scope=')))
 
   // 验证 fetchMessages 在 await notifyIncomingMessage 后实时重判 isCurrentConvo
@@ -457,11 +464,9 @@ function chk(name, cond, detail = '') {
     m.store.ownVotes.some((v) => v.id === 777 && v.free === true))
 }
 
-// ===== 11. #26 syncRange=30d 截断与 #18 1005 冷却 >= 10 分钟 =====
+// ===== 11. #18 1005 冷却 >= 10 分钟与恢复原全量拉取行为 =====
 {
   const nowSec = Math.floor(Date.now() / 1000)
-  const oldSec = nowSec - 40 * 86400
-  let chatFetchCount = 0
   let loginCalls = 0
   globalThis.fetch = async (url) => {
     const u = String(url)
@@ -482,18 +487,6 @@ function chk(name, cond, detail = '') {
         json: async () => ({ error_code: 1005, message: '请稍后再试' }),
       }
     }
-    if (u.startsWith('/chat/chat')) {
-      chatFetchCount++
-      return {
-        ok: true,
-        status: 200,
-        headers: { get: () => 'application/json' },
-        json: async () => ({
-          success: true,
-          chats: [{ id: 500 + chatFetchCount, sender_id: 2, receiver_id: 1, send_time: oldSec, content: 'old' }],
-        }),
-      }
-    }
     return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ success: true }) }
   }
   m.store.logined = true
@@ -503,21 +496,23 @@ function chk(name, cond, detail = '') {
   m.store.messages = {}
   const p2 = m.usePollingSync({
     getPage: () => ({ pageType: 'user', pageId: 2 }),
-    getSetting: () => ({ syncRange: '30d', keepLogin: true, loginUsername: 'u', loginPassword: 'p' }),
+    getSetting: () => ({ keepLogin: true, loginUsername: 'u', loginPassword: 'p' }),
     isChatPage: () => true,
     persistence: { scheduleSave: () => {}, saveAll: async () => {}, flushData: async () => {}, resetLoadedUid: () => {} },
     banners: { serverNotice: { value: '' }, noteServerFailure: () => false, gotoLogin: () => {} },
     notifications: { updateBadgeCount: () => {}, notifyIncomingMessage: async () => {} },
     postGroup: async () => ({ success: true }),
   })
-  // 验证 30d 截断停止翻页（只拉 1 页看到 oldSec < now - 30d 即停止，不会递归翻页）
-  await p2.loadConversationOnSelect('user', 2)
-  // 用 pull via fetchMessages 测试 30d cutoff：模拟 syncRange='30d'
-  chatFetchCount = 0
   const cutoffRes = await p2.reconnectNow()
-  chk('1005 登录拒绝后 connStatus.state === rejected 且冷却 >= 10 分钟',
+  chk('已撤回 #26 分页拉取 API（无 loadOlderMessages / backfillAllHistory / loadConversationOnSelect）',
+    p2.loadOlderMessages === undefined &&
+    p2.backfillAllHistory === undefined &&
+    p2.loadConversationOnSelect === undefined)
+  chk('1005 登录拒绝后 connStatus.state === rejected、写入状态历史事件且冷却 >= 10 分钟',
+    loginCalls === 1 &&
     !cutoffRes.ok &&
     m.store.connStatus.state === 'rejected' &&
+    m.store.connStatus.events.some((e) => e.state === 'rejected') &&
     m.store.connStatus.retryCooldownUntil - Date.now() >= 10 * 60 * 1000 - 5000)
   p2.stopPolling()
 }

@@ -1,5 +1,5 @@
 import { nextTick, onMounted, onUnmounted } from 'vue'
-import { store } from '../../store.js'
+import { store, updateConnStatus } from '../../store.js'
 import { applyFontSize, ranklistOrder, safeFetch, usersJson } from '../../utils.js'
 import { showToast } from '../useToast.js'
 import { ALLOWED_THEME_VARS, isValidThemeVarValue } from '../modals/useThemeEditor.js'
@@ -33,20 +33,21 @@ export function useChatLifecycle({
 
   function onOnline() {
     store.online = true
-    if (store.connStatus) {
-      store.connStatus.online = true
-      if (store.connStatus.state === 'offline') store.connStatus.state = 'reconnecting'
-    }
+    updateConnStatus({
+      online: true,
+      state: store.connStatus?.state === 'offline' ? 'reconnecting' : (store.connStatus?.state || 'ok'),
+    }, { sample: true, title: '网络已恢复' })
     polling.wakePoll()
   }
 
   function onOffline() {
     store.online = false
-    if (store.connStatus) {
-      store.connStatus.online = false
-      store.connStatus.apiReachable = false
-      store.connStatus.state = 'offline'
-    }
+    updateConnStatus({
+      online: false,
+      apiReachable: false,
+      state: 'offline',
+      lastError: '本地网络已断开',
+    }, { sample: 'force', title: '本地网络已断开' })
   }
 
   /** 三端 save-setting 的返回口径不同（桌面裸布尔 / web {success} / 抛异常），统一成一句结论 */
@@ -58,7 +59,6 @@ export function useChatLifecycle({
 
   async function onSettingChange(changes) {
     if (changes._clearCache) { polling.clearCacheAndReload(); return }
-    const prevSyncRange = setting.value?.syncRange
     const apiUrlChanged = changes.apiUrl !== undefined && changes.apiUrl !== setting.value?.apiUrl
     Object.assign(setting.value, changes)
     store.setting = setting.value
@@ -74,9 +74,6 @@ export function useChatLifecycle({
       console.error('[setting] 保存失败', e)
       showToast('设置未能保存，请检查存储空间后重试', { type: 'error', title: '保存失败', duration: 4000 })
     }
-    if (changes.syncRange === 'all' && prevSyncRange !== 'all') {
-      polling.backfillAllHistory?.()
-    }
     if (apiUrlChanged) {
       polling.resetInfoTimestamp()
       polling.wakePoll()
@@ -90,10 +87,10 @@ export function useChatLifecycle({
       store.setting = setting.value
       if (setting.value.fontSize) applyFontSize(setting.value.fontSize)
       store.online = navigator.onLine
-      if (store.connStatus) {
-        store.connStatus.online = store.online
-        store.connStatus.state = store.online ? 'connecting' : 'offline'
-      }
+      updateConnStatus({
+        online: store.online,
+        state: store.online ? 'connecting' : 'offline',
+      }, { sample: true, title: store.online ? '应用启动，准备连接' : '应用启动（当前离线）' })
       try { version.value = await window.api.getVersion() } catch {}
 
       const root = document.documentElement
@@ -162,10 +159,7 @@ export function useChatLifecycle({
       if (!store.logined) {
         store.online = true
         store.netError = false
-        if (store.connStatus) {
-          store.connStatus.online = true
-          store.connStatus.state = 'ok'
-        }
+        updateConnStatus({ online: true, state: 'ok' })
         bindGlobalListeners()
         return
       }
@@ -187,13 +181,13 @@ export function useChatLifecycle({
           if (unmounted) return
           if (initialInfo && initialInfo._html) {
             store.netError = true
-            if (store.connStatus) {
-              store.connStatus.apiReachable = true
-              store.connStatus.sessionValid = false
-              store.connStatus.latencyMs = latencyMs
-              store.connStatus.state = 'reconnecting'
-              store.connStatus.lastError = '登录会话已失效'
-            }
+            updateConnStatus({
+              apiReachable: true,
+              sessionValid: false,
+              latencyMs,
+              state: 'reconnecting',
+              lastError: '登录会话已失效',
+            }, { sample: 'force' })
             if (isWeb) { banners.gotoLogin(); return }
           } else if (initialInfo && initialInfo.success) {
             Object.assign(store.self, {
@@ -203,33 +197,33 @@ export function useChatLifecycle({
               realname: initialInfo.user.real_name,
             })
             await persistence.loadData()
-            if (store.connStatus) {
-              store.connStatus.online = true
-              store.connStatus.apiReachable = true
-              store.connStatus.sessionValid = true
-              store.connStatus.latencyMs = latencyMs
-              store.connStatus.lastInfoAt = Date.now()
-              store.connStatus.state = 'ok'
-              store.connStatus.lastError = ''
-            }
+            updateConnStatus({
+              online: true,
+              apiReachable: true,
+              sessionValid: true,
+              latencyMs,
+              lastInfoAt: Date.now(),
+              state: 'ok',
+              lastError: '',
+            }, { sample: 'force', forceEvent: true, title: '首次连接成功' })
           } else {
             store.netError = true
-            if (store.connStatus) {
-              store.connStatus.apiReachable = !initialInfo?._netError
-              store.connStatus.online = navigator.onLine
-              store.connStatus.state = navigator.onLine ? 'reconnecting' : 'offline'
-              store.connStatus.lastError = initialInfo?.err?.message || '连接服务器失败'
-            }
+            updateConnStatus({
+              apiReachable: !initialInfo?._netError,
+              online: navigator.onLine,
+              state: navigator.onLine ? 'reconnecting' : 'offline',
+              lastError: initialInfo?.err?.message || '连接服务器失败',
+            }, { sample: 'force' })
           }
           notifications.updateBadgeCount()
         } catch (e) {
           store.netError = true
-          if (store.connStatus) {
-            store.connStatus.apiReachable = false
-            store.connStatus.online = navigator.onLine
-            store.connStatus.state = navigator.onLine ? 'reconnecting' : 'offline'
-            store.connStatus.lastError = (e && e.message) || '网络错误'
-          }
+          updateConnStatus({
+            apiReachable: false,
+            online: navigator.onLine,
+            state: navigator.onLine ? 'reconnecting' : 'offline',
+            lastError: (e && e.message) || '网络错误',
+          }, { sample: 'force' })
         }
         if (store.logined && !unmounted) {
           polling.startInfoLoop(initialInfo)

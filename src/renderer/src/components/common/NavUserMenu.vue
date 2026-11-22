@@ -39,10 +39,6 @@
             <i class="fas fa-heart" aria-hidden="true"></i>
             <span>赞助</span>
           </button>
-          <button type="button" class="nav-user-menu-item" @click="emit('go', 'about')">
-            <i class="fas fa-info-circle" aria-hidden="true"></i>
-            <span>关于</span>
-          </button>
           <button type="button" class="nav-user-menu-item" @click="emit('open-announcement')">
             <i class="fas fa-bullhorn" aria-hidden="true"></i>
             <span>版本公告</span>

@@ -58,6 +58,23 @@
       </template>
     </UiIconButton>
     <UiIconButton
+      class="nav-icon"
+      icon="fas fa-info-circle"
+      size="lg"
+      variant="ghost"
+      :active="pageType === 'about'"
+      aria-label="关于"
+      title="关于"
+      @click="$emit('switch', 'about')"
+    >
+      <template #icon>
+        <span class="nav-icon-stack">
+          <i class="fas fa-info-circle" aria-hidden="true"></i>
+          <span class="nav-icon-label">关于</span>
+        </span>
+      </template>
+    </UiIconButton>
+    <UiIconButton
       v-if="isWeb"
       class="nav-icon nav-download"
       icon="fas fa-download"

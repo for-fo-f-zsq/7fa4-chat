@@ -1,6 +1,6 @@
 import { reactive, computed } from 'vue'
 import md5 from 'md5'
-import { store } from '../../store.js'
+import { store, updateConnStatus, resetConnStatusHistory } from '../../store.js'
 import { isWebBrowser } from '../../utils/env.js'
 import { safeFetch, tryLogin, markMsgDirty, ingestMessage } from '../../utils/chatSync.js'
 import { clearPendingVotes } from '../../utils/poll.js'
@@ -13,7 +13,6 @@ const INCR_TAKE_START = 5
 const INCR_TAKE_MAX = 16
 const INCR_MAX_PAGES = 4
 const TARGET_TIMES_BATCH = 200
-const THIRTY_DAYS_SEC = 30 * 86400
 const AUTO_RELOGIN_COOLDOWN_MS = 10 * 60 * 1000
 const AUTO_RELOGIN_REJECT_COOLDOWN_MS = 30 * 60 * 1000
 
@@ -28,7 +27,7 @@ export function triggerCheckConnection() {
 }
 
 /**
- * 轮询同步、分页懒加载历史（30天截断与按需补全）、自动续期重登（>=10m 冷却）、连接状态监控与退出清理。
+ * 轮询同步、自动续期重登（>=10m 冷却）、连接状态与历史记录监控、退出清理。
  */
 export function usePollingSync({
   getPage,
@@ -49,25 +48,15 @@ export function usePollingSync({
   let wakePollFn = null
   let lastAutoReloginAt = 0
   let reloginCooldownMs = AUTO_RELOGIN_COOLDOWN_MS
-  let backfillingAll = false
 
   const webExhausted = reactive(new Set())
   const webLoadingOlder = new Set()
   const backfillKeys = new Set()
-  const backfillAllKeys = new Set()
   const lastSendTimes = new Map()
   const sameSecondRechecked = new Map()
 
-  function setConnStatus(patch) {
-    if (!store.connStatus) return
-    Object.assign(store.connStatus, patch)
-  }
-
-  function getSyncCutoffSec(ignoreCutoff = false) {
-    if (ignoreCutoff || isWeb) return 0
-    const s = getSetting?.() || store.setting || {}
-    if (s.syncRange === 'all') return 0
-    return Math.floor(Date.now() / 1000) - THIRTY_DAYS_SEC
+  function setConnStatus(patch, opts) {
+    updateConnStatus(patch, opts)
   }
 
   const canLoadOlder = computed(() => {
@@ -104,37 +93,6 @@ export function usePollingSync({
     }
   }
 
-  function seedLastSendTimesFromStore() {
-    for (const g of Object.values(store.groups || {})) {
-      if (!g || g.gid == null) continue
-      let maxSec = Number(g.lastSendTime) || 0
-      for (const mid of g.message_ids || []) {
-        const m = store.messages[mid]
-        const sec = m && Number(m.send_time)
-        if (sec > maxSec) maxSec = sec
-      }
-      if (maxSec > 0) {
-        const key = 'g:' + g.gid
-        lastSendTimes.set(key, maxSec)
-        sameSecondRechecked.set(key, maxSec)
-      }
-    }
-    for (const u of Object.values(store.users || {})) {
-      if (!u || u.uid == null) continue
-      let maxSec = Number(u.lastSendTime) || 0
-      for (const mid of u.message_ids || []) {
-        const m = store.messages[mid]
-        const sec = m && Number(m.send_time)
-        if (sec > maxSec) maxSec = sec
-      }
-      if (maxSec > 0) {
-        const key = 'u:' + u.uid
-        lastSendTimes.set(key, maxSec)
-        sameSecondRechecked.set(key, maxSec)
-      }
-    }
-  }
-
   function isCurrentConvo(kind, id) {
     const { pageType, pageId } = getPage()
     return pageId != null && Number(pageId) === Number(id) && pageType === kind
@@ -155,19 +113,19 @@ export function usePollingSync({
   async function loadConversationLite(kind, id) {
     const end = Date.now()
     if (kind === 'group') {
-      await fetchMessages('group', end, 30, false, id, 0, { bypassLoopCheck: true })
+      await fetchMessages('group', end, 30, false, id, 0, true)
       return
     }
-    await fetchMessages('user', end, 30, false, id, 0, { bypassLoopCheck: true })
-    await fetchMessages('send_user', end, 30, false, id, 0, { bypassLoopCheck: true })
+    await fetchMessages('user', end, 30, false, id, 0, true)
+    await fetchMessages('send_user', end, 30, false, id, 0, true)
   }
 
   async function loadOlderOne(type, id, oldest) {
     let take = 30
-    let res = await fetchMessages(type, oldest * 1000, take, false, id, 0, { bypassLoopCheck: true, minSendTimeSec: 0 })
+    let res = await fetchMessages(type, oldest * 1000, take, false, id, 0, true)
     if (res && !res.inserted && res.count >= take && res.oldestSendTime != null && res.oldestSendTime >= oldest) {
       take = 100
-      res = await fetchMessages(type, oldest * 1000, take, false, id, 0, { bypassLoopCheck: true, minSendTimeSec: 0 })
+      res = await fetchMessages(type, oldest * 1000, take, false, id, 0, true)
     }
     return res
   }
@@ -187,44 +145,6 @@ export function usePollingSync({
     const got = results.some((r) => r && r.inserted)
     if (!got) webExhausted.add(key)
     return got
-  }
-
-  async function loadOlderMessages(kind, id) {
-    const key = (kind === 'group' ? 'g:' : 'u:') + id
-    if (webExhausted.has(key)) return false
-    const oldest = oldestKnownSec(kind, id)
-    if (!oldest) {
-      const results = kind === 'group'
-        ? [await fetchMessages('group', Date.now(), 50, false, id, 0, { bypassLoopCheck: true, minSendTimeSec: 0 })]
-        : [
-            await fetchMessages('user', Date.now(), 50, false, id, 0, { bypassLoopCheck: true, minSendTimeSec: 0 }),
-            await fetchMessages('send_user', Date.now(), 50, false, id, 0, { bypassLoopCheck: true, minSendTimeSec: 0 }),
-          ]
-      if (results.some((r) => r === null)) return true
-      const got = results.some((r) => r && r.inserted)
-      if (!got) webExhausted.add(key)
-      if (got) persistence.scheduleSave?.()
-      return got
-    }
-    const results = kind === 'group'
-      ? [await loadOlderOne('group', id, oldest)]
-      : [await loadOlderOne('user', id, oldest), await loadOlderOne('send_user', id, oldest)]
-    if (results.some((r) => r === null)) return true
-    const got = results.some((r) => r && r.inserted)
-    if (!got) webExhausted.add(key)
-    if (got) persistence.scheduleSave?.()
-    return got
-  }
-
-  async function loadConversationOnSelect(kind, id) {
-    const t = webTarget(kind, id)
-    if (!t || (Array.isArray(t.message_ids) && t.message_ids.length > 0)) return
-    const key = (kind === 'group' ? 'g:' : 'u:') + id
-    if ((lastSendTimes.get(key) || t.lastSendTime || 0) <= 0) return
-    try {
-      await pullConversation(kind, id, false, { bypassLoopCheck: true })
-      persistence.scheduleSave?.()
-    } catch {}
   }
 
   function pollSleep(ms) {
@@ -386,8 +306,8 @@ export function usePollingSync({
     store.groups = newGroups
   }
 
-  async function fetchMessages(type, end, take = 10, allowPage = false, targetId = null, depth = 0, options = {}) {
-    if (!infoLoopRunning && !options.bypassLoopCheck) return null
+  async function fetchMessages(type, end, take = 10, allowPage = false, targetId = null, depth = 0, allowManual = false) {
+    if (!infoLoopRunning && !allowManual) return null
     try {
       const endSec = Math.floor(end / 1000) + 1
       const targetQuery = targetId == null ? '' : `&target_id=${targetId}`
@@ -396,9 +316,9 @@ export function usePollingSync({
       const latencyMs = Date.now() - t0
       if (!r || !r.success) {
         if (r && r._html) {
-          setConnStatus({ apiReachable: true, sessionValid: false, latencyMs })
+          setConnStatus({ apiReachable: true, sessionValid: false, latencyMs }, { sample: true })
         } else if (r && r._netError) {
-          setConnStatus({ apiReachable: false, online: navigator.onLine })
+          setConnStatus({ apiReachable: false, online: navigator.onLine }, { sample: true })
         }
         return null
       }
@@ -416,9 +336,8 @@ export function usePollingSync({
       let hasNew = false
       let oldestSendTime = null
       let maxSendTime = 0
-      const minSendTimeSec = Number(options.minSendTimeSec) || 0
       for (const c of r.chats) {
-        if (!infoLoopRunning && !options.bypassLoopCheck) return null
+        if (!infoLoopRunning && !allowManual) return null
         if (oldestSendTime === null || c.send_time < oldestSendTime) oldestSendTime = c.send_time
         if (c.send_time > maxSendTime) maxSendTime = c.send_time
         end = Math.min(end, c.send_time * 1000)
@@ -476,13 +395,12 @@ export function usePollingSync({
       }
       notifications.updateBadgeCount()
       if (hasNew) persistence.scheduleSave?.()
-      const hitCutoff = minSendTimeSec > 0 && oldestSendTime !== null && oldestSendTime < minSendTimeSec
-      if (hasNew && allowPage && !hitCutoff && depth < 200) {
-        await fetchMessages(type, end, 100, true, targetId, depth + 1, options)
-      } else if (hasNew && allowPage && !hitCutoff) {
+      if (hasNew && allowPage && depth < 200) {
+        await fetchMessages(type, end, 100, true, targetId, depth + 1)
+      } else if (hasNew && allowPage) {
         console.warn('[chat] 历史翻页达到上限，可能是同一秒内消息数超过单页容量：', type, targetId)
       }
-      return { inserted: hasNew, caughtUp: !hasNew || hitCutoff, oldestSendTime, maxSendTime, count: r.chats.length }
+      return { inserted: hasNew, caughtUp: !hasNew, oldestSendTime, maxSendTime, count: r.chats.length }
     } catch (e) {
       console.error(e)
       return null
@@ -490,10 +408,9 @@ export function usePollingSync({
   }
 
   async function updateMessagesData(take = 10, allowPage = false) {
-    const minSendTimeSec = getSyncCutoffSec()
-    const a = await fetchMessages('user', Date.now(), take, allowPage, null, 0, { minSendTimeSec })
-    const b = await fetchMessages('send_user', Date.now(), take, allowPage, null, 0, { minSendTimeSec })
-    const c = await fetchMessages('group', Date.now(), take, allowPage, null, 0, { minSendTimeSec })
+    const a = await fetchMessages('user', Date.now(), take, allowPage)
+    const b = await fetchMessages('send_user', Date.now(), take, allowPage)
+    const c = await fetchMessages('group', Date.now(), take, allowPage)
     return !!a && !!b && !!c
   }
 
@@ -580,21 +497,19 @@ export function usePollingSync({
     return changes
   }
 
-  async function pullOne(type, targetId, fresh, options = {}) {
-    const minSendTimeSec = options.minSendTimeSec ?? getSyncCutoffSec(options.ignoreCutoff)
+  async function pullOne(type, targetId, fresh) {
     if (fresh) {
-      const r = await fetchMessages(type, Date.now(), 100, true, targetId, 0, { ...options, minSendTimeSec })
+      const r = await fetchMessages(type, Date.now(), 100, true, targetId)
       return { ok: !!r, maxSeen: r ? r.maxSendTime : 0, done: true }
     }
     let end = Date.now()
     let take = INCR_TAKE_START
     let maxSeen = 0
     for (let page = 0; page < INCR_MAX_PAGES; page++) {
-      const res = await fetchMessages(type, end, take, false, targetId, 0, { ...options, minSendTimeSec })
+      const res = await fetchMessages(type, end, take, false, targetId)
       if (!res) return { ok: false, maxSeen, done: false }
       if (res.maxSendTime > maxSeen) maxSeen = res.maxSendTime
       if (res.caughtUp || res.oldestSendTime === null) return { ok: true, maxSeen, done: true }
-      if (minSendTimeSec > 0 && res.oldestSendTime < minSendTimeSec) return { ok: true, maxSeen, done: true }
       const nextEnd = res.oldestSendTime * 1000
       if (nextEnd >= end) {
         if (res.count >= take && take < 100) {
@@ -610,89 +525,34 @@ export function usePollingSync({
     return { ok: true, maxSeen, done: false }
   }
 
-  async function pullConversation(kind, id, fresh, options = {}) {
-    if (kind === 'group') return pullOne('group', id, fresh, options)
-    const a = await pullOne('user', id, fresh, options)
-    const b = await pullOne('send_user', id, fresh, options)
+  async function pullConversation(kind, id, fresh) {
+    if (kind === 'group') return pullOne('group', id, fresh)
+    const a = await pullOne('user', id, fresh)
+    const b = await pullOne('send_user', id, fresh)
     return { ok: a.ok && b.ok, maxSeen: Math.max(a.maxSeen, b.maxSeen), done: a.done && b.done }
-  }
-
-  async function backfillAllHistory() {
-    if (isWeb || !store.logined || backfillingAll) return
-    backfillingAll = true
-    webExhausted.clear()
-    try {
-      const { pageType, pageId } = getPage()
-      const keys = []
-      if (pageId != null && (pageType === 'group' || pageType === 'user')) {
-        keys.push((pageType === 'group' ? 'g:' : 'u:') + pageId)
-      }
-      for (const g of Object.values(store.groups || {})) {
-        if (g && g.gid != null && !g.exited) keys.push('g:' + g.gid)
-      }
-      for (const u of Object.values(store.users || {})) {
-        if (isConversationUser(u)) keys.push('u:' + u.uid)
-      }
-      const seen = new Set()
-      for (const key of keys) {
-        if (seen.has(key)) continue
-        seen.add(key)
-        backfillAllKeys.add(key)
-      }
-      // 先立即全量补全当前正在看的会话，其余放进后台批次慢慢补
-      const firstKey = keys[0]
-      if (firstKey && backfillAllKeys.has(firstKey)) {
-        const kind = firstKey.startsWith('g:') ? 'group' : 'user'
-        const id = Number(firstKey.slice(2))
-        if (id) {
-          try {
-            const pulled = await pullConversation(kind, id, true, { ignoreCutoff: true, bypassLoopCheck: true })
-            if (pulled.ok) backfillAllKeys.delete(firstKey)
-          } catch {}
-        }
-      }
-      persistence.scheduleSave?.()
-      wakePoll()
-    } finally {
-      backfillingAll = false
-    }
   }
 
   async function runInitialSync(infoResult) {
     await update(infoResult)
     lastInfoAt = Date.now()
-    setConnStatus({ lastInfoAt, lastSyncAt: Date.now(), state: 'ok', sessionValid: true, apiReachable: true, failCount: 0, lastError: '' })
+    setConnStatus({
+      lastInfoAt,
+      lastSyncAt: Date.now(),
+      state: 'ok',
+      sessionValid: true,
+      apiReachable: true,
+      failCount: 0,
+      lastError: '',
+    }, { sample: 'force', forceEvent: true, title: '初始同步完成' })
     store.fetchNewCount = 0
     if (isWeb) {
       try { await probeTargetTimes(true) } catch {}
       applyLastSendTimesToList()
-      store.initializing = false
-      startRanklistFetch()
     } else {
-      // 取消启动全量深拉：用本地已有最新 send_time 为基线，按 target-times 增量拉取 + 当前会话优先加载，受 syncRange 截断
-      seedLastSendTimesFromStore()
-      try {
-        const changes = await probeTargetTimes(false)
-        if (Array.isArray(changes)) {
-          const { pageType, pageId } = getPage()
-          changes.sort((a, b) => {
-            const aCur = pageId != null && Number(pageId) === Number(a.id) && pageType === a.kind ? 1 : 0
-            const bCur = pageId != null && Number(pageId) === Number(b.id) && pageType === b.kind ? 1 : 0
-            if (aCur !== bCur) return bCur - aCur
-            return b.sec - a.sec
-          })
-          for (const c of changes) {
-            if (!infoLoopRunning) break
-            const pulled = await pullConversation(c.kind, c.id, c.fresh)
-            if (pulled.ok && pulled.maxSeen >= c.sec) lastSendTimes.set(c.key, c.sec)
-            if (pulled.ok && !pulled.done) backfillKeys.add(c.key)
-          }
-          persistence.scheduleSave?.()
-        }
-      } catch {}
-      store.initializing = false
-      startRanklistFetch()
+      await updateMessagesData(100, true)
     }
+    store.initializing = false
+    startRanklistFetch()
   }
 
   async function attemptInfoRefresh() {
@@ -729,7 +589,7 @@ export function usePollingSync({
         failCount: 0,
         retryCooldownUntil: 0,
         lastError: '',
-      })
+      }, { sample: true })
       if (infoLoopRunning) {
         await update(result)
         if (isWeb) applyLastSendTimesToList()
@@ -761,7 +621,7 @@ export function usePollingSync({
           failCount: 0,
           retryCooldownUntil: 0,
           lastError: '',
-        })
+        }, { sample: 'force' })
       } else if (r && r._html) {
         store.netError = true
         setConnStatus({
@@ -771,7 +631,7 @@ export function usePollingSync({
           sessionValid: false,
           latencyMs,
           lastError: '登录会话已失效',
-        })
+        }, { sample: 'force' })
       } else {
         store.netError = true
         setConnStatus({
@@ -779,7 +639,7 @@ export function usePollingSync({
           online: navigator.onLine,
           apiReachable: !r?._netError,
           lastError: r?.err?.message || '连接失败',
-        })
+        }, { sample: 'force' })
       }
     } catch (e) {
       store.netError = true
@@ -788,7 +648,7 @@ export function usePollingSync({
         online: navigator.onLine,
         apiReachable: false,
         lastError: (e && e.message) || '网络错误',
-      })
+      }, { sample: 'force' })
     }
     return { ...(store.connStatus || {}) }
   }
@@ -799,7 +659,7 @@ export function usePollingSync({
       state: 'connecting',
       online: navigator.onLine,
       lastError: '',
-    })
+    }, { forceEvent: true, title: '手动发起重连' })
     let infoCheck = await checkConnection()
     if (!infoCheck.sessionValid && !isWeb) {
       const relogged = await tryAutoRelogin(true)
@@ -918,13 +778,20 @@ export function usePollingSync({
               failCount,
               online: navigator.onLine,
               state: store.connStatus?.state === 'rejected' ? 'rejected' : (navigator.onLine ? 'reconnecting' : 'offline'),
-            })
+            }, { sample: true })
           }
         } else {
           failCount = 0
           store.netError = false
           store.online = true
-          setConnStatus({ failCount: 0, state: 'ok', online: true, apiReachable: true, sessionValid: true, lastError: '' })
+          setConnStatus({
+            failCount: 0,
+            state: 'ok',
+            online: true,
+            apiReachable: true,
+            sessionValid: true,
+            lastError: '',
+          }, { sample: true })
           for (const c of changes) {
             if (!infoLoopRunning) break
             if (isWeb) {
@@ -955,19 +822,6 @@ export function usePollingSync({
                 const pulled = await pullConversation(kind, id, false)
                 if (!pulled.ok || pulled.done) backfillKeys.delete(key)
                 else if (pulled.maxSeen > (lastSendTimes.get(key) || 0)) lastSendTimes.set(key, pulled.maxSeen)
-              } catch (e) { console.error(e) }
-            }
-          }
-          if (!isWeb && infoLoopRunning && backfillAllKeys.size) {
-            let budget = 2
-            for (const key of Array.from(backfillAllKeys)) {
-              if (!infoLoopRunning || budget-- <= 0) break
-              const kind = key.startsWith('g:') ? 'group' : 'user'
-              const id = Number(key.slice(2))
-              if (!id) { backfillAllKeys.delete(key); continue }
-              try {
-                const pulled = await pullConversation(kind, id, true, { ignoreCutoff: true })
-                if (pulled.ok) backfillAllKeys.delete(key)
               } catch (e) { console.error(e) }
             }
           }
@@ -1028,7 +882,6 @@ export function usePollingSync({
       lastSendTimes.clear()
       sameSecondRechecked.clear()
       backfillKeys.clear()
-      backfillAllKeys.clear()
       const result = await (await safeFetch('/chat/info')).json()
       if (result.success) await runInitialSync(result)
       else store.initializing = false
@@ -1044,7 +897,6 @@ export function usePollingSync({
     lastSendTimes.clear()
     sameSecondRechecked.clear()
     backfillKeys.clear()
-    backfillAllKeys.clear()
     webExhausted.clear()
     await new Promise((r) => setTimeout(r, 100))
     await persistence.flushData()
@@ -1088,6 +940,7 @@ export function usePollingSync({
       retryCooldownUntil: 0,
       lastError: '',
     })
+    resetConnStatusHistory()
     store.guestMode = !toLogin
     if (isWeb) location.href = '/login'
   }
@@ -1101,10 +954,7 @@ export function usePollingSync({
     wakePoll,
     resetInfoTimestamp,
     loadConversationLite,
-    loadConversationOnSelect,
     loadOlderLite,
-    loadOlderMessages,
-    backfillAllHistory,
     reconnectNow,
     checkConnection,
     refreshInfo,

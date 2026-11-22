@@ -72,7 +72,7 @@
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   margin: 0;
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: pointer;
   transition:
@@ -85,19 +85,22 @@
   content: '';
   position: absolute;
   left: 0;
-  top: 20%;
-  bottom: 20%;
+  top: 22%;
+  bottom: 22%;
   width: 3px;
   pointer-events: none;
   background: var(--brand);
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  opacity: 0;
   transform: scaleY(0);
   transform-origin: center;
-  transition: transform var(--motion-dur-fast) var(--motion-ease-standard);
+  transition:
+    transform var(--motion-dur-fast) var(--motion-ease-standard),
+    opacity var(--motion-dur-fast) var(--motion-ease-standard);
 }
 
 .conversation-item.pinned {
-  background: var(--surface-active);
+  background: color-mix(in srgb, var(--brand-soft) 36%, transparent);
 }
 
 @media (hover: hover) {
@@ -106,17 +109,18 @@
   }
 
   .conversation-item:hover::before {
-    transform: scaleY(1);
+    opacity: 0.45;
+    transform: scaleY(0.78);
   }
 
   .conversation-item:hover .conv-avatar {
-    transform: scale(1.06);
+    transform: scale(1.04);
   }
 }
 
 .conversation-item:active {
   background: var(--surface-press);
-  transform: scale(0.99);
+  transform: scale(0.992);
 }
 
 .conversation-item:focus-visible {
@@ -139,13 +143,14 @@
 .conversation-item.active:hover {
   cursor: default;
   background: var(--surface-active);
-  box-shadow: inset 0 0 0 var(--border-width) var(--brand-line);
 }
 
-.conversation-item.active::before {
+.conversation-item.active::before,
+.conversation-item.active:hover::before {
+  opacity: 1;
   transform: scaleY(1);
-  top: 15%;
-  bottom: 15%;
+  top: 18%;
+  bottom: 18%;
   background: var(--brand);
 }
 

@@ -20,11 +20,14 @@ const retryBtn = document.getElementById('tool-retry')
 let meta = null
 let appVersion = ''
 let bridge = null
+let bridgeReady = false
+let pendingToolEvent = null
 let loadTimer = null
 let stopThemeWatch = null
 let cleanupTimerFloat = null
 let unsubscribeThemeSync = null
 let unsubscribeInit = null
+let unsubscribeToolEvent = null
 let versionPromise = null
 const appliedCustomVars = new Set()
 
@@ -132,6 +135,7 @@ function pushTheme() {
 }
 
 function disconnectBridge() {
+  bridgeReady = false
   if (!bridge) return
   try {
     bridge.dispose()
@@ -167,7 +171,15 @@ function connectBridge() {
       port: channel.port1,
       handlers,
       env: currentEnv,
-      onReady: () => pushTheme(),
+      onReady: () => {
+        bridgeReady = true
+        pushTheme()
+        if (pendingToolEvent && pendingToolEvent.name) {
+          const ev = pendingToolEvent
+          pendingToolEvent = null
+          bridge.emit(ev.name, ev.data)
+        }
+      },
       onClose: () => window.close(),
       onEvent: (name, data) => {
         if (name === 'sendImage') {
@@ -210,6 +222,13 @@ function loadToolFrame() {
 
 function startWithMeta(initMeta) {
   if (!initMeta || !initMeta.url) return
+  if (initMeta.pendingEvent && initMeta.pendingEvent.name) {
+    if (bridge && bridgeReady) {
+      bridge.emit(initMeta.pendingEvent.name, initMeta.pendingEvent.data)
+    } else {
+      pendingToolEvent = initMeta.pendingEvent
+    }
+  }
   if (meta && meta.id === initMeta.id && meta.url === initMeta.url) return
   meta = initMeta
   document.title = meta.name || meta.id || '工具'
@@ -258,6 +277,10 @@ function cleanup() {
     unsubscribeInit()
     unsubscribeInit = null
   }
+  if (unsubscribeToolEvent) {
+    unsubscribeToolEvent()
+    unsubscribeToolEvent = null
+  }
 }
 
 window.addEventListener('beforeunload', cleanup)
@@ -272,6 +295,13 @@ async function bootstrap() {
     unsubscribeThemeSync = window.api.onToolThemeChanged((themeSetting) => {
       applyHostTheme(themeSetting)
       pushTheme()
+    })
+  }
+  if (window.api && typeof window.api.onToolWindowEvent === 'function') {
+    unsubscribeToolEvent = window.api.onToolWindowEvent((ev) => {
+      if (!ev || typeof ev.name !== 'string' || !ev.name) return
+      if (bridge && bridgeReady) bridge.emit(ev.name, ev.data)
+      else pendingToolEvent = ev
     })
   }
   if (window.api && typeof window.api.onToolWindowInit === 'function') {

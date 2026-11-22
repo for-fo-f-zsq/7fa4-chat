@@ -31,6 +31,7 @@ class ToolWindowManager {
     this.getThemeSettingFn = typeof getThemeSetting === 'function' ? getThemeSetting : null;
     this.windows = new Map(); // toolId -> BrowserWindow
     this.metaByWebContentsId = new Map(); // webContents.id -> { id, name, url, version }
+    this.pendingEventsByToolId = new Map(); // toolId -> { name, data }
   }
 
   getWindow(toolId) {
@@ -71,8 +72,11 @@ class ToolWindowManager {
     if (!webContents) return null;
     const meta = this.metaByWebContentsId.get(webContents.id);
     if (!meta) return null;
+    const pendingEvent = this.pendingEventsByToolId.get(meta.id) || null;
+    if (pendingEvent) this.pendingEventsByToolId.delete(meta.id);
     return {
       ...meta,
+      pendingEvent,
       themeSetting: this.getThemeSetting()
     };
   }
@@ -97,6 +101,9 @@ class ToolWindowManager {
     const name = String(rawPayload.name || id || '工具');
     const url = String(rawPayload.url || '');
     const version = String(rawPayload.version || '');
+    const pendingEvent = rawPayload.event && typeof rawPayload.event === 'object' && typeof rawPayload.event.name === 'string'
+      ? { name: rawPayload.event.name, data: rawPayload.event.data }
+      : null;
 
     if (!TOOL_ID_RE.test(id)) return { success: false, error: '工具 ID 无效' };
     if (!isValidToolUrl(url)) return { success: false, error: '工具地址无效' };
@@ -106,7 +113,16 @@ class ToolWindowManager {
       if (existing.isMinimized()) existing.restore();
       if (!existing.isVisible()) existing.show();
       existing.focus();
+      if (pendingEvent) {
+        try {
+          existing.webContents.send('tool-window-event', pendingEvent);
+        } catch { /* ignore */ }
+      }
       return { success: true, reused: true };
+    }
+
+    if (pendingEvent) {
+      this.pendingEventsByToolId.set(id, pendingEvent);
     }
 
     const iconPath = this.getIconPathFn ? this.getIconPathFn() : undefined;
@@ -155,13 +171,17 @@ class ToolWindowManager {
     win.on('closed', () => {
       if (this.windows.get(id) === win) this.windows.delete(id);
       this.metaByWebContentsId.delete(wcId);
+      this.pendingEventsByToolId.delete(id);
     });
 
     win.webContents.on('did-finish-load', () => {
       if (win.isDestroyed()) return;
+      const ev = this.pendingEventsByToolId.get(id) || null;
+      if (ev) this.pendingEventsByToolId.delete(id);
       try {
         win.webContents.send('tool-window-init', {
           ...meta,
+          pendingEvent: ev,
           themeSetting: this.getThemeSetting()
         });
       } catch { /* ignore */ }

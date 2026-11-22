@@ -35,16 +35,6 @@
         <div class="remember-me">
           <UiSwitch v-model="remember" size="sm" label="保持登录" />
         </div>
-        <div v-if="!isWeb" class="sync-range-select-row">
-          <label class="sync-range-label">拉取历史范围</label>
-          <UiSegmented
-            v-model="syncRange"
-            class="sync-range-segmented"
-            size="sm"
-            :items="syncRangeOptions"
-            aria-label="拉取历史范围"
-          />
-        </div>
         <div class="api-url-select-row">
           <label class="api-url-label">API网址</label>
           <div class="api-url-row">
@@ -81,23 +71,16 @@ import { ref, onMounted, watch } from 'vue'
 import md5 from 'md5'
 import { tryLogin, isWebBrowser } from '../utils.js'
 import WindowTitleBar from '../components/common/WindowTitleBar.vue'
-import { UiBanner, UiButton, UiDropdown, UiIconButton, UiInput, UiSegmented, UiSwitch } from '@/ui'
+import { UiBanner, UiButton, UiDropdown, UiIconButton, UiInput, UiSwitch } from '@/ui'
 
 const emit = defineEmits(['login', 'guest'])
 
-const isWeb = isWebBrowser()
 const username = ref('')
 const password = ref('')
 const remember = ref(false)
-const syncRange = ref('30d')
 const apiUrl = ref('https://jx.7fa4.cn')
 const error = ref('')
 const loading = ref(false)
-
-const syncRangeOptions = [
-  { value: '30d', label: '最近 30 天' },
-  { value: 'all', label: '全部' },
-]
 
 const apiUrlOptions = [
   { value: 'https://jx.7fa4.cn', label: 'jx.7fa4.cn' },
@@ -111,21 +94,15 @@ function showError(msg) {
 async function onSuccess(type) {
   // #2 登录成功：写入 localStorage 持久化登录态（不点退登则一直保持登录）
   localStorage.setItem('7fa4_logined', '1')
-  const shouldSaveCred = type === 0 && remember.value
-  if (shouldSaveCred || !isWeb) {
-    const setting = (await window.api.loadSetting()) || {}
-    if (!isWeb) {
-      setting.syncRange = syncRange.value === 'all' ? 'all' : '30d'
-    }
-    if (shouldSaveCred) {
-      setting.keepLogin = true
-      setting.loginUsername = username.value
-      // 只有桌面端能用 safeStorage 加密保存口令；网页与安卓都落在 localStorage 明文里，
-      // 所以这两端一律只记住用户名，密码留空 → 下次需手动输入。
-      const platform = typeof window !== 'undefined' ? window.__7FA4_PLATFORM__ : ''
-      const canEncryptPassword = !isWebBrowser() && platform !== 'android'
-      setting.loginPassword = canEncryptPassword ? password.value : ''
-    }
+  if (type === 0 && remember.value) {
+    const setting = await window.api.loadSetting()
+    setting.keepLogin = true
+    setting.loginUsername = username.value
+    // 只有桌面端能用 safeStorage 加密保存口令；网页与安卓都落在 localStorage 明文里，
+    // 所以这两端一律只记住用户名，密码留空 → 下次需手动输入。
+    const platform = typeof window !== 'undefined' ? window.__7FA4_PLATFORM__ : ''
+    const canEncryptPassword = !isWebBrowser() && platform !== 'android'
+    setting.loginPassword = canEncryptPassword ? password.value : ''
     await window.api.saveSetting(setting)
   }
   emit('login')
@@ -186,7 +163,6 @@ onMounted(async () => {
       document.documentElement.classList.add(`theme-${setting.theme}`)
     }
     if (setting.apiUrl) apiUrl.value = setting.apiUrl.replace(/^http:\/\//, 'https://')
-    syncRange.value = setting.syncRange === 'all' ? 'all' : '30d'
     // 旧版本存的是 md5 哈希（32 位十六进制），新版本改存明文，升级后清空、不自动填充
     if (setting.loginPassword && /^[a-f0-9]{32}$/i.test(setting.loginPassword)) {
       setting.keepLogin = false

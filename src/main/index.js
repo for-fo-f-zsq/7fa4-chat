@@ -151,6 +151,16 @@ function getAppIconPath() {
   return path.join(__dirname, '../../resources/icon/icon.png');
 }
 
+function getWindowIconPath() {
+  if (process.platform === 'win32') {
+    const ico = app.isPackaged
+      ? path.join(process.resourcesPath, 'icon/icon.ico')
+      : path.join(__dirname, '../../resources/icon/icon.ico');
+    if (fsCb.existsSync(ico)) return ico;
+  }
+  return getAppIconPath();
+}
+
 function closeAuxiliaryWindows() {
   try { closeTimerFloat(); } catch {}
   try { if (toolWindowManager) toolWindowManager.closeAll(); } catch {}
@@ -444,7 +454,7 @@ async function loadRenderer(win, candidates) {
 }
 
 function createWindow() {
-    const iconPath = getAppIconPath();
+    const iconPath = getWindowIconPath();
     const startHidden = isAutostartLaunch && minimizeToTray !== false;
     mainWindow = new BrowserWindow({
         width: 1100,
@@ -460,6 +470,9 @@ function createWindow() {
             backgroundThrottling: false
         }
     });
+    if (process.platform === 'win32' && iconPath && typeof mainWindow.setIcon === 'function') {
+        try { mainWindow.setIcon(iconPath); } catch {}
+    }
 
     // 统一应用级页面缩放快捷键：Ctrl/Cmd + = / + 放大，Ctrl/Cmd + - 缩小，Ctrl/Cmd + 0 复位
     // （Electron 默认菜单的放大加速键只认 Ctrl+Plus，主键盘 = 不匹配，这里手动接管保证一致）
@@ -588,6 +601,10 @@ function createTray() {
     tray.on('click', () => { if (mainWindow && !mainWindow.isDestroyed()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); mainWindow.focus(); } });
 }
 
+if (process.platform === 'win32' && typeof app.setAppUserModelId === 'function') {
+    app.setAppUserModelId('com.7fa4.chat');
+}
+
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
@@ -648,9 +665,7 @@ if (!gotTheLock) {
                 await saveSettingToFile(setting);
             }
             if (setting.minimizeToTray !== undefined) minimizeToTray = setting.minimizeToTray;
-            if (setting.launchAtStartup !== undefined) {
-                await applyLaunchAtStartup(Boolean(setting.launchAtStartup));
-            }
+            await applyLaunchAtStartup(setting.launchAtStartup !== false);
             if (setting.apiUrl) {
                 currentApiUrl = setting.apiUrl.replace(/^http:\/\//, 'https://').replace(/\/$/, '');
                 // 旧设置存的 http 地址升级为 https 并写回，保证渲染进程读到一致值
@@ -668,7 +683,7 @@ if (!gotTheLock) {
                     ? path.join(__dirname, '../renderer/tool-window.html')
                     : path.join(app.getAppPath(), 'src/renderer/tool-window.html'),
                 devServerUrl: rendererEnvUrl,
-                getIconPath: getAppIconPath,
+                getIconPath: getWindowIconPath,
                 getThemeSetting: () => ({
                     theme: (cachedSetting && cachedSetting.theme) || 'default',
                     customVars: (cachedSetting && cachedSetting.customVars) || null
@@ -842,13 +857,13 @@ handleMainIpc('save-setting', async (event, data) => {
     const oldMinimizeToTray = minimizeToTray;
     const oldApiUrl = (cachedSetting || {}).apiUrl;
     const oldAutoUpdate = autoUpdateEnabled;
-    const oldLaunchAtStartup = Boolean((cachedSetting || {}).launchAtStartup);
+    const oldLaunchAtStartup = (cachedSetting || {}).launchAtStartup !== false;
     const result = await saveSettingToFile(data);
     if (data && data.minimizeToTray !== undefined && data.minimizeToTray !== oldMinimizeToTray) {
         minimizeToTray = data.minimizeToTray;
     }
-    if (data && data.launchAtStartup !== undefined && Boolean(data.launchAtStartup) !== oldLaunchAtStartup) {
-        await applyLaunchAtStartup(Boolean(data.launchAtStartup));
+    if (data && data.launchAtStartup !== undefined && (data.launchAtStartup !== false) !== oldLaunchAtStartup) {
+        await applyLaunchAtStartup(data.launchAtStartup !== false);
     }
     if (data && data.apiUrl !== undefined && data.apiUrl !== oldApiUrl) {
         currentApiUrl = data.apiUrl.replace(/^http:\/\//, 'https://').replace(/\/$/, '');

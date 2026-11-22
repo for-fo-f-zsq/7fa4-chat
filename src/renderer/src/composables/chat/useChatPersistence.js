@@ -250,40 +250,6 @@ export function useChatPersistence() {
     } catch {}
   }
 
-  async function loadOlderFromStore(kind, cid, limit = 200) {
-    if (isWeb) return 0
-    const uid = store.self.uid
-    if (!uid || cid == null) return 0
-    const target = kind === 'group' ? store.groups[cid] : store.users[cid]
-    if (!target || !Array.isArray(target.message_ids)) return 0
-    let oldestSec = null
-    for (const mid of target.message_ids) {
-      const m = store.messages[mid]
-      const sec = m && Number(m.send_time)
-      if (sec > 0 && (oldestSec === null || sec < oldestSec)) oldestSec = sec
-    }
-    if (!oldestSec) return 0
-    try {
-      const r = await window.api.storeLoadMessages(uid, kind, Number(cid), limit, oldestSec)
-      if (!r || !r.success || !Array.isArray(r.data) || !r.data.length) return 0
-      let added = 0
-      for (const m of r.data) {
-        if (!m || m.id == null) continue
-        if (!store.messages[m.id]) {
-          store.messages[m.id] = { ...m, free: normalizeFree(m.token_free ?? m.free) }
-          added++
-        }
-        if (target.message_ids.indexOf(m.id) === -1) {
-          target.message_ids.push(m.id)
-          added++
-        }
-      }
-      return added
-    } catch {
-      return 0
-    }
-  }
-
   async function flushData() {
     if (debounceTimer) {
       clearTimeout(debounceTimer)
@@ -381,7 +347,6 @@ export function useChatPersistence() {
     saveAll,
     scheduleSave,
     ensureConvoMessages,
-    loadOlderFromStore,
     flushData,
     loadData,
     resetLoadedUid,

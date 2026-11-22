@@ -166,6 +166,9 @@ function pushTheme() {
 function handleReady() {
   // 工具侧 bridge 已就绪：补推一次当前主题（工具可能在 ready 前注册了 onTheme）
   pushTheme()
+  if (props.tool?.pendingEvent?.name && bridge) {
+    bridge.emit(props.tool.pendingEvent.name, props.tool.pendingEvent.data)
+  }
 }
 
 function connectBridge() {

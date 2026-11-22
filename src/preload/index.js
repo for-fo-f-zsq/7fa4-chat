@@ -125,6 +125,7 @@ contextBridge.exposeInMainWorld('api', {
   replyToolUsers: (reqId, snapshot) => ipcRenderer.send('tool-users-res', reqId, snapshot),
   getToolWindowInit: () => ipcRenderer.invoke('tool-window-get-init'),
   onToolWindowInit: (callback) => subscribeIpc('tool-window-init', callback),
+  onToolWindowEvent: (callback) => subscribeIpc('tool-window-event', callback),
   onToolThemeChanged: (callback) => subscribeIpc('tool-theme-changed', callback),
   sendToolImage: (payload) => ipcRenderer.invoke('tool-send-image', payload),
   requestToolUsers: () => ipcRenderer.invoke('tool-users-req'),

@@ -91,17 +91,19 @@
     :text="previewData.text"
     :rawContent="previewData.rawContent"
     :showActions="previewData.showActions"
-    :showEdit="false"
+    :showEdit="previewData.type === 'image' && !isWeb"
     @close="previewData.show = false"
     @copy="emit('previewCopy')"
     @forward="emit('previewForward')"
     @download="emit('previewDownload')"
+    @edit="emit('previewEdit')"
   />
 </template>
 
 <script setup>
 import { ref } from 'vue'
 import { store } from '../../store.js'
+import { isWebBrowser } from '../../utils/env.js'
 import { persistNow } from '../../composables/chat/useChatPersistence.js'
 import TargetMenu from '../common/TargetMenu.vue'
 import GroupActionMenu from '../common/GroupActionMenu.vue'
@@ -142,8 +144,10 @@ const emit = defineEmits([
   'previewCopy',
   'previewForward',
   'previewDownload',
+  'previewEdit',
 ])
 
+const isWeb = isWebBrowser()
 const forwardModalRef = ref(null)
 
 function closeGroupModal() {

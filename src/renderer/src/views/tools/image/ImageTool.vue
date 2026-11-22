@@ -424,18 +424,30 @@ function onKeydown(e) {
   }
 }
 
+let unsubscribeOpenImage = null
+
 onMounted(() => {
   emit('dirty-change', false)
   document.addEventListener('keydown', onKeydown)
   document.addEventListener('paste', onPaste)
   document.addEventListener('wheel', onWheel, { capture: true, passive: false })
   initLayers()
+  if (typeof window !== 'undefined' && typeof window.__toolBridge?.onEvent === 'function') {
+    unsubscribeOpenImage = window.__toolBridge.onEvent('openImage', (payload) => {
+      if (!payload || typeof payload !== 'object' || !payload.data) return
+      imageOpen(payload.data, payload.mime || 'image/png', payload.name || '图片.png')
+    })
+  }
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', onKeydown)
   document.removeEventListener('paste', onPaste)
   document.removeEventListener('wheel', onWheel, true)
+  if (unsubscribeOpenImage) {
+    unsubscribeOpenImage()
+    unsubscribeOpenImage = null
+  }
 })
 
 defineExpose({ save, imageOpen })

@@ -61,6 +61,8 @@ const pending = new Map()
 const queue = []
 /** 事件名 -> Set<callback> */
 const listeners = new Map()
+/** 订阅前到达的事件按事件名保留最新一条，避免组件挂载前触发丢失 */
+const bufferedEvents = new Map()
 
 /** 工具运行环境缓存（init / getEnv 时更新） */
 const env = {
@@ -150,6 +152,18 @@ function subscribe(name, cb) {
     listeners.set(name, set)
   }
   set.add(cb)
+  if (bufferedEvents.has(name)) {
+    const queued = bufferedEvents.get(name)
+    bufferedEvents.delete(name)
+    Promise.resolve().then(() => {
+      if (!set.has(cb)) return
+      try {
+        cb(queued)
+      } catch (e) {
+        console.error(`[tool-bridge] 事件回调异常：${name}`, e)
+      }
+    })
+  }
   return () => {
     set.delete(cb)
   }
@@ -157,7 +171,12 @@ function subscribe(name, cb) {
 
 function dispatch(name, data) {
   const set = listeners.get(name)
-  if (!set || set.size === 0) return
+  if (!set || set.size === 0) {
+    if (name !== 'bridge-ready' && name !== 'theme') {
+      bufferedEvents.set(name, data)
+    }
+    return
+  }
   for (const cb of [...set]) {
     try {
       cb(data)
@@ -539,6 +558,22 @@ const toolBridge = {
   /** 打日志到宿主（方便宿主统一收集工具异常） */
   log(level, message) {
     return request('log', [String(level || 'info'), String(message == null ? '' : message)])
+  },
+
+  /** 工具主动向宿主发送单向事件（如图片编辑器回传 'sendImage'） */
+  emitEvent(name, data) {
+    const evtName = String(name || '')
+    if (!evtName) return false
+    if (ready && port) {
+      try {
+        port.postMessage({ t: 'evt', name: evtName, data })
+        return true
+      } catch (e) {
+        console.warn(`[tool-bridge] emitEvent(${evtName}) 失败:`, e)
+        return false
+      }
+    }
+    return false
   },
 
   /** 请求宿主关闭当前工具（对应宿主 ToolHost 的返回按钮；宿主未实现时 promise 会 reject） */
