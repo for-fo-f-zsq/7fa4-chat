@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog, session, clipboard, safeStorage, protocol, net, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, screen, dialog, session, clipboard, safeStorage, protocol, net, shell, Notification, powerMonitor } = require('electron');
 const fs = require('fs').promises;
 const fsCb = require('fs');
 const os = require('os');
@@ -20,11 +20,11 @@ protocol.registerSchemesAsPrivileged([
 
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const { UserStore, migrateLegacy, importLegacyData } = require('./storage');
-const { NotificationManager } = require('./notifications');
+const { ToolWindowManager } = require('./tool-windows');
 
 let mainWindow;
-// 通知窗管理器：提前用 let 声明（null 占位），isAllowedSender 在模块顶层就引用它也不会有 TDZ 问题
-let notificationManager = null;
+// 独立工具窗口管理器：提前用 let 声明（null 占位），isAllowedSender 在模块顶层就引用它也不会有 TDZ 问题
+let toolWindowManager = null;
 let tray = null;
 let serverStarted = false;
 let serverInstance = null;
@@ -49,18 +49,14 @@ const PORT_BAND_SIZE = 20;
 
 const SAFE_URL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 
-// 我们自己的本地窗口页面（通知卡片 / 定时悬浮窗）。这两个页面用 loadFile 以 file:// 加载，
-// 而全局白名单只放行 http(s)/about/data/blob/devtools/tool，于是这些窗口发出的 IPC
-// （load-setting / close-notification / show-mainwindow / timer-float-*）会被 isAllowedSender 全拒。
-// 这里按「路径必须以自家页面的产物或源码路径结尾」精确放行，别的 file:// 一律继续拒绝。
-// 安全性说明：这是主进程自己 loadFile 的窗口，渲染层发起的跳转已被 web-contents-created 里的
-// will-navigate 锁死（loadFile 属于主进程 API，不触发 will-navigate），所以这里只放开 file 协议里
-// 这两页各自的两个路径（打包产物 + 源码），而不是整个 file 协议。
+// 我们自己的本地窗口页面（独立工具宿主 / 定时悬浮窗）。这些页面在打包态用 loadFile 以 file:// 加载，
+// 而全局白名单只放行 http(s)/about/data/blob/devtools/tool，这里按「路径必须以自家页面的产物或源码路径结尾」精确放行，
+// 别的 file:// 一律继续拒绝。
 const OWN_LOCAL_PAGES = [
-    'out/renderer/notification.html',
-    'src/renderer/notification.html',
     'out/renderer/timer-float.html',
-    'src/renderer/timer-float.html'
+    'src/renderer/timer-float.html',
+    'out/renderer/tool-window.html',
+    'src/renderer/tool-window.html'
 ];
 
 function isOwnLocalPagePath(u) {
@@ -99,8 +95,7 @@ function isAllowedSender(event, targets = 'main') {
     const list = Array.isArray(targets) ? targets : [targets];
     const matched = list.some((t) => {
         if (t === 'main') return matchesAppWindow(mainWindow, event);
-        // 通知窗每次重建都是新实例，必须问 manager 要当前窗口，不能缓存引用
-        if (t === 'notification') return matchesAppWindow(notificationManager && notificationManager.getWindow(), event);
+        if (t === 'tool') return !!(toolWindowManager && toolWindowManager.isToolWebContents(event.sender));
         if (t === 'timer-float') return matchesAppWindow(timerFloatWin, event);
         return false;
     });
@@ -140,21 +135,123 @@ function portCandidates() {
     list.push(0); // 兜底：系统分配空闲端口
     return list;
 }
+const FLUSH_TIMEOUT_MS = 5000;
+const isAutostartLaunch = process.argv.includes('--autostart');
 let minimizeToTray = true;
-let forceClose = false;   // 数据已落盘，允许真正关闭
-let flushPending = false; // 正在等待渲染进程 flush 确认
+let forceClose = false;     // 数据已 flush & checkpoint，允许真正关闭
 let pendingRestart = false; // 托盘"重启"：flush 完成后 relaunch
+let flushPromise = null;
+let flushResolver = null;
+let isInstallingUpdate = false;
 let currentApiUrl = 'https://jx.7fa4.cn';
 let userStore = null; // SQLite 用户数据存储（whenReady 初始化）
+
+function getAppIconPath() {
+  if (app.isPackaged) return path.join(process.resourcesPath, 'icon/icon.png');
+  return path.join(__dirname, '../../resources/icon/icon.png');
+}
+
+function closeAuxiliaryWindows() {
+  try { closeTimerFloat(); } catch {}
+  try { if (toolWindowManager) toolWindowManager.closeAll(); } catch {}
+}
+
+function notifyFlushDone() {
+  if (flushResolver) {
+    const resolve = flushResolver;
+    flushResolver = null;
+    resolve();
+  }
+}
+
+async function ensureFlushedBeforeQuit() {
+  if (forceClose) return;
+  if (flushPromise) return flushPromise;
+  flushPromise = (async () => {
+    const canAskRenderer = !!(
+      mainWindow
+      && !mainWindow.isDestroyed()
+      && mainWindow.webContents
+      && !mainWindow.webContents.isDestroyed()
+      && !mainWindow.webContents.isCrashed()
+    );
+    if (canAskRenderer) {
+      await new Promise((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          if (flushResolver === finish) flushResolver = null;
+          resolve();
+        };
+        flushResolver = finish;
+        const timer = setTimeout(finish, FLUSH_TIMEOUT_MS);
+        try {
+          mainWindow.webContents.send('app-flush-before-close');
+        } catch {
+          finish();
+        }
+      });
+    }
+    if (userStore) {
+      try { userStore.checkpoint(); } catch (e) { console.error('[Store] checkpoint 失败:', e.message); }
+    }
+    forceClose = true;
+  })();
+  return flushPromise;
+}
+
+function getLinuxAutostartFile() {
+  const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
+  return path.join(xdgConfig, 'autostart', '7fa4-chat.desktop');
+}
+
+async function applyLaunchAtStartup(enabled) {
+  const openAtLogin = !!enabled;
+  try {
+    if (process.platform === 'win32' || process.platform === 'darwin') {
+      app.setLoginItemSettings({ openAtLogin, args: ['--autostart'] });
+      return;
+    }
+    if (process.platform === 'linux') {
+      const desktopFile = getLinuxAutostartFile();
+      if (openAtLogin) {
+        await fs.mkdir(path.dirname(desktopFile), { recursive: true });
+        const execTarget = (process.env.APPIMAGE || process.execPath).replace(/"/g, '\\"');
+        const content = [
+          '[Desktop Entry]',
+          'Type=Application',
+          'Version=1.0',
+          'Name=7FA4 Chat',
+          'Comment=7FA4 Chat Desktop Client',
+          `Exec="${execTarget}" --autostart`,
+          'StartupNotify=false',
+          'Terminal=false',
+          'X-GNOME-Autostart-enabled=true',
+          ''
+        ].join('\n');
+        await fs.writeFile(desktopFile, content, 'utf8');
+      } else {
+        await fs.rm(desktopFile, { force: true });
+      }
+    }
+  } catch (err) {
+    console.error('[Autostart] 设置开机自启动失败:', err && err.message);
+  }
+}
 
 // Linux/AppImage 下 execPath 指向临时挂载点，relaunch 后挂载点失效会导致新进程无法启动。
 // Electron 官方建议：不要在 AppImage 用 app.relaunch()，而改用"启动新进程后让本进程以优雅方式退出"。
 // 统一走 app.quit()（BSD/退出时机干净），并显式重建主进程对象，避免 Linux 直接退出不再打开。
 function appRestart() {
   try {
-    // 借助 stdin/stdout 或退出码 0 平滑退出；quitAndInstall 的 quit 流程足够干净。
-    // 关键差异：Linux 下不要用 app.exit(0)（硬杀），否则新实例在旧实例释放单实例锁之前启动 → 误判已有实例而退出。
     app.isQuitting = true;
+    closeAuxiliaryWindows();
+    if (userStore) {
+      try { userStore.checkpoint(); } catch {}
+      try { userStore.close(); } catch {}
+    }
     if (process.platform === 'linux' && process.env.APPIMAGE) {
       // AppImage：app.relaunch() 在 Linux 上不可靠（新实例与旧实例的单实例锁竞态，导致新实例立即退出、看起来"只关闭不重开"）。
       // 改为派生一个分离的等待进程：等本进程退出（单实例锁随之释放）后再执行同一个 AppImage 重新打开。
@@ -347,16 +444,14 @@ async function loadRenderer(win, candidates) {
 }
 
 function createWindow() {
-    let iconPath;
-    if (app.isPackaged)
-        iconPath = path.join(process.resourcesPath, 'icon/icon.png');
-    else
-        iconPath = path.join(__dirname, '../../resources/icon/icon.png');
+    const iconPath = getAppIconPath();
+    const startHidden = isAutostartLaunch && minimizeToTray !== false;
     mainWindow = new BrowserWindow({
         width: 1100,
         height: 830,
         frame: false,
-        icon:iconPath,
+        show: !startHidden,
+        icon: iconPath,
         webPreferences: {
             preload: path.join(__dirname, '../preload/index.js'),
             contextIsolation: true,
@@ -402,36 +497,33 @@ function createWindow() {
     }
 
     mainWindow.on('close', (event) => {
-        if (minimizeToTray && !app.isQuitting) {
+        if (minimizeToTray && !app.isQuitting && !forceClose) {
             event.preventDefault();
             mainWindow.hide();
             return;
         }
-        // 真正关闭前：先通知渲染进程落盘（convo 30s / pref 1.5s 节流数据也能保存）
-        // 渲染层 flushData 完成后发 app-flush-done → forceClose=true → 下一轮 close 才真正放行
-        // 关键：只要 forceClose 未置位，无论第几次 close（托盘退出 → app.quit() 会二次触发）都拦截，
-        // 避免二次 quit 抢先把窗口销毁、flush 未完成导致节流数据丢失。
+        // 真正关闭前：先通知渲染进程落盘，再 checkpoint SQLite，最后才放行关闭
         if (!forceClose) {
             event.preventDefault();
-            if (!flushPending) {
-                flushPending = true;
-                mainWindow.webContents.send('app-flush-before-close');
-                // 超时兜底：2s 内渲染层未回 app-flush-done 则强制关闭（防渲染进程卡死/崩溃）
-                setTimeout(() => {
-                    if (!forceClose) {
-                        forceClose = true;
-                        flushPending = false;
-                        if (pendingRestart) {
-                            pendingRestart = false;
-                            appRestart();
-                            return;
-                        }
-                        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
-                    }
-                }, 2000);
-            }
-            // flushPending 已 true（二次 quit 触发）：继续等待 flush 完成，不在此放行
+            ensureFlushedBeforeQuit().then(() => {
+                closeAuxiliaryWindows();
+                if (pendingRestart) {
+                    pendingRestart = false;
+                    appRestart();
+                    return;
+                }
+                if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+                else app.quit();
+            });
             return;
+        }
+    });
+
+    mainWindow.on('session-end', () => {
+        app.isQuitting = true;
+        if (userStore) {
+            try { userStore.checkpoint(); } catch {}
+            try { userStore.close(); } catch {}
         }
     });
 
@@ -462,45 +554,38 @@ function createWindow() {
     });
     mainWindow.webContents.once('did-finish-load', sendMaximizedState);
 
-    // 用户回到主窗 → 角落里的提醒卡片已经没用了，清内容但保留窗口实例
-    mainWindow.on('focus', () => {
-        if (notificationManager) notificationManager.clear();
-    });
-    // 主窗真被销毁（非托盘驻留）时，通知窗必须一起销毁：否则它会一直占着一个 BrowserWindow，
-    // 让 window-all-closed 永远等不到「所有窗口关闭」，非托盘模式的应用就退不出去。
     mainWindow.on('closed', () => {
-        if (notificationManager) notificationManager.close();
+        mainWindow = null;
+        closeAuxiliaryWindows();
     });
 }
 
 function createTray() {
     if (tray) return;
-    const iconPath = app.isPackaged
-        ? path.join(process.resourcesPath, 'icon/icon.png')
-        : path.join(__dirname, '../../resources/icon/icon.png');
-
-    const icon = nativeImage.createFromPath(iconPath);
+    const icon = nativeImage.createFromPath(getAppIconPath());
     tray = new Tray(icon);
     const contextMenu = Menu.buildFromTemplate([
-        { label: '显示窗口', click: () => { mainWindow.show(); mainWindow.focus(); } },
+        { label: '显示窗口', click: () => { if (mainWindow && !mainWindow.isDestroyed()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); mainWindow.focus(); } } },
         { label: '重启', click: () => {
-            // 完整落盘后重启：设标记 + close（触发 flush 拦截），app-flush-done 时 relaunch
             pendingRestart = true;
             app.isQuitting = true;
-            if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
-            else { pendingRestart = false; appRestart(); }
+            ensureFlushedBeforeQuit().then(() => {
+                pendingRestart = false;
+                appRestart();
+            });
         }},
         { label: '退出', click: () => {
             app.isQuitting = true;
-            // 先触发 close：让渲染层 flush 节流数据（convo/prefs）落盘后再真正退出，
-            // 不要直接 app.quit()——那样会绕过 close 的 flush 拦截时序。
-            if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
-            else app.quit();
+            ensureFlushedBeforeQuit().then(() => {
+                closeAuxiliaryWindows();
+                if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+                app.quit();
+            });
         }}
     ]);
     tray.setToolTip('7FA4 Chat');
     tray.setContextMenu(contextMenu);
-    tray.on('click', () => { mainWindow.show(); mainWindow.focus(); });
+    tray.on('click', () => { if (mainWindow && !mainWindow.isDestroyed()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); mainWindow.focus(); } });
 }
 
 const gotTheLock = app.requestSingleInstanceLock();
@@ -563,6 +648,9 @@ if (!gotTheLock) {
                 await saveSettingToFile(setting);
             }
             if (setting.minimizeToTray !== undefined) minimizeToTray = setting.minimizeToTray;
+            if (setting.launchAtStartup !== undefined) {
+                await applyLaunchAtStartup(Boolean(setting.launchAtStartup));
+            }
             if (setting.apiUrl) {
                 currentApiUrl = setting.apiUrl.replace(/^http:\/\//, 'https://').replace(/\/$/, '');
                 // 旧设置存的 http 地址升级为 https 并写回，保证渲染进程读到一致值
@@ -573,6 +661,49 @@ if (!gotTheLock) {
             }
             // 与设置面板默认值保持一致（面板默认勾选开启）
             autoUpdateEnabled = setting.autoUpdate !== false;
+
+            toolWindowManager = new ToolWindowManager({
+                preloadPath: path.join(__dirname, '../preload/index.js'),
+                htmlPath: app.isPackaged
+                    ? path.join(__dirname, '../renderer/tool-window.html')
+                    : path.join(app.getAppPath(), 'src/renderer/tool-window.html'),
+                devServerUrl: rendererEnvUrl,
+                getIconPath: getAppIconPath,
+                getThemeSetting: () => ({
+                    theme: (cachedSetting && cachedSetting.theme) || 'default',
+                    customVars: (cachedSetting && cachedSetting.customVars) || null
+                })
+            });
+
+            // 放行受信任页面（主窗）的摄像头/麦克风 media 权限请求（#20 macOS/Linux 摄像头取景）
+            if (session.defaultSession) {
+                session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+                    const url = (details && details.requestingUrl) || (webContents && !webContents.isDestroyed() ? webContents.getURL() : '');
+                    const isMain = !!(mainWindow && !mainWindow.isDestroyed() && webContents === mainWindow.webContents);
+                    const isTool = !!(toolWindowManager && toolWindowManager.isToolWebContents(webContents));
+                    if (permission === 'media') {
+                        callback(isMain && isAllowedAppNavigation(url));
+                        return;
+                    }
+                    if ((isMain || isTool) && isAllowedAppNavigation(url)) {
+                        if (permission === 'clipboard-read' || permission === 'clipboard-sanitized-write' || permission === 'fullscreen') {
+                            callback(true);
+                            return;
+                        }
+                    }
+                    callback(false);
+                });
+            }
+
+            powerMonitor.on('shutdown', () => {
+                app.isQuitting = true;
+                if (userStore) {
+                    try { userStore.checkpoint(); } catch {}
+                    try { userStore.close(); } catch {}
+                }
+            });
+
+            cleanupDragTempDir();
             // 限制所有窗口的新窗口弹出与顶层越界跳转
             app.on('web-contents-created', (_event, contents) => {
                 contents.setWindowOpenHandler(({ url }) => {
@@ -604,14 +735,33 @@ if (!gotTheLock) {
     });
 }
 
-app.on('before-quit', () => {
-    // 退出前销毁通知窗：它不在 window-all-closed 的退出判断里，留着会把进程吊住
-    if (notificationManager) notificationManager.destroy();
+app.on('before-quit', (event) => {
+    app.isQuitting = true;
+    if (!forceClose) {
+        event.preventDefault();
+        ensureFlushedBeforeQuit().then(() => {
+            closeAuxiliaryWindows();
+            if (pendingRestart) {
+                pendingRestart = false;
+                appRestart();
+                return;
+            }
+            app.quit();
+        });
+        return;
+    }
+    closeAuxiliaryWindows();
 });
 
 app.on('will-quit', () => {
     // 清掉 dev 端口握手文件，避免下次 dev 转发读到已失效的端口
     writeDevPortFile(0);
+    cleanupDragTempDir({ all: true });
+    closeAuxiliaryWindows();
+    if (userStore) {
+        try { userStore.checkpoint(); } catch {}
+        try { userStore.close(); } catch {}
+    }
 });
 
 app.on('window-all-closed', () => {
@@ -622,10 +772,10 @@ app.on('window-all-closed', () => {
     if (!minimizeToTray && process.platform !== 'darwin') app.quit();
 });
 
-handleMainIpc('get-version', () => app.getVersion());
+handleAllowedIpc('get-version', ['main', 'tool'], () => app.getVersion());
 
 // 客户端平台（反馈客户端信息按 OS 细分：windows/linux/macos；web/android 由各自适配层提供）
-handleMainIpc('get-platform', () => {
+handleAllowedIpc('get-platform', ['main', 'tool'], () => {
   const p = process.platform;
   if (p === 'win32') return 'windows';
   if (p === 'darwin') return 'macos';
@@ -683,26 +833,24 @@ async function saveSettingToFile(data) {
     } catch { return false; }
 }
 
-handleAllowedIpc('load-setting', ['main', 'notification'], async (event) => {
+handleMainIpc('load-setting', async () => {
     if (!cachedSetting) await loadSettingFromFile();
-    const copy = JSON.parse(JSON.stringify(cachedSetting));
-    // 通知弹窗只需 fontSize 等展示配置，不暴露保存的登录凭据
-    if (!matchesAppWindow(mainWindow, event)) {
-        delete copy.loginPassword;
-        delete copy.loginUsername;
-    }
-    return copy;
+    return JSON.parse(JSON.stringify(cachedSetting));
 });
 
 handleMainIpc('save-setting', async (event, data) => {
     const oldMinimizeToTray = minimizeToTray;
     const oldApiUrl = (cachedSetting || {}).apiUrl;
     const oldAutoUpdate = autoUpdateEnabled;
+    const oldLaunchAtStartup = Boolean((cachedSetting || {}).launchAtStartup);
     const result = await saveSettingToFile(data);
-    if (data.minimizeToTray !== undefined && data.minimizeToTray !== oldMinimizeToTray) {
+    if (data && data.minimizeToTray !== undefined && data.minimizeToTray !== oldMinimizeToTray) {
         minimizeToTray = data.minimizeToTray;
     }
-    if (data.apiUrl !== undefined && data.apiUrl !== oldApiUrl) {
+    if (data && data.launchAtStartup !== undefined && Boolean(data.launchAtStartup) !== oldLaunchAtStartup) {
+        await applyLaunchAtStartup(Boolean(data.launchAtStartup));
+    }
+    if (data && data.apiUrl !== undefined && data.apiUrl !== oldApiUrl) {
         currentApiUrl = data.apiUrl.replace(/^http:\/\//, 'https://').replace(/\/$/, '');
         stopServer().then(() => startServer(serverPort));
         // API 网址变了，刷新自动更新源并立即重新检查
@@ -711,7 +859,7 @@ handleMainIpc('save-setting', async (event, data) => {
             autoUpdater.checkForUpdates().catch(err => console.error('[Updater] API变更后检查更新失败:', err.message));
         }
     }
-    if (data.autoUpdate !== undefined && data.autoUpdate !== oldAutoUpdate) {
+    if (data && data.autoUpdate !== undefined && data.autoUpdate !== oldAutoUpdate) {
         autoUpdateEnabled = data.autoUpdate;
         if (autoUpdateEnabled) {
             startUpdateCheckTimer();
@@ -719,81 +867,58 @@ handleMainIpc('save-setting', async (event, data) => {
             stopUpdateCheckTimer();
         }
     }
-    // 关掉「新消息提醒」→ 立刻收起正在显示的卡片（不清空的话它会一直停到倒计时结束）
-    if (data.notifDesktop === false && notificationManager) notificationManager.clear();
+    if (toolWindowManager && data && typeof data === 'object') {
+        toolWindowManager.broadcast('tool-theme-changed', {
+            theme: data.theme || 'default',
+            customVars: data.customVars || null
+        });
+    }
     return result;
 });
 
-// ========== 桌面通知窗 ==========
-// 单实例复用（窗口创建/推送/尺寸/定位都在 notifications.js）：旧实现「窗口已存在就 return」
-// 会把第二条提醒直接吞掉，且位置写死在右下角。
-notificationManager = new NotificationManager({
-    preloadPath: path.join(__dirname, '../preload/notification.js'),
-    htmlPath: app.isPackaged
-        ? path.join(__dirname, '../renderer/notification.html')
-        : path.join(app.getAppPath(), 'src/renderer/notification.html'),
-    // 最后一道 notifDesktop 闸门：设置里关掉桌面通知后，任何 notify 都不再弹窗
-    isEnabled: () => (cachedSetting ? cachedSetting.notifDesktop !== false : true),
-    // 卡片放到主窗所在显示器的角落（副屏用户不会被提醒拽回主屏）；主窗引用靠注入，不跨模块 require
-    getMainWindow: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null)
-});
+// ========== 系统通知（Electron 原生 Notification） ==========
+const activeNotifications = new Set();
 
-// 兼容两代调用方：旧的是 { sender, content }，新的是完整 payload（title/body/position/accent…）
-function normalizeNotifyPayload(raw) {
-    if (!raw || typeof raw !== 'object') return null;
-    const payload = { ...raw };
-    if (!payload.title && payload.sender) payload.title = payload.sender;
-    if (!payload.body && payload.content) payload.body = payload.content;
-    if (!payload.position) payload.position = 'br';
-    return payload;
-}
-
-// 主窗显示并定位到目标会话：通知卡片点击与「show-mainwindow」共用同一套动作
 function showAndFocusMainWindow(chatType, targetId) {
     if (!mainWindow || mainWindow.isDestroyed()) return { success: false };
-    // Windows 上窗口最小化时 show() 不会还原，必须先 restore，否则点通知窗口不出来。
     if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.hide();
-    mainWindow.show();
+    if (!mainWindow.isVisible()) mainWindow.show();
     mainWindow.focus();
-    if (chatType && targetId) {
+    if (chatType && targetId != null && targetId !== '') {
         mainWindow.webContents.send('notif-click', { chatType, targetId });
     }
     return { success: true };
 }
 
 handleMainIpc('notify', (e, payload) => {
-    if (!notificationManager) return { success: false, error: '通知服务未就绪' };
-    const normalized = normalizeNotifyPayload(payload);
-    if (!normalized) return { success: false, error: '通知内容无效' };
+    if (cachedSetting && cachedSetting.notifDesktop === false) {
+        return { success: true, skipped: true };
+    }
+    if (!payload || typeof payload !== 'object') {
+        return { success: false, error: '通知内容无效' };
+    }
+    if (typeof Notification.isSupported === 'function' && !Notification.isSupported()) {
+        return { success: false, error: '当前系统不支持系统通知' };
+    }
+    const title = String(payload.title || payload.sender || '7FA4 Chat');
+    const body = String(payload.body || payload.content || '');
+    const chatType = payload.chatType;
+    const targetId = payload.targetId;
     try {
-        notificationManager.notify(normalized);
+        const notif = new Notification({ title, body, silent: true });
+        activeNotifications.add(notif);
+        const cleanup = () => activeNotifications.delete(notif);
+        notif.on('click', () => {
+            cleanup();
+            showAndFocusMainWindow(chatType, targetId);
+        });
+        notif.on('close', cleanup);
+        notif.on('failed', cleanup);
+        notif.show();
         return { success: true };
     } catch (err) {
         return { success: false, error: String((err && err.message) || err) };
     }
-});
-
-// 渲染层实测卡片高度后回传（0 或负数 = 收起，窗口只隐藏不销毁，留着下次复用）
-handleAllowedIpc('notification-resize', ['notification'], (e, height) => notificationManager.resize(Number(height) || 0));
-
-// 点卡片：拉起主窗并跳到对应会话，然后收起通知窗
-handleAllowedIpc('notification-action', ['notification'], (e, chatType, targetId) => {
-    const result = showAndFocusMainWindow(chatType, targetId);
-    notificationManager.close();
-    return result;
-});
-
-handleAllowedIpc('close-notification', ['main', 'notification'], () => {
-    notificationManager.close();
-    return { success: true };
-});
-
-handleAllowedIpc('show-mainwindow', ['main', 'notification'], (e, chatType, targetId) => {
-    const result = showAndFocusMainWindow(chatType, targetId);
-    // 用户已经回到主窗，残留在角落的卡片没有意义
-    notificationManager.clear();
-    return result;
 });
 
 // 独立小型无边框置顶窗（file://renderer/timer-float.html）：状态由主窗口经主进程全量推来，单一数据源在主窗口
@@ -869,10 +994,19 @@ function openTimerFloat(cfg) {
     });
     // 'floating' 层级：能压住普通窗口，但不至于像 screen-saver 那样挡系统级弹窗
     timerFloatWin.setAlwaysOnTop(timerFloatConfig.onTop !== false, 'floating');
+    function sendTimerFloatHostEvent(channel, payload) {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            try { mainWindow.webContents.send(channel, payload); } catch {}
+        }
+        if (toolWindowManager) {
+            toolWindowManager.broadcast(channel, payload);
+        }
+    }
+
     timerFloatWin.on('closed', () => {
         timerFloatWin = null;
         if (timerFloatMoveTimer) { clearTimeout(timerFloatMoveTimer); timerFloatMoveTimer = null; }
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('timer-float-closed');
+        sendTimerFloatHostEvent('timer-float-closed');
     });
     // 拖拽后记住位置（防抖：拖动过程会连续触发 moved）
     timerFloatWin.on('moved', () => {
@@ -883,7 +1017,7 @@ function openTimerFloat(cfg) {
             if (!timerFloatWin || timerFloatWin.isDestroyed()) return;
             const [x, y] = timerFloatWin.getPosition();
             timerFloatConfig = { ...timerFloatConfig, x, y };
-            if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('timer-float-moved', { x, y });
+            sendTimerFloatHostEvent('timer-float-moved', { x, y });
         }, 400);
     });
     timerFloatWin.loadFile(timerFloatPagePath());
@@ -897,14 +1031,14 @@ function openTimerFloat(cfg) {
     return { success: true };
 }
 
-handleMainIpc('timer-float-open', (event, cfg) => openTimerFloat(cfg));
-handleMainIpc('timer-float-close', () => { closeTimerFloat(); return { success: true }; });
+handleAllowedIpc('timer-float-open', ['main', 'tool'], (event, cfg) => openTimerFloat(cfg));
+handleAllowedIpc('timer-float-close', ['main', 'tool'], () => { closeTimerFloat(); return { success: true }; });
 // 渲染层（可能刚重载过）问一句：悬浮窗现在还开着吗？→ 用来对齐「开关」状态
-handleMainIpc('timer-float-is-open', () => !!(timerFloatWin && !timerFloatWin.isDestroyed()));
+handleAllowedIpc('timer-float-is-open', ['main', 'tool'], () => !!(timerFloatWin && !timerFloatWin.isDestroyed()));
 
-// 主窗口推送状态（全量覆盖，不做增量）
+// 宿主窗口推送状态（全量覆盖，不做增量）
 ipcMain.on('timer-float-update', (event, state) => {
-    if (!isAllowedSender(event, 'main')) return;
+    if (!isAllowedSender(event, ['main', 'tool'])) return;
     timerFloatState = state || null;
     if (timerFloatWin && !timerFloatWin.isDestroyed()) {
         timerFloatWin.webContents.send('timer-float-state', timerFloatState);
@@ -929,9 +1063,9 @@ ipcMain.on('timer-float-resize', (event, raw) => {
     timerFloatWin.setBounds({ x: b.x, y, width: TIMER_FLOAT_WIDTH, height: next });
 });
 
-// 主窗口推送外观配置（位置/置顶）
+// 宿主窗口推送外观配置（位置/置顶）
 ipcMain.on('timer-float-config', (event, cfg) => {
-    if (!isAllowedSender(event, 'main')) return;
+    if (!isAllowedSender(event, ['main', 'tool'])) return;
     if (!cfg || typeof cfg !== 'object') return;
     const prevTop = timerFloatConfig.onTop !== false;
     timerFloatConfig = { ...timerFloatConfig, ...cfg };
@@ -947,12 +1081,64 @@ ipcMain.on('timer-float-config', (event, cfg) => {
     }
 });
 
-// 悬浮窗上的按钮 → 交回主窗口执行（保持单一数据源）
+// 悬浮窗上的按钮 → 交回宿主执行（主窗 + 独立工具窗）
 ipcMain.on('timer-float-cmd', (event, payload) => {
     if (!isAllowedSender(event, 'timer-float')) return;
     const type = payload && payload.type;
     if (type === 'close') { closeTimerFloat(); return; }
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('timer-float-command', payload);
+    if (toolWindowManager) toolWindowManager.broadcast('timer-float-command', payload);
+});
+
+// ========== 独立工具窗口 IPC（#25） ==========
+const pendingToolUsersReqs = new Map(); // reqId -> { resolve, timer }
+
+handleMainIpc('open-tool-window', (event, payload) => {
+    if (!toolWindowManager) return { success: false, error: '工具窗口服务未就绪' };
+    return toolWindowManager.open(payload);
+});
+
+handleAllowedIpc('tool-window-get-init', ['tool'], (event) => {
+    if (!toolWindowManager) return null;
+    return toolWindowManager.getInitMetaForSender(event.sender);
+});
+
+handleAllowedIpc('tool-send-image', ['tool', 'main'], (event, payload) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return { success: false, error: '主窗口未就绪' };
+    showAndFocusMainWindow();
+    mainWindow.webContents.send('tool-send-image', payload);
+    return { success: true };
+});
+
+handleAllowedIpc('tool-users-req', ['tool', 'main'], async () => {
+    const fallback = { users: {}, usersJson: {}, ranklistOrder: [] };
+    if (!mainWindow || mainWindow.isDestroyed()) return fallback;
+    const reqId = typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    return new Promise((resolve) => {
+        const timer = setTimeout(() => {
+            pendingToolUsersReqs.delete(reqId);
+            resolve(fallback);
+        }, 5000);
+        pendingToolUsersReqs.set(reqId, { resolve, timer });
+        try {
+            mainWindow.webContents.send('tool-users-req', reqId);
+        } catch {
+            clearTimeout(timer);
+            pendingToolUsersReqs.delete(reqId);
+            resolve(fallback);
+        }
+    });
+});
+
+ipcMain.on('tool-users-res', (event, reqId, snapshot) => {
+    if (!isAllowedSender(event, 'main')) return;
+    const entry = pendingToolUsersReqs.get(reqId);
+    if (!entry) return;
+    clearTimeout(entry.timer);
+    pendingToolUsersReqs.delete(reqId);
+    entry.resolve(snapshot && typeof snapshot === 'object' ? snapshot : { users: {}, usersJson: {}, ranklistOrder: [] });
 });
 
 
@@ -966,7 +1152,13 @@ handleMainIpc('get-window-state', () => {
     return { visible: mainWindow.isVisible(), focused: mainWindow.isFocused(), minimized: mainWindow.isMinimized() };
 });
 
-handleMainIpc('clipboard-write-text', async (event, text) => {
+function senderBrowserWindow(event) {
+    const win = event && event.sender ? BrowserWindow.fromWebContents(event.sender) : null;
+    if (win && !win.isDestroyed()) return win;
+    return mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+}
+
+handleAllowedIpc('clipboard-write-text', ['main', 'tool'], async (event, text) => {
     clipboard.writeText(text);
     return { success: true };
 });
@@ -977,8 +1169,9 @@ handleMainIpc('clipboard-write-text', async (event, text) => {
 // 否则渲染层一旦被注入就能往任意路径落文件。
 const writableFilePaths = new Set();
 
-handleMainIpc('select-file', async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'], title: '选择要发送的文件' });
+handleAllowedIpc('select-file', ['main', 'tool'], async (event) => {
+    const parent = senderBrowserWindow(event);
+    const { canceled, filePaths } = await dialog.showOpenDialog(parent, { properties: ['openFile'], title: '选择要发送的文件' });
     if (canceled || !filePaths.length) return { success: false, canceled: true };
     try {
         const buf = await fs.readFile(filePaths[0]);
@@ -1008,8 +1201,9 @@ handleMainIpc('select-file', async () => {
     } catch (e) { return { success: false, error: e.message }; }
 });
 
-handleMainIpc('select-image', async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+handleAllowedIpc('select-image', ['main', 'tool'], async (event) => {
+    const parent = senderBrowserWindow(event);
+    const { canceled, filePaths } = await dialog.showOpenDialog(parent, {
         properties: ['openFile'],
         title: '选择表情图片',
         filters: [{ name: '图片', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'ico'] }]
@@ -1190,9 +1384,10 @@ handleMainIpc('launch-camera', async (event) => {
     return done({ success: false, canceled: true });
 });
 
-handleMainIpc('download-file', async (event, base64Data, suggestedName, mime) => {
+handleAllowedIpc('download-file', ['main', 'tool'], async (event, base64Data, suggestedName, mime) => {
     try {
-        const { canceled, filePath: savePath } = await dialog.showSaveDialog(mainWindow, { defaultPath: suggestedName || 'download' });
+        const parent = senderBrowserWindow(event);
+        const { canceled, filePath: savePath } = await dialog.showSaveDialog(parent, { defaultPath: suggestedName || 'download' });
         if (canceled || !savePath) return { success: false, canceled: true };
         const buf = Buffer.from(base64Data, 'base64');
         await fs.writeFile(savePath, buf);
@@ -1205,10 +1400,11 @@ handleMainIpc('download-file', async (event, base64Data, suggestedName, mime) =>
 // ⚠️ 必须放在主进程：渲染层 fetch 远程资源会被 CORS 拦（渲染进程源是本地服务端口，远程站点
 // 通常不带 access-control-allow-origin），表现为「Failed to fetch」；而 <img> 加载不受同源
 // 策略限制，所以图能显示却下不下来。Node 侧没有同源策略，抓取稳定。
-handleMainIpc('download-url', async (event, url, suggestedName) => {
+handleAllowedIpc('download-url', ['main', 'tool'], async (event, url, suggestedName) => {
     try {
         if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return { success: false, error: '地址无效' };
-        const { canceled, filePath: savePath } = await dialog.showSaveDialog(mainWindow, { defaultPath: suggestedName || 'download' });
+        const parent = senderBrowserWindow(event);
+        const { canceled, filePath: savePath } = await dialog.showSaveDialog(parent, { defaultPath: suggestedName || 'download' });
         if (canceled || !savePath) return { success: false, canceled: true };
         const res = await net.fetch(url);
         if (!res.ok) return { success: false, error: 'HTTP ' + res.status };
@@ -1221,7 +1417,7 @@ handleMainIpc('download-url', async (event, url, suggestedName) => {
 
 // 覆盖写入已保存过的文件（不弹对话框）。unsupported 表示路径不受信，
 // 渲染层据此回落到「另存为」对话框，而不是直接报失败。
-handleMainIpc('save-file-to', async (event, filePath, base64Data) => {
+handleAllowedIpc('save-file-to', ['main', 'tool'], async (event, filePath, base64Data) => {
     try {
         if (typeof filePath !== 'string' || !filePath) return { success: false, unsupported: true };
         if (!writableFilePaths.has(filePath)) return { success: false, unsupported: true };
@@ -1231,14 +1427,98 @@ handleMainIpc('save-file-to', async (event, filePath, base64Data) => {
     } catch (e) { return { success: false, error: e.message }; }
 });
 
+// ========== #19 文件消息拖出保存 ==========
+const DRAG_TMP_TTL_MS = 10 * 60 * 1000;
+const DRAG_MAX_BYTES = 128 * 1024 * 1024;
+let cachedDragIcon = null;
+
+function dragTempRoot() {
+    return path.join(app.getPath('temp'), '7fa4-chat-drag');
+}
+
+function cleanupDragTempDir({ all = false } = {}) {
+    try {
+        const root = dragTempRoot();
+        if (all) {
+            fsCb.rmSync(root, { recursive: true, force: true });
+            return;
+        }
+        if (!fsCb.existsSync(root)) return;
+        const now = Date.now();
+        for (const name of fsCb.readdirSync(root)) {
+            const p = path.join(root, name);
+            try {
+                const st = fsCb.statSync(p);
+                if (now - st.mtimeMs > DRAG_TMP_TTL_MS) {
+                    fsCb.rmSync(p, { recursive: true, force: true });
+                }
+            } catch { /* ignore */ }
+        }
+    } catch { /* ignore */ }
+}
+
+function sanitizeDragFileName(rawName) {
+    const segments = String(rawName || 'file').split(/[\\/]+/).filter(Boolean);
+    const tail = segments.length ? segments[segments.length - 1] : 'file';
+    const safeChars = tail.replace(/[\0<>:"/\\|?*\x00-\x1f]/g, '_').trim();
+    const cleaned = safeChars.replace(/^\.+/, '').replace(/[. ]+$/, '');
+    if (!cleaned || cleaned === '.' || cleaned === '..') return 'file';
+    if (cleaned.length <= 180) return cleaned;
+    const ext = path.extname(cleaned).slice(0, 24);
+    const stem = cleaned.slice(0, Math.max(1, 180 - ext.length));
+    return stem + ext;
+}
+
+function getDragIcon() {
+    if (cachedDragIcon && !cachedDragIcon.isEmpty()) return cachedDragIcon;
+    try {
+        const img = nativeImage.createFromPath(getAppIconPath());
+        if (img && !img.isEmpty()) {
+            cachedDragIcon = img.resize({ width: 32, height: 32 });
+            return cachedDragIcon;
+        }
+    } catch { /* fallback below */ }
+    // 1x1 transparent PNG fallback so startDrag always receives a valid non-empty NativeImage
+    const fallbackPng = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'base64'
+    );
+    cachedDragIcon = nativeImage.createFromBuffer(fallbackPng);
+    return cachedDragIcon;
+}
+
+ipcMain.on('start-file-drag', (event, payload) => {
+    if (!isAllowedSender(event, 'main')) return;
+    if (!payload || typeof payload !== 'object') return;
+    const rawB64 = typeof payload.dataB64 === 'string' ? payload.dataB64 : '';
+    if (!rawB64) return;
+    const cleanB64 = rawB64.replace(/^data:[^;,]+;base64,/i, '');
+    try {
+        const buf = Buffer.from(cleanB64, 'base64');
+        if (!buf.length || buf.length > DRAG_MAX_BYTES) return;
+        cleanupDragTempDir();
+        const root = dragTempRoot();
+        fsCb.mkdirSync(root, { recursive: true });
+        const dragDir = fsCb.mkdtempSync(path.join(root, 'd-'));
+        const safeName = sanitizeDragFileName(payload.name);
+        const filePath = path.join(dragDir, safeName);
+        if (!path.resolve(filePath).startsWith(path.resolve(dragDir) + path.sep)) return;
+        fsCb.writeFileSync(filePath, buf);
+        event.sender.startDrag({ file: filePath, icon: getDragIcon() });
+    } catch (err) {
+        console.warn('[Drag] 启动文件拖出失败:', err && err.message);
+    }
+});
+
 // 导出 Markdown 为 PNG：保存对话框选路径 + offscreen 渲染截图（替代原 tool-export-markdown-to-png）
-handleMainIpc('export-markdown-png', async (event, suggestedName, html) => {
+handleAllowedIpc('export-markdown-png', ['main', 'tool'], async (event, suggestedName, html) => {
     let exportWin = null;
     let tmpHtml = null;
     try {
         if (typeof html !== 'string' || !html) throw new Error('内容无效');
         const defName = (typeof suggestedName === 'string' && suggestedName) ? suggestedName.replace(/\.(md|markdown)$/i, '.png') : 'export.png';
-        const { canceled, filePath: outPath } = await dialog.showSaveDialog(mainWindow, {
+        const parent = senderBrowserWindow(event);
+        const { canceled, filePath: outPath } = await dialog.showSaveDialog(parent, {
             defaultPath: defName,
             filters: [{ name: 'PNG 图片', extensions: ['png'] }]
         });
@@ -1321,7 +1601,7 @@ body { width: ${WIDTH}px; padding: ${PAD}px; background: #ffffff; color: #1a1a2e
     }
 });
 
-handleMainIpc('clipboard-write-image', async (event, base64Data) => {
+handleAllowedIpc('clipboard-write-image', ['main', 'tool'], async (event, base64Data) => {
     try {
         const buf = Buffer.from(base64Data, 'base64');
         const img = nativeImage.createFromBuffer(buf);
@@ -1331,7 +1611,7 @@ handleMainIpc('clipboard-write-image', async (event, base64Data) => {
     } catch (e) { return { success: false, error: e.message }; }
 });
 
-handleMainIpc('open-external', (event, url) => {
+handleAllowedIpc('open-external', ['main', 'tool'], (event, url) => {
     try {
         const parsed = new URL(url);
         if (!SAFE_URL_PROTOCOLS.has(parsed.protocol)) return { success: false };
@@ -1348,19 +1628,10 @@ function storeReady() {
     return false;
 }
 
-// 初始化当前用户：迁移旧版单文件（幂等）
-// 渲染进程数据落盘完成后确认关闭（配合 close 拦截：先 flush 再关窗）
+// 渲染进程数据落盘完成后通知主进程（配合 ensureFlushedBeforeQuit）
 ipcMain.on('app-flush-done', (event) => {
     if (!isAllowedSender(event, 'main')) return;
-    forceClose = true;
-    flushPending = false;
-    if (pendingRestart) {
-        // 重启：flush 已落盘 → 安排新实例并优雅退出
-        pendingRestart = false;
-        appRestart();
-        return;
-    }
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+    notifyFlushDone();
 });
 
 handleMainIpc('store-init', async (event, uid) => {
@@ -1586,14 +1857,88 @@ function pickToolEntry(installed, preferred) {
     return html || null;
 }
 
-// 原子写：同目录临时文件 + rename，避免半截 installed.json 被读到
-async function writeFileAtomic(file, data) {
-    const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
-    await fs.writeFile(tmp, data, 'utf8');
+// 工具安装/卸载重试与互斥锁（#3 防止并发互删 .staging-* 与偶发 EIO/EBUSY/EPERM）
+const toolOpLocks = new Map();
+const RETRYABLE_FS_CODES = new Set(['EIO', 'EBUSY', 'EPERM', 'ENOTEMPTY']);
+
+async function withToolLock(id, fn) {
+    const key = String(id);
+    const prev = toolOpLocks.get(key) || Promise.resolve();
+    let release;
+    const next = new Promise((r) => { release = r; });
+    const tail = prev.then(() => next, () => next);
+    toolOpLocks.set(key, tail);
+    await prev.catch(() => {});
     try {
-        await fs.rename(tmp, file);
+        return await fn();
+    } finally {
+        release();
+        if (toolOpLocks.get(key) === tail) {
+            toolOpLocks.delete(key);
+        }
+    }
+}
+
+async function retryFs(op, { retries = 5, baseDelayMs = 60 } = {}) {
+    let lastErr;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            return await op();
+        } catch (err) {
+            lastErr = err;
+            const code = err && err.code;
+            if (!RETRYABLE_FS_CODES.has(code) || attempt === retries) {
+                throw err;
+            }
+            const delay = baseDelayMs * Math.pow(2, attempt) + Math.floor(Math.random() * 30);
+            await new Promise((r) => setTimeout(r, delay));
+        }
+    }
+    throw lastErr;
+}
+
+function mkdirWithRetry(dir) {
+    return retryFs(() => fs.mkdir(dir, { recursive: true }));
+}
+
+function rmWithRetry(target, opts = { recursive: true, force: true }) {
+    return retryFs(() => fs.rm(target, opts));
+}
+
+function renameWithRetry(src, dest) {
+    return retryFs(() => fs.rename(src, dest));
+}
+
+async function writeFileSynced(dest, data) {
+    return retryFs(async () => {
+        const fh = await fs.open(dest, 'w');
+        try {
+            if (Buffer.isBuffer(data)) {
+                let offset = 0;
+                while (offset < data.length) {
+                    const { bytesWritten } = await fh.write(data, offset, data.length - offset);
+                    if (bytesWritten <= 0) break;
+                    offset += bytesWritten;
+                }
+            } else {
+                await fh.writeFile(data, 'utf8');
+            }
+            await fh.sync();
+        } finally {
+            await fh.close().catch(() => {});
+        }
+    });
+}
+
+// 原子写：同目录临时文件（fsync 落盘）+ 重试 rename，避免半截 installed.json 被读到
+async function writeFileAtomic(file, data) {
+    const rand = crypto.randomBytes(4).toString('hex');
+    const tmp = `${file}.tmp-${process.pid}-${Date.now()}-${rand}`;
+    await writeFileSynced(tmp, data);
+    try {
+        await renameWithRetry(tmp, file);
     } catch (e) {
-        await fs.rm(tmp, { force: true }).catch(() => {});
+        await rmWithRetry(tmp, { force: true }).catch(() => {});
         throw e;
     }
 }
@@ -1636,82 +1981,85 @@ async function installTool(sender, toolMeta) {
     if (meta.minAppVersion && compareToolVersion(app.getVersion(), meta.minAppVersion) < 0) {
         return { success: false, error: `请先更新应用（需要 v${meta.minAppVersion} 及以上）` };
     }
-    const idDir = path.join(toolsRoot(), meta.id);
-    const targetDir = toolVersionDir(meta.id, meta.version);
-    const stagingDir = path.join(idDir, `.staging-${meta.version}-${process.pid}-${Date.now()}`);
-    const sendProgress = (payload) => {
-        try {
-            if (sender && !sender.isDestroyed()) sender.send('tools-progress', payload);
-        } catch { /* 窗口已关闭：下载继续但不再推进度 */ }
-    };
-    const count = meta.files.length;
-    let received = 0;
-    try {
-        // 清掉上次异常退出（断电/崩溃/强杀）可能留下的临时目录：
-        // 同一工具同时只会有一次安装，旧的 .staging-* 一律可以安全删除。
-        await fs.readdir(idDir)
-            .then((names) => Promise.all(
-                names
-                    .filter((name) => name.startsWith('.staging-'))
-                    .map((name) => fs.rm(path.join(idDir, name), { recursive: true, force: true }))
-            ))
-            .catch(() => {});
-        await fs.mkdir(stagingDir, { recursive: true });
-        for (let i = 0; i < count; i++) {
-            const file = meta.files[i];
-            // 该实例的 generic 包不支持嵌套路径（file_name 不能含 `/`），
-            // 所以包内文件名是把「dir/file.path」里的 `/` 全部换成 `__` 的扁平名，
-            // 与 scripts/publish-tools.mjs 的映射规则必须保持一致。
-            const flatName = `${meta.dir}/${file.path}`.replaceAll('/', '__');
-            const fileUrl = `${toolsRawBase()}/${encodeURIComponent(flatName)}`;
-            const res = await net.fetch(fileUrl, { signal: AbortSignal.timeout(TOOL_FILE_TIMEOUT) });
-            if (!res.ok) throw new Error(`下载 ${file.path} 失败（HTTP ${res.status}）`);
-            const buf = Buffer.from(await res.arrayBuffer());
-            if (buf.length !== file.size) throw new Error(`文件大小校验失败：${file.path}`);
-            const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
-            if (sha256 !== file.sha256) throw new Error(`SHA-256 校验失败：${file.path}`);
-            const dest = path.resolve(stagingDir, ...file.path.split('/'));
-            // 第二道防线：拼接后的落点必须仍在临时目录内
-            if (!dest.startsWith(stagingDir + path.sep)) throw new Error(`文件路径非法：${file.path}`);
-            await fs.mkdir(path.dirname(dest), { recursive: true });
-            await fs.writeFile(dest, buf);
-            received += buf.length;
-            sendProgress({
-                id: meta.id,
-                phase: 'download',
-                index: i + 1,
-                count,
-                path: file.path,
-                received,
-                total: meta.size
-            });
-        }
-        // 临时目录 → 版本目录；installed.json 最后原子写入（写成功才算安装完成）
-        await fs.rm(targetDir, { recursive: true, force: true });
-        await fs.rename(stagingDir, targetDir);
-        const installed = {
-            version: meta.version,
-            installedAt: new Date().toISOString(),
-            size: meta.size,
-            files: meta.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 }))
+    return withToolLock(meta.id, async () => {
+        const idDir = path.join(toolsRoot(), meta.id);
+        const targetDir = toolVersionDir(meta.id, meta.version);
+        const stagingName = `.staging-${meta.version}-${process.pid}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+        const stagingDir = path.join(idDir, stagingName);
+        const sendProgress = (payload) => {
+            try {
+                if (sender && !sender.isDestroyed()) sender.send('tools-progress', payload);
+            } catch { /* 窗口已关闭：下载继续但不再推进度 */ }
         };
-        await writeFileAtomic(toolInstalledFile(meta.id), JSON.stringify(installed, null, 2));
-        // 安装/更新成功后再清理旧版本目录：只留 upgraded 到的当前版本，
-        // 否则每次更新都会在 userData/tools/<id>/ 下堆积一份完整旧包。
+        const count = meta.files.length;
+        let received = 0;
         try {
-            const entries = await fs.readdir(idDir, { withFileTypes: true });
-            await Promise.all(
-                entries
-                    .filter((entry) => entry.isDirectory() && entry.name !== meta.version)
-                    .map((entry) => fs.rm(path.join(idDir, entry.name), { recursive: true, force: true }))
-            );
-        } catch { /* 清理失败不影响本次安装结果，下次安装会再试 */ }
-        return { success: true };
-    } catch (e) {
-        // 失败清理半成品；不动旧版本目录与旧 installed.json
-        await fs.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
-        return { success: false, error: e.message || '安装工具失败' };
-    }
+            // 仅清理非当前安装的残留临时目录，单条失败容错跳过
+            await fs.readdir(idDir)
+                .then((names) => Promise.all(
+                    names
+                        .filter((name) => name.startsWith('.staging-') && name !== stagingName)
+                        .map((name) => rmWithRetry(path.join(idDir, name), { recursive: true, force: true }).catch(() => {}))
+                ))
+                .catch(() => {});
+            await mkdirWithRetry(stagingDir);
+            for (let i = 0; i < count; i++) {
+                const file = meta.files[i];
+                // 该实例的 generic 包不支持嵌套路径（file_name 不能含 `/`），
+                // 所以包内文件名是把「dir/file.path」里的 `/` 全部换成 `__` 的扁平名，
+                // 与 scripts/publish-tools.mjs 的映射规则必须保持一致。
+                const flatName = `${meta.dir}/${file.path}`.replaceAll('/', '__');
+                const fileUrl = `${toolsRawBase()}/${encodeURIComponent(flatName)}`;
+                const res = await net.fetch(fileUrl, { signal: AbortSignal.timeout(TOOL_FILE_TIMEOUT) });
+                if (!res.ok) throw new Error(`下载 ${file.path} 失败（HTTP ${res.status}）`);
+                const buf = Buffer.from(await res.arrayBuffer());
+                if (buf.length !== file.size) throw new Error(`文件大小校验失败：${file.path}`);
+                const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
+                if (sha256 !== file.sha256) throw new Error(`SHA-256 校验失败：${file.path}`);
+                const dest = path.resolve(stagingDir, ...file.path.split('/'));
+                // 第二道防线：拼接后的落点必须仍在临时目录内
+                if (!dest.startsWith(stagingDir + path.sep)) throw new Error(`文件路径非法：${file.path}`);
+                await mkdirWithRetry(path.dirname(dest));
+                await writeFileSynced(dest, buf);
+                received += buf.length;
+                sendProgress({
+                    id: meta.id,
+                    phase: 'download',
+                    index: i + 1,
+                    count,
+                    path: file.path,
+                    received,
+                    total: meta.size
+                });
+            }
+            // 更新替换前先关闭已打开的该工具独立窗口，释放文件占用
+            if (toolWindowManager) toolWindowManager.close(meta.id);
+            // 临时目录 → 版本目录；installed.json 最后原子写入（写成功才算安装完成）
+            await rmWithRetry(targetDir, { recursive: true, force: true });
+            await renameWithRetry(stagingDir, targetDir);
+            const installed = {
+                version: meta.version,
+                installedAt: new Date().toISOString(),
+                size: meta.size,
+                files: meta.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 }))
+            };
+            await writeFileAtomic(toolInstalledFile(meta.id), JSON.stringify(installed, null, 2));
+            // 安装/更新成功后再清理旧版本目录：只留 upgraded 到的当前版本
+            try {
+                const entries = await fs.readdir(idDir, { withFileTypes: true });
+                await Promise.all(
+                    entries
+                        .filter((entry) => entry.isDirectory() && entry.name !== meta.version && entry.name !== stagingName)
+                        .map((entry) => rmWithRetry(path.join(idDir, entry.name), { recursive: true, force: true }).catch(() => {}))
+                );
+            } catch { /* 清理失败不影响本次安装结果，下次安装会再试 */ }
+            return { success: true };
+        } catch (e) {
+            // 失败清理半成品；不动旧版本目录与旧 installed.json
+            await rmWithRetry(stagingDir, { recursive: true, force: true }).catch(() => {});
+            return { success: false, error: e.message || '安装工具失败' };
+        }
+    });
 }
 
 // 已安装列表：{ [id]: { version, installedAt, size } }
@@ -1737,13 +2085,17 @@ async function listInstalledTools() {
 }
 
 async function removeTool(id) {
-    if (!TOOL_ID_RE.test(String(id))) return { success: false, error: '工具 ID 无效' };
-    try {
-        await fs.rm(path.join(toolsRoot(), String(id)), { recursive: true, force: true });
-        return { success: true };
-    } catch (e) {
-        return { success: false, error: e.message || '卸载工具失败' };
-    }
+    const toolId = String(id || '');
+    if (!TOOL_ID_RE.test(toolId)) return { success: false, error: '工具 ID 无效' };
+    return withToolLock(toolId, async () => {
+        try {
+            if (toolWindowManager) toolWindowManager.close(toolId);
+            await rmWithRetry(path.join(toolsRoot(), toolId), { recursive: true, force: true });
+            return { success: true };
+        } catch (e) {
+            return { success: false, error: e.message || '卸载工具失败' };
+        }
+    });
 }
 
 // 入口 URL：tool://<id>/<entry>，由 tool:// 协议映射到当前已安装版本目录
@@ -1865,8 +2217,7 @@ function initAutoUpdater() {
                 noLink: true
             }).then(({ response }) => {
                 if (response === 1) {
-                    app.isQuitting = true;
-                    autoUpdater.quitAndInstall();
+                    performQuitAndInstall();
                 }
             });
         }
@@ -1920,8 +2271,9 @@ handleMainIpc('download-update', async () => {
     }
 });
 
-handleMainIpc('install-update', () => {
-    if (!updateDownloaded) return;
+async function performQuitAndInstall() {
+    if (isInstallingUpdate) return;
+    isInstallingUpdate = true;
     if (process.platform === 'linux' && process.env.APPIMAGE) {
         try {
             const pendingDir = path.join(app.getPath('userData'), '..', '.cache', '7fa4-chat-updater', 'pending');
@@ -1930,7 +2282,6 @@ handleMainIpc('install-update', () => {
                 const newAppImage = path.join(pendingDir, pendingFiles[0]);
                 const currentAppImage = process.env.APPIMAGE;
                 const newPath = path.join(path.dirname(currentAppImage), pendingFiles[0]);
-                // 先删除目标位置的同名文件（如果存在）
                 try { fsCb.unlinkSync(newPath); } catch {}
                 fsCb.copyFileSync(newAppImage, newPath);
                 fsCb.chmodSync(newPath, 0o755);
@@ -1943,13 +2294,23 @@ handleMainIpc('install-update', () => {
         }
     }
     app.isQuitting = true;
-    // quitAndInstall 可能因 unlink 失败，用 setImmediate 确保退出
+    await ensureFlushedBeforeQuit();
+    closeAuxiliaryWindows();
+    if (userStore) {
+        try { userStore.checkpoint(); } catch {}
+        try { userStore.close(); } catch {}
+    }
     try {
         autoUpdater.quitAndInstall();
     } catch (e) {
         console.error('[Updater] quitAndInstall 失败:', e.message);
         app.quit();
     }
+}
+
+handleMainIpc('install-update', () => {
+    if (!updateDownloaded) return;
+    return performQuitAndInstall();
 });
 
 // ========== 获取远程 CHANGELOG（GitLab latest/CHANGELOG，Markdown，渲染层自行渲染） ==========

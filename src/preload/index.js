@@ -9,28 +9,28 @@ ipcRenderer.on('tools-progress', (event, payload) => {
   }
 });
 
-// 通知 payload 归一化：对象形式原样透传（只补 position/duration 缺省），
-// 老的四参数形式转成同一份字段结构，主进程只认这一种。
+// 通知 payload 归一化：对象形式原样透传，老的四参数形式转成同一份字段结构。
 function normalizeNotifyArgs(payload, body, chatType, targetId) {
   const isPlainObject = !!payload && typeof payload === 'object' && !Array.isArray(payload);
   if (isPlainObject) {
-    return {
-      position: 'br',
-      duration: 6000,
-      ...payload
-    };
+    return { ...payload };
   }
   return {
     title: String(payload ?? ''),
     body: String(body ?? ''),
     chatType,
     targetId,
-    position: 'br',
-    duration: 6000,
     count: 1,
     timestamp: Date.now(),
     id: chatType + '_' + targetId
   };
+}
+
+function subscribeIpc(channel, callback) {
+  if (typeof callback !== 'function') return () => {};
+  const handler = (event, data) => callback(data);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
 }
 
 contextBridge.exposeInMainWorld('api', {
@@ -38,15 +38,8 @@ contextBridge.exposeInMainWorld('api', {
   getPlatform: () => ipcRenderer.invoke('get-platform'),
   loadSetting: () => ipcRenderer.invoke('load-setting'),
   saveSetting: (data) => ipcRenderer.invoke('save-setting', data),
-  // 通知入参归一化：新调用方直接传完整 payload 对象（title/body/position/accent…），
-  // 旧调用方传 (sender, content, chatType, targetId)，两种都兼容到主进程同一份结构上。
   notify: (payload, body, chatType, targetId) => ipcRenderer.invoke('notify', normalizeNotifyArgs(payload, body, chatType, targetId)),
-  showMainWindow: () => ipcRenderer.invoke('show-mainwindow'),
-  onNotifClick: (callback) => {
-    const handler = (event, data) => callback(data);
-    ipcRenderer.on('notif-click', handler);
-    return () => ipcRenderer.removeListener('notif-click', handler);
-  },
+  onNotifClick: (callback) => subscribeIpc('notif-click', callback),
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
   windowMaximize: () => ipcRenderer.invoke('window-maximize'),
   windowClose: () => ipcRenderer.invoke('window-close'),
@@ -73,6 +66,7 @@ contextBridge.exposeInMainWorld('api', {
   // 覆盖写入已保存过的文件（工具类 Ctrl+S 用）。路径不在主进程白名单时返回 unsupported，
   // 调用方应回落到 downloadFile 的另存为对话框。
   saveFileTo: (filePath, base64Data) => ipcRenderer.invoke('save-file-to', filePath, base64Data),
+  startFileDrag: (payload) => ipcRenderer.send('start-file-drag', payload),
   clipboardWriteImage: (base64Data) => ipcRenderer.invoke('clipboard-write-image', base64Data),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   // --- SQLite 用户数据存储（加密） ---
@@ -124,6 +118,16 @@ contextBridge.exposeInMainWorld('api', {
     return () => { toolProgressListeners.delete(callback); };
   },
   offToolProgress: (callback) => { toolProgressListeners.delete(callback); },
+  // --- 独立工具窗口（桌面端）：主窗打开/响应快照与图片；工具窗初始化/主题同步/拉取用户/回传图片 ---
+  openToolWindow: (tool) => ipcRenderer.invoke('open-tool-window', tool),
+  onToolSendImage: (callback) => subscribeIpc('tool-send-image', callback),
+  onToolUsersRequest: (callback) => subscribeIpc('tool-users-req', callback),
+  replyToolUsers: (reqId, snapshot) => ipcRenderer.send('tool-users-res', reqId, snapshot),
+  getToolWindowInit: () => ipcRenderer.invoke('tool-window-get-init'),
+  onToolWindowInit: (callback) => subscribeIpc('tool-window-init', callback),
+  onToolThemeChanged: (callback) => subscribeIpc('tool-theme-changed', callback),
+  sendToolImage: (payload) => ipcRenderer.invoke('tool-send-image', payload),
+  requestToolUsers: () => ipcRenderer.invoke('tool-users-req'),
   // --- 计时器悬浮窗（独立置顶小窗；状态由本窗口推送，见 main/index.js）---
   openTimerFloat: (cfg) => ipcRenderer.invoke('timer-float-open', cfg),
   closeTimerFloat: () => ipcRenderer.invoke('timer-float-close'),

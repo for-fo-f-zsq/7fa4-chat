@@ -43,9 +43,9 @@ const devApiProxyPlugin = () => ({
   }
 });
 
-// 主进程使用 CJS require('./storage') / require('./notifications')，vite 不会打包相对 CJS 依赖，
+// 主进程使用 CJS require('./storage') / require('./tool-windows')，vite 不会打包相对 CJS 依赖，
 // 该插件在构建产物中原样输出这些文件，保证运行时 require 可解析（新增主进程 CJS 模块要加到这里）。
-const MAIN_CJS_MODULES = ['storage.js', 'notifications.js'];
+const MAIN_CJS_MODULES = ['storage.js', 'tool-windows.js'];
 const copyStoragePlugin = () => ({
   name: 'copy-storage-file',
   generateBundle() {
@@ -76,7 +76,6 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/preload/index.js'),
-          notification: resolve('src/preload/notification.js'),
           'timer-float': resolve('src/preload/timer-float.js')
         }
       }
@@ -96,8 +95,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),
-          notification: resolve('src/renderer/notification.html'),
-          'timer-float': resolve('src/renderer/timer-float.html')
+          'timer-float': resolve('src/renderer/timer-float.html'),
+          'tool-window': resolve('src/renderer/tool-window.html')
         }
       }
     },

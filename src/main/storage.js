@@ -70,6 +70,24 @@ function decryptText(payload) {
 const encryptJSON = (obj) => encryptText(JSON.stringify(obj))
 const decryptJSON = (payload) => JSON.parse(decryptText(payload))
 
+function normalizeFree(val) {
+  return val === true || val === 1 || val === '1'
+}
+
+function normalizeMessageForSave(m, mid) {
+  const rec = { ...m, id: Number(mid), mid: Number(mid) }
+  rec.free = normalizeFree(m.token_free ?? m.free)
+  return rec
+}
+
+function normalizeMessageOnLoad(m) {
+  if (!m || typeof m !== 'object') return m
+  if (m.free !== undefined || m.token_free !== undefined) {
+    m.free = normalizeFree(m.token_free ?? m.free)
+  }
+  return m
+}
+
 /** 库文件（含 WAL/SHM）总字节数，仅用于日志 */
 function sizeOf(p) {
   let n = 0
@@ -102,7 +120,7 @@ class UserStore {
       }
     }
     try { this.db.exec('PRAGMA journal_mode=WAL') } catch {}
-    try { this.db.exec('PRAGMA synchronous=NORMAL') } catch {}
+    try { this.db.exec('PRAGMA synchronous=FULL') } catch {}
     try { this.setKV(KEYVER_MARK, String(DATA_KEY_VER)) } catch {}
     return this
   }
@@ -134,8 +152,20 @@ class UserStore {
     }
   }
 
+  checkpoint() {
+    if (!this.db) return { success: false, error: 'db not ready' }
+    try {
+      this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
+      return { success: true }
+    } catch (e) {
+      return { success: false, error: e.message }
+    }
+  }
+
   close() {
-    try { this.db?.close() } catch {}
+    if (!this.db) return
+    try { this.checkpoint() } catch {}
+    try { this.db.close() } catch {}
     this.db = null
   }
 
@@ -187,7 +217,7 @@ class UserStore {
         const mid = m.mid ?? m.id
         if (mid == null) continue
         // 统一 id/mid 字段：渲染层传 {id,..}，迁移/备份传 {mid,..}
-        const rec = { ...m, id: Number(mid), mid: Number(mid) }
+        const rec = normalizeMessageForSave(m, mid)
         stmt.run(uid, kind, cid, Number(mid), Number(m.send_time || 0), encryptJSON(rec))
       }
       this.db.exec('COMMIT')
@@ -221,14 +251,19 @@ class UserStore {
           const [kind, cid] = key.split(':')
           if (!kind || cid == null || !Array.isArray(msgs)) continue
           for (const m of msgs) {
-            if (m == null || m.id == null) continue
-            insStmt.run(uid, kind, Number(cid), Number(m.id), Number(m.send_time || 0), encryptJSON({ ...m, id: Number(m.id), mid: Number(m.id) }))
+            if (m == null) continue
+            const mid = m.mid ?? m.id
+            if (mid == null) continue
+            insStmt.run(uid, kind, Number(cid), Number(mid), Number(m.send_time || 0), encryptJSON(normalizeMessageForSave(m, mid)))
           }
         }
       }
       if (prefs && typeof prefs === 'object') {
         const stmt = this.db.prepare('INSERT OR REPLACE INTO prefs (uid, key, value) VALUES (?,?,?)')
-        for (const [key, value] of Object.entries(prefs)) stmt.run(uid, key, encryptJSON(value))
+        for (const [key, value] of Object.entries(prefs)) {
+          if (value === undefined) continue
+          stmt.run(uid, key, encryptJSON(value))
+        }
       }
       this.db.exec('COMMIT')
       return { success: true }
@@ -247,7 +282,7 @@ class UserStore {
         : this.db.prepare('SELECT content FROM messages WHERE uid=? AND kind=? AND cid=? ORDER BY send_time DESC LIMIT ?').all(uid, kind, cid, Number(limit))
       const out = []
       for (const r of rows) {
-        try { out.push(decryptJSON(r.content)) } catch { /* 单条损坏跳过 */ }
+        try { out.push(normalizeMessageOnLoad(decryptJSON(r.content))) } catch { /* 单条损坏跳过 */ }
       }
       return { success: true, data: out }
     } catch (e) {
@@ -264,7 +299,7 @@ class UserStore {
       ).all(uid, uid)
       const data = []
       for (const r of rows) {
-        try { data.push({ kind: r.kind, cid: r.cid, msg: decryptJSON(r.content) }) } catch {}
+        try { data.push({ kind: r.kind, cid: r.cid, msg: normalizeMessageOnLoad(decryptJSON(r.content)) }) } catch {}
       }
       return { success: true, data }
     } catch (e) {
@@ -308,7 +343,10 @@ class UserStore {
       if (!keys.length) return { success: true }
       this.db.exec('BEGIN')
       const stmt = this.db.prepare('INSERT OR REPLACE INTO prefs (uid, key, value) VALUES (?,?,?)')
-      for (const k of keys) stmt.run(uid, k, encryptJSON(entries[k]))
+      for (const k of keys) {
+        if (entries[k] === undefined) continue
+        stmt.run(uid, k, encryptJSON(entries[k]))
+      }
       this.db.exec('COMMIT')
       return { success: true }
     } catch (e) {
@@ -355,7 +393,7 @@ class UserStore {
       const rows = this.db.prepare('SELECT content FROM messages WHERE uid=?').all(uid)
       for (const r of rows) {
         try {
-          const m = decryptJSON(r.content)
+          const m = normalizeMessageOnLoad(decryptJSON(r.content))
           if (m && m.id != null) messages[m.id] = m
         } catch { /* 跳过损坏消息 */ }
       }
@@ -469,4 +507,4 @@ function migrateLegacy(store, legacyPath, uid) {
   }
 }
 
-module.exports = { UserStore, migrateLegacy, importLegacyData, encryptText, decryptText }
+module.exports = { UserStore, migrateLegacy, importLegacyData, encryptText, decryptText, normalizeFree }
