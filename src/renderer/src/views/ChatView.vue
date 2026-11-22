@@ -126,6 +126,8 @@
     </div>
   </div>
 
+  <NoticePopup :visible="store.logined" :narrow="isNarrowLayout" />
+
   <ChatModalHost
     ref="modalHostRef"
     :pageId="pageId"
@@ -168,6 +170,7 @@ import NavBar from '../components/common/NavBar.vue'
 import ToolHost from '../components/common/ToolHost.vue'
 import ChatBannerStack from '../components/chat/ChatBannerStack.vue'
 import ChatModalHost from '../components/chat/ChatModalHost.vue'
+import NoticePopup from '../components/modals/NoticePopup.vue'
 import ConversationList from '../components/chat/ConversationList.vue'
 import ChatHeader from '../components/chat/ChatHeader.vue'
 import MessageList from '../components/chat/MessageList.vue'

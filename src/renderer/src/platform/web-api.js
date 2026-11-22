@@ -91,7 +91,7 @@ async function aesDecrypt(passphrase, payload) {
 }
 
 // ---------- 原生网络请求（fetch 拦截 → CapacitorHttp，绕过 CORS/cookie SameSite） ----------
-const API_PREFIXES = ['/api/', '/chat', '/user', '/ranklist', '/logout']
+const API_PREFIXES = ['/api/', '/chat', '/user', '/ranklist', '/logout', '/notices', '/notice']
 const origFetch = window.fetch.bind(window)
 
 function isApiPath(url) {

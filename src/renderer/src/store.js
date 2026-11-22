@@ -51,6 +51,7 @@ export const store = reactive({
     apkSize: 0,
     error: ''
   },
+  notices: [],
 });
 
 const HOUR_MS = 3600 * 1000;

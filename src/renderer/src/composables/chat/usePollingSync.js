@@ -5,8 +5,10 @@ import { isWebBrowser } from '../../utils/env.js'
 import { safeFetch, tryLogin, markMsgDirty, ingestMessage } from '../../utils/chatSync.js'
 import { clearPendingVotes } from '../../utils/poll.js'
 import { startRanklistFetch, stopRanklistFetch } from '../../utils/users.js'
+import { fetchNotices, resetNoticeState } from './useNotices.js'
 
 const WEB_INFO_EVERY_MS = 60 * 1000
+const NOTICE_EVERY_MS = 5 * 1000
 const INFO_EVERY_ROUNDS = 2
 const TOKEN_EVERY_ROUNDS = 1
 const INCR_TAKE_START = 5
@@ -42,6 +44,7 @@ export function usePollingSync({
   const isWeb = isWebBrowser()
 
   let lastInfoAt = 0
+  let lastNoticeAt = 0
   let infoLoopRunning = false
   let initialSynced = false
   let failCount = 0
@@ -72,6 +75,7 @@ export function usePollingSync({
 
   function resetInfoTimestamp() {
     lastInfoAt = 0
+    lastNoticeAt = 0
     lastAutoReloginAt = 0
     reloginCooldownMs = AUTO_RELOGIN_COOLDOWN_MS
     setConnStatus({ retryCooldownUntil: 0 })
@@ -677,6 +681,8 @@ export function usePollingSync({
             await update(r)
             await probeTargetTimes(false)
           }
+          lastNoticeAt = Date.now()
+          fetchNotices({ silent: true })
         }
       } catch {}
     }
@@ -713,6 +719,8 @@ export function usePollingSync({
         store.online = true
         await runInitialSync(r)
         initialSynced = true
+        lastNoticeAt = Date.now()
+        fetchNotices({ silent: true })
       } else {
         failCount = 1
         store.netError = true
@@ -750,6 +758,8 @@ export function usePollingSync({
           if (infoAttempt.ok && infoAttempt.result) {
             await runInitialSync(infoAttempt.result)
             initialSynced = true
+            lastNoticeAt = Date.now()
+            fetchNotices({ silent: true })
           } else {
             failCount++
             store.netError = true
@@ -852,6 +862,10 @@ export function usePollingSync({
             }
           } catch {}
         }
+        if (failCount < 3 && infoLoopRunning && Date.now() - lastNoticeAt >= NOTICE_EVERY_MS) {
+          lastNoticeAt = Date.now()
+          await fetchNotices({ silent: true })
+        }
       } catch (e) {
         console.error('[poll] 本轮出错，继续重试：', e)
         failCount++
@@ -927,7 +941,9 @@ export function usePollingSync({
       hiddenConvos: {},
       pinnedConvos: {},
       ownVotes: [],
+      notices: [],
     })
+    resetNoticeState()
     clearPendingVotes()
     store.logined = false
     store.netError = false

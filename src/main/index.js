@@ -334,6 +334,14 @@ function startServer(preferPort) {
         target: currentApiUrl + ':8888/ranklist',
         changeOrigin: true
     }));
+    serverApp.use('/notices', createProxyMiddleware({
+        target: currentApiUrl + ':8888/notices',
+        changeOrigin: true
+    }));
+    serverApp.use('/notice', createProxyMiddleware({
+        target: currentApiUrl + ':8888/notice',
+        changeOrigin: true
+    }));
 
     const rendererDir = app.isPackaged
         ? path.join(__dirname, '../renderer')

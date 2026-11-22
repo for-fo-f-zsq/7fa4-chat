@@ -92,6 +92,30 @@
       </template>
     </UiIconButton>
 
+    <UiIconButton
+      v-if="loggedIn"
+      class="nav-icon"
+      icon="fas fa-bell"
+      size="lg"
+      variant="ghost"
+      aria-label="通知"
+      :title="noticeUncheckedCount > 0 ? `通知（${noticeUncheckedCount} 条未读）` : '系统通知'"
+      @click="openNoticeModal"
+    >
+      <template #icon>
+        <span class="nav-icon-stack">
+          <i class="fas fa-bell" aria-hidden="true"></i>
+          <span class="nav-icon-label">通知</span>
+        </span>
+        <UiBadge
+          v-if="noticeHasBadge"
+          class="nav-badge motion-pulse"
+          dot
+          variant="danger"
+        />
+      </template>
+    </UiIconButton>
+
     <div class="nav-user-wrap">
       <NavUserMenu
         v-model:open="userMenu"
@@ -134,6 +158,7 @@ import { ref, computed } from 'vue'
 import { UiAvatar, UiBadge, UiIconButton } from '@/ui'
 import NavUserMenu from './NavUserMenu.vue'
 import { store } from '../../store.js'
+import { useNotices } from '../../composables/chat/useNotices.js'
 import { isUserHiddenBySetting, isWebBrowser, officialSiteUrl, officialDownloadUrl, feedbackPageUrl, avatarTint } from '../../utils.js'
 
 const props = defineProps({
@@ -149,6 +174,11 @@ const emit = defineEmits(['switch', 'user-action'])
 
 const userMenu = ref(false)
 const fxOff = computed(() => (store.setting?.effectLevel || 'fancy') === 'performance')
+const {
+  uncheckedCount: noticeUncheckedCount,
+  hasUnreadOrPending: noticeHasBadge,
+  openNoticeModal,
+} = useNotices()
 
 const chatUnread = computed(() =>
   Object.values(props.users || {}).some((u) => u.unread > 0 && !isUserHiddenBySetting(u)) ||

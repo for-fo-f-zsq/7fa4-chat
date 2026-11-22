@@ -8,7 +8,7 @@ import vue from '@vitejs/plugin-vue';
 const pkg = JSON.parse(readFileSync(resolve('package.json'), 'utf8'));
 
 const DEV_PORT_FILE = resolve(tmpdir(), '7fa4-chat-dev-port');
-const API_PREFIXES = ['/api', '/chat', '/image-proxy', '/user', '/ranklist'];
+const API_PREFIXES = ['/api', '/chat', '/image-proxy', '/user', '/ranklist', '/notices', '/notice'];
 // 主进程端口不固定（1145 可能被别人的进程长期占用），只能每次请求读它写的握手文件
 function readDevPort() {
   try {
