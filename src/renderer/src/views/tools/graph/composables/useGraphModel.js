@@ -1,8 +1,15 @@
 import { ref, reactive } from 'vue'
 import { EXAMPLE_EDGES } from '../graphConstants.js'
 import { useToolFile, b64ToText, textToBase64 } from '../../shared/useToolFile.js'
+import {
+  parseNodeWeight,
+  isValidNodeWeightInput,
+  migrateLegacyNodeWeight,
+  parseNodeWeightsLines,
+  formatNodeWeightsLines
+} from '../graphWeights.js'
 
-const GRAPH_FILE_VERSION = 1
+const GRAPH_FILE_VERSION = 2
 
 export function useGraphModel({
   dialog,
@@ -24,7 +31,7 @@ export function useGraphModel({
   const directed = ref(false)
   const highlight = ref('none')
   const inputText = ref('')
-  const labelsText = ref('')
+  const weightsText = ref('')
   const offset = ref(1)
   const info = ref('')
   /** 结构化算法分析结果：{ status, summary, metrics, lists } */
@@ -37,7 +44,7 @@ export function useGraphModel({
   const algoSink = ref(0)
 
   let parseTimer = null
-  let labelsTimer = null
+  let weightsTimer = null
 
   const {
     fileName,
@@ -75,20 +82,13 @@ export function useGraphModel({
     return lines.join('\n')
   }
 
-  function labelsTextFromGraph() {
-    const maxId = nodes.reduce((m, n) => Math.max(m, n.id), 0)
-    const lines = []
-    for (let i = 1; i <= maxId; i++) {
-      const n = byId(i)
-      if (!n) lines.push('_')
-      else lines.push(n.label === String(i) ? '_' : n.label)
-    }
-    return lines.join('\n')
+  function weightsTextFromGraph() {
+    return formatNodeWeightsLines(nodes, byId)
   }
 
   function syncInputFromGraph() {
     inputText.value = edgesText()
-    labelsText.value = labelsTextFromGraph()
+    weightsText.value = weightsTextFromGraph()
   }
 
   function addNodeAt(wx, wy) {
@@ -97,7 +97,7 @@ export function useGraphModel({
       id: nextNodeId++,
       x: wx,
       y: wy,
-      label: String(nextNodeId - 1),
+      weight: null,
       vx: 0,
       vy: 0,
       fixed: false,
@@ -112,7 +112,7 @@ export function useGraphModel({
 
   function addEdge(u, v) {
     if (u === v) return null
-    const e = { type: 'edge', u, v, w: null }
+    const e = { type: 'edge', u, v, w: null, restLength: null, stiffness: null }
     edges.push(e)
     markDirty()
     syncInputFromGraph()
@@ -141,14 +141,17 @@ export function useGraphModel({
     onInvalidate()
   }
 
-  function updateNodeLabel(target, newLabel) {
+  function updateNodeWeight(target, newWeight) {
     const n = typeof target === 'object' ? target : byId(target)
-    if (!n) return
-    const trimmed = String(newLabel ?? '').trim()
-    n.label = trimmed || String(n.id)
+    if (!n) return { ok: false, error: '节点不存在' }
+    if (!isValidNodeWeightInput(newWeight)) {
+      return { ok: false, error: '点权须为数字（或留空 / _ 清除）' }
+    }
+    n.weight = parseNodeWeight(newWeight)
     markDirty()
     syncInputFromGraph()
     onInvalidate()
+    return { ok: true, weight: n.weight }
   }
 
   function updateEdgeWeight(edge, newWeight) {
@@ -157,6 +160,22 @@ export function useGraphModel({
     edge.w = trimmed === '' ? null : (isNaN(Number(trimmed)) ? trimmed : Number(trimmed))
     markDirty()
     syncInputFromGraph()
+    onInvalidate()
+  }
+
+  function updateEdgePhysics(edge, { restLength, stiffness } = {}) {
+    if (!edge) return
+    if (restLength !== undefined) {
+      const s = String(restLength ?? '').trim()
+      const val = s === '' ? null : Number(s)
+      edge.restLength = val != null && Number.isFinite(val) && val > 0 ? val : null
+    }
+    if (stiffness !== undefined) {
+      const s = String(stiffness ?? '').trim()
+      const val = s === '' ? null : Number(s)
+      edge.stiffness = val != null && Number.isFinite(val) && val >= 0 ? val : null
+    }
+    markDirty()
     onInvalidate()
   }
 
@@ -176,7 +195,7 @@ export function useGraphModel({
 
   function clearInput() {
     inputText.value = ''
-    labelsText.value = ''
+    weightsText.value = ''
     clearGraph()
   }
 
@@ -186,21 +205,17 @@ export function useGraphModel({
     parseTimer = setTimeout(() => parseInput(true, true), 450)
   }
 
-  function onInputLabels(value) {
-    labelsText.value = value
-    clearTimeout(labelsTimer)
-    labelsTimer = setTimeout(applyLabelsLive, 300)
+  function onInputWeights(value) {
+    weightsText.value = value
+    clearTimeout(weightsTimer)
+    weightsTimer = setTimeout(applyWeightsLive, 300)
   }
 
-  function applyLabelsLive() {
-    const lines = labelsText.value.split(/\r?\n/)
-    lines.forEach((ln, i) => {
-      const n = byId(i + 1)
-      if (n) {
-        const s = ln.trim()
-        n.label = s && s !== '_' ? s : String(n.id)
-      }
-    })
+  function applyWeightsLive() {
+    const map = parseNodeWeightsLines(weightsText.value)
+    for (const n of nodes) {
+      n.weight = map.has(n.id) ? map.get(n.id) : null
+    }
     markDirty()
     onInvalidate()
   }
@@ -279,7 +294,17 @@ export function useGraphModel({
     }
 
     const oldPos = new Map()
-    if (preserve) for (const n of nodes) oldPos.set(n.id, { x: n.x, y: n.y })
+    const oldEdgeProps = new Map()
+    if (preserve) {
+      for (const n of nodes) oldPos.set(n.id, { x: n.x, y: n.y, weight: n.weight })
+      for (const e of edges) {
+        if (e.restLength != null || e.stiffness != null) {
+          const key = `${e.u}|${e.v}`
+          if (!oldEdgeProps.has(key)) oldEdgeProps.set(key, [])
+          oldEdgeProps.get(key).push({ restLength: e.restLength, stiffness: e.stiffness })
+        }
+      }
+    }
 
     clearGraph(false)
     let hadNew = false
@@ -290,7 +315,7 @@ export function useGraphModel({
         id: i,
         x: old ? old.x : 0,
         y: old ? old.y : 0,
-        label: String(i),
+        weight: old ? (old.weight ?? null) : null,
         vx: 0,
         vy: 0,
         fixed: false,
@@ -300,14 +325,26 @@ export function useGraphModel({
     }
     nextNodeId = maxId + 1
 
-    const labLines = labelsText.value.split(/\r?\n/)
-    labLines.forEach((ln, i) => {
-      const s = ln.trim()
-      const n = byId(i + 1)
-      if (n && s && s !== '_') n.label = s
-    })
+    if (weightsText.value.trim()) {
+      const weightMap = parseNodeWeightsLines(weightsText.value)
+      for (const n of nodes) {
+        n.weight = weightMap.has(n.id) ? weightMap.get(n.id) : null
+      }
+    }
 
-    for (const [u, v, w] of pairs) edges.push({ type: 'edge', u, v, w })
+    for (const [u, v, w] of pairs) {
+      const key = `${u}|${v}`
+      const savedList = oldEdgeProps.get(key)
+      const saved = savedList && savedList.length ? savedList.shift() : null
+      edges.push({
+        type: 'edge',
+        u,
+        v,
+        w,
+        restLength: saved ? saved.restLength : null,
+        stiffness: saved ? saved.stiffness : null
+      })
+    }
 
     if (preserve && hadNew) {
       let cx = 0
@@ -336,14 +373,15 @@ export function useGraphModel({
     const n = Math.max(1, Math.min(200, Math.round(randN.value) || 1))
     clearGraph()
     for (let i = 1; i <= n; i++) {
-      nodes.push({ type: 'node', id: i, x: 0, y: 0, label: String(i), vx: 0, vy: 0, fixed: false, color: null })
+      nodes.push({ type: 'node', id: i, x: 0, y: 0, weight: null, vx: 0, vy: 0, fixed: false, color: null })
     }
     nextNodeId = n + 1
     const w = () => (randWeighted.value ? String(1 + Math.floor(Math.random() * 9)) : null)
+    const mkEdge = (u, v) => ({ type: 'edge', u, v, w: w(), restLength: null, stiffness: null })
     if (randMode.value === 'tree') {
       for (let i = 2; i <= n; i++) {
         const p = 1 + Math.floor(Math.random() * (i - 1))
-        edges.push({ type: 'edge', u: p, v: i, w: w() })
+        edges.push(mkEdge(p, i))
       }
     } else if (randMode.value === 'bipartite') {
       const half = Math.max(1, Math.floor(n / 2))
@@ -357,7 +395,7 @@ export function useGraphModel({
         const key = `${u}|${v}`
         if (!used.has(key)) {
           used.add(key)
-          edges.push({ type: 'edge', u, v, w: w() })
+          edges.push(mkEdge(u, v))
         }
       }
     } else {
@@ -366,7 +404,7 @@ export function useGraphModel({
       while (edges.length < target && guard++ < 5000) {
         const u = 1 + Math.floor(Math.random() * n)
         const v = 1 + Math.floor(Math.random() * n)
-        if (u !== v) edges.push({ type: 'edge', u, v, w: w() })
+        if (u !== v) edges.push(mkEdge(u, v))
       }
     }
     syncInputFromGraph()
@@ -377,7 +415,7 @@ export function useGraphModel({
 
   function loadExample() {
     inputText.value = EXAMPLE_EDGES
-    labelsText.value = ''
+    weightsText.value = ''
     offset.value = 1
     parseInput()
   }
@@ -389,8 +427,19 @@ export function useGraphModel({
       offset: offset.value,
       directed: directed.value,
       view: { x: view.x, y: view.y, scale: view.scale },
-      nodes: nodes.map((n) => ({ id: n.id, x: n.x, y: n.y, label: n.label })),
-      edges: edges.map((e) => ({ u: e.u, v: e.v, w: e.w }))
+      nodes: nodes.map((n) => ({
+        id: n.id,
+        x: n.x,
+        y: n.y,
+        ...(n.weight != null ? { weight: n.weight } : {})
+      })),
+      edges: edges.map((e) => ({
+        u: e.u,
+        v: e.v,
+        w: e.w,
+        ...(e.restLength != null ? { restLength: e.restLength } : {}),
+        ...(e.stiffness != null ? { stiffness: e.stiffness } : {})
+      }))
     }
   }
 
@@ -443,7 +492,7 @@ export function useGraphModel({
         id,
         x: Number(raw.x) || 0,
         y: Number(raw.y) || 0,
-        label: raw.label == null || raw.label === '' ? String(id) : String(raw.label),
+        weight: migrateLegacyNodeWeight(raw, id),
         vx: 0,
         vy: 0,
         fixed: false,
@@ -459,8 +508,21 @@ export function useGraphModel({
       const u = Number(raw && raw.u)
       const v = Number(raw && raw.v)
       if (!seen.has(u) || !seen.has(v) || u === v) continue
-      cleanEdges.push({ type: 'edge', u, v, w: raw.w == null || raw.w === '' ? null : String(raw.w) })
-      if (cleanEdges.length >= 1000) break
+      const rl = raw.restLength != null && Number.isFinite(Number(raw.restLength)) && Number(raw.restLength) > 0
+        ? Number(raw.restLength)
+        : null
+      const st = raw.stiffness != null && Number.isFinite(Number(raw.stiffness)) && Number(raw.stiffness) >= 0
+        ? Number(raw.stiffness)
+        : null
+      cleanEdges.push({
+        type: 'edge',
+        u,
+        v,
+        w: raw.w == null || raw.w === '' ? null : String(raw.w),
+        restLength: rl,
+        stiffness: st
+      })
+      if (cleanEdges.length >= 2000) break
     }
     nodes.length = 0
     edges.length = 0
@@ -481,7 +543,7 @@ export function useGraphModel({
 
   function disposeTimers() {
     clearTimeout(parseTimer)
-    clearTimeout(labelsTimer)
+    clearTimeout(weightsTimer)
   }
 
   return {
@@ -490,7 +552,7 @@ export function useGraphModel({
     directed,
     highlight,
     inputText,
-    labelsText,
+    weightsText,
     offset,
     info,
     analysis,
@@ -512,13 +574,14 @@ export function useGraphModel({
     addEdge,
     deleteNode,
     deleteEdge,
-    updateNodeLabel,
+    updateNodeWeight,
     updateEdgeWeight,
+    updateEdgePhysics,
     syncInputFromGraph,
     clearGraph,
     clearInput,
     onInputText,
-    onInputLabels,
+    onInputWeights,
     parseInput,
     randomGraph,
     loadExample,

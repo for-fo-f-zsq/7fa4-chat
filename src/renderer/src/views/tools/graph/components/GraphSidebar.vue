@@ -7,7 +7,7 @@
       size="sm"
       class="graph-sidebar-tabs"
     >
-      <!-- Tab 1: 图结构（边列表 + 随机生成） -->
+      <!-- Tab 1: 图结构与分析（边列表 + 节点点权 + 随机生成 + 算法分析） -->
       <div v-if="activeTab === 'structure'" class="graph-tab-panel">
         <section class="graph-block">
           <div class="graph-block-head">
@@ -18,7 +18,7 @@
 
           <UiTextarea
             :model-value="inputText"
-            :rows="8"
+            :rows="7"
             spellcheck="false"
             aria-label="边列表输入"
             placeholder="1 2&#10;2 3 5&#10;4 4&#10;或 JSON: [[1,2],[2,3,5]]"
@@ -62,19 +62,19 @@
 
         <section class="graph-block">
           <div class="graph-block-head">
-            <i class="fas fa-tags" aria-hidden="true"></i>
-            <span>节点标签</span>
-            <span class="graph-block-hint">可选</span>
+            <i class="fas fa-weight-hanging" aria-hidden="true"></i>
+            <span>节点点权</span>
+            <span class="graph-block-hint">数字 · 可选</span>
           </div>
           <UiTextarea
-            :model-value="labelsText"
+            :model-value="weightsText"
             :rows="3"
             spellcheck="false"
-            aria-label="节点标签"
-            placeholder="a&#10;_&#10;c"
-            @update:model-value="$emit('inputLabels', $event)"
+            aria-label="节点点权"
+            placeholder="5&#10;_&#10;-2"
+            @update:model-value="$emit('inputWeights', $event)"
           />
-          <p class="graph-help">每行对应一个节点，<code>_</code> 表示保留默认编号。</p>
+          <p class="graph-help">每行对应一个节点的数字点权，<code>_</code> 或留空表示无点权；圆内始终保留编号。</p>
         </section>
 
         <section class="graph-block">
@@ -139,89 +139,7 @@
             生成随机图
           </UiButton>
         </section>
-      </div>
 
-      <!-- Tab 2: 物理布局参数 -->
-      <div v-else-if="activeTab === 'physics'" class="graph-tab-panel">
-        <section class="graph-block">
-          <div class="graph-block-head">
-            <i class="fas fa-sliders" aria-hidden="true"></i>
-            <span>力学参数</span>
-            <span class="graph-block-hint">拖动即时生效</span>
-          </div>
-
-          <div class="graph-param">
-            <div class="graph-param-head">
-              <span class="graph-param-label">节点排斥力</span>
-              <span class="graph-param-val">{{ repulsion.toFixed(1) }}x</span>
-            </div>
-            <UiSlider
-              :model-value="repulsion"
-              :min="0.2"
-              :max="20"
-              :step="0.5"
-              :show-value="false"
-              size="sm"
-              aria-label="节点排斥力"
-              @update:model-value="$emit('update:repulsion', $event)"
-              @change="$emit('forceChange')"
-            />
-            <p class="graph-help">Repulsion · 越大节点越分散</p>
-          </div>
-
-          <div class="graph-param">
-            <div class="graph-param-head">
-              <span class="graph-param-label">边弹簧拉力</span>
-              <span class="graph-param-val">{{ spring.toFixed(1) }}x</span>
-            </div>
-            <UiSlider
-              :model-value="spring"
-              :min="0.2"
-              :max="20"
-              :step="0.5"
-              :show-value="false"
-              size="sm"
-              aria-label="边弹簧拉力"
-              @update:model-value="$emit('update:spring', $event)"
-              @change="$emit('forceChange')"
-            />
-            <p class="graph-help">Spring · 越大相邻节点越紧凑</p>
-          </div>
-
-          <div class="graph-param">
-            <div class="graph-param-head">
-              <span class="graph-param-label">向心力</span>
-              <span class="graph-param-val">{{ centripetal.toFixed(1) }}x</span>
-            </div>
-            <UiSlider
-              :model-value="centripetal"
-              :min="0"
-              :max="50"
-              :step="1"
-              :show-value="false"
-              size="sm"
-              aria-label="向心力"
-              @update:model-value="$emit('update:centripetal', $event)"
-              @change="$emit('forceChange')"
-            />
-            <p class="graph-help">Centripetal · 越大整体越收紧</p>
-          </div>
-
-          <UiButton
-            size="sm"
-            variant="secondary"
-            icon="fas fa-rotate-left"
-            block
-            title="重置所有物理模拟参数为默认值"
-            @click="resetPhysics"
-          >
-            恢复默认参数
-          </UiButton>
-        </section>
-      </div>
-
-      <!-- Tab 3: 图论算法分析 -->
-      <div v-else-if="activeTab === 'algo'" class="graph-tab-panel">
         <section class="graph-block">
           <div class="graph-block-head">
             <i class="fas fa-diagram-project" aria-hidden="true"></i>
@@ -262,17 +180,13 @@
               />
             </label>
           </div>
+
+          <p v-if="highlight === 'none'" class="graph-help">
+            选择一种分析算法后，画布将高亮对应结构并在下方展示明细。
+          </p>
         </section>
 
-        <section v-if="highlight === 'none'" class="graph-block">
-          <div class="graph-block-head">
-            <i class="fas fa-circle-info" aria-hidden="true"></i>
-            <span>尚未选择算法</span>
-          </div>
-          <p class="graph-help">在上方选择一种分析算法，这里会显示关键指标与具体明细（边集、距离、序列等）。</p>
-        </section>
-
-        <section v-else class="graph-analysis" :data-status="analysis.status">
+        <section v-if="highlight !== 'none'" class="graph-analysis" :data-status="analysis.status">
           <header class="graph-analysis-head">
             <span class="graph-analysis-badge">{{ STATUS_TEXT[analysis.status] || '结果' }}</span>
             <span class="graph-analysis-summary">{{ analysis.summary || '暂无分析输出' }}</span>
@@ -299,6 +213,208 @@
           <p class="graph-analysis-meta">{{ info }}</p>
         </section>
       </div>
+
+      <!-- Tab 2: 物理布局参数 -->
+      <div v-else-if="activeTab === 'physics'" class="graph-tab-panel">
+        <section class="graph-block">
+          <div class="graph-block-head">
+            <i class="fas fa-sliders" aria-hidden="true"></i>
+            <span>力学参数（Velocity-Verlet）</span>
+            <span class="graph-block-hint">即时生效</span>
+          </div>
+
+          <div class="graph-param">
+            <div class="graph-param-head">
+              <span class="graph-param-label">保守排斥强度</span>
+              <span class="graph-param-val">{{ repulsion.toFixed(1) }}x</span>
+            </div>
+            <UiSlider
+              :model-value="repulsion"
+              :min="0.1"
+              :max="5"
+              :step="0.1"
+              :show-value="false"
+              size="sm"
+              aria-label="保守排斥强度"
+              @update:model-value="$emit('update:repulsion', $event)"
+              @change="$emit('forceChange')"
+            />
+            <p class="graph-help">软化平方反比排斥力，严格满足牛顿第三定律。</p>
+          </div>
+
+          <div class="graph-param">
+            <div class="graph-param-head">
+              <span class="graph-param-label">默认弹簧劲度 k</span>
+              <span class="graph-param-val">{{ stiffness.toFixed(1) }}</span>
+            </div>
+            <UiSlider
+              :model-value="stiffness"
+              :min="0.1"
+              :max="5"
+              :step="0.1"
+              :show-value="false"
+              size="sm"
+              aria-label="默认弹簧劲度"
+              @update:model-value="$emit('update:stiffness', $event)"
+              @change="$emit('forceChange')"
+            />
+            <p class="graph-help">胡克弹力 F = kₑ(d - Lₑ)û，未单独设置的边使用此值。</p>
+          </div>
+
+          <div class="graph-param">
+            <div class="graph-param-head">
+              <span class="graph-param-label">默认弹簧原长 L₀</span>
+              <span class="graph-param-val">{{ Math.round(restLength) }} px</span>
+            </div>
+            <UiSlider
+              :model-value="restLength"
+              :min="40"
+              :max="300"
+              :step="5"
+              :show-value="false"
+              size="sm"
+              aria-label="默认弹簧原长"
+              @update:model-value="$emit('update:restLength', $event)"
+              @change="$emit('forceChange')"
+            />
+            <p class="graph-help">边弹簧平衡距离，可在画布或下方按单边覆盖。</p>
+          </div>
+
+          <div class="graph-param">
+            <div class="graph-param-head">
+              <span class="graph-param-label">粘性阻尼 γ</span>
+              <span class="graph-param-val">{{ damping === 0 ? '0（守恒）' : damping.toFixed(1) }}</span>
+            </div>
+            <UiSlider
+              :model-value="damping"
+              :min="0"
+              :max="5"
+              :step="0.1"
+              :show-value="false"
+              size="sm"
+              aria-label="粘性阻尼系数"
+              @update:model-value="$emit('update:damping', $event)"
+              @change="$emit('forceChange')"
+            />
+            <p class="graph-help">阻力 -γv；设为 0 时动量与总机械能严格守恒。</p>
+          </div>
+
+          <div class="graph-param">
+            <div class="graph-param-head">
+              <span class="graph-param-label">时间步长 dt</span>
+              <span class="graph-param-val">{{ dt.toFixed(3) }}</span>
+            </div>
+            <UiSlider
+              :model-value="dt"
+              :min="0.005"
+              :max="0.08"
+              :step="0.005"
+              :show-value="false"
+              size="sm"
+              aria-label="积分时间步长"
+              @update:model-value="$emit('update:dt', $event)"
+              @change="$emit('forceChange')"
+            />
+            <p class="graph-help">保辛积分步长，越小数值能量漂移越低。</p>
+          </div>
+
+          <div class="graph-switch-row">
+            <UiSwitch
+              :model-value="autoCenter"
+              size="sm"
+              label="布局时视角追踪质心（不施加外力）"
+              @update:model-value="$emit('update:autoCenter', $event)"
+            />
+          </div>
+
+          <div class="graph-btn-row">
+            <UiButton
+              size="sm"
+              variant="secondary"
+              icon="fas fa-crosshairs"
+              title="平移视角使系统质心居中"
+              @click="$emit('centerCom')"
+            >
+              质心居中
+            </UiButton>
+            <UiButton
+              size="sm"
+              variant="secondary"
+              icon="fas fa-rotate-left"
+              title="重置所有物理模拟参数为默认值"
+              @click="$emit('resetPhysics')"
+            >
+              恢复默认
+            </UiButton>
+          </div>
+        </section>
+
+        <section v-if="selectedEdge" class="graph-block">
+          <div class="graph-block-head">
+            <i class="fas fa-link" aria-hidden="true"></i>
+            <span>选中边弹簧（{{ selectedEdge.u }} — {{ selectedEdge.v }}）</span>
+          </div>
+          <div class="graph-field-grid">
+            <label class="graph-field-cell">
+              <span class="graph-field-label">原长 Lₑ (px)</span>
+              <UiInput
+                type="number"
+                size="sm"
+                :model-value="selectedEdge.restLength ?? ''"
+                :placeholder="`默认 ${Math.round(restLength)}`"
+                aria-label="选中边原长"
+                @update:model-value="onEdgePhysicsInput('restLength', $event)"
+              />
+            </label>
+            <label class="graph-field-cell">
+              <span class="graph-field-label">劲度 kₑ</span>
+              <UiInput
+                type="number"
+                size="sm"
+                :model-value="selectedEdge.stiffness ?? ''"
+                :placeholder="`默认 ${stiffness.toFixed(1)}`"
+                aria-label="选中边劲度"
+                @update:model-value="onEdgePhysicsInput('stiffness', $event)"
+              />
+            </label>
+          </div>
+          <UiButton
+            size="sm"
+            variant="secondary"
+            icon="fas fa-undo"
+            block
+            @click="$emit('updateEdgePhysics', selectedEdge, { restLength: '', stiffness: '' })"
+          >
+            恢复跟随全局默认
+          </UiButton>
+        </section>
+
+        <section class="graph-block">
+          <div class="graph-block-head">
+            <i class="fas fa-atom" aria-hidden="true"></i>
+            <span>守恒量监测</span>
+            <span class="graph-block-hint">{{ damping === 0 ? '零阻力守恒' : '阻尼收敛' }}</span>
+          </div>
+          <div class="graph-metrics">
+            <div class="graph-metric">
+              <span class="graph-metric__k">总能量 E</span>
+              <span class="graph-metric__v">{{ fmtStat(physicsStats.totalEnergy) }}</span>
+            </div>
+            <div class="graph-metric">
+              <span class="graph-metric__k">动能 T</span>
+              <span class="graph-metric__v">{{ fmtStat(physicsStats.kineticEnergy) }}</span>
+            </div>
+            <div class="graph-metric">
+              <span class="graph-metric__k">势能 V</span>
+              <span class="graph-metric__v">{{ fmtStat(physicsStats.potentialEnergy) }}</span>
+            </div>
+            <div class="graph-metric">
+              <span class="graph-metric__k">总动量 |P|</span>
+              <span class="graph-metric__v">{{ fmtStat(physicsStats.momentumNorm, 4) }}</span>
+            </div>
+          </div>
+        </section>
+      </div>
     </UiTabs>
   </div>
 </template>
@@ -308,17 +424,25 @@ import { ref } from 'vue'
 import { UiDropdown, UiButton, UiInput, UiSlider, UiSwitch, UiTextarea, UiTabs } from '@/ui'
 import { OFFSET_OPTIONS, RAND_MODE_OPTIONS, HIGHLIGHT_OPTIONS } from '../graphConstants.js'
 
-defineProps({
+const props = defineProps({
   inputText: { type: String, required: true },
-  labelsText: { type: String, required: true },
+  weightsText: { type: String, required: true },
   offset: { type: Number, required: true },
   randMode: { type: String, required: true },
   randN: { type: Number, required: true },
   randM: { type: Number, required: true },
   randWeighted: { type: Boolean, required: true },
   repulsion: { type: Number, required: true },
-  spring: { type: Number, required: true },
-  centripetal: { type: Number, required: true },
+  stiffness: { type: Number, required: true },
+  restLength: { type: Number, required: true },
+  damping: { type: Number, required: true },
+  dt: { type: Number, required: true },
+  autoCenter: { type: Boolean, required: true },
+  physicsStats: {
+    type: Object,
+    default: () => ({ kineticEnergy: 0, potentialEnergy: 0, totalEnergy: 0, momentumNorm: 0 })
+  },
+  selectedEdge: { type: Object, default: null },
   highlight: { type: String, required: true },
   algoSrc: { type: Number, required: true },
   algoSink: { type: Number, required: true },
@@ -331,7 +455,7 @@ defineProps({
 
 const emit = defineEmits([
   'inputText',
-  'inputLabels',
+  'inputWeights',
   'update:offset',
   'loadExample',
   'clearInput',
@@ -341,9 +465,15 @@ const emit = defineEmits([
   'update:randWeighted',
   'randomGraph',
   'update:repulsion',
-  'update:spring',
-  'update:centripetal',
+  'update:stiffness',
+  'update:restLength',
+  'update:damping',
+  'update:dt',
+  'update:autoCenter',
   'forceChange',
+  'resetPhysics',
+  'centerCom',
+  'updateEdgePhysics',
   'update:highlight',
   'update:algoSrc',
   'update:algoSink'
@@ -352,18 +482,22 @@ const emit = defineEmits([
 const activeTab = ref('structure')
 
 const SIDEBAR_TABS = [
-  { key: 'structure', label: '图结构', icon: 'fas fa-sitemap' },
-  { key: 'physics', label: '物理布局', icon: 'fas fa-sliders-h' },
-  { key: 'algo', label: '算法分析', icon: 'fas fa-diagram-project' }
+  { key: 'structure', label: '图结构与分析', icon: 'fas fa-sitemap' },
+  { key: 'physics', label: '物理布局', icon: 'fas fa-sliders-h' }
 ]
 
 const STATUS_TEXT = { ok: '完成', warn: '提示', error: '无法计算', info: '结果' }
 
-function resetPhysics() {
-  emit('update:repulsion', 1)
-  emit('update:spring', 1)
-  emit('update:centripetal', 1)
+function onEdgePhysicsInput(field, val) {
+  if (!props.selectedEdge) return
+  emit('updateEdgePhysics', props.selectedEdge, { [field]: val })
   emit('forceChange')
+}
+
+function fmtStat(v, digits = 2) {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return '0'
+  return Math.abs(n) < 1e-6 ? '0' : n.toFixed(digits)
 }
 </script>
 

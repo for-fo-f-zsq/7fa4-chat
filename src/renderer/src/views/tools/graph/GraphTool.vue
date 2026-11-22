@@ -27,26 +27,34 @@
       >
         <GraphSidebar
           :input-text="model.inputText.value"
-          :labels-text="model.labelsText.value"
+          :weights-text="model.weightsText.value"
           v-model:offset="model.offset.value"
           v-model:rand-mode="model.randMode.value"
           v-model:rand-n="model.randN.value"
           v-model:rand-m="model.randM.value"
           v-model:rand-weighted="model.randWeighted.value"
           v-model:repulsion="layout.repulsion.value"
-          v-model:spring="layout.spring.value"
-          v-model:centripetal="layout.centripetal.value"
+          v-model:stiffness="layout.stiffness.value"
+          v-model:rest-length="layout.restLength.value"
+          v-model:damping="layout.damping.value"
+          v-model:dt="layout.dt.value"
+          v-model:auto-center="layout.autoCenter.value"
+          :physics-stats="layout.physicsStats"
+          :selected-edge="selectedEdge"
           v-model:highlight="model.highlight.value"
           v-model:algo-src="model.algoSrc.value"
           v-model:algo-sink="model.algoSink.value"
           :info="model.info.value"
           :analysis="model.analysis.value"
           @input-text="model.onInputText"
-          @input-labels="model.onInputLabels"
+          @input-weights="model.onInputWeights"
           @load-example="model.loadExample"
           @clear-input="model.clearInput"
           @random-graph="model.randomGraph"
           @force-change="layout.onForceChange"
+          @reset-physics="layout.resetPhysics"
+          @center-com="layout.centerViewOnCom"
+          @update-edge-physics="onUpdateEdgePhysics"
         />
       </ToolSideDrawer>
 
@@ -82,7 +90,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useNarrow } from '../../../composables/useNarrow.js'
 import { useDialog } from '../../../composables/useDialog.js'
 import { useToast } from '../../../composables/useToast.js'
@@ -196,8 +204,9 @@ const inter = useGraphInteraction({
   addEdge: model.addEdge,
   deleteNode: model.deleteNode,
   deleteEdge: model.deleteEdge,
-  updateNodeLabel: model.updateNodeLabel,
+  updateNodeWeight: model.updateNodeWeight,
   updateEdgeWeight: model.updateEdgeWeight,
+  updateEdgePhysics: model.updateEdgePhysics,
   treeLayout: layout.treeLayout,
   fitView: layout.fitView,
   stopLayout: layout.stopLayout,
@@ -210,6 +219,16 @@ const inter = useGraphInteraction({
   onSave: save,
   toast
 })
+
+const selectedEdge = computed(() => {
+  const s = inter.interaction.selected
+  return s && s.type === 'edge' ? s : null
+})
+
+function onUpdateEdgePhysics(edge, patch) {
+  model.updateEdgePhysics(edge, patch)
+  layout.onForceChange()
+}
 
 watch([model.highlight, model.directed, model.algoSrc, model.algoSink], canvas.markHlDirty)
 watch(model.offset, () => model.parseInput(true, true))
