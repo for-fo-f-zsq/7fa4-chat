@@ -111,7 +111,7 @@ async function requestNoticeMutation(url) {
 
 export async function fetchNotices({ silent = true } = {}) {
   if (!store.logined) {
-    store.notices = (store.notices || []).filter((n) => n._isTest && !n.noticed)
+    store.notices = (store.notices || []).filter((n) => n._isTest && !n.noticed && !n.checked)
     return { ok: false, notices: [] }
   }
   if (fetchInflight) return fetchInflight
@@ -123,7 +123,7 @@ export async function fetchNotices({ silent = true } = {}) {
       const data = await res.json()
       const parsed = parseNoticesPayload(data)
       if (parsed.ok) {
-        const localTests = (store.notices || []).filter((n) => n._isTest && !n.noticed)
+        const localTests = (store.notices || []).filter((n) => n._isTest && !n.noticed && !n.checked)
         store.notices = [...localTests, ...parsed.notices]
         noticeState.error = ''
       } else if (!silent) {
@@ -149,11 +149,7 @@ async function setNoticeField(id, field) {
   const target = Array.isArray(store.notices) ? store.notices.find((n) => n.id === nid) : null
 
   if (nid < 0 || target?._isTest) {
-    if (field === 'noticed') {
-      store.notices = (store.notices || []).filter((n) => n.id !== nid)
-    } else if (target) {
-      target.checked = true
-    }
+    store.notices = (store.notices || []).filter((n) => n.id !== nid)
     noticeState.error = ''
     return { success: true }
   }
@@ -222,7 +218,7 @@ export function bindDesktopSiteNoticeBridge() {
   const payload = computed(() => {
     void store.setting?.theme
     void store.setting?.customVars
-    const unNoticed = (store.notices || []).filter((n) => !n.noticed)
+    const unNoticed = (store.notices || []).filter((n) => !n.noticed && !n.checked)
     const cur = unNoticed[0] || null
     if (!cur || (!store.logined && !cur._isTest)) return null
     return {
@@ -269,7 +265,7 @@ export function bindDesktopSiteNoticeBridge() {
 
 export function useNotices() {
   const notices = computed(() => store.notices || [])
-  const unNoticedList = computed(() => notices.value.filter((n) => !n.noticed))
+  const unNoticedList = computed(() => notices.value.filter((n) => !n.noticed && !n.checked))
   const currentPopupNotice = computed(() => unNoticedList.value[0] || null)
   const isPending = (id, field = 'noticed') => Boolean(noticeState.pendingActionIds[`${field}:${id}`])
 

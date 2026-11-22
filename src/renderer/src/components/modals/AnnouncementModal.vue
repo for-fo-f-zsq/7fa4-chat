@@ -5,7 +5,7 @@
         <div class="announcement-welcome-inner">
           <div class="announcement-badge">
             <i class="fas fa-star" aria-hidden="true"></i>
-            <span>重大架构焕新 · 全新开始</span>
+            <span>体验完善 · 强提示与分析增强</span>
           </div>
 
           <div class="announcement-logo-stage">
@@ -15,8 +15,8 @@
             </div>
           </div>
 
-          <h1 class="announcement-version u-tabular-nums">V{{ appVersion || '4.0.0' }}</h1>
-          <p class="announcement-tagline">全新设计语言、高清动态表情与重制工具箱，开启全新一代 7FA4 Chat</p>
+          <h1 class="announcement-version u-tabular-nums">V{{ appVersion || '4.0.1' }}</h1>
+          <p class="announcement-tagline">站点强制通知、点权图论算法、分时段可用率监控与消息轮询全面加固</p>
 
           <div class="announcement-pillars motion-stagger">
             <div v-for="pillar in PILLARS" :key="pillar.label" class="announcement-pillar">
@@ -57,7 +57,7 @@
       <div v-else-if="page === 2" key="changelog" class="announcement-page announcement-page--changelog">
         <div class="announcement-head">
           <h2><i class="fas fa-file-alt" aria-hidden="true"></i> 完整更新日志</h2>
-          <p class="announcement-head-sub">V{{ appVersion || '4.0.0' }} 及历代版本变更详情</p>
+          <p class="announcement-head-sub">V{{ appVersion || '4.0.1' }} 及历代版本变更详情</p>
         </div>
         <div class="announcement-changelog">
           <ChangelogViewer :auto-load="true" :prefer-local="true" :fallback-markdown="bundledChangelog" />
@@ -99,7 +99,7 @@
             下一页<template #trailing><i class="fas fa-chevron-right"></i></template>
           </UiButton>
           <UiButton v-else variant="primary" size="sm" @click="emit('close')">
-            开启 V4.0.0<template #trailing><i class="fas fa-check"></i></template>
+            开启 V{{ appVersion || '4.0.1' }}<template #trailing><i class="fas fa-check"></i></template>
           </UiButton>
         </div>
       </div>
@@ -119,48 +119,48 @@ import SponsorTable from '@/components/common/SponsorTable.vue'
 import StepDots from '@/components/common/StepDots.vue'
 
 const PILLARS = [
-  { icon: 'fas fa-palette', label: '设计系统重构', sub: '统一令牌 · 双景预览' },
-  { icon: 'fas fa-smile', label: '312 款 APNG 动图', sub: '清晰命名 · 拼音检索' },
-  { icon: 'fas fa-toolbox', label: '5 大工具重制', sub: '图像 / MD / 图论 / 计算 / 计时' },
-  { icon: 'fas fa-bell', label: '通知与工程跃迁', sub: '智能提醒 · 全量单测门禁' },
+  { icon: 'fas fa-bell', label: '站点强制通知', sub: '屏幕右下角强置顶 · 确认/已读' },
+  { icon: 'fas fa-project-diagram', label: '点权图论算法', sub: '树形独立集 · DAG 最长权路' },
+  { icon: 'fas fa-heartbeat', label: '分时段连接监控', sub: '72 小时可用率 · 即时悬浮明细' },
+  { icon: 'fas fa-shield-alt', label: '同步与持久化加固', sub: '基线修复 · 主题实时适配' },
 ]
 
 const HIGHLIGHTS = [
   {
-    icon: 'fas fa-palette',
-    tag: '设计系统',
-    title: '统一组件原语与主题双景预览',
-    desc: '引入全局语义令牌与 24 类标准化 UI 组件；自定义主题新增「聊天 + 关于」实时微缩画布，年级配色支持卡片直取。',
-  },
-  {
-    icon: 'fas fa-smile',
-    tag: '表情 4.0',
-    title: '312 款高清动态 APNG 重构上线',
-    desc: '彻底清理旧版低清 GIF 与重复接龙图片，换装 QFace 官方动画，全面对齐「/中文」「/全拼」与无冲突缩写检索。',
-  },
-  {
-    icon: 'fas fa-toolbox',
-    tag: '工具箱',
-    title: '五大内置工具深度模块化重制',
-    desc: '图片支持箭头/马赛克/非破坏旋转与 800% 缩放；MD 新增目录大纲与查找替换；图论/计算器/计时器交互全面革新。',
-  },
-  {
     icon: 'fas fa-bell',
-    tag: '通知提醒',
-    title: '单窗复用与更细致的免打扰策略',
-    desc: '通知卡片精准锚定当前显示器并聚合计数，新增跨零点定时免打扰、@仅提醒、Web Audio 合成试听与隐私模式。',
+    tag: '站点通知',
+    title: '屏幕右下角强制置顶通知弹窗',
+    desc: '每轮自动拉取 OJ 系统通知，桌面端以无边框屏幕右下角 screen-saver 级置顶窗弹出并跟随当前浅/深主题，支持分别「确认」或「已读」关闭与设置页测试。',
   },
   {
-    icon: 'fas fa-comments',
-    tag: '体验打磨',
-    title: '设置分区导航与聊天滚动画布加固',
-    desc: '设置面板改用六大分类导航，「关于」升级 Bento 卡片矩阵；深度拆解消息区并验证上滑翻页与锚定稳定性。',
+    icon: 'fas fa-project-diagram',
+    tag: '图论工具',
+    title: '新增点权图论分析与稳定侧栏',
+    desc: '扩展树形 DP 最大点权独立集、子树点权和、DAG 最长权路与 Tarjan 缩点路径及加权重心统计，锁定分析面板高度彻底消除左侧栏滚动抖动。',
   },
   {
-    icon: 'fas fa-cubes',
-    tag: '多端与工程',
-    title: '官网视觉同源与自动化测试门禁',
-    desc: '官网、反馈页与管理后台共享设计令牌并同步深浅模式；新增 7 大测试套件并由 CI 门禁守护每一次版本发布。',
+    icon: 'fas fa-chart-bar',
+    tag: '连接状态',
+    title: '72 小时分时段可用率统计',
+    desc: '持久化记录各小时在线/异常/离线时长与可用率，悬停时段条即时查看明细且不再闪烁，接口延迟节流为 10 秒刷新。',
+  },
+  {
+    icon: 'fas fa-sync-alt',
+    tag: '消息同步',
+    title: '修复重复轮询与初始全量同步',
+    desc: '补齐桌面端首次同步的 target-times 基线播种，彻底消除空闲状态下重复请求 /chat/chat；升级全库同步与 SQLite FULL/TRUNCATE 退出落盘。',
+  },
+  {
+    icon: 'fas fa-window-restore',
+    tag: '工具与交互',
+    title: '图片预览互通与导航栏精修',
+    desc: '恢复图片预览「用图片编辑器打开」跨窗编辑后回传发送；默认开启开机自启动，「关于」移至侧栏第 4 项（Ctrl+4）并修复 Windows 开发态图标。',
+  },
+  {
+    icon: 'fas fa-rocket',
+    tag: '发布工程',
+    title: '官网自动部署自愈与包校验加固',
+    desc: '优化服务器自动构建检测与 GitLab 发布上传顺序，降低网页端升级遗漏或上传竞争风险。',
   },
 ]
 
