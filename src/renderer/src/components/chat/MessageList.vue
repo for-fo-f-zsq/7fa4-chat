@@ -7,16 +7,25 @@
   />
 
   <div class="message-list-shell">
-    <div class="message-area" ref="messageAreaEl" @scroll="onScroll" @click="onMessageAreaClick">
+    <div class="message-area" ref="messageAreaEl" @scroll="onScroll" @click="onMessageAreaClick" @dragstart="onMessageAreaDragStart">
       <div class="load-more-hint-row" v-if="hasOlderMessages && !loadingMore">
         <span class="load-more-hint-text"><i class="fas fa-chevron-up"></i> 向上滚动加载更多</span>
       </div>
       <div class="load-more-spinner" v-if="loadingMore"><i class="fas fa-spinner motion-spin"></i> 加载中...</div>
 
       <template v-if="!visibleMessages.length && !hasOlderMessages">
-        <div class="msg-skeleton motion-pulse"><UiSkeleton variant="circle" class="skeleton-avatar" :animated="false" /><UiSkeleton variant="rect" class="skeleton-bubble" :animated="false" /></div>
-        <div class="msg-skeleton right motion-pulse"><UiSkeleton variant="circle" class="skeleton-avatar" :animated="false" /><UiSkeleton variant="rect" class="skeleton-bubble" :animated="false" /></div>
-        <div class="msg-skeleton motion-pulse"><UiSkeleton variant="circle" class="skeleton-avatar" :animated="false" /><UiSkeleton variant="rect" class="skeleton-bubble" :animated="false" /></div>
+        <template v-if="store.initializing || loadingMore">
+          <div class="msg-skeleton motion-pulse"><UiSkeleton variant="circle" class="skeleton-avatar" :animated="false" /><UiSkeleton variant="rect" class="skeleton-bubble" :animated="false" /></div>
+          <div class="msg-skeleton right motion-pulse"><UiSkeleton variant="circle" class="skeleton-avatar" :animated="false" /><UiSkeleton variant="rect" class="skeleton-bubble" :animated="false" /></div>
+          <div class="msg-skeleton motion-pulse"><UiSkeleton variant="circle" class="skeleton-avatar" :animated="false" /><UiSkeleton variant="rect" class="skeleton-bubble" :animated="false" /></div>
+        </template>
+        <UiEmptyState
+          v-else
+          class="msg-empty-state"
+          icon="far fa-comments"
+          title="暂无消息，发条消息打个招呼吧"
+          size="md"
+        />
       </template>
 
       <template v-for="item in messagesWithSeparators" :key="item.type === 'separator' ? 'sep_' + item.timestamp : item.data.id">
@@ -101,7 +110,7 @@ import {
   avatarTint,
   esc,
 } from '../../utils.js'
-import { UiIconButton, UiSkeleton } from '@/ui'
+import { UiEmptyState, UiIconButton, UiSkeleton } from '@/ui'
 import { useCurrentMessages } from '../../composables/useCurrentMessages.js'
 import { useMessageExpand } from '../../composables/chat/useMessageExpand.js'
 import { useMessageScroll } from '../../composables/chat/useMessageScroll.js'
@@ -165,11 +174,16 @@ function pollVoterName(uid) {
   return displayName(u) || String(uid)
 }
 
-function onPollVote(pollMsg, pick, custom) {
+function onPollVote(pollMsg, pick, custom, customPick) {
   if (!pollMsg) return
   const id = String(pollMsg.id)
   votingPollId.value = id
-  emit('vote', { poll: id, pick: Array.isArray(pick) ? pick : [], custom: String(custom ?? '').trim() })
+  emit('vote', {
+    poll: id,
+    pick: Array.isArray(pick) ? pick : [],
+    custom: String(custom ?? '').trim(),
+    customPick: Array.isArray(customPick) ? customPick : [],
+  })
   setTimeout(() => { if (votingPollId.value === id) votingPollId.value = null }, 1200)
 }
 
@@ -227,7 +241,7 @@ const messagesWithSeparators = computed(() => {
 const {
   msgCtx, onAvatarSingleClick, onAvatarDoubleClick, isPatMsg,
   enterMultiSelect, exitMultiSelect, toggleMsgSelect,
-  onMsgMenu, copyMsg, downloadMsg, collectMsg, startForward, onMessageAreaClick,
+  onMsgMenu, copyMsg, downloadMsg, collectMsg, startForward, onMessageAreaClick, onMessageAreaDragStart,
 } = useMessageActions({
   messageAreaEl,
   selfUid: () => props.selfUid,

@@ -185,6 +185,12 @@
       @close="pollVisible = false"
       @sent="(info) => tokenInfo = info"
     />
+
+    <CameraCaptureModal
+      :open="cameraModalOpen"
+      @close="closeCameraModal"
+      @capture="onCameraCapture"
+    />
   </div>
 </template>
 
@@ -213,6 +219,7 @@ import ReplyQuoteBar from './ReplyQuoteBar.vue'
 import PendingAttachmentsBar from './PendingAttachmentsBar.vue'
 import MentionPopup from './MentionPopup.vue'
 import PollComposerModal from './PollComposerModal.vue'
+import CameraCaptureModal from '../modals/CameraCaptureModal.vue'
 
 const FMT_ITEMS = [{ value: 'txt', label: '纯文本' }, { value: 'md', label: 'MD' }]
 const MORE_MENU_ITEMS = [
@@ -322,9 +329,9 @@ const {
 })
 
 const {
-  cameraBusy, removePendingFile, previewPendingFile, sendFileMessage,
+  cameraBusy, cameraModalOpen, removePendingFile, previewPendingFile, sendFileMessage,
   onPaste, sendDroppedFile, onEmojiSelect, onStickerSelect,
-  previewSticker, addSticker, removeSticker, takePhoto,
+  previewSticker, addSticker, removeSticker, takePhoto, closeCameraModal, onCameraCapture,
 } = useInputMedia({
   pageType: () => props.pageType,
   pageId: () => props.pageId,

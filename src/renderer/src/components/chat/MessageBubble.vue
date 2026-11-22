@@ -54,9 +54,9 @@
           :own="isSelf"
           :voting="voting"
           :name-of="pollVoterName"
-          @vote="(pick, custom) => $emit('vote', msg, pick, custom)"
+          @vote="(pick, custom, customPick) => $emit('vote', msg, pick, custom, customPick)"
         />
-        <div v-else class="bubble-content luogu-md" v-html="renderedHtml"></div>
+        <div v-else class="bubble-content luogu-md" v-html="renderedHtml" @dragstart="onBubbleDragStart"></div>
       </div>
 
       <button
@@ -72,7 +72,14 @@
 
 <script setup>
 import { UiAvatar, UiCheckbox } from '@/ui'
+import { handleFileDragStart } from '../../composables/chat/useMessageActions.js'
 import PollCard from './PollCard.vue'
+
+function onBubbleDragStart(e) {
+  if (handleFileDragStart(e)) {
+    e.stopPropagation()
+  }
+}
 
 defineProps({
   msg: { type: Object, required: true },

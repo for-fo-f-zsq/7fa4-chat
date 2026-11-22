@@ -112,6 +112,8 @@
             :self="store.self"
             :logged-in="store.logined"
             :setting="setting"
+            :conn-status="store.connStatus"
+            @reconnect="reconnect?.()"
             @user-action="onUserAction"
             @settingChange="onSettingChange"
             @openShortcutModal="shortcutModal = true"
@@ -187,6 +189,7 @@ const {
   isWeb, allThemes, setting, version, isNarrowLayout, listWidth, startListResize,
   currentMessages, canLoadOlder, markAllRead, banners, nav, modals, groupActions, chatActions,
   onSettingChange, startReply, onNewConversationFromList, onUserAction, onTargetMenuAction,
+  reconnect,
 } = useChatWorkspace({
   messageListRef,
   inputFooterRef,

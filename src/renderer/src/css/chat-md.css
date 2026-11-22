@@ -156,6 +156,16 @@
   vertical-align: middle;
 }
 
+.chat-md .qqface,
+.luogu-md .qqface {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  vertical-align: -5px;
+  margin: 0 2px;
+  pointer-events: none;
+}
+
 .plain-msg {
   white-space: pre-wrap;
   word-break: break-word;

@@ -186,7 +186,7 @@ function _parseContentImpl(raw, senderId) {
     } else {
       const fi = getFileIconInfo(obj.name || '')
       const b64 = obj.data || ''
-      fileHtml = `<div class="file-msg" data-file-b64="${esc(b64)}" data-name="${esc(obj.name)}" data-mime="${esc(obj.mime || '')}">
+      fileHtml = `<div class="file-msg" draggable="true" data-file-b64="${esc(b64)}" data-name="${esc(obj.name)}" data-mime="${esc(obj.mime || '')}">
   <div class="file-msg-icon" style="color:${fi.color}"><i class="fas ${fi.icon}"></i></div>
   <div class="file-msg-info">
     <div class="file-msg-name">${esc(obj.name)}</div>
