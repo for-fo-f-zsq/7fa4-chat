@@ -16,8 +16,9 @@ export function useGraphInteraction({
   addEdge,
   deleteNode,
   deleteEdge,
-  updateNodeLabel,
+  updateNodeWeight,
   updateEdgeWeight,
+  updateEdgePhysics,
   treeLayout,
   fitView,
   stopLayout,
@@ -128,7 +129,7 @@ export function useGraphInteraction({
       inlineEdit.value = {
         type: 'node',
         target: n,
-        text: String(n.label ?? n.id)
+        text: n.weight == null ? '' : String(n.weight)
       }
       return
     }
@@ -137,21 +138,35 @@ export function useGraphInteraction({
       inlineEdit.value = {
         type: 'edge',
         target: ed,
-        text: ed.w == null ? '' : String(ed.w)
+        text: ed.w == null ? '' : String(ed.w),
+        restLength: ed.restLength == null ? '' : String(ed.restLength),
+        stiffness: ed.stiffness == null ? '' : String(ed.stiffness)
       }
       return
     }
   }
 
-  function commitInlineEdit(newVal) {
+  function commitInlineEdit(payload) {
     if (!inlineEdit.value) return
     const current = inlineEdit.value
+    const isObj = payload && typeof payload === 'object'
+    const newVal = isObj ? payload.text : payload
     if (current.type === 'node') {
-      updateNodeLabel?.(current.target, newVal)
-      toast?.showToast?.('已更新节点标签', 'success', 1200)
+      const res = updateNodeWeight?.(current.target, newVal)
+      if (res && !res.ok) {
+        toast?.showToast?.(res.error || '点权须为数字', 'warn', 1600)
+        return
+      }
+      toast?.showToast?.('已更新节点点权', 'success', 1200)
     } else if (current.type === 'edge') {
       updateEdgeWeight?.(current.target, newVal)
-      toast?.showToast?.('已更新边权重', 'success', 1200)
+      if (isObj && (payload.restLength !== undefined || payload.stiffness !== undefined)) {
+        updateEdgePhysics?.(current.target, {
+          restLength: payload.restLength,
+          stiffness: payload.stiffness
+        })
+      }
+      toast?.showToast?.('已更新边属性', 'success', 1200)
     }
     inlineEdit.value = null
   }
@@ -243,6 +258,8 @@ export function useGraphInteraction({
       }
       interaction.dragNode.x = interaction.mouseWorld.x - dragOffset.x
       interaction.dragNode.y = interaction.mouseWorld.y - dragOffset.y
+      interaction.dragNode.vx = 0
+      interaction.dragNode.vy = 0
       requestDraw()
       return
     }

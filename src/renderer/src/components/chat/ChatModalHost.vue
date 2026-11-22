@@ -102,6 +102,7 @@
 <script setup>
 import { ref } from 'vue'
 import { store } from '../../store.js'
+import { persistNow } from '../../composables/chat/useChatPersistence.js'
 import TargetMenu from '../common/TargetMenu.vue'
 import GroupActionMenu from '../common/GroupActionMenu.vue'
 import ForwardModal from '../modals/ForwardModal.vue'
@@ -153,7 +154,14 @@ function closeGroupModal() {
 function onTogglePin() {
   const { type, id } = props.state.targetMenu
   const item = type === 'user' ? store.users[id] : store.groups[id]
-  if (item) item.pinned = !item.pinned
+  if (item) {
+    item.pinned = !item.pinned
+    const key = `${type}_${id}`
+    if (!store.pinnedConvos || typeof store.pinnedConvos !== 'object') store.pinnedConvos = {}
+    if (item.pinned) store.pinnedConvos[key] = true
+    else delete store.pinnedConvos[key]
+    persistNow()
+  }
   props.state.targetMenu.show = false
 }
 

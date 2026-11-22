@@ -7,6 +7,7 @@
 
 const http = require('http');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 
@@ -122,9 +123,16 @@ const MOCK = http.createServer((req, res) => {
   res.end();
 });
 
-function get(port, pathname, headers) {
+function request(port, method, pathname, headers, body) {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, path: pathname, method: 'GET', headers: headers || {} }, (res) => {
+    const reqHeaders = { ...(headers || {}) };
+    let payload = null;
+    if (body !== undefined && body !== null) {
+      payload = typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body);
+      if (!reqHeaders['Content-Type']) reqHeaders['Content-Type'] = 'application/json';
+      reqHeaders['Content-Length'] = Buffer.byteLength(payload);
+    }
+    const req = http.request({ host: '127.0.0.1', port, path: pathname, method, headers: reqHeaders }, (res) => {
       const chunks = [];
       res.on('data', (c) => chunks.push(c));
       res.on('end', () =>
@@ -132,8 +140,13 @@ function get(port, pathname, headers) {
       );
     });
     req.on('error', reject);
+    if (payload !== null) req.write(payload);
     req.end();
   });
+}
+
+function get(port, pathname, headers) {
+  return request(port, 'GET', pathname, headers);
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -159,8 +172,17 @@ function check(name, ok, extra) {
 (async () => {
   await new Promise((r) => MOCK.listen(MOCK_PORT, '127.0.0.1', r));
 
+  const feedbackDir = fs.mkdtempSync(path.join(os.tmpdir(), '7fa4-site-fb-'));
+  const adminPassword = 'test-admin-secret-123';
   const child = spawn(process.execPath, [path.join(ROOT, 'server.js')], {
-    env: { ...process.env, PORT: String(SITE_PORT), HOST: '127.0.0.1', GITLAB_BASE: `http://127.0.0.1:${MOCK_PORT}` },
+    env: {
+      ...process.env,
+      PORT: String(SITE_PORT),
+      HOST: '127.0.0.1',
+      GITLAB_BASE: `http://127.0.0.1:${MOCK_PORT}`,
+      FEEDBACK_DIR: feedbackDir,
+      FEEDBACK_ADMIN_PASSWORD: adminPassword
+    },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   let serverLog = '';
@@ -230,6 +252,101 @@ function check(name, ok, extra) {
     const fbPage = await get(SITE_PORT, '/feedback/');
     check('/feedback/ 反馈页 200', fbPage.status === 200 && /意见反馈/.test(fbPage.body.toString()));
 
+    const fbAdminPage = await get(SITE_PORT, '/feedback/admin');
+    const fbAdminHtml = fbAdminPage.body.toString();
+    check(
+      '/feedback/admin 管理页包含删除与个人备忘录',
+      fbAdminPage.status === 200 && /个人备忘录/.test(fbAdminHtml) && /data-delete/.test(fbAdminHtml)
+    );
+
+    // 反馈提交 + 管理员登录 + 删除(#17) + 独立备忘录(#28)
+    const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+    const sub1 = await request(SITE_PORT, 'POST', '/api/feedback', {}, {
+      platform: 'windows',
+      version: '4.0.0',
+      content: '测试反馈条目一（含附件）',
+      screenshots: [{ type: 'image/png', name: 'shot.png', data: tinyPng }]
+    });
+    const sub1Json = JSON.parse(sub1.body.toString());
+    const sub2 = await request(SITE_PORT, 'POST', '/api/feedback', {}, {
+      platform: 'web',
+      version: '4.0.0',
+      content: '测试反馈条目二（REST 删除）'
+    });
+    const sub2Json = JSON.parse(sub2.body.toString());
+    check('提交两条本地反馈成功', sub1.status === 200 && sub1Json.ok && sub2.status === 200 && sub2Json.ok);
+
+    // 未鉴权拒绝
+    const unauthDel = await request(SITE_PORT, 'POST', '/api/feedback/admin/delete', {}, { id: sub1Json.id });
+    const unauthRestDel = await request(SITE_PORT, 'DELETE', `/api/feedback/admin/item/${sub1Json.id}`);
+    const unauthMemoGet = await request(SITE_PORT, 'GET', '/api/feedback/admin/memo');
+    const unauthMemoPost = await request(SITE_PORT, 'POST', '/api/feedback/admin/memo', {}, { content: 'hack' });
+    check(
+      '管理端删除与备忘录接口未鉴权返回 401',
+      unauthDel.status === 401 && unauthRestDel.status === 401 && unauthMemoGet.status === 401 && unauthMemoPost.status === 401
+    );
+
+    // 登录拿 cookie
+    const loginRes = await request(SITE_PORT, 'POST', '/api/feedback/admin/login', {}, { password: adminPassword });
+    const setCookie = [].concat(loginRes.headers['set-cookie'] || [])[0] || '';
+    const adminCookie = setCookie.split(';')[0];
+    check('管理端登录下发 fb_admin cookie', loginRes.status === 200 && /^fb_admin=/.test(adminCookie));
+
+    const authHeaders = { Cookie: adminCookie };
+    const listBefore = JSON.parse((await get(SITE_PORT, '/api/feedback/admin/list', authHeaders)).body.toString());
+    check('管理端列表初始为 2 条且附件存在', listBefore.total === 2 && listBefore.newCount === 2 && fs.existsSync(path.join(feedbackDir, 'attachments', sub1Json.id)));
+
+    // 备忘录：初始为空 -> 保存 -> 再读取
+    const memoInit = JSON.parse((await get(SITE_PORT, '/api/feedback/admin/memo', authHeaders)).body.toString());
+    check('备忘录初始为空字符串', memoInit.ok === true && memoInit.content === '' && memoInit.updatedAt === null);
+
+    const memoText = '跨设备同步测试备忘\n- 跟进 #17 删除\n- 跟进 #28 备忘录';
+    const memoSaveRes = await request(SITE_PORT, 'POST', '/api/feedback/admin/memo', authHeaders, { content: memoText });
+    const memoSaveJson = JSON.parse(memoSaveRes.body.toString());
+    check(
+      '保存备忘录成功且返回 updatedAt',
+      memoSaveRes.status === 200 && memoSaveJson.ok && memoSaveJson.content === memoText && typeof memoSaveJson.updatedAt === 'string'
+    );
+
+    const memoTooLong = await request(SITE_PORT, 'POST', '/api/feedback/admin/memo', authHeaders, { content: 'a'.repeat(50001) });
+    check('备忘录超过 50000 字返回 400', memoTooLong.status === 400);
+
+    // 标记第一条已处理，然后用 POST /delete 删除；再用 DELETE /item/:id 删除第二条
+    await request(SITE_PORT, 'POST', '/api/feedback/admin/status', authHeaders, { id: sub1Json.id, status: 'handled' });
+    const delBad = await request(SITE_PORT, 'POST', '/api/feedback/admin/delete', authHeaders, { id: '../evil' });
+    check('删除非法 ID 返回 400', delBad.status === 400);
+
+    const del1 = await request(SITE_PORT, 'POST', '/api/feedback/admin/delete', authHeaders, { id: sub1Json.id });
+    const del1Json = JSON.parse(del1.body.toString());
+    check(
+      'POST /api/feedback/admin/delete 删除条目并清理附件目录',
+      del1.status === 200 && del1Json.ok && del1Json.total === 1 && !fs.existsSync(path.join(feedbackDir, 'attachments', sub1Json.id))
+    );
+
+    const del1Again = await request(SITE_PORT, 'POST', '/api/feedback/admin/delete', authHeaders, { id: sub1Json.id });
+    check('重复删除不存在条目返回 404', del1Again.status === 404);
+
+    const del2 = await request(SITE_PORT, 'DELETE', `/api/feedback/admin/item/${encodeURIComponent(sub2Json.id)}`, authHeaders);
+    const del2Json = JSON.parse(del2.body.toString());
+    check(
+      'DELETE /api/feedback/admin/item/:id 删除成功且计数清零',
+      del2.status === 200 && del2Json.ok && del2Json.total === 0 && del2Json.newCount === 0
+    );
+
+    // 清空所有反馈后，备忘录与独立文件 admin-memo.json 必须保持不变
+    const listAfter = JSON.parse((await get(SITE_PORT, '/api/feedback/admin/list', authHeaders)).body.toString());
+    const memoAfter = JSON.parse((await get(SITE_PORT, '/api/feedback/admin/memo', authHeaders)).body.toString());
+    const memoFileOnDisk = JSON.parse(fs.readFileSync(path.join(feedbackDir, 'admin-memo.json'), 'utf8'));
+    const itemsFileOnDisk = JSON.parse(fs.readFileSync(path.join(feedbackDir, 'items.json'), 'utf8'));
+    check(
+      '清空反馈后独立 admin-memo.json 完好且不混入 items.json',
+      listAfter.total === 0 &&
+        Array.isArray(itemsFileOnDisk) &&
+        itemsFileOnDisk.length === 0 &&
+        memoAfter.content === memoText &&
+        memoFileOnDisk.content === memoText
+    );
+
     const missing = await get(SITE_PORT, '/no-such-page');
     check('未知页面 404', missing.status === 404, String(missing.status));
   } catch (e) {
@@ -237,6 +354,7 @@ function check(name, ok, extra) {
   } finally {
     child.kill();
     MOCK.close();
+    fs.rmSync(feedbackDir, { recursive: true, force: true });
   }
 
   let failed = 0;

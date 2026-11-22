@@ -77,19 +77,65 @@
     font-weight var(--motion-dur-fast) var(--motion-ease-standard);
 }
 
+.navbar .nav-icon::before {
+  content: '';
+  position: absolute;
+  left: calc(-1 * var(--space-2));
+  top: 50%;
+  width: 3px;
+  height: 24px;
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  background: var(--brand);
+  opacity: 0;
+  transform: translateY(-50%) scaleY(0);
+  transform-origin: center;
+  transition:
+    transform var(--motion-dur-base) var(--motion-ease-standard),
+    opacity var(--motion-dur-fast) var(--motion-ease-standard);
+  z-index: var(--z-raised);
+  pointer-events: none;
+}
+
+.navbar .nav-icon.is-active::before {
+  opacity: 1;
+  transform: translateY(-50%) scaleY(1);
+}
+
 .navbar .nav-icon.is-active {
-  --ibtn-bg: var(--brand-soft);
+  --ibtn-bg: var(--surface-active);
   --ibtn-fg: var(--brand);
-  --ibtn-hover-bg: var(--brand-soft);
+  --ibtn-hover-bg: var(--surface-active);
   --ibtn-hover-fg: var(--brand);
-  box-shadow: inset 0 0 0 var(--border-width) var(--brand-line);
+  box-shadow: var(--elev-brand), inset 0 0 0 var(--border-width) var(--brand-line);
+  animation: activeGlow var(--motion-loop-pulse) var(--motion-ease-standard) infinite alternate;
+}
+
+@keyframes activeGlow {
+  from {
+    box-shadow: var(--elev-brand), inset 0 0 0 var(--border-width) var(--brand-line);
+  }
+  to {
+    box-shadow: var(--elev-brand-hover), inset 0 0 0 var(--border-width) var(--brand-line);
+  }
 }
 
 .navbar .nav-icon.is-active .nav-icon-label {
   font-weight: var(--weight-semibold);
 }
 
+.navbar .nav-icon:focus-visible {
+  outline: var(--focus-width) solid var(--focus-color);
+  outline-offset: var(--focus-offset);
+  box-shadow: var(--focus-ring);
+}
+
 @media (hover: hover) {
+  .navbar .nav-icon:hover:not(.is-active):not(.is-disabled) {
+    --ibtn-hover-bg: var(--surface-hover);
+    box-shadow: var(--elev-1);
+    transform: translateY(-1px) scale(1.08);
+  }
+
   .navbar .nav-icon:hover:not(.is-active):not(.is-disabled) .nav-icon-stack i {
     transform: translateY(-1px) scale(1.08);
   }
@@ -196,6 +242,15 @@
   display: none;
 }
 
+.navbar.narrow .nav-icon.is-active {
+  box-shadow: none;
+  animation: none;
+}
+
+.navbar.narrow .nav-icon.is-active::before {
+  display: none;
+}
+
 .navbar.narrow .nav-user-wrap {
   margin-top: 0;
   margin-left: auto;
@@ -206,6 +261,7 @@
   top: -2px;
 }
 
+.navbar.fx-off .nav-icon.is-active,
 .navbar.fx-off .motion-pulse {
   animation-play-state: paused;
 }

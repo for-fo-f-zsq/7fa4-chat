@@ -81,8 +81,23 @@
     transform var(--motion-dur-fast) var(--motion-ease-out-expo);
 }
 
+.conversation-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 3px;
+  pointer-events: none;
+  background: var(--brand);
+  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+  transform: scaleY(0);
+  transform-origin: center;
+  transition: transform var(--motion-dur-fast) var(--motion-ease-standard);
+}
+
 .conversation-item.pinned {
-  background: color-mix(in srgb, var(--surface-2) 65%, transparent);
+  background: var(--surface-active);
 }
 
 @media (hover: hover) {
@@ -90,14 +105,23 @@
     background: var(--surface-hover);
   }
 
+  .conversation-item:hover::before {
+    transform: scaleY(1);
+  }
+
   .conversation-item:hover .conv-avatar {
-    transform: scale(1.04);
+    transform: scale(1.06);
   }
 }
 
 .conversation-item:active {
   background: var(--surface-press);
   transform: scale(0.99);
+}
+
+.conversation-item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-inset);
 }
 
 .conversation-item.nav-highlight {
@@ -114,8 +138,21 @@
 .conversation-item.active,
 .conversation-item.active:hover {
   cursor: default;
-  background: var(--brand-soft);
+  background: var(--surface-active);
   box-shadow: inset 0 0 0 var(--border-width) var(--brand-line);
+}
+
+.conversation-item.active::before {
+  transform: scaleY(1);
+  top: 15%;
+  bottom: 15%;
+  background: var(--brand);
+}
+
+.conversation-item.exited::before,
+.conversation-item.blocked::before,
+.conversation-item.inactive::before {
+  display: none;
 }
 
 .conversation-item.active .conv-name {

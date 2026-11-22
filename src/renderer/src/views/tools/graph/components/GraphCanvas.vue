@@ -33,15 +33,15 @@
       @dblclick.stop
     >
       <div class="graph-inline-header">
-        <i :class="inlineEdit.type === 'node' ? 'fas fa-circle-nodes' : 'fas fa-arrows-split-up-and-left'"></i>
-        <span>{{ inlineEdit.type === 'node' ? '编辑节点标签' : '编辑边权重' }}</span>
+        <i :class="inlineEdit.type === 'node' ? 'fas fa-weight-hanging' : 'fas fa-arrows-split-up-and-left'"></i>
+        <span>{{ inlineEdit.type === 'node' ? `编辑节点 ${inlineEdit.target.id} 点权` : '编辑边属性' }}</span>
       </div>
       <div class="graph-inline-input-group">
         <input
           ref="inlineInputRef"
           v-model="draftText"
           class="graph-inline-input"
-          :placeholder="inlineEdit.type === 'node' ? '输入标签名称...' : '输入边权重 (数字或留空)...'"
+          :placeholder="inlineEdit.type === 'node' ? '输入数字点权 (留空或 _ 清除)...' : '输入边权重 (数字或留空)...'"
           @keydown.enter.prevent="submitInline"
           @keydown.esc.prevent="$emit('cancelInlineEdit')"
         />
@@ -61,6 +61,31 @@
         >
           <i class="fas fa-times"></i>
         </button>
+      </div>
+      <div v-if="inlineEdit.type === 'edge'" class="graph-inline-spring-row">
+        <label class="graph-inline-spring-cell">
+          <span>原长 Lₑ</span>
+          <input
+            v-model="draftRestLength"
+            type="number"
+            class="graph-inline-input is-compact"
+            placeholder="默认"
+            @keydown.enter.prevent="submitInline"
+            @keydown.esc.prevent="$emit('cancelInlineEdit')"
+          />
+        </label>
+        <label class="graph-inline-spring-cell">
+          <span>劲度 kₑ</span>
+          <input
+            v-model="draftStiffness"
+            type="number"
+            step="0.1"
+            class="graph-inline-input is-compact"
+            placeholder="默认"
+            @keydown.enter.prevent="submitInline"
+            @keydown.esc.prevent="$emit('cancelInlineEdit')"
+          />
+        </label>
       </div>
       <div class="graph-inline-hint">按 Enter 确定 · 按 Esc 取消</div>
     </div>
@@ -109,12 +134,16 @@ const emit = defineEmits([
 
 const inlineInputRef = ref(null)
 const draftText = ref('')
+const draftRestLength = ref('')
+const draftStiffness = ref('')
 
 watch(
   () => props.inlineEdit,
   (val) => {
     if (val) {
       draftText.value = val.text || ''
+      draftRestLength.value = val.restLength || ''
+      draftStiffness.value = val.stiffness || ''
       nextTick(() => {
         inlineInputRef.value?.focus()
         inlineInputRef.value?.select()
@@ -148,7 +177,15 @@ const inlineEditStyle = computed(() => {
 })
 
 function submitInline() {
-  emit('commitInlineEdit', draftText.value)
+  if (props.inlineEdit?.type === 'edge') {
+    emit('commitInlineEdit', {
+      text: draftText.value,
+      restLength: draftRestLength.value,
+      stiffness: draftStiffness.value
+    })
+  } else {
+    emit('commitInlineEdit', draftText.value)
+  }
 }
 </script>
 
@@ -245,6 +282,25 @@ function submitInline() {
 .graph-inline-input:focus {
   border-color: var(--brand);
   box-shadow: 0 0 0 1px var(--brand);
+}
+
+.graph-inline-input.is-compact {
+  height: 24px;
+  font-size: var(--text-2xs);
+}
+
+.graph-inline-spring-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-1);
+}
+
+.graph-inline-spring-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--fg-muted);
 }
 
 .graph-inline-btn {

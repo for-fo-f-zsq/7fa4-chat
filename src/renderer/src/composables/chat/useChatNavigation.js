@@ -125,7 +125,30 @@ export function useChatNavigation({
     getDeps().notifications.updateBadgeCount()
   }
 
+  function clearConvoUnread(type, id) {
+    if (type === 'user') {
+      const user = store.users?.[id]
+      if (user) user.unread = 0
+    } else if (type === 'group') {
+      const group = store.groups?.[id]
+      if (group) {
+        group.unread = 0
+        group.mentioned = false
+      }
+    }
+    getDeps().notifications?.updateBadgeCount?.()
+  }
+
   function onOpenTool(tool) {
+    if (tool && tool.remote && typeof window !== 'undefined' && typeof window.api?.openToolWindow === 'function') {
+      window.api.openToolWindow({
+        id: tool.id,
+        name: tool.name || tool.id,
+        url: tool.url || '',
+        version: tool.version || '',
+      })
+      return
+    }
     toolOrigin = { type: 'list' }
     currentTool.value = tool
   }
@@ -156,19 +179,14 @@ export function useChatNavigation({
     closeSearch()
     visibleCount.value = 20
     Object.keys(expandedMsgs).forEach((k) => delete expandedMsgs[k])
-    if (type === 'user') {
-      const user = store.users[id]
-      if (user) user.unread = 0
-    } else if (type === 'group') {
-      const group = store.groups[id]
-      if (group) { group.unread = 0; group.mentioned = false }
-    }
-    const { notifications, persistence, polling } = getDeps()
-    notifications.updateBadgeCount()
+    clearConvoUnread(type, id)
+    const { persistence, polling } = getDeps()
     persistence.ensureConvoMessages(type, id)
     if (isWeb) {
       polling.webExhausted.delete((type === 'group' ? 'g:' : 'u:') + id)
       polling.loadConversationLite(type, id)
+    } else {
+      polling.loadConversationOnSelect?.(type, id)
     }
   }
 
@@ -182,6 +200,31 @@ export function useChatNavigation({
     messageListRef.value?.scrollToBottomInstant({ respectUser: true })
   }
 
+  function captureScrollAnchor() {
+    const el = messageListRef.value?.messageAreaEl
+    if (!el) return { el: null, anchor: null }
+    const areaTop = el.getBoundingClientRect().top
+    for (const row of el.querySelectorAll('.msg-row')) {
+      const r = row.getBoundingClientRect()
+      if (r.bottom > areaTop + 1) {
+        return { el, anchor: { id: row.getAttribute('data-msg-id'), top: r.top - areaTop } }
+      }
+    }
+    return { el, anchor: null }
+  }
+
+  function restoreScrollAnchor(el, anchor) {
+    if (!el || !anchor) return
+    nextTick(() => {
+      const row = el.querySelector('[data-msg-id="' + anchor.id + '"]')
+      if (!row) return
+      const delta = (row.getBoundingClientRect().top - el.getBoundingClientRect().top) - anchor.top
+      const target = Math.max(0, el.scrollTop + delta)
+      if (messageListRef.value?.setScrollTopProgrammatic) messageListRef.value.setScrollTopProgrammatic(target)
+      else el.scrollTop = target
+    })
+  }
+
   function onMessageAreaScrollToTop(height, loadAll) {
     const totalLen = getCurrentMessagesLength()
     if (isWeb) {
@@ -193,46 +236,65 @@ export function useChatNavigation({
       if (polling.webLoadingOlder.has(key)) return
       polling.webLoadingOlder.add(key)
       const forPage = pageId.value
-      const el = messageListRef.value?.messageAreaEl
-      const anchor = el ? (() => {
-        const areaTop = el.getBoundingClientRect().top
-        for (const row of el.querySelectorAll('.msg-row')) {
-          const r = row.getBoundingClientRect()
-          if (r.bottom > areaTop + 1) return { id: row.getAttribute('data-msg-id'), top: r.top - areaTop }
-        }
-        return null
-      })() : null
+      const { el, anchor } = captureScrollAnchor()
       polling.loadOlderLite(kind, forPage).then(() => {
         polling.webLoadingOlder.delete(key)
         if (pageId.value !== forPage) return
         visibleCount.value = getCurrentMessagesLength()
-        if (!el || !anchor) return
-        nextTick(() => {
-          const row = el.querySelector('[data-msg-id="' + anchor.id + '"]')
-          if (!row) return
-          const delta = (row.getBoundingClientRect().top - el.getBoundingClientRect().top) - anchor.top
-          const target = Math.max(0, el.scrollTop + delta)
-          if (messageListRef.value?.setScrollTopProgrammatic) messageListRef.value.setScrollTopProgrammatic(target)
-          else el.scrollTop = target
-        })
+        restoreScrollAnchor(el, anchor)
       }, () => { polling.webLoadingOlder.delete(key) })
       return
     }
     if (loadAll) { visibleCount.value = totalLen; return }
-    visibleCount.value += 20
-    const el = messageListRef.value?.messageAreaEl
-    if (el) {
-      nextTick(() => {
-        const target = el.scrollHeight - height
-        const nextTop = target > 0 ? target : 0
-        if (messageListRef.value?.setScrollTopProgrammatic) messageListRef.value.setScrollTopProgrammatic(nextTop)
-        else el.scrollTop = nextTop
-      })
+    if (visibleCount.value < totalLen) {
+      visibleCount.value += 20
+      const el = messageListRef.value?.messageAreaEl
+      if (el) {
+        nextTick(() => {
+          const target = el.scrollHeight - height
+          const nextTop = target > 0 ? target : 0
+          if (messageListRef.value?.setScrollTopProgrammatic) messageListRef.value.setScrollTopProgrammatic(nextTop)
+          else el.scrollTop = nextTop
+        })
+      }
+      return
     }
+    // 本地内存条数已用尽：先从 SQLite 翻更早历史，本地用尽再向服务端拉取
+    const { polling, persistence } = getDeps()
+    const kind = pageType.value === 'group' ? 'group' : 'user'
+    const key = (kind === 'group' ? 'g:' : 'u:') + pageId.value
+    if (polling.webExhausted?.has(key) || polling.webLoadingOlder?.has(key)) return
+    polling.webLoadingOlder?.add(key)
+    const forPage = pageId.value
+    const { el, anchor } = captureScrollAnchor()
+    ;(async () => {
+      try {
+        const fromStore = await (persistence.loadOlderFromStore?.(kind, forPage) ?? 0)
+        if (fromStore > 0) {
+          if (pageId.value === forPage) {
+            visibleCount.value = getCurrentMessagesLength()
+            restoreScrollAnchor(el, anchor)
+          }
+          return
+        }
+        if (polling.loadOlderMessages) {
+          await polling.loadOlderMessages(kind, forPage)
+        } else {
+          polling.webExhausted?.add(key)
+        }
+        if (pageId.value === forPage) {
+          visibleCount.value = getCurrentMessagesLength()
+          restoreScrollAnchor(el, anchor)
+        }
+      } finally {
+        polling.webLoadingOlder?.delete(key)
+      }
+    })()
   }
 
   function onSearchJump(data) {
     if (typeof data === 'object' && data.convoType) {
+      clearConvoUnread(data.convoType, data.convoId)
       if (`${data.convoType}:${data.convoId}` === chatKey.value) {
         messageListRef.value?.jumpToMessage(data.msgId)
         return
@@ -240,6 +302,12 @@ export function useChatNavigation({
       pageType.value = data.convoType
       pageId.value = data.convoId
       pendingJumpMsgId = data.msgId
+      const { persistence, polling } = getDeps()
+      persistence?.ensureConvoMessages?.(data.convoType, data.convoId)
+      if (isWeb) {
+        polling?.webExhausted?.delete((data.convoType === 'group' ? 'g:' : 'u:') + data.convoId)
+        polling?.loadConversationLite?.(data.convoType, data.convoId)
+      }
     } else {
       messageListRef.value?.jumpToMessage(data)
     }

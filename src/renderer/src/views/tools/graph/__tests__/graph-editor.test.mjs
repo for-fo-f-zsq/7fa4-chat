@@ -13,6 +13,19 @@ import {
   computeHighlightState,
   edgeGeometry
 } from '../graphRenderer.js'
+import {
+  parseNodeWeight,
+  isValidNodeWeightInput,
+  migrateLegacyNodeWeight,
+  parseNodeWeightsLines,
+  formatNodeWeightsLines
+} from '../graphWeights.js'
+import {
+  DEFAULT_PHYSICS_PARAMS,
+  computeConservativeForces,
+  stepVelocityVerlet,
+  computePhysicsState
+} from '../graphPhysics.js'
 
 console.log('--- 开始 Graph Editor 单元测试 ---')
 
@@ -395,5 +408,147 @@ console.log('8. 验证主流程算法的正确性...')
   assert.equal(algos.maxFlow(nodes, edges, true, 1, 9).ok, false, '汇点不存在应判为无效')
 }
 console.log('✓ 主流程算法覆盖通过')
+
+// 9. 验证节点点权解析、按行回显与历史 label 兼容迁移 (#13)
+console.log('9. 验证节点点权解析、更新与历史兼容...')
+{
+  assert.equal(parseNodeWeight('42'), 42, '整数字符串应解析为数字')
+  assert.equal(parseNodeWeight(' -3.5 '), -3.5, '负数与浮点字符串应正确解析')
+  assert.equal(parseNodeWeight(0), 0, '数字 0 应保留为 0')
+  assert.equal(parseNodeWeight('_'), null, '下划线 _ 应视为无点权')
+  assert.equal(parseNodeWeight(''), null, '空字符串应视为无点权')
+  assert.equal(parseNodeWeight('abc'), null, '非数字字符串应解析为 null')
+
+  assert.equal(isValidNodeWeightInput('12.5'), true, '合法数字输入校验应通过')
+  assert.equal(isValidNodeWeightInput('_'), true, '清除符号 _ 输入校验应通过')
+  assert.equal(isValidNodeWeightInput(''), true, '空输入校验应通过')
+  assert.equal(isValidNodeWeightInput('NaN'), false, 'NaN 应判为无效点权输入')
+  assert.equal(isValidNodeWeightInput('hello'), false, '非数字文本应判为无效点权输入')
+
+  // 历史 JSON label 迁移
+  assert.equal(migrateLegacyNodeWeight({ id: 1, label: '1' }, 1), null, '历史默认 label=id 应迁移为无点权')
+  assert.equal(migrateLegacyNodeWeight({ id: 1, label: '99' }, 1), 99, '历史数字 label 应迁移为点权 99')
+  assert.equal(migrateLegacyNodeWeight({ id: 1, label: 'nodeA' }, 1), null, '历史非数字 label 应忽略为 null')
+  assert.equal(migrateLegacyNodeWeight({ id: 2, weight: 2, label: '99' }, 2), 2, '显式 weight 字段应优先于历史 label')
+
+  // 按行解析与回显
+  const parsedMap = parseNodeWeightsLines('10\n_\n-7.5\nabc')
+  assert.equal(parsedMap.get(1), 10)
+  assert.equal(parsedMap.get(2), null)
+  assert.equal(parsedMap.get(3), -7.5)
+  assert.equal(parsedMap.get(4), null)
+
+  const wNodes = [
+    { id: 1, weight: 10 },
+    { id: 2, weight: null },
+    { id: 3, weight: -7.5 },
+    { id: 4, weight: null }
+  ]
+  assert.equal(formatNodeWeightsLines(wNodes), '10\n_\n-7.5', '按行回显应精确对齐节点编号并省略尾部空权')
+  assert.equal(formatNodeWeightsLines([{ id: 1, weight: null }]), '', '全部无点权时应回显为空串')
+}
+console.log('✓ 节点点权解析与兼容迁移通过')
+
+// 10. 验证物理引擎：牛顿第三定律、零阻力守恒、阻力收敛与单边胡克弹簧 (#14)
+console.log('10. 验证保守物理引擎与保辛积分...')
+{
+  const pNodes = [
+    { id: 1, x: -90, y: 15, vx: 4.5, vy: -2.0, mass: 1.5 },
+    { id: 2, x: 70, y: -35, vx: -1.5, vy: 3.0, mass: 1.0 },
+    { id: 3, x: 15, y: 110, vx: -2.0, vy: -1.0, mass: 2.0 },
+    { id: 4, x: -40, y: -95, vx: 0.5, vy: 1.0, mass: 1.0 }
+  ]
+  const pEdges = [
+    { u: 1, v: 2, restLength: 110, stiffness: 1.4 },
+    { u: 2, v: 3, restLength: 140, stiffness: 0.8 },
+    { u: 3, v: 4 },
+    { u: 1, v: 3, stiffness: 1.2 }
+  ]
+  const zeroDampParams = {
+    ...DEFAULT_PHYSICS_PARAMS,
+    repulsion: 1.2,
+    stiffness: 1.0,
+    restLength: 120,
+    damping: 0,
+    dt: 0.02
+  }
+
+  // 10.1 合外力为零（牛顿第三定律）
+  const { fx, fy } = computeConservativeForces(pNodes, pEdges, zeroDampParams)
+  let sumFx = 0
+  let sumFy = 0
+  for (let i = 0; i < pNodes.length; i++) {
+    sumFx += fx[i]
+    sumFy += fy[i]
+  }
+  assert(Math.abs(sumFx) < 1e-10, `合外力 X 应为 0，实际 ${sumFx}`)
+  assert(Math.abs(sumFy) < 1e-10, `合外力 Y 应为 0，实际 ${sumFy}`)
+
+  // 10.2 零阻力下：总动量与总机械能（T + V_s + V_r）严格守恒
+  const s0 = computePhysicsState(pNodes, pEdges, zeroDampParams)
+  let minE = s0.totalEnergy
+  let maxE = s0.totalEnergy
+  for (let step = 0; step < 600; step++) {
+    stepVelocityVerlet(pNodes, pEdges, zeroDampParams)
+    const s = computePhysicsState(pNodes, pEdges, zeroDampParams)
+    if (s.totalEnergy < minE) minE = s.totalEnergy
+    if (s.totalEnergy > maxE) maxE = s.totalEnergy
+    const dpx = Math.abs(s.momentum.px - s0.momentum.px)
+    const dpy = Math.abs(s.momentum.py - s0.momentum.py)
+    assert(dpx < 1e-10 && dpy < 1e-10, `零阻力第 ${step} 步总动量应严格守恒 (dpx=${dpx}, dpy=${dpy})`)
+  }
+  const relEnergyDrift = (maxE - minE) / Math.max(1e-9, s0.totalEnergy)
+  assert(relEnergyDrift < 1e-3, `零阻力 600 步总能量相对波动应极小，实际 ${(relEnergyDrift * 100).toFixed(5)}%`)
+
+  // 10.3 近距软化防奇点：两节点完全重合时也不应出现 NaN 或异常发散
+  const overlapNodes = [
+    { id: 1, x: 0, y: 0, vx: 0, vy: 0 },
+    { id: 2, x: 0, y: 0, vx: 0, vy: 0 }
+  ]
+  const overlapStep = stepVelocityVerlet(overlapNodes, [{ u: 1, v: 2 }], zeroDampParams)
+  assert(Number.isFinite(overlapStep.kineticEnergy) && Number.isFinite(overlapNodes[0].x), '节点重合时不应对奇点产生 NaN')
+
+  // 10.4 开启粘性阻力后：动能单调/总体衰减收敛至平衡态，单边原长生效
+  const springNodes = [
+    { id: 1, x: -120, y: 0, vx: 0, vy: 0 },
+    { id: 2, x: 120, y: 0, vx: 0, vy: 0 }
+  ]
+  const springEdges = [{ u: 1, v: 2, restLength: 160, stiffness: 2.0 }]
+  const dampedParams = {
+    ...DEFAULT_PHYSICS_PARAMS,
+    repulsion: 0, // 纯单边胡克弹簧验证平衡原长
+    damping: 1.8,
+    dt: 0.04
+  }
+  let peakKinetic = 0
+  let finalStats = null
+  for (let step = 0; step < 300; step++) {
+    stepVelocityVerlet(springNodes, springEdges, dampedParams)
+    const st = computePhysicsState(springNodes, springEdges, dampedParams)
+    if (st.kineticEnergy > peakKinetic) peakKinetic = st.kineticEnergy
+    finalStats = st
+  }
+  assert(peakKinetic > 10, '初始拉伸的弹簧应先获得显著动能')
+  assert(finalStats.kineticEnergy < 1e-4, `开启阻力后动能应衰减趋近于 0，实际 ${finalStats.kineticEnergy}`)
+  const finalDist = Math.hypot(springNodes[1].x - springNodes[0].x, springNodes[1].y - springNodes[0].y)
+  assert(Math.abs(finalDist - 160) < 0.1, `纯弹簧平衡距离应收敛至单边配置原长 L_e=160，实际 ${finalDist}`)
+}
+console.log('✓ 保守物理引擎与保辛积分验证通过')
+
+// 11. 验证侧栏双选项卡合并 (#12) 与 GeoGebra 闪烁修复 (#8)
+console.log('11. 验证侧栏结构合并与 GeoGebra 防闪烁修复...')
+{
+  const sidebarSrc = fs.readFileSync(path.resolve('src/renderer/src/views/tools/graph/components/GraphSidebar.vue'), 'utf-8')
+  assert(sidebarSrc.includes("key: 'structure', label: '图结构与分析'"), '侧栏应包含「图结构与分析」选项卡')
+  assert(sidebarSrc.includes("key: 'physics', label: '物理布局'"), '侧栏应包含「物理布局」选项卡')
+  assert(!sidebarSrc.includes("key: 'algo'"), '侧栏不应再保留独立的 algo 选项卡')
+  assert(!sidebarSrc.includes('centripetal'), '物理面板应移除非保守向心力参数')
+
+  const ggbHtml = fs.readFileSync(path.resolve('tools/math/geogebra/calculator.html'), 'utf-8')
+  assert(!ggbHtml.includes('dispatchEvent(new Event("resize"))'), 'calculator.html 不得在 resize 处理中派发 resize 事件')
+  assert(!ggbHtml.includes('.observe(document.getElementById("ggb-element"))'), 'calculator.html 不得监听 #ggb-element 内部 DOM 变动')
+  assert(ggbHtml.includes('lastW') && ggbHtml.includes('lastH'), 'calculator.html 应判定视口真实尺寸变化后再 setSize')
+}
+console.log('✓ 侧栏结构合并与 GeoGebra 防闪烁修复验证通过')
 
 console.log('--- 全部 Graph Editor 单元测试验证通过！ ---')

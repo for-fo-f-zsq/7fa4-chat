@@ -5,6 +5,7 @@ import {
   sendChatMessage,
   compressImage,
   compressBase64Image,
+  isWebBrowser,
 } from '../../utils.js'
 import { QUANCODE, qqfaceShortCode } from '../../qqface-data.js'
 
@@ -27,6 +28,30 @@ export function useInputMedia({
   onOpenPreview,
 }) {
   const cameraBusy = ref(false)
+  const cameraModalOpen = ref(false)
+  let cachedPlatform = null
+
+  async function resolvePlatform() {
+    if (typeof window === 'undefined') return ''
+    if (window.__7FA4_NATIVE__ === true || window.__7FA4_PLATFORM__ === 'android') return 'android'
+    if (cachedPlatform) return cachedPlatform
+    if (typeof window.api?.getPlatform === 'function') {
+      try {
+        const p = await window.api.getPlatform()
+        if (p) {
+          cachedPlatform = p
+          return p
+        }
+      } catch {}
+    }
+    if (isWebBrowser()) return 'web'
+    return window.__7FA4_PLATFORM__ || ''
+  }
+
+  function shouldUseCameraModal(platform) {
+    if (platform === 'android' || platform === 'windows') return false
+    return platform === 'macos' || platform === 'linux' || platform === 'web' || isWebBrowser()
+  }
 
   function addPendingFile(name, size, data, mime) {
     const isImage = isImageFile(name)
@@ -164,7 +189,30 @@ export function useInputMedia({
     try { await window.api.cancelCamera() } catch {}
   }
 
+  function closeCameraModal() {
+    cameraModalOpen.value = false
+  }
+
+  async function onCameraCapture(payload) {
+    cameraModalOpen.value = false
+    if (!payload || !payload.data) return
+    let data = payload.data
+    let size = payload.size || Math.floor((data.length * 3) / 4)
+    const compressed = await compressBase64Image(data, payload.mime || 'image/jpeg')
+    if (compressed) {
+      data = compressed.data
+      size = compressed.size
+    }
+    addPendingFile(payload.name || `photo_${Date.now()}.jpg`, size, data, 'image/jpeg')
+  }
+
   async function takePhoto() {
+    const platform = await resolvePlatform()
+    if (shouldUseCameraModal(platform)) {
+      errorMessage.value = ''
+      cameraModalOpen.value = true
+      return
+    }
     if (cameraBusy.value) { await cancelPhoto(); return }
     cameraBusy.value = true
     errorMessage.value = ''
@@ -188,6 +236,7 @@ export function useInputMedia({
 
   return {
     cameraBusy,
+    cameraModalOpen,
     removePendingFile,
     previewPendingFile,
     sendFileMessage,
@@ -199,5 +248,7 @@ export function useInputMedia({
     addSticker,
     removeSticker,
     takePhoto,
+    closeCameraModal,
+    onCameraCapture,
   }
 }

@@ -20,6 +20,7 @@ export function readGraphTheme(target) {
   target.edge = v('--line-strong', isDark ? '#4b5260' : '#8a8f99')
   target.danger = v('--status-danger', isDark ? '#f87171' : '#e5484d')
   target.success = v('--status-success', isDark ? '#4ade80' : '#16a34a')
+  target.weightColor = v('--status-warning', isDark ? '#fbbf24' : '#d97706')
   target.gridDot = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.11)'
 }
 
@@ -63,11 +64,7 @@ export function computeHighlightState({ nodes, edges, highlight, directed, algoS
   }
 
   const palette = isDark ? GRAPH_PALETTE_DARK : (GRAPH_PALETTE_LIGHT || GRAPH_PALETTE)
-  const nodeName = (id) => {
-    const n = byId(id)
-    const label = n && n.label != null ? String(n.label) : ''
-    return label && label !== String(id) ? label : String(id)
-  }
+  const nodeName = (id) => String(id)
   const edgeName = (e) => {
     const w = algos.numericWeight(e)
     return `${nodeName(e.u)} — ${nodeName(e.v)}${w == null ? '' : ' · w=' + fmtNum(w)}`
@@ -625,12 +622,22 @@ function drawNodes(ctx, { nodes, edges, theme, interaction, hl, highlight }) {
     ctx.lineWidth = lw
     ctx.strokeStyle = stroke
     ctx.stroke()
-    drawTextWithHalo(ctx, String(n.label), n.x, n.y + 0.5, {
+    drawTextWithHalo(ctx, String(n.id), n.x, n.y + 0.5, {
       fillStyle: theme.text,
       haloColor: theme.nodeFillHalo || theme.bg,
       font: '600 13px system-ui, sans-serif',
       haloWidth: 3
     })
+    if (n.weight != null && Number.isFinite(Number(n.weight))) {
+      drawTextWithHalo(ctx, fmtNum(Number(n.weight)), n.x + NODE_R * 0.78, n.y - NODE_R * 0.78, {
+        fillStyle: theme.weightColor || (theme.isDark ? '#fbbf24' : '#d97706'),
+        haloColor: theme.bg,
+        font: '600 11px system-ui, sans-serif',
+        align: 'left',
+        baseline: 'bottom',
+        haloWidth: 3.5
+      })
+    }
     if (sub !== null) {
       drawTextWithHalo(ctx, sub, n.x, n.y + NODE_R + 10, {
         fillStyle: theme.accent,

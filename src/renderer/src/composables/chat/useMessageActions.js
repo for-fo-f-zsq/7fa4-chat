@@ -10,6 +10,46 @@ import {
 import { showToast } from '../useToast.js'
 
 /**
+ * 处理文件消息卡片（.file-msg）的拖出保存：
+ * 桌面端调用 window.api.startFileDrag({ name, dataB64 })；
+ * 网页端设置 DataTransfer DownloadURL；
+ * 内嵌图片预览（.msg-img / .chat-image / .sticker-msg / img）不误触发。
+ */
+export function handleFileDragStart(e) {
+  if (!e || store.multiSelectMode) return false
+  const rawTarget = e.target
+  const target = rawTarget?.nodeType === 3 ? rawTarget.parentElement : rawTarget
+  if (!target || typeof target.closest !== 'function') return false
+  if (target.closest('.msg-img, .chat-image, .sticker-msg, img')) return false
+  const fileEl = target.closest('.file-msg')
+  if (!fileEl) return false
+  const dataB64 = fileEl.dataset?.fileB64 || ''
+  if (!dataB64) return false
+  const name = fileEl.dataset?.name || 'download'
+  const mime = fileEl.dataset?.mime || 'application/octet-stream'
+
+  if (typeof window !== 'undefined' && typeof window.api?.startFileDrag === 'function') {
+    e.preventDefault()
+    try {
+      Promise.resolve(window.api.startFileDrag({ name, dataB64 })).catch(() => {})
+    } catch {}
+    return true
+  }
+
+  if (e.dataTransfer && typeof e.dataTransfer.setData === 'function') {
+    const safeMime = mime || 'application/octet-stream'
+    const safeName = String(name).replace(/:/g, '_')
+    const dataUrl = `data:${safeMime};base64,${dataB64}`
+    try {
+      e.dataTransfer.effectAllowed = 'copy'
+      e.dataTransfer.setData('DownloadURL', `${safeMime}:${safeName}:${dataUrl}`)
+    } catch {}
+    return true
+  }
+  return false
+}
+
+/**
  * 消息右键菜单、多选、代码块复制按钮注入及点击事件代理（预览/链接/提及/引用）。
  */
 export function useMessageActions({
@@ -270,6 +310,10 @@ export function useMessageActions({
     }
   }
 
+  function onMessageAreaDragStart(e) {
+    return handleFileDragStart(e)
+  }
+
   return {
     msgCtx,
     onAvatarSingleClick,
@@ -284,5 +328,6 @@ export function useMessageActions({
     collectMsg,
     startForward,
     onMessageAreaClick,
+    onMessageAreaDragStart,
   }
 }

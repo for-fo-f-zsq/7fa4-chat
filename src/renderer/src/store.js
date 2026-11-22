@@ -9,6 +9,8 @@ export const store = reactive({
   drafts: {},           // 草稿 { 'user_123': 'text', 'group_456': 'text' }
   mutedConvos: {},      // 免打扰会话 { 'user_123': true }
   hiddenConvos: {},     // 隐藏（不显示）的会话：默认列表过滤，搜索时仍可搜到 { 'user_123': true }
+  pinnedConvos: {},     // 置顶会话 { 'user_123': true, 'group_456': true }（桌面/网页统一持久化）
+  ownVotes: [],         // 己方投票记录 [{ id, send_time, free }]（24h 内，用于 Token 恢复口径一致）
   pageType: null,
   pageId: null,
   currentGroupId: null,
@@ -19,6 +21,18 @@ export const store = reactive({
   fetchNewCount: 0,    // 爬取消息时本轮已获取的新消息数（加载提示展示用）
   online: true,         // 网络在线状态（navigator + API 轮询结果综合）
   netError: false,      // API 层网络异常/会话失效标记（html 响应、fetch 失败均置位），用于"未连接"横幅
+  connStatus: {
+    state: 'ok',        // 'ok' | 'connecting' | 'reconnecting' | 'offline' | 'rejected'
+    online: true,
+    apiReachable: true,
+    sessionValid: true,
+    lastSyncAt: 0,
+    lastInfoAt: 0,
+    latencyMs: null,
+    failCount: 0,
+    retryCooldownUntil: 0,
+    lastError: '',
+  },
   multiSelectMode: false, // 多选模式
   selectedMsgIds: [],   // 多选选中的消息ID
   tokenLimit: null,     // /chat/info 的 limit：{ time_limit(秒=恢复周期), count_limit(最大token数), ... }

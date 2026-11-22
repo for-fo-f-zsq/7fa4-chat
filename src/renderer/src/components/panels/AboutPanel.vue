@@ -14,7 +14,7 @@
             <UiBadge variant="neutral" size="sm">{{ platformLabel }}</UiBadge>
           </div>
           <p class="about-tagline">
-            轻量、克制的跨平台即时通讯与学习工具箱，内置 Markdown、KaTeX 公式、图论与图像画板，聊天数据本地加密存储。
+            简洁高效的跨平台即时通讯与学习工具箱，内置 Markdown、KaTeX 公式、图论与图像画板，聊天数据本地加密存储。
           </p>
           <div class="about-author-inline">
             <span class="about-author-label">作者</span>

@@ -3,6 +3,7 @@ import { store } from '../store.js'
 import { parseMsgContent } from './format.js'
 import { MAX_MSG_LENGTH, compressBase64Image } from './media.js'
 import {
+  compareVoteOrder,
   consumeOrphanPoll,
   judgeVote,
   mergeOrphanVote,
@@ -10,6 +11,10 @@ import {
   parsePoll,
   parseVote,
 } from './poll.js'
+
+export function normalizeFree(v) {
+  return v === true || v === 1 || v === '1'
+}
 
 export async function safeFetch(url, options = {}, timeout = 10000) {
   try {
@@ -85,8 +90,9 @@ export async function tryLogin(user, pwd) {
   return { error_code: -1 }
 }
 
-// ===== 消息持久化脏区（唯一保存通道的增量标记） =====
-const dirtyMsgKeys = new Set()
+// ===== 消息持久化脏区（唯一保存通道的增量标记，带版本号防并发写盘期间漏脏标） =====
+const dirtyMsgVersions = new Map()
+let dirtyMsgSeq = 0
 // 记录本端主动发送产生的新消息 ID，仅用于识别“刚发出一条消息需要滚到底部”，避免历史补拉误触回底
 const ownSentMsgIds = new Set()
 
@@ -106,21 +112,40 @@ export function consumeOwnSentMsg(id) {
 }
 
 export function markMsgDirty(kind, cid) {
-  dirtyMsgKeys.add(`${kind}:${cid}`)
+  dirtyMsgVersions.set(`${kind}:${cid}`, ++dirtyMsgSeq)
+}
+
+export function peekDirtyMsgSnapshot() {
+  if (!dirtyMsgVersions.size) return null
+  return new Map(dirtyMsgVersions)
+}
+
+export function clearDirtyMsgSnapshot(snap) {
+  if (!snap) return
+  let remaining = false
+  for (const [k, ver] of snap) {
+    if (dirtyMsgVersions.get(k) === ver) dirtyMsgVersions.delete(k)
+    else if (dirtyMsgVersions.has(k)) remaining = true
+  }
+  return remaining
 }
 
 export function peekDirtyMsgKeys() {
-  if (!dirtyMsgKeys.size) return null
-  return [...dirtyMsgKeys]
+  if (!dirtyMsgVersions.size) return null
+  return [...dirtyMsgVersions.keys()]
 }
 
-export function clearDirtyMsgKeys(keys) {
-  if (!keys) return
-  for (const k of keys) dirtyMsgKeys.delete(k)
+export function clearDirtyMsgKeys(keysOrSnap) {
+  if (!keysOrSnap) return
+  if (keysOrSnap instanceof Map) {
+    clearDirtyMsgSnapshot(keysOrSnap)
+    return
+  }
+  for (const k of keysOrSnap) dirtyMsgVersions.delete(k)
 }
 
 export function clearAllDirtyMsgKeys() {
-  dirtyMsgKeys.clear()
+  dirtyMsgVersions.clear()
 }
 
 /** 消息入库闸门（唯一入口） */
@@ -128,6 +153,7 @@ export function ingestMessage(target, c) {
   if (!target || !c || c.id == null) return { kind: 'skip', id: c && c.id }
   const obj = parseMsgContent(c.content)
   const vote = parseVote(obj)
+  const free = normalizeFree(c.token_free ?? c.free)
   if (vote) {
     const pollMid = vote.poll
     const pollMsg = store.messages[pollMid]
@@ -137,57 +163,96 @@ export function ingestMessage(target, c) {
     if (pollMsg) {
       const def = parsePoll(parseMsgContent(pollMsg.content))
       const prevMeta = (def && def.voteMeta && def.voteMeta[uid]) || null
-      if (prevMeta && prevMeta.ids.indexOf(msgId) !== -1) return { kind: 'vote', id: c.id, pollId: pollMid }
+      if (prevMeta && prevMeta.ids.indexOf(msgId) !== -1) {
+        return { kind: 'vote', id: c.id, pollId: pollMid, free }
+      }
       const hadVote = !!(
         def &&
         ((def.votes && Object.prototype.hasOwnProperty.call(def.votes, uid)) ||
-          (def.custom && Object.prototype.hasOwnProperty.call(def.custom, uid)))
+          (def.custom && Object.prototype.hasOwnProperty.call(def.custom, uid)) ||
+          (def.customVotes && Object.prototype.hasOwnProperty.call(def.customVotes, uid)))
       )
       const repeat = prevMeta ? prevMeta.n > 0 : hadVote
-      const reason = judgeVote(def, vote.pick, vote.custom, sentAt, repeat)
-      const merged = mergeVoteIntoPoll(pollMsg.content, pollMid, vote, c.sender_id)
-      if (merged) {
-        const mobj = parseMsgContent(merged)
+      const isNewer = !prevMeta
+        ? !hadVote
+        : compareVoteOrder(sentAt, msgId, prevMeta.t, prevMeta.id) > 0
+      let nextContent = pollMsg.content
+      if (isNewer) {
+        const merged = mergeVoteIntoPoll(pollMsg.content, pollMid, vote, c.sender_id)
+        if (merged) nextContent = merged
+      }
+      const mobj = parseMsgContent(nextContent)
+      if (mobj && mobj.type === 'poll') {
         const vmeta = { ...(mobj.voteMeta || {}) }
-        const m0 = vmeta[uid] || { n: 0, t: 0, ids: [] }
-        vmeta[uid] = { n: m0.n + 1, t: sentAt > 0 ? sentAt : m0.t, ids: [...m0.ids, msgId] }
+        const m0 = prevMeta || vmeta[uid] || { n: 0, t: 0, id: '', ids: [] }
+        vmeta[uid] = {
+          n: m0.n + 1,
+          t: isNewer ? (sentAt > 0 ? sentAt : m0.t) : m0.t,
+          id: isNewer ? msgId : m0.id,
+          ids: [...m0.ids, msgId],
+        }
         mobj.voteMeta = vmeta
-        if (reason) mobj.invalid = { ...(mobj.invalid || {}), [uid]: reason }
+        if (repeat) {
+          mobj.invalid = { ...(mobj.invalid || {}), [uid]: 'repeat' }
+        } else if (isNewer) {
+          const reason = judgeVote(def, vote.pick, vote.custom, sentAt, false, vote.customPick)
+          if (reason) mobj.invalid = { ...(mobj.invalid || {}), [uid]: reason }
+        }
         store.messages[pollMid] = { ...pollMsg, content: JSON.stringify(mobj) }
         delete store.messages[c.id]
       }
     } else {
       mergeOrphanVote(pollMid, vote, c.sender_id, c.id, sentAt)
     }
-    return { kind: 'vote', id: c.id, pollId: pollMid }
+    return { kind: 'vote', id: c.id, pollId: pollMid, free }
   }
-  store.messages[c.id] = { id: c.id, sender: c.sender_id, send_time: c.send_time, content: c.content }
+  const existingMsg = store.messages[c.id]
+  if (parsePoll(obj) && existingMsg) {
+    const prevObj = parseMsgContent(existingMsg.content)
+    const nextObj = { ...obj }
+    if (prevObj && prevObj.type === 'poll') {
+      if (prevObj.votes) nextObj.votes = prevObj.votes
+      if (prevObj.custom) nextObj.custom = prevObj.custom
+      if (prevObj.customVotes) nextObj.customVotes = prevObj.customVotes
+      if (prevObj.voteMeta) nextObj.voteMeta = prevObj.voteMeta
+      if (prevObj.invalid) nextObj.invalid = prevObj.invalid
+    }
+    const baseContent = JSON.stringify(nextObj)
+    const mergedContent = consumeOrphanPoll(String(c.id), baseContent) || baseContent
+    store.messages[c.id] = { id: c.id, sender: c.sender_id, send_time: c.send_time, content: mergedContent, free }
+  } else {
+    store.messages[c.id] = { id: c.id, sender: c.sender_id, send_time: c.send_time, content: c.content, free }
+    if (parsePoll(obj)) {
+      const mergedContent = consumeOrphanPoll(String(c.id), store.messages[c.id].content)
+      if (mergedContent) {
+        store.messages[c.id] = { ...store.messages[c.id], content: mergedContent }
+      }
+    }
+  }
   if (Array.isArray(target.message_ids) && target.message_ids.indexOf(c.id) === -1) {
     target.message_ids.push(c.id)
   }
-  if (parsePoll(obj)) {
-    const mergedContent = consumeOrphanPoll(String(c.id), store.messages[c.id].content)
-    if (mergedContent) {
-      store.messages[c.id] = { ...store.messages[c.id], content: mergedContent }
-    }
-  }
-  return { kind: 'msg', id: c.id }
+  return { kind: 'msg', id: c.id, free }
 }
 
 export function applyChatToStore(r, pageType, pageId) {
-  const c = r.chat
+  const c = r?.chat
+  const free = normalizeFree(c?.token_free ?? c?.free ?? r?.token_free ?? r?.free)
   const target =
     pageType === 'user'
       ? store.users[pageId]
       : pageType === 'group'
         ? store.groups[pageId]
         : store.users[pageId] || store.groups[pageId]
-  if (target) {
-    ingestMessage(target, c)
-    markOwnSentMsg(c && c.id)
+  if (target && c) {
+    ingestMessage(target, { ...c, free })
+    markOwnSentMsg(c.id)
     markMsgDirty(pageType === 'group' ? 'group' : 'user', Number(pageId))
   }
-  return { tokenInfo: { remain: r.remain_token_count, total: r.remain_token_count + r.used_token_count } }
+  return {
+    tokenInfo: { remain: r.remain_token_count, total: r.remain_token_count + r.used_token_count },
+    free,
+  }
 }
 
 export async function sendChatMessage({ type, targetId, msgObj }) {

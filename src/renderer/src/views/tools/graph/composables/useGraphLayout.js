@@ -1,4 +1,9 @@
 import { ref, reactive } from 'vue'
+import {
+  DEFAULT_PHYSICS_PARAMS,
+  stepVelocityVerlet,
+  computePhysicsState
+} from '../graphPhysics.js'
 
 export function useGraphLayout({
   nodes,
@@ -15,15 +20,49 @@ export function useGraphLayout({
   defaultHint
 }) {
   const locked = ref(false)
-  const repulsion = ref(1)
-  const spring = ref(1)
-  const centripetal = ref(1)
+  const repulsion = ref(DEFAULT_PHYSICS_PARAMS.repulsion)
+  const stiffness = ref(DEFAULT_PHYSICS_PARAMS.stiffness)
+  const restLength = ref(DEFAULT_PHYSICS_PARAMS.restLength)
+  const damping = ref(DEFAULT_PHYSICS_PARAMS.damping)
+  const dt = ref(DEFAULT_PHYSICS_PARAMS.dt)
+  const autoCenter = ref(false)
   const treeMode = ref(false)
   const view = reactive({ x: 0, y: 0, scale: 1 })
+  const physicsStats = reactive({
+    kineticEnergy: 0,
+    springEnergy: 0,
+    repulsionEnergy: 0,
+    potentialEnergy: 0,
+    totalEnergy: 0,
+    momentumNorm: 0
+  })
 
   let layoutRaf = null
   let treeEdgeSet = new Set()
   let treeRoot = null
+
+  function currentParams() {
+    return {
+      repulsion: repulsion.value,
+      stiffness: stiffness.value,
+      restLength: restLength.value,
+      damping: damping.value,
+      dt: dt.value,
+      softening: DEFAULT_PHYSICS_PARAMS.softening,
+      repulsionScale: DEFAULT_PHYSICS_PARAMS.repulsionScale
+    }
+  }
+
+  function refreshPhysicsStats() {
+    const state = computePhysicsState(nodes, edges, currentParams())
+    physicsStats.kineticEnergy = state.kineticEnergy
+    physicsStats.springEnergy = state.springEnergy
+    physicsStats.repulsionEnergy = state.repulsionEnergy
+    physicsStats.potentialEnergy = state.potentialEnergy
+    physicsStats.totalEnergy = state.totalEnergy
+    physicsStats.momentumNorm = state.momentum.norm
+    return state
+  }
 
   function placeCircle() {
     const r = Math.max(140, Math.sqrt(Math.max(1, nodes.length)) * 80)
@@ -34,6 +73,21 @@ export function useGraphLayout({
       n.vx = 0
       n.vy = 0
     })
+    refreshPhysicsStats()
+  }
+
+  function centerViewOnCom() {
+    const { w: canvasW, h: canvasH } = getCanvasSize()
+    if (!nodes.length) {
+      view.x = canvasW / 2
+      view.y = canvasH / 2
+      requestDraw()
+      return
+    }
+    const { centerOfMass } = computePhysicsState(nodes, edges, currentParams())
+    view.x = canvasW / 2 - centerOfMass.x * view.scale
+    view.y = canvasH / 2 - centerOfMass.y * view.scale
+    requestDraw()
   }
 
   function fitView() {
@@ -92,65 +146,40 @@ export function useGraphLayout({
   function runLayout() {
     if (locked.value || !nodes.length) return
     stopLayout()
-    const maxIter = 3000
+    const maxIter = 6000
     let iter = 0
     const step = () => {
       if (locked.value || !nodes.length) {
         stopLayout()
         return
       }
-      let moved = 0
-      const dt = 0.035
       const dragNode = getDragNode()
-      for (let i = 0; i < nodes.length; i++) {
-        const a = nodes[i]
-        if (a === dragNode) continue
-        let fx = 0
-        let fy = 0
-        for (let j = 0; j < nodes.length; j++) {
-          if (i === j) continue
-          const b = nodes[j]
-          let dx = a.x - b.x
-          let dy = a.y - b.y
-          let d2 = dx * dx + dy * dy
-          if (d2 < 4) {
-            dx = (Math.random() - 0.5) * 2
-            dy = (Math.random() - 0.5) * 2
-            d2 = dx * dx + dy * dy
-          }
-          const d = Math.sqrt(d2) || 1
-          const f = Math.min((56000 * repulsion.value) / d2, 14000 * repulsion.value)
-          fx += (dx / d) * f
-          fy += (dy / d) * f
-        }
-        for (const e of edges) {
-          let b = null
-          if (e.u === a.id) b = byId(e.v)
-          else if (e.v === a.id) b = byId(e.u)
-          if (!b) continue
-          const dx = b.x - a.x
-          const dy = b.y - a.y
-          const d = Math.hypot(dx, dy) || 1
-          const f = 0.04 * spring.value * d
-          fx += (dx / d) * f
-          fy += (dy / d) * f
-        }
-        fx -= a.x * 0.015 * centripetal.value
-        fy -= a.y * 0.015 * centripetal.value
-        let nvx = (a.vx || 0) * 0.85 + fx * dt
-        let nvy = (a.vy || 0) * 0.85 + fy * dt
-        const VMAX = 60
-        nvx = Math.max(-VMAX, Math.min(VMAX, nvx))
-        nvy = Math.max(-VMAX, Math.min(VMAX, nvy))
-        a.vx = nvx
-        a.vy = nvy
-        a.x += a.vx
-        a.y += a.vy
-        moved += Math.abs(a.vx) + Math.abs(a.vy)
+      const params = currentParams()
+      const { maxSpeed, maxForce } = stepVelocityVerlet(nodes, edges, params, {
+        pinnedNode: dragNode
+      })
+      const state = refreshPhysicsStats()
+
+      if (autoCenter.value && !dragNode) {
+        const { w: canvasW, h: canvasH } = getCanvasSize()
+        view.x = canvasW / 2 - state.centerOfMass.x * view.scale
+        view.y = canvasH / 2 - state.centerOfMass.y * view.scale
       }
+
       iter++
       drawNow()
-      if (moved > 0.02 && iter < maxIter) {
+
+      const settled = params.damping > 0 && iter > 12 && maxSpeed < 0.08 && maxForce < 0.15
+      if (settled) {
+        for (const n of nodes) {
+          n.vx = 0
+          n.vy = 0
+        }
+        refreshPhysicsStats()
+        stopLayout()
+        return
+      }
+      if (iter < maxIter || params.damping === 0) {
         layoutRaf = requestAnimationFrame(step)
       } else {
         stopLayout()
@@ -174,8 +203,18 @@ export function useGraphLayout({
   }
 
   function onForceChange() {
+    refreshPhysicsStats()
     if (locked.value || !nodes.length) return
     runLayout()
+  }
+
+  function resetPhysics() {
+    repulsion.value = DEFAULT_PHYSICS_PARAMS.repulsion
+    stiffness.value = DEFAULT_PHYSICS_PARAMS.stiffness
+    restLength.value = DEFAULT_PHYSICS_PARAMS.restLength
+    damping.value = DEFAULT_PHYSICS_PARAMS.damping
+    dt.value = DEFAULT_PHYSICS_PARAMS.dt
+    onForceChange()
   }
 
   function clearTreeState() {
@@ -262,19 +301,25 @@ export function useGraphLayout({
       }
     }
     treeRoot = rootId
+    refreshPhysicsStats()
   }
 
   return {
     locked,
     repulsion,
-    spring,
-    centripetal,
+    stiffness,
+    restLength,
+    damping,
+    dt,
+    autoCenter,
+    physicsStats,
     treeMode,
     view,
     getTreeEdgeSet: () => treeEdgeSet,
     getTreeRoot: () => treeRoot,
     clearTreeState,
     placeCircle,
+    centerViewOnCom,
     fitView,
     zoomAt,
     zoomIn,
@@ -284,6 +329,8 @@ export function useGraphLayout({
     toggleLock,
     restartLayout,
     onForceChange,
+    resetPhysics,
+    refreshPhysicsStats,
     toggleTreeMode,
     treeLayout
   }

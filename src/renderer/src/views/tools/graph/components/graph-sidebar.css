@@ -1,4 +1,4 @@
-/* 图编辑器侧栏：图结构 / 物理布局 / 算法分析三块面板 */
+/* 图编辑器侧栏：图结构与分析 / 物理布局两块面板 */
 
 .graph-sidebar-root {
   display: flex;
@@ -17,7 +17,7 @@
   min-width: 0;
 }
 
-/* 标签：三个页签均分宽度，禁止溢出裁剪 */
+/* 标签：两个页签均分宽度，禁止溢出裁剪 */
 .graph-sidebar-tabs :deep(.ui-tabs__list) {
   display: flex;
   align-items: stretch;

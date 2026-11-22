@@ -41,10 +41,10 @@ try {
     ],
     messages: {
       'user:1': [
-        { id: 101, sender: 1, send_time: 1000, content: '{"type":"text","content":"hi1"}' },
-        { id: 102, sender: 1, send_time: 2000, content: '{"type":"text","content":"hi2"}' },
-        { id: 103, sender: 1, send_time: 3000, content: '{"type":"text","content":"hi3"}' },
-        { id: 104, sender: 1, send_time: 4000, content: '{"type":"text","content":"hi4"}' },
+        { id: 101, sender: 1, send_time: 1000, content: '{"type":"text","content":"hi1"}', free: true },
+        { id: 102, sender: 1, send_time: 2000, content: '{"type":"text","content":"hi2"}', token_free: 1 },
+        { id: 103, sender: 1, send_time: 3000, content: '{"type":"text","content":"hi3"}', free: '1' },
+        { id: 104, sender: 1, send_time: 4000, content: '{"type":"text","content":"hi4"}', token_free: null },
         { id: 105, sender: 1, send_time: 5000, content: '{"type":"text","content":"hi5"}' }
       ],
       'group:2': [
@@ -67,6 +67,14 @@ try {
   const m = await nativeApi.storeLoadMessages(999, 'user', 1, 1000)
   chk('user:1 读出 5 条', (m.data || []).length === 5)
   chk('user:1 降序 (id 105 在前)', m.data?.[0]?.id === 105)
+  const byId = Object.fromEntries((m.data || []).map((x) => [x.id, x]))
+  chk('IndexedDB 保留 free=true/1/"1" 且 null/缺失归一为 false',
+    byId[101]?.free === true &&
+    byId[102]?.free === true &&
+    byId[103]?.free === true &&
+    byId[104]?.free === false &&
+    byId[105]?.free === false
+  )
 
   const last = await nativeApi.storeLoadLastMessages(999)
   chk('loadLastMessages 3 条', (last.data || []).length === 3)
@@ -117,6 +125,20 @@ try {
   chk('Web 模式不持久化 messages', (webMsgs.data || []).length === 0)
   chk('Web 模式持久化 prefs 到 localStorage', webPrefs.data?.mutedConvos?.['user:1'] === true)
   chk('Web 模式 exportAll 返回 unsupported', webEx.unsupported === true)
+
+  // Web 模式按 uid 隔离 prefs，且支持 pagehide 落盘事件
+  await webApi.storeSaveAll(1000, {
+    prefs: { pinnedConvos: { group_88: true }, ownVotes: [{ id: 1, send_time: 1000, free: true }] }
+  })
+  const prefs999 = await webApi.storeLoadPrefs(999)
+  const prefs1000 = await webApi.storeLoadPrefs(1000)
+  chk('Web 模式 prefs 按 uid 隔离（999 不含 1000 的置顶）', !prefs999.data?.pinnedConvos?.group_88 && prefs1000.data?.pinnedConvos?.group_88 === true)
+
+  let webFlushFired = 0
+  const unsubFlush = webApi.onAppFlushBeforeClose(() => { webFlushFired++ })
+  win.dispatchEvent(new win.Event('pagehide'))
+  unsubFlush()
+  chk('Web 模式 pagehide 触发 flushBeforeClose', webFlushFired >= 1)
 } catch (e) {
   results.push(['EXCEPTION: ' + (e.message || String(e)), false])
 }

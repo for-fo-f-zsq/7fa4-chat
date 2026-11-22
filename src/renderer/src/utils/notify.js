@@ -4,10 +4,6 @@ import { store } from '../store.js'
 
 const DND_DEFAULT_START = '22:00'
 const DND_DEFAULT_END = '07:00'
-const NOTIF_POSITIONS = ['br', 'tr', 'bl', 'tl']
-const NOTIF_DURATION_DEFAULT = 6000
-const NOTIF_DURATION_MIN = 3000
-const NOTIF_DURATION_MAX = 20000
 const NOTIF_FONT_SIZE_DEFAULT = 14
 
 /** 会话唯一键：所有免打扰/未读映射表都以它作为 key。 */
@@ -98,16 +94,6 @@ export function getNotifContent(content, setting) {
   return content
 }
 
-function clampNumber(value, min, max, fallback) {
-  const n = Number(value)
-  if (!Number.isFinite(n)) return fallback
-  return Math.min(max, Math.max(min, n))
-}
-
-function normalizePosition(value) {
-  return NOTIF_POSITIONS.includes(value) ? value : 'br'
-}
-
 function normalizeAccent(value) {
   if (typeof value !== 'string') return ''
   const v = value.trim()
@@ -122,8 +108,8 @@ function avatarOf(title) {
 }
 
 /**
- * 通知 payload 契约（desktop-notify 托盘卡片 与 popup-ui 应用内弹窗共用，改字段必须同步两边）。
- * id 对同一会话稳定：弹窗据此替换而不是堆叠。
+ * 原生系统通知 payload 契约（桌面端 Electron Notification / 网页端 Web Notification / 安卓端共用）。
+ * id 对同一会话稳定：通知中心/浏览器标签据此替换而不是堆叠。
  */
 export function buildNotificationPayload({
   chatType,
@@ -154,13 +140,6 @@ export function buildNotificationPayload({
     mention: !!mention,
     count: safeCount,
     timestamp: Number(timestamp) || Date.now(),
-    position: normalizePosition(s.notifPosition),
-    duration: clampNumber(
-      s.notifDuration || NOTIF_DURATION_DEFAULT,
-      NOTIF_DURATION_MIN,
-      NOTIF_DURATION_MAX,
-      NOTIF_DURATION_DEFAULT,
-    ),
     privacy: !!s.notifPrivacy,
     theme: s.theme || 'default',
     fontSize: Number(s.fontSize) || NOTIF_FONT_SIZE_DEFAULT,

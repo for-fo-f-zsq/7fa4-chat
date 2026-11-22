@@ -33,7 +33,7 @@
             <h3 class="p-panel-section__title">交互与显示</h3>
             <SettingRow
               label="特效"
-              tooltip="界面动效强度：性能（无粒子与鼠标渐变）/ 效率（无粒子）/ 精美（全部效果）"
+              description="界面动效强度：性能（无粒子与鼠标渐变）/ 效率（无粒子）/ 精美（全部效果）"
             >
               <UiDropdown
                 class="settings-select"
@@ -46,7 +46,7 @@
 
             <SettingRow
               label="字体大小"
-              tooltip="聊天与界面文字的字号（12–20 px），调整后立即生效"
+              description="聊天与界面文字的字号（12–20 px），调整后立即生效"
             >
               <div class="slider-wrap">
                 <UiSlider
@@ -66,7 +66,7 @@
 
             <SettingRow
               label="快捷键"
-              tooltip="自定义页面切换与常用操作的键盘快捷键"
+              description="自定义页面切换与常用操作的键盘快捷键"
               clickable
               @activate="emit('openShortcutModal')"
             >
@@ -160,12 +160,12 @@
 
         <template v-else-if="activeCategory === 'notifications'">
           <section class="p-panel-section">
-            <h3 class="p-panel-section__title">桌面通知</h3>
-            <p class="settings-section-desc">窗口未聚焦或最小化时，用系统级卡片提醒新消息。</p>
+            <h3 class="p-panel-section__title">系统通知</h3>
+            <p class="settings-section-desc">窗口未聚焦或退到后台时，通过操作系统原生通知提醒新消息。</p>
 
             <SettingRow
               label="新消息提醒"
-              tooltip="桌面端：窗口未聚焦或最小化时弹出消息卡片；安卓端：退到后台时发系统通知；网页端：需要浏览器通知权限"
+              description="桌面端：窗口未聚焦或最小化时发送系统原生通知；安卓端：退到后台时发系统通知；网页端：需要浏览器通知权限"
             >
               <UiSwitch
                 :model-value="setting.notifDesktop !== false"
@@ -175,45 +175,8 @@
             </SettingRow>
 
             <SettingRow
-              v-if="isElectron"
-              label="弹窗位置"
-              tooltip="通知卡片出现在屏幕的哪个角落（仅桌面端）"
-            >
-              <UiDropdown
-                class="settings-select settings-select--narrow"
-                size="sm"
-                :model-value="setting.notifPosition || 'br'"
-                :options="notifPositionOptions"
-                :disabled="setting.notifDesktop === false"
-                aria-label="弹窗位置"
-                @update:model-value="onSettingChange('notifPosition', $event)"
-              />
-            </SettingRow>
-
-            <SettingRow
-              v-if="isElectron"
-              label="停留时长"
-              tooltip="通知卡片在屏幕上停留多久后自动消失（3–20 秒，仅桌面端）"
-            >
-              <div class="slider-wrap">
-                <UiSlider
-                  class="settings-slider"
-                  :model-value="setting.notifDuration || 6000"
-                  :min="3000"
-                  :max="20000"
-                  :step="1000"
-                  :show-value="false"
-                  size="sm"
-                  aria-label="通知停留时长"
-                  @update:model-value="onNotifDurationChange"
-                />
-                <span class="slider-value u-tabular-nums">{{ formatNotifDuration(setting.notifDuration || 6000) }}</span>
-              </div>
-            </SettingRow>
-
-            <SettingRow
               label="隐藏消息内容"
-              tooltip="系统通知与弹窗里只显示「收到一条新消息」，不显示消息正文；仍会显示会话名与发送者，便于判断是谁在找你"
+              description="系统通知里只显示「收到一条新消息」，不显示消息正文；仍会显示会话名与发送者，便于判断是谁在找你"
             >
               <UiSwitch
                 :model-value="!!setting.notifPrivacy"
@@ -224,7 +187,7 @@
 
             <SettingRow
               label="发送测试通知"
-              tooltip="立刻弹一条测试通知并播放提示音，用来确认权限、位置与音量是否合适"
+              description="立刻发送一条系统测试通知并播放提示音，用来确认系统通知权限与音量是否合适"
               clickable
               @activate="onSendTestNotification"
             >
@@ -245,7 +208,7 @@
             <h3 class="p-panel-section__title">声音与提醒</h3>
             <p class="settings-section-desc">用什么方式提示我，以及哪些消息值得打扰。</p>
 
-            <SettingRow label="提示音" tooltip="收到新消息时播放提示音（系统静音时听不到）">
+            <SettingRow label="提示音" description="收到新消息时播放提示音（系统静音时听不到）">
               <UiSwitch
                 :model-value="setting.notifSound !== false"
                 aria-label="提示音"
@@ -253,7 +216,7 @@
               />
             </SettingRow>
 
-            <SettingRow label="提示音量" tooltip="拖动即可试听当前音量（0–100）">
+            <SettingRow label="提示音量" description="拖动即可试听当前音量（0–100）">
               <div class="slider-wrap">
                 <UiSlider
                   class="settings-slider"
@@ -283,17 +246,6 @@
             </SettingRow>
 
             <SettingRow
-              label="应用内提示"
-              description="窗口在前台时，用顶部轻提示提醒其它会话的新消息（不再弹系统通知）"
-            >
-              <UiSwitch
-                :model-value="setting.notifInApp !== false"
-                aria-label="应用内提示"
-                @update:model-value="onSettingChange('notifInApp', $event)"
-              />
-            </SettingRow>
-
-            <SettingRow
               v-if="isElectron"
               label="未读角标"
               description="任务栏 / 托盘图标上显示未读消息总数（仅桌面端）"
@@ -312,7 +264,7 @@
               免打扰优先于以上所有提醒；单个会话的「消息免打扰」始终生效，开启后只计数、不提醒。
             </p>
 
-            <SettingRow label="免打扰" tooltip="开启后不再弹出任何新消息通知（消息照常接收，只是不提醒）">
+            <SettingRow label="免打扰" description="开启后不再弹出任何新消息通知（消息照常接收，只是不提醒）">
               <UiSwitch
                 :model-value="!!setting.dndEnabled"
                 aria-label="免打扰"
@@ -358,6 +310,62 @@
         </template>
 
         <template v-else-if="activeCategory === 'messaging'">
+          <section class="p-panel-section settings-status-section">
+            <div class="settings-status-head">
+              <div class="settings-status-title-wrap">
+                <span class="settings-status-dot" :class="`is-${connSummary.tone}`" aria-hidden="true"></span>
+                <div>
+                  <h3 class="p-panel-section__title settings-theme-title">连接状态</h3>
+                  <p class="settings-status-headline">{{ connSummary.headline }}</p>
+                </div>
+              </div>
+              <UiButton
+                size="sm"
+                variant="secondary"
+                icon="fas fa-rotate"
+                :loading="reconnectBusy"
+                :disabled="!isLoggedIn"
+                @click="onReconnectClick"
+              >
+                立即重连 / 刷新
+              </UiButton>
+            </div>
+
+            <div class="settings-status-grid">
+              <div class="settings-status-tile">
+                <span class="settings-status-tile-label">登录会话</span>
+                <span class="settings-status-tile-val" :class="`is-${sessionTile.tone}`">{{ sessionTile.text }}</span>
+              </div>
+              <div class="settings-status-tile">
+                <span class="settings-status-tile-label">服务器连接</span>
+                <span class="settings-status-tile-val" :class="`is-${serverTile.tone}`">{{ serverTile.text }}</span>
+              </div>
+              <div class="settings-status-tile">
+                <span class="settings-status-tile-label">接口延迟</span>
+                <span class="settings-status-tile-val u-tabular-nums">{{ latencyText }}</span>
+              </div>
+              <div class="settings-status-tile">
+                <span class="settings-status-tile-label">最近同步</span>
+                <span class="settings-status-tile-val u-tabular-nums">{{ lastSyncText }}</span>
+              </div>
+            </div>
+
+            <div v-if="cooldownText || conn.lastError || conn.failCount > 0" class="settings-status-alerts">
+              <div v-if="cooldownText" class="settings-status-alert is-warning">
+                <i class="fas fa-clock" aria-hidden="true"></i>
+                <span>{{ cooldownText }}</span>
+              </div>
+              <div v-if="conn.lastError || conn.failCount > 0" class="settings-status-alert is-danger">
+                <i class="fas fa-circle-exclamation" aria-hidden="true"></i>
+                <span>
+                  <template v-if="conn.failCount > 0">连续失败 {{ conn.failCount }} 次</template>
+                  <template v-if="conn.failCount > 0 && conn.lastError"> · </template>
+                  <template v-if="conn.lastError">{{ conn.lastError }}</template>
+                </span>
+              </div>
+            </div>
+          </section>
+
           <section class="p-panel-section">
             <h3 class="p-panel-section__title">消息与网络</h3>
             <p class="settings-section-desc">连到哪台服务器、多久拉取一次消息，以及会话列表里保留哪些好友。</p>
@@ -365,7 +373,7 @@
             <SettingRow
               v-if="!isWeb"
               label="API 地址"
-              tooltip="选择连接的服务器：jx.7fa4.cn 为默认站点，in.7fa4.cn 为校内备用入口"
+              description="选择连接的服务器：jx.7fa4.cn 为默认站点，in.7fa4.cn 为校内备用入口"
             >
               <UiDropdown
                 class="settings-select"
@@ -377,8 +385,22 @@
             </SettingRow>
 
             <SettingRow
+              v-if="!isWeb"
+              label="历史消息拉取范围"
+              description="仅拉取最近 30 天可加快首次同步速度；切换为「全部」后将后台补全更早历史"
+            >
+              <UiDropdown
+                class="settings-select"
+                :model-value="syncRangeValue"
+                :options="syncRangeOptions"
+                aria-label="历史消息拉取范围"
+                @update:model-value="onSettingChange('syncRange', $event)"
+              />
+            </SettingRow>
+
+            <SettingRow
               label="轮询间隔"
-              tooltip="多久向服务器拉取一次新消息（1.0–10.0 秒）；越短越及时，也越耗流量与电量"
+              description="多久向服务器拉取一次新消息（1.0–10.0 秒）；越短越及时，也越耗流量与电量"
             >
               <div class="slider-wrap">
                 <UiSlider
@@ -398,7 +420,7 @@
 
             <SettingRow
               label="隐藏非双向好友"
-              tooltip="开启后，会话列表只保留互相关注的好友（单向关注的关系将隐藏，数据不会被删除）"
+              description="开启后，会话列表只保留互相关注的好友（单向关注的关系将隐藏，数据不会被删除）"
             >
               <UiSwitch
                 :model-value="setting.hideNonMutual === true"
@@ -509,7 +531,7 @@
 
             <SettingRow
               label="保持登录"
-              tooltip="在本机保存登录凭据以便下次自动登录；关闭会清除已保存的账号与密码，之后需要重新登录"
+              description="在本机保存登录凭据以便下次自动登录；关闭会清除已保存的账号与密码，之后需要重新登录"
             >
               <UiSwitch
                 :model-value="!!setting.keepLogin"
@@ -524,12 +546,24 @@
         <template v-else-if="activeCategory === 'desktop' && isElectron">
           <section class="p-panel-section">
             <h3 class="p-panel-section__title">窗口与更新</h3>
-            <p class="settings-section-desc">关闭窗口后是否留在托盘，以及新版本如何获取（仅桌面端生效）。</p>
+            <p class="settings-section-desc">开机启动、关闭窗口后是否留在托盘，以及新版本如何获取（仅桌面端生效）。</p>
+
+            <SettingRow
+              v-if="isElectron"
+              label="开机自启动"
+              description="登录系统后自动启动 7FA4 Chat（若开启「保持后台运行」，将静默启动到系统托盘）"
+            >
+              <UiSwitch
+                :model-value="!!setting.launchAtStartup"
+                aria-label="开机自启动"
+                @update:model-value="onSettingChange('launchAtStartup', $event)"
+              />
+            </SettingRow>
 
             <SettingRow
               v-if="isElectron"
               label="保持后台运行"
-              tooltip="关闭主窗口后隐藏到系统托盘并继续接收消息；需要彻底退出时用托盘菜单的「退出」（仅桌面端）"
+              description="关闭主窗口后隐藏到系统托盘并继续接收消息；需要彻底退出时用托盘菜单的「退出」（仅桌面端）"
             >
               <UiSwitch
                 :model-value="setting.minimizeToTray !== false"
@@ -541,7 +575,7 @@
             <SettingRow
               v-if="isElectron"
               label="自动更新"
-              tooltip="启动后自动检查并下载新版本（仅桌面端）"
+              description="启动后自动检查并下载新版本（仅桌面端）"
             >
               <UiSwitch
                 :model-value="setting.autoUpdate !== false"
@@ -557,7 +591,7 @@
             <h3 class="p-panel-section__title">数据与存储</h3>
             <SettingRow
               label="备份聊天数据"
-              tooltip="把本机的聊天记录、群与设置全部导出为一个文件"
+              description="把本机的聊天记录、群与设置全部导出为一个文件"
               clickable
               @activate="exportData"
             >
@@ -569,7 +603,7 @@
 
             <SettingRow
               label="恢复聊天数据"
-              tooltip="从备份文件恢复聊天记录与设置；会写入并覆盖本机对应数据"
+              description="从备份文件恢复聊天记录与设置；会写入并覆盖本机对应数据"
               clickable
               @activate="importData"
             >
@@ -582,7 +616,7 @@
             <SettingRow
               v-if="cacheSize !== null"
               label="缓存管理"
-              tooltip="本机聊天数据的占用空间；点击清理会删除本地缓存并从服务器重新拉取"
+              description="本机聊天数据的占用空间；点击清理会删除本地缓存并从服务器重新拉取"
               clickable
               @activate="clearCache"
             >
@@ -601,6 +635,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { UiAvatar, UiBadge, UiButton, UiDropdown, UiInput, UiSlider, UiSwitch, UiTabs } from '@/ui'
+import { store } from '@/store.js'
 import { THEMES } from '@/composables/constants.js'
 import {
   applyFontSize,
@@ -625,9 +660,10 @@ const props = defineProps({
   self: { type: Object, default: () => ({}) },
   loggedIn: { type: Boolean, default: false },
   setting: Object,
+  connStatus: { type: Object, default: null },
 })
 
-const emit = defineEmits(['userAction', 'settingChange', 'openShortcutModal'])
+const emit = defineEmits(['userAction', 'settingChange', 'openShortcutModal', 'reconnect'])
 
 const isElectron = !window.__7FA4_WEB__
 const isWeb = isWebBrowser()
@@ -781,18 +817,112 @@ const apiUrlOptions = [
   { value: 'https://in.7fa4.cn', label: 'in.7fa4.cn', color: '#12B7F5' },
 ]
 
+const syncRangeOptions = [
+  { value: '30d', label: '最近 30 天（默认）' },
+  { value: 'all', label: '全部历史' },
+]
+
 const effectOptions = [
   { value: 'performance', label: '性能', desc: '无粒子和鼠标渐变', icon: 'fas fa-bolt' },
   { value: 'efficiency', label: '效率', desc: '无粒子效果', icon: 'fas fa-feather' },
   { value: 'fancy', label: '精美', desc: '全部效果', icon: 'fas fa-magic' },
 ]
 
-const notifPositionOptions = [
-  { value: 'br', label: '右下角' },
-  { value: 'tr', label: '右上角' },
-  { value: 'bl', label: '左下角' },
-  { value: 'tl', label: '左上角' },
-]
+const syncRangeValue = computed(() => (props.setting?.syncRange === 'all' ? 'all' : '30d'))
+
+// ---------- 连接状态展示（#6） ----------
+const conn = computed(() => props.connStatus || store.connStatus || {})
+const nowMs = ref(Date.now())
+let statusClockTimer = null
+
+onMounted(() => {
+  statusClockTimer = setInterval(() => {
+    nowMs.value = Date.now()
+  }, 1000)
+})
+
+onBeforeUnmount(() => {
+  if (statusClockTimer) {
+    clearInterval(statusClockTimer)
+    statusClockTimer = null
+  }
+})
+
+const connSummary = computed(() => {
+  if (!isLoggedIn.value) {
+    return { tone: 'neutral', headline: '游客模式（未登录消息同步）' }
+  }
+  const st = conn.value.state
+  if (st === 'ok') return { tone: 'success', headline: '所有服务运行正常' }
+  if (st === 'connecting') return { tone: 'brand', headline: '正在建立连接...' }
+  if (st === 'reconnecting') return { tone: 'warning', headline: '连接波动，正在尝试重连' }
+  if (st === 'rejected') return { tone: 'danger', headline: '会话已失效或请求被拒绝' }
+  if (st === 'offline' || conn.value.online === false || store.online === false) {
+    return { tone: 'danger', headline: '网络连接已断开' }
+  }
+  if (store.netError) return { tone: 'warning', headline: '服务器响应异常' }
+  return { tone: 'success', headline: '连接就绪' }
+})
+
+const sessionTile = computed(() => {
+  if (!isLoggedIn.value) return { tone: 'neutral', text: '未登录' }
+  if (conn.value.sessionValid === true) return { tone: 'success', text: '有效' }
+  if (conn.value.sessionValid === false) return { tone: 'danger', text: '已失效' }
+  return { tone: 'neutral', text: '待确认' }
+})
+
+const serverTile = computed(() => {
+  if (conn.value.online === false || store.online === false) return { tone: 'danger', text: '网络离线' }
+  if (conn.value.apiReachable === true) return { tone: 'success', text: '可达' }
+  if (conn.value.apiReachable === false) return { tone: 'danger', text: '不可达' }
+  return { tone: 'neutral', text: store.online ? '在线' : '离线' }
+})
+
+const latencyText = computed(() => {
+  const ms = Number(conn.value.latencyMs)
+  if (!Number.isFinite(ms) || ms < 0) return '—'
+  return `${Math.round(ms)} ms`
+})
+
+function normalizeTsMs(raw) {
+  const n = Number(raw) || 0
+  if (!n) return 0
+  return n < 1e12 ? n * 1000 : n
+}
+
+const lastSyncText = computed(() => {
+  const ts = Math.max(normalizeTsMs(conn.value.lastSyncAt), normalizeTsMs(conn.value.lastInfoAt))
+  if (!ts) return '尚未同步'
+  const d = new Date(ts)
+  const pad = (x) => String(x).padStart(2, '0')
+  const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  const diffSec = Math.max(0, Math.floor((nowMs.value - ts) / 1000))
+  if (diffSec < 10) return `${hm} · 刚刚`
+  if (diffSec < 60) return `${hm} · ${diffSec}s 前`
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `${hm} · ${diffMin} 分钟前`
+  return hm
+})
+
+const cooldownText = computed(() => {
+  const until = normalizeTsMs(conn.value.retryCooldownUntil)
+  if (!until || until <= nowMs.value) return ''
+  const leftSec = Math.ceil((until - nowMs.value) / 1000)
+  const m = Math.floor(leftSec / 60)
+  const s = leftSec % 60
+  const span = m > 0 ? `${m} 分 ${s} 秒` : `${s} 秒`
+  return `静默重试冷却中（剩余 ${span}），点击「立即重连 / 刷新」可跳过等待`
+})
+
+const reconnectBusy = ref(false)
+function onReconnectClick() {
+  if (reconnectBusy.value || !isLoggedIn.value) return
+  reconnectBusy.value = true
+  emit('reconnect')
+  setTimeout(() => {
+    reconnectBusy.value = false
+  }, 800)
+}
 
 const currentTheme = computed(() => props.setting?.theme || 'default')
 const currentThemeLabel = computed(() => {
@@ -840,14 +970,6 @@ function onKeepLoginChange(checked) {
 }
 
 // ---------- 通知与提醒 ----------
-
-function formatNotifDuration(ms) {
-  return `${(Number(ms) / 1000).toFixed(1)}s`
-}
-
-function onNotifDurationChange(val) {
-  emit('settingChange', { notifDuration: Number(val) })
-}
 
 // 提示音/测试通知由 utils/notify.js 提供；helper 内部已负责 toast 与播放，面板只负责触发。
 const testNotifBusy = ref(false)
