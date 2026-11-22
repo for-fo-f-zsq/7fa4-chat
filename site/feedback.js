@@ -9,11 +9,16 @@
  *   POST /api/feedback/admin/logout          退出
  *   GET  /api/feedback/admin/list            查看全部反馈（需 cookie）
  *   POST /api/feedback/admin/status          标记已处理 / 恢复待处理
+ *   POST /api/feedback/admin/delete          删除指定反馈及附件（需 cookie）
+ *   DELETE /api/feedback/admin/item/:id      删除指定反馈及附件（REST 风格，需 cookie）
+ *   GET  /api/feedback/admin/memo            读取管理员个人备忘录（需 cookie）
+ *   POST /api/feedback/admin/memo            保存管理员个人备忘录（需 cookie）
  *   GET  /api/feedback/admin/attachment/:id/:file   查看截图（需 cookie）
  *   GET  /feedback                           提交页
  *   GET  /feedback/admin                     管理页
  *
  * 存储：data/feedback/items.json + data/feedback/attachments/<id>/*
+ *       data/feedback/admin-memo.json（独立于反馈条目）
  *       密钥 data/feedback/.secret（首次自动生成，用于签发管理 cookie）
  */
 
@@ -24,6 +29,7 @@ const crypto = require('crypto');
 
 const DATA_DIR = process.env.FEEDBACK_DIR || path.join(__dirname, 'data', 'feedback');
 const ITEMS_FILE = path.join(DATA_DIR, 'items.json');
+const MEMO_FILE = path.join(DATA_DIR, 'admin-memo.json');
 const ATTACH_DIR = path.join(DATA_DIR, 'attachments');
 const SECRET_FILE = path.join(DATA_DIR, '.secret');
 const ADMIN_PASSWORD = process.env.FEEDBACK_ADMIN_PASSWORD || '';
@@ -35,8 +41,10 @@ const PUBLIC_DIR = path.join(__dirname, 'public', 'feedback');
 const MAX_BODY = 12 * 1024 * 1024; // 整包上限 12MB（3 张截图 x 最多约 3.5MB base64）
 const MAX_CONTENT = 4000;
 const MAX_CONTACT = 120;
+const MAX_MEMO = 50000;
 const MAX_SHOTS = 3;
 const MAX_SHOT_BYTES = 3 * 1024 * 1024;
+const ID_RE = /^[A-Za-z0-9_-]+$/;
 const COOKIE = 'fb_admin';
 // cookie 必须落在站点根：对外路径带 /7fa4-chat 前缀（Caddy handle_path 只在服务端剥掉它），
 // 写成 Path=/api/feedback 时浏览器永远匹配不上，管理页会一直 401。
@@ -52,11 +60,15 @@ let itemsCache = null;
 let itemsCacheMtime = 0;
 let writeChain = Promise.resolve();
 
+let memoCache = null;
+let memoCacheMtime = 0;
+let memoWriteChain = Promise.resolve();
+
 async function ensureDirs() {
   await fsp.mkdir(ATTACH_DIR, { recursive: true });
 }
 
-async function readItems() {
+async function readItemsRaw() {
   // 用 mtime 判断缓存是否还有效：手工删过 items.json 时（例如清理自检数据），
   // 进程不重启也能立刻看到空列表，不会继续吐旧数据。
   let mtime = 0;
@@ -79,16 +91,73 @@ async function readItems() {
   return itemsCache;
 }
 
-function writeItems(items) {
-  itemsCache = items;
-  writeChain = writeChain.then(async () => {
+async function readItems() {
+  await writeChain;
+  return readItemsRaw();
+}
+
+function updateItems(mutator) {
+  const task = writeChain.then(async () => {
+    const items = await readItemsRaw();
+    const next = await mutator(items);
+    if (next === undefined) return { changed: false, items };
+    itemsCache = next;
     await ensureDirs();
-    const tmp = ITEMS_FILE + '.tmp';
-    await fsp.writeFile(tmp, JSON.stringify(items, null, 2));
+    const tmp = `${ITEMS_FILE}.${process.pid}.${Date.now()}.tmp`;
+    await fsp.writeFile(tmp, JSON.stringify(next, null, 2));
     await fsp.rename(tmp, ITEMS_FILE);
     try { itemsCacheMtime = (await fsp.stat(ITEMS_FILE)).mtimeMs; } catch (e) { itemsCacheMtime = 0; }
-  }).catch((e) => console.error('[feedback] 写入失败', e));
-  return writeChain;
+    return { changed: true, items: next };
+  });
+  writeChain = task.catch((e) => console.error('[feedback] 写入失败', e));
+  return task;
+}
+
+async function readMemoRaw() {
+  let mtime = 0;
+  try {
+    mtime = (await fsp.stat(MEMO_FILE)).mtimeMs;
+  } catch (e) {
+    memoCache = { content: '', updatedAt: null };
+    memoCacheMtime = 0;
+    return memoCache;
+  }
+  if (memoCache && mtime === memoCacheMtime) return memoCache;
+  try {
+    const text = await fsp.readFile(MEMO_FILE, 'utf8');
+    const parsed = JSON.parse(text);
+    memoCache = {
+      content: typeof parsed?.content === 'string' ? parsed.content : '',
+      updatedAt: typeof parsed?.updatedAt === 'string' ? parsed.updatedAt : null
+    };
+  } catch (e) {
+    memoCache = { content: '', updatedAt: null };
+  }
+  memoCacheMtime = mtime;
+  return memoCache;
+}
+
+async function readMemo() {
+  await memoWriteChain;
+  return readMemoRaw();
+}
+
+function writeMemo(content) {
+  const task = memoWriteChain.then(async () => {
+    const next = {
+      content,
+      updatedAt: new Date().toISOString()
+    };
+    await fsp.mkdir(DATA_DIR, { recursive: true });
+    const tmp = `${MEMO_FILE}.${process.pid}.${Date.now()}.tmp`;
+    await fsp.writeFile(tmp, JSON.stringify(next, null, 2));
+    await fsp.rename(tmp, MEMO_FILE);
+    memoCache = next;
+    try { memoCacheMtime = (await fsp.stat(MEMO_FILE)).mtimeMs; } catch (e) { memoCacheMtime = 0; }
+    return next;
+  });
+  memoWriteChain = task.catch((e) => console.error('[feedback] 备忘录写入失败', e));
+  return task;
 }
 
 async function getSecret() {
@@ -315,11 +384,40 @@ async function submitFeedback(req, res) {
     attachments
   };
 
-  const items = await readItems();
-  items.unshift(item);
-  await writeItems(items);
+  await updateItems((items) => [item, ...items]);
   console.log(`[feedback] 新反馈 ${id} platform=${platform} shots=${attachments.length}`);
   sendJson(res, 200, { ok: true, id });
+}
+
+async function deleteFeedbackItem(res, rawId) {
+  const id = typeof rawId === 'string' ? rawId.trim() : '';
+  if (!ID_RE.test(id)) {
+    sendJson(res, 400, { ok: false, error: 'invalid_id' });
+    return;
+  }
+  let remaining = null;
+  const { changed } = await updateItems((items) => {
+    const next = items.filter((it) => it.id !== id);
+    if (next.length === items.length) return undefined;
+    remaining = next;
+    return next;
+  });
+  if (!changed) {
+    sendJson(res, 404, { ok: false, error: 'not_found' });
+    return;
+  }
+  const attachRoot = path.resolve(ATTACH_DIR);
+  const targetDir = path.resolve(attachRoot, id);
+  if (targetDir.startsWith(attachRoot + path.sep)) {
+    await fsp.rm(targetDir, { recursive: true, force: true });
+  }
+  console.log(`[feedback] 删除反馈 ${id}`);
+  sendJson(res, 200, {
+    ok: true,
+    id,
+    total: remaining.length,
+    newCount: remaining.filter((it) => it.status !== 'handled').length
+  });
 }
 
 /* ---------------------------------------------------------- 管理端接口 */
@@ -390,16 +488,82 @@ async function adminApi(req, res, pathname) {
       sendJson(res, 400, { ok: false, error: '请求格式错误' });
       return;
     }
+    const id = typeof body.id === 'string' ? body.id.trim() : '';
+    if (!ID_RE.test(id)) {
+      sendJson(res, 400, { ok: false, error: 'invalid_id' });
+      return;
+    }
     const status = body.status === 'handled' ? 'handled' : 'new';
-    const items = await readItems();
-    const item = items.find((it) => it.id === body.id);
-    if (!item) {
+    const { changed } = await updateItems((items) => {
+      if (!items.some((it) => it.id === id)) return undefined;
+      return items.map((it) => (it.id === id ? { ...it, status } : it));
+    });
+    if (!changed) {
       sendJson(res, 404, { ok: false, error: 'not_found' });
       return;
     }
-    item.status = status;
-    await writeItems(items);
     sendJson(res, 200, { ok: true });
+    return;
+  }
+
+  if (sub === '/delete' && req.method === 'POST') {
+    let body;
+    try {
+      body = await readJson(req, 8 * 1024);
+    } catch (e) {
+      sendJson(res, 400, { ok: false, error: '请求格式错误' });
+      return;
+    }
+    await deleteFeedbackItem(res, body.id);
+    return;
+  }
+
+  const itemMatch = /^\/item\/([^/]+)$/.exec(sub);
+  if (itemMatch && req.method === 'DELETE') {
+    let decodedId = '';
+    try {
+      decodedId = decodeURIComponent(itemMatch[1]);
+    } catch (e) {
+      sendJson(res, 400, { ok: false, error: 'invalid_id' });
+      return;
+    }
+    await deleteFeedbackItem(res, decodedId);
+    return;
+  }
+
+  if (sub === '/memo' && (req.method === 'GET' || req.method === 'HEAD')) {
+    const memo = await readMemo();
+    sendJson(res, 200, {
+      ok: true,
+      content: memo.content,
+      updatedAt: memo.updatedAt
+    });
+    return;
+  }
+
+  if (sub === '/memo' && req.method === 'POST') {
+    let body;
+    try {
+      body = await readJson(req, 512 * 1024);
+    } catch (e) {
+      sendJson(res, e.code === 413 ? 413 : 400, { ok: false, error: e.code === 413 ? '备忘录内容太大' : '请求格式错误' });
+      return;
+    }
+    if (body.content !== undefined && typeof body.content !== 'string') {
+      sendJson(res, 400, { ok: false, error: '备忘录内容格式错误' });
+      return;
+    }
+    const content = typeof body.content === 'string' ? body.content : '';
+    if (content.length > MAX_MEMO) {
+      sendJson(res, 400, { ok: false, error: `备忘录最多 ${MAX_MEMO} 字` });
+      return;
+    }
+    const saved = await writeMemo(content);
+    sendJson(res, 200, {
+      ok: true,
+      content: saved.content,
+      updatedAt: saved.updatedAt
+    });
     return;
   }
 
@@ -461,7 +625,7 @@ async function handle(req, res, pathname) {
     return true;
   }
   if (pathname.startsWith('/api/feedback/admin')) {
-    if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'POST') {
+    if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'POST' && req.method !== 'DELETE') {
       sendJson(res, 405, { ok: false, error: 'method_not_allowed' });
       return true;
     }

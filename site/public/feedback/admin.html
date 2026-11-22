@@ -332,6 +332,112 @@
     border-top: 1px solid var(--line);
   }
 
+  .item-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .btn-danger-ghost {
+    color: var(--danger);
+    border-color: var(--danger-line);
+    background: var(--danger-soft);
+  }
+
+  .btn-danger-ghost:hover:not(:disabled) {
+    transform: translateY(-2px);
+    border-color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 20%, transparent);
+  }
+
+  .btn-danger-solid {
+    color: #fff;
+    border-color: transparent;
+    background: var(--danger);
+  }
+
+  .btn-danger-solid:hover:not(:disabled) {
+    transform: translateY(-2px);
+    filter: brightness(1.06);
+  }
+
+  /* 个人备忘录卡片 */
+  .adm-memo {
+    padding: 16px 20px;
+    margin-bottom: 18px;
+  }
+
+  .adm-memo-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .adm-memo-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .adm-memo-title h2 {
+    font-size: 16px;
+  }
+
+  .adm-memo-body {
+    margin-top: 12px;
+  }
+
+  .adm-memo-input {
+    min-height: 108px;
+    resize: vertical;
+    line-height: 1.65;
+    font-size: 14px;
+  }
+
+  .adm-memo-foot {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .adm-memo-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 12.5px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .adm-memo-status {
+    font-weight: 500;
+  }
+
+  .adm-memo-status.is-ok {
+    color: var(--ok);
+  }
+
+  .adm-memo-status.is-warn {
+    color: var(--warn);
+  }
+
+  .adm-memo-status.is-err {
+    color: var(--danger);
+  }
+
+  .adm-memo-count {
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
   .item-foot .id {
     font-family: var(--font-mono);
     font-size: 12px;
@@ -530,6 +636,27 @@
         </div>
       </div>
 
+      <section class="glass-card adm-memo" id="memoCard" aria-label="个人备忘录">
+        <div class="adm-memo-head">
+          <div class="adm-memo-title">
+            <h2>个人备忘录</h2>
+            <span class="tag tag-accent">仅管理员可见 · 跨设备服务端同步</span>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm" id="memoToggle" aria-expanded="true" aria-controls="memoBody">收起</button>
+        </div>
+        <div class="adm-memo-body" id="memoBody">
+          <textarea class="field adm-memo-input" id="memoInput" rows="4" maxlength="50000" placeholder="记录待跟进事项、排查思路或版本备忘…（支持自动防抖保存与手动保存，与反馈数据完全独立）"></textarea>
+          <div class="adm-memo-foot">
+            <div class="adm-memo-meta">
+              <span class="adm-memo-status" id="memoStatus">未加载</span>
+              <span id="memoTime">上次保存：尚未保存</span>
+              <span class="adm-memo-count" id="memoCount">0 / 50000</span>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm" id="memoSave">保存备忘录</button>
+          </div>
+        </div>
+      </section>
+
       <div class="adm-tabs" role="tablist" aria-label="状态筛选">
         <button type="button" data-tab="all" class="on" role="tab" aria-selected="true">全部 <span class="adm-tab-num" id="tabAllCount">0</span></button>
         <button type="button" data-tab="new" role="tab" aria-selected="false">待处理 <span class="adm-tab-num" id="tabNewCount">0</span></button>
@@ -563,6 +690,16 @@
   var items = [];
   var tab = 'all';
   var query = '';
+  var confirmDeleteId = '';
+  var deletingId = '';
+
+  var MEMO_MAX = 50000;
+  var memoSavedContent = '';
+  var memoUpdatedAt = null;
+  var memoDirty = false;
+  var memoSaving = false;
+  var memoTimer = null;
+  var memoLoaded = false;
 
   // 站点可能被反代挂在子路径下（例如 /7fa4-chat/feedback/admin），
   // 前缀只存在于浏览器侧，必须由页面自己算出来再拼接口地址。
@@ -640,6 +777,127 @@
     });
   }
 
+  function setMemoCollapsed(collapsed) {
+    var body = $('memoBody');
+    var btn = $('memoToggle');
+    if (body) body.hidden = collapsed;
+    if (btn) {
+      btn.textContent = collapsed ? '展开' : '收起';
+      btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    }
+    try { localStorage.setItem('7fa4-admin-memo-collapsed', collapsed ? '1' : '0'); } catch (e) {}
+  }
+
+  try {
+    if (localStorage.getItem('7fa4-admin-memo-collapsed') === '1') setMemoCollapsed(true);
+  } catch (e) {}
+
+  function updateMemoMeta(statusText, statusClass) {
+    var st = $('memoStatus');
+    var tm = $('memoTime');
+    var ct = $('memoCount');
+    var input = $('memoInput');
+    if (st) {
+      st.textContent = statusText || '';
+      st.className = 'adm-memo-status' + (statusClass ? ' ' + statusClass : '');
+    }
+    if (tm) {
+      tm.textContent = memoUpdatedAt ? ('上次保存：' + fmtTime(memoUpdatedAt)) : '上次保存：尚未保存';
+    }
+    if (ct && input) {
+      ct.textContent = input.value.length + ' / ' + MEMO_MAX;
+    }
+  }
+
+  function loadMemo(forceSync) {
+    return api('/memo').then(function (r) {
+      if (r.status === 401) {
+        $('panel').hidden = true;
+        $('login').hidden = false;
+        return;
+      }
+      if (r.status === 200 && r.data && r.data.ok) {
+        memoSavedContent = typeof r.data.content === 'string' ? r.data.content : '';
+        memoUpdatedAt = r.data.updatedAt || null;
+        if (forceSync || !memoDirty) {
+          $('memoInput').value = memoSavedContent;
+          memoDirty = false;
+          memoLoaded = true;
+          updateMemoMeta(memoUpdatedAt ? '已同步' : '已就绪', memoUpdatedAt ? 'is-ok' : '');
+        } else {
+          memoLoaded = true;
+          updateMemoMeta('有未保存修改', 'is-warn');
+        }
+      }
+    }).catch(function () {
+      if (!memoLoaded) updateMemoMeta('备忘录加载失败', 'is-err');
+    });
+  }
+
+  function scheduleMemoSave() {
+    clearTimeout(memoTimer);
+    memoTimer = setTimeout(function () {
+      saveMemo(false);
+    }, 900);
+  }
+
+  function saveMemo(manual) {
+    clearTimeout(memoTimer);
+    if (memoSaving) return;
+    var input = $('memoInput');
+    var content = input ? input.value : '';
+    if (content.length > MEMO_MAX) {
+      updateMemoMeta('超出 ' + MEMO_MAX + ' 字限制', 'is-err');
+      return;
+    }
+    if (!manual && content === memoSavedContent) {
+      memoDirty = false;
+      updateMemoMeta(memoUpdatedAt ? '已同步' : '已就绪', memoUpdatedAt ? 'is-ok' : '');
+      return;
+    }
+    memoSaving = true;
+    $('memoSave').disabled = true;
+    updateMemoMeta('保存中…', '');
+    api('/memo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: content })
+    }).then(function (r) {
+      memoSaving = false;
+      $('memoSave').disabled = false;
+      if (r.status === 401) {
+        $('panel').hidden = true;
+        $('login').hidden = false;
+        return;
+      }
+      if (r.status === 200 && r.data && r.data.ok) {
+        memoSavedContent = typeof r.data.content === 'string' ? r.data.content : content;
+        memoUpdatedAt = r.data.updatedAt || new Date().toISOString();
+        var current = $('memoInput').value;
+        if (current !== content) {
+          memoDirty = (current !== memoSavedContent);
+          if (memoDirty) {
+            updateMemoMeta('有未保存修改', 'is-warn');
+            scheduleMemoSave();
+          } else {
+            updateMemoMeta('已保存', 'is-ok');
+          }
+        } else {
+          memoDirty = false;
+          updateMemoMeta('已保存', 'is-ok');
+        }
+      } else {
+        memoDirty = true;
+        updateMemoMeta('保存失败：' + ((r.data && r.data.error) || '请重试'), 'is-err');
+      }
+    }).catch(function () {
+      memoSaving = false;
+      $('memoSave').disabled = false;
+      memoDirty = true;
+      updateMemoMeta('保存失败：网络错误', 'is-err');
+    });
+  }
+
   function render() {
     var q = query.trim().toLowerCase();
     var newCount = items.filter(function (it) { return it.status !== 'handled'; }).length;
@@ -665,6 +923,8 @@
     shown.forEach(function (it) {
       var el = document.createElement('article');
       var isHandled = it.status === 'handled';
+      var isConfirming = confirmDeleteId === it.id;
+      var isDeleting = deletingId === it.id;
       el.className = 'glass-card item ' + (isHandled ? 'is-handled' : 'is-new');
 
       var shots = (it.attachments || []).map(function (a) {
@@ -679,6 +939,12 @@
       if (it.page) metaBits.push('来源 ' + esc(it.page));
       if (it.ip) metaBits.push('IP ' + esc(it.ip));
 
+      var deleteHtml = isConfirming
+        ? '<button type="button" class="btn btn-sm btn-danger-solid" data-confirm-delete="' + esc(it.id) + '"' + (isDeleting ? ' disabled' : '') + '>' +
+            (isDeleting ? '删除中…' : '确认删除') + '</button>' +
+          '<button type="button" class="btn btn-ghost btn-sm" data-cancel-delete="' + esc(it.id) + '"' + (isDeleting ? ' disabled' : '') + '>取消</button>'
+        : '<button type="button" class="btn btn-sm btn-danger-ghost" data-delete="' + esc(it.id) + '">删除</button>';
+
       el.innerHTML =
         '<div class="item-head">' +
           '<span class="tag tag-accent">' + esc(platformLabel(it.platform)) + '</span>' +
@@ -690,8 +956,11 @@
         (metaBits.length ? '<div class="adm-meta">' + metaBits.map(function (m) { return '<span>' + m + '</span>'; }).join('') + '</div>' : '') +
         (shots ? '<div class="adm-shots">' + shots + '</div>' : '') +
         '<div class="item-foot">' +
-          '<button type="button" class="btn btn-ghost btn-sm" data-toggle="' + esc(it.id) + '" data-to="' + (isHandled ? 'new' : 'handled') + '">' +
-            (isHandled ? '标记待处理' : '标记已处理') + '</button>' +
+          '<div class="item-actions">' +
+            '<button type="button" class="btn btn-ghost btn-sm" data-toggle="' + esc(it.id) + '" data-to="' + (isHandled ? 'new' : 'handled') + '"' + (isDeleting ? ' disabled' : '') + '>' +
+              (isHandled ? '标记待处理' : '标记已处理') + '</button>' +
+            deleteHtml +
+          '</div>' +
           '<span class="id">' + esc(it.id) + '</span>' +
         '</div>';
 
@@ -710,9 +979,11 @@
         return;
       }
       items = (r.data && r.data.items) || [];
+      confirmDeleteId = '';
       $('login').hidden = true;
       $('panel').hidden = false;
       render();
+      return loadMemo(!memoLoaded);
     }).catch(function () {
       if (reloadBtn) reloadBtn.disabled = false;
     });
@@ -760,11 +1031,51 @@
   $('reload').addEventListener('click', load);
 
   $('logout').addEventListener('click', function () {
+    clearTimeout(memoTimer);
     api('/logout', { method: 'POST' }).then(function () {
       items = [];
+      confirmDeleteId = '';
+      deletingId = '';
+      memoLoaded = false;
+      memoDirty = false;
+      memoSavedContent = '';
+      memoUpdatedAt = null;
+      $('memoInput').value = '';
       $('panel').hidden = true;
       $('login').hidden = false;
     });
+  });
+
+  $('memoToggle').addEventListener('click', function () {
+    setMemoCollapsed(!$('memoBody').hidden);
+  });
+
+  $('memoInput').addEventListener('input', function () {
+    var val = $('memoInput').value;
+    memoDirty = (val !== memoSavedContent);
+    if (val.length > MEMO_MAX) {
+      updateMemoMeta('超出 ' + MEMO_MAX + ' 字限制', 'is-err');
+      clearTimeout(memoTimer);
+      return;
+    }
+    if (memoDirty) {
+      updateMemoMeta('有未保存修改', 'is-warn');
+      scheduleMemoSave();
+    } else {
+      clearTimeout(memoTimer);
+      updateMemoMeta(memoUpdatedAt ? '已同步' : '已就绪', memoUpdatedAt ? 'is-ok' : '');
+    }
+  });
+
+  $('memoInput').addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      saveMemo(true);
+    }
+  });
+
+  $('memoSave').addEventListener('click', function () {
+    saveMemo(true);
   });
 
   $('list').addEventListener('click', function (e) {
@@ -784,6 +1095,11 @@
         body: JSON.stringify({ id: id, status: toggle.dataset.to })
       }).then(function (r) {
         toggle.disabled = false;
+        if (r.status === 401) {
+          $('panel').hidden = true;
+          $('login').hidden = false;
+          return;
+        }
         if (r.status === 200) {
           var it = items.find(function (x) { return x.id === id; });
           if (it) it.status = toggle.dataset.to;
@@ -791,6 +1107,50 @@
         }
       }).catch(function () {
         toggle.disabled = false;
+      });
+      return;
+    }
+    var delBtn = e.target.closest('[data-delete]');
+    if (delBtn) {
+      confirmDeleteId = delBtn.dataset.delete;
+      render();
+      return;
+    }
+    var cancelBtn = e.target.closest('[data-cancel-delete]');
+    if (cancelBtn) {
+      confirmDeleteId = '';
+      render();
+      return;
+    }
+    var confirmBtn = e.target.closest('[data-confirm-delete]');
+    if (confirmBtn) {
+      var targetId = confirmBtn.dataset.confirmDelete;
+      deletingId = targetId;
+      render();
+      api('/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: targetId })
+      }).then(function (r) {
+        deletingId = '';
+        if (r.status === 401) {
+          $('panel').hidden = true;
+          $('login').hidden = false;
+          return;
+        }
+        if (r.status === 200 || r.status === 404) {
+          items = items.filter(function (x) { return x.id !== targetId; });
+          confirmDeleteId = '';
+          render();
+          if (r.status === 200 && r.data && typeof r.data.total === 'number' && r.data.total !== items.length) {
+            load();
+          }
+        } else {
+          render();
+        }
+      }).catch(function () {
+        deletingId = '';
+        render();
       });
       return;
     }
