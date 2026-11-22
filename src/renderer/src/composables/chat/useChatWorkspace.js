@@ -121,6 +121,7 @@ export function useChatWorkspace({
     polling,
     bindGlobalListeners,
     onAndroidBack,
+    onToolSendImage: (dataUrl) => chatActions.onImageToolSend?.(dataUrl),
   })
 
   function startReply(msg) { inputFooterRef.value?.startReply(msg) }
@@ -159,6 +160,8 @@ export function useChatWorkspace({
     groupActions,
     chatActions,
     onSettingChange,
+    reconnect: () => polling.reconnectNow?.(),
+    checkConnection: () => polling.checkConnection?.(),
     startReply,
     onNewConversationFromList,
     onUserAction,

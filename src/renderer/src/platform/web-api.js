@@ -390,6 +390,19 @@ async function fetchToolsManifest() {
   }
 }
 
+// 按 toolId 串行单飞互斥锁：防止并发安装/卸载同一个工具互相删除 .staging-* 目录
+const toolOpLocks = new Map()
+function withToolLock(id, fn) {
+  const key = String(id || '')
+  const prev = toolOpLocks.get(key) || Promise.resolve()
+  const next = prev.catch(() => {}).then(fn)
+  toolOpLocks.set(key, next)
+  next.finally(() => {
+    if (toolOpLocks.get(key) === next) toolOpLocks.delete(key)
+  })
+  return next
+}
+
 // 安装 / 更新：逐文件下载并校验 size+sha256 → 全部落临时目录 → 原子替换版本目录 → 写 installed.json
 // 进度：{ id, phase:'download', index, count, path, received, total }（received 为累计字节数）
 async function installTool(toolMeta) {
@@ -398,69 +411,73 @@ async function installTool(toolMeta) {
   if (meta.minAppVersion && compareToolVersion(appVersion(), meta.minAppVersion) < 0) {
     return { success: false, error: `请先更新应用（需要 v${meta.minAppVersion} 及以上）` }
   }
-  const idDir = `${TOOLS_DIR}/${meta.id}`
-  const targetDir = toolVersionPath(meta.id, meta.version)
-  const stagingDir = `${idDir}/.staging-${meta.version}-${Date.now()}`
-  const count = meta.files.length
-  let received = 0
-  try {
-    // 清理上次中断留下的临时目录（与桌面端行为一致）
+  return withToolLock(meta.id, async () => {
+    const idDir = `${TOOLS_DIR}/${meta.id}`
+    const targetDir = toolVersionPath(meta.id, meta.version)
+    const stagingName = `.staging-${meta.version}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const stagingDir = `${idDir}/${stagingName}`
+    const count = meta.files.length
+    let received = 0
     try {
-      const stale = await Filesystem.readdir({ path: idDir, directory: Directory.Data })
-      for (const entry of Array.isArray(stale.files) ? stale.files : []) {
-        if (entry.type === 'directory' && String(entry.name).startsWith('.staging-')) {
-          await fsRemoveDir(`${idDir}/${entry.name}`)
+      // 清理上次中断留下的临时目录（只删非当前 staging 目录）
+      try {
+        const stale = await Filesystem.readdir({ path: idDir, directory: Directory.Data })
+        for (const entry of Array.isArray(stale.files) ? stale.files : []) {
+          const ename = String(entry.name || '')
+          if (entry.type === 'directory' && ename.startsWith('.staging-') && ename !== stagingName) {
+            await fsRemoveDir(`${idDir}/${ename}`)
+          }
         }
+      } catch { /* 首次安装：目录还不存在 */ }
+      await fsMkdir(stagingDir)
+      for (let i = 0; i < count; i++) {
+        const file = meta.files[i]
+        // 该实例的 generic 包不支持嵌套路径（file_name 不能含 `/`）：
+        // 包内文件名 = 「dir/file.path」把 `/` 全部换成 `__`，须与 scripts/publish-tools.mjs 一致
+        const flatName = `${meta.dir}/${file.path}`.replaceAll('/', '__')
+        const url = `${toolsRawBase()}/${encodeURIComponent(flatName)}`
+        const { base64, bytes } = await fetchToolFile(url)
+        if (bytes.length !== file.size) throw new Error(`文件大小校验失败：${file.path}`)
+        const sha256 = await sha256Hex(bytes)
+        if (sha256 !== file.sha256) throw new Error(`SHA-256 校验失败：${file.path}`)
+        await fsWriteBase64(`${stagingDir}/${file.path}`, base64)
+        received += bytes.length
+        emit('toolProgress', {
+          id: meta.id,
+          phase: 'download',
+          index: i + 1,
+          count,
+          path: file.path,
+          received,
+          total: meta.size
+        })
       }
-    } catch { /* 首次安装：目录还不存在 */ }
-    await fsMkdir(stagingDir)
-    for (let i = 0; i < count; i++) {
-      const file = meta.files[i]
-      // 该实例的 generic 包不支持嵌套路径（file_name 不能含 `/`）：
-      // 包内文件名 = 「dir/file.path」把 `/` 全部换成 `__`，须与 scripts/publish-tools.mjs 一致
-      const flatName = `${meta.dir}/${file.path}`.replaceAll('/', '__')
-      const url = `${toolsRawBase()}/${encodeURIComponent(flatName)}`
-      const { base64, bytes } = await fetchToolFile(url)
-      if (bytes.length !== file.size) throw new Error(`文件大小校验失败：${file.path}`)
-      const sha256 = await sha256Hex(bytes)
-      if (sha256 !== file.sha256) throw new Error(`SHA-256 校验失败：${file.path}`)
-      await fsWriteBase64(`${stagingDir}/${file.path}`, base64)
-      received += bytes.length
-      emit('toolProgress', {
-        id: meta.id,
-        phase: 'download',
-        index: i + 1,
-        count,
-        path: file.path,
-        received,
-        total: meta.size
-      })
-    }
-    // 临时目录 → 版本目录；installed.json 最后写入（写成功才算安装完成）
-    await fsRemoveDir(targetDir)
-    await fsRename(stagingDir, targetDir)
-    const installed = {
-      version: meta.version,
-      installedAt: new Date().toISOString(),
-      size: meta.size,
-      files: meta.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 }))
-    }
-    await fsWriteText(toolInstalledPath(meta.id), JSON.stringify(installed, null, 2))
-    // 更新成功后清理旧版本目录（与桌面端一致），清理失败不影响安装结果
-    try {
-      const entries = await Filesystem.readdir({ path: idDir, directory: Directory.Data })
-      for (const entry of Array.isArray(entries.files) ? entries.files : []) {
-        if (entry.type === 'directory' && entry.name !== meta.version) {
-          await fsRemoveDir(`${idDir}/${entry.name}`)
+      // 临时目录 → 版本目录；installed.json 最后写入（写成功才算安装完成）
+      await fsRemoveDir(targetDir)
+      await fsRename(stagingDir, targetDir)
+      const installed = {
+        version: meta.version,
+        installedAt: new Date().toISOString(),
+        size: meta.size,
+        files: meta.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 }))
+      }
+      await fsWriteText(toolInstalledPath(meta.id), JSON.stringify(installed, null, 2))
+      // 更新成功后清理旧版本目录（与桌面端一致），清理失败不影响安装结果
+      try {
+        const entries = await Filesystem.readdir({ path: idDir, directory: Directory.Data })
+        for (const entry of Array.isArray(entries.files) ? entries.files : []) {
+          if (entry.type === 'directory' && entry.name !== meta.version) {
+            await fsRemoveDir(`${idDir}/${entry.name}`)
+          }
         }
-      }
-    } catch { /* 清理失败不影响安装 */ }
-    return { success: true }
-  } catch (e) {
-    // 失败清理半成品；不动旧版本目录与旧 installed.json
-    await fsRemoveDir(stagingDir)
-    return { success: false, error: e.message || '安装工具失败' }
-  }
+      } catch { /* 清理失败不影响安装 */ }
+      return { success: true }
+    } catch (e) {
+      // 失败清理半成品；不动旧版本目录与旧 installed.json
+      await fsRemoveDir(stagingDir)
+      return { success: false, error: e.message || '安装工具失败' }
+    }
+  })
 }
 
 // 已安装列表：{ [id]: { version, installedAt, size } }
@@ -488,13 +505,15 @@ async function listInstalledTools() {
 
 async function removeTool(id) {
   if (!TOOL_ID_RE.test(String(id))) return { success: false, error: '工具 ID 无效' }
-  try {
-    await Filesystem.rmdir({ path: `${TOOLS_DIR}/${id}`, directory: Directory.Data, recursive: true })
-    return { success: true }
-  } catch (e) {
-    // 目录本就不存在也视为卸载成功
-    return { success: true, warning: e.message }
-  }
+  return withToolLock(id, async () => {
+    try {
+      await Filesystem.rmdir({ path: `${TOOLS_DIR}/${id}`, directory: Directory.Data, recursive: true })
+      return { success: true }
+    } catch (e) {
+      // 目录本就不存在也视为卸载成功
+      return { success: true, warning: e.message }
+    }
+  })
 }
 
 // 入口 URL：Android 用 convertFileSrc(file://...) 映射为 WebView 可加载地址；
@@ -534,15 +553,22 @@ let dbPromise = null
  * 安卓（IS_NATIVE）仍走 IndexedDB：那边要离线可用，语义与桌面端一致。
  */
 const WEB_PREFS_KEY = '7fa4_web_prefs'
-function loadWebPrefs() {
+function webPrefsKey(uid) {
+  return uid != null && uid !== '' ? `${WEB_PREFS_KEY}_${uid}` : WEB_PREFS_KEY
+}
+function loadWebPrefs(uid) {
   try {
-    const raw = localStorage.getItem(WEB_PREFS_KEY)
+    const raw = localStorage.getItem(webPrefsKey(uid))
     const o = raw ? JSON.parse(raw) : null
     return o && typeof o === 'object' ? o : {}
   } catch { return {} }
 }
-function saveWebPrefs(prefs) {
-  try { if (prefs && typeof prefs === 'object') localStorage.setItem(WEB_PREFS_KEY, JSON.stringify(prefs)) } catch {}
+function saveWebPrefs(uid, prefs) {
+  try { if (prefs && typeof prefs === 'object') localStorage.setItem(webPrefsKey(uid), JSON.stringify(prefs)) } catch {}
+}
+function normalizeMsgFree(m) {
+  const v = m && (m.token_free ?? m.free)
+  return v === true || v === 1 || v === '1'
 }
 
 /** 本地缓存版本校验（幂等）：kv 中无版本标记即为旧版数据 → 清空 convos/messages/prefs */
@@ -646,15 +672,22 @@ const store = {
         if (m == null) continue
         const mid = m.mid ?? m.id
         if (mid == null) continue
-        s.put({ uid: Number(uid), kind, cid: Number(cid), mid: Number(mid), send_time: Number(m.send_time || 0), content: { ...m, id: Number(mid), mid: Number(mid) } })
+        s.put({
+          uid: Number(uid),
+          kind,
+          cid: Number(cid),
+          mid: Number(mid),
+          send_time: Number(m.send_time || 0),
+          content: { ...m, id: Number(mid), mid: Number(mid), free: normalizeMsgFree(m) }
+        })
       }
     })
     return { success: true, count: (msgs || []).length }
   },
   /** 全量快照：与桌面 saveAll 相同语义（INSERT OR REPLACE 增量合并，不做会话级 DELETE） */
   async saveAll(uid, { convos, prefs, messages } = {}) {
-    // 网页版不落会话/消息，只把偏好设置存进 localStorage（刷新即重新从服务端拉）
-    if (!IS_NATIVE) { saveWebPrefs(prefs); return { success: true } }
+    // 网页版不落会话/消息，只把按 uid 隔离的偏好设置存进 localStorage（刷新即重新从服务端拉）
+    if (!IS_NATIVE) { saveWebPrefs(uid, prefs); return { success: true } }
     const u = Number(uid)
     await tx(['convos', 'messages', 'prefs'], 'readwrite', (t) => {
       if (Array.isArray(convos)) {
@@ -668,7 +701,14 @@ const store = {
           if (!kind || cid == null || !Array.isArray(msgs)) continue
           for (const m of msgs) {
             if (m == null || m.id == null) continue
-            ms.put({ uid: u, kind, cid: Number(cid), mid: Number(m.id), send_time: Number(m.send_time || 0), content: { ...m, id: Number(m.id), mid: Number(m.id) } })
+            ms.put({
+              uid: u,
+              kind,
+              cid: Number(cid),
+              mid: Number(m.id),
+              send_time: Number(m.send_time || 0),
+              content: { ...m, id: Number(m.id), mid: Number(m.id), free: normalizeMsgFree(m) }
+            })
           }
         }
       }
@@ -688,7 +728,7 @@ const store = {
       .filter((r) => (before == null || r.send_time < Number(before)))
       .sort((a, b) => b.send_time - a.send_time || b.mid - a.mid)
       .slice(0, Number(limit))
-      .map((r) => r.content)
+      .map((r) => ({ ...r.content, free: normalizeMsgFree(r.content) }))
     return { success: true, data: list }
   },
   async loadLastMessages(uid) {
@@ -703,7 +743,7 @@ const store = {
       if (!prev || r.mid > prev.mid) latest.set(k, r)
     }
     const data = []
-    for (const r of latest.values()) data.push({ kind: r.kind, cid: r.cid, msg: r.content })
+    for (const r of latest.values()) data.push({ kind: r.kind, cid: r.cid, msg: { ...r.content, free: normalizeMsgFree(r.content) } })
     return { success: true, data }
   },
   async cleanMessages(uid, keepPerConvo = 2000) {
@@ -729,7 +769,7 @@ const store = {
     return { success: true, removed }
   },
   async loadPrefs(uid) {
-    if (!IS_NATIVE) return { success: true, data: loadWebPrefs() }
+    if (!IS_NATIVE) return { success: true, data: loadWebPrefs(uid) }
     const rows = await tx(['prefs'], 'readonly', (t, out) => {
       out.value = storeAll(t.objectStore('prefs').getAll())
     })
@@ -759,7 +799,11 @@ const store = {
       else users[r.cid] = r.meta
     }
     const messages = {}
-    for (const r of msgs || []) if (r.uid === u && r.content && r.content.id != null) messages[r.content.id] = r.content
+    for (const r of msgs || []) {
+      if (r.uid === u && r.content && r.content.id != null) {
+        messages[r.content.id] = { ...r.content, free: normalizeMsgFree(r.content) }
+      }
+    }
     const prefData = {}
     for (const r of prefs || []) if (r.uid === u) prefData[r.key] = r.value
     return { success: true, users, groups, messages, prefs: prefData }
@@ -789,7 +833,7 @@ const store = {
       if (!loc) continue
       const k = loc.join(':')
       if (!byConvo.has(k)) byConvo.set(k, [])
-      byConvo.get(k).push({ ...m, mid: Number(m.id), send_time: m.send_time || 0 })
+      byConvo.get(k).push({ ...m, mid: Number(m.id), send_time: m.send_time || 0, free: normalizeMsgFree(m) })
       total++
     }
     await this.saveAll(u, {
@@ -798,7 +842,9 @@ const store = {
         drafts: data.drafts || {},
         mutedConvos: data.mutedConvos || {},
         hiddenConvos: data.hiddenConvos || {},
-        stickers: data.stickers || []
+        pinnedConvos: data.pinnedConvos || {},
+        stickers: data.stickers || [],
+        ownVotes: Array.isArray(data.ownVotes) ? data.ownVotes : []
       },
       messages: Object.fromEntries(byConvo)
     })
@@ -889,8 +935,6 @@ function normalizeNotifPayload(payloadOrTitle, bodyArg, chatTypeArg, targetIdArg
       chatType: p.chatType === 'group' ? 'group' : 'user',
       targetId: p.targetId,
       count: Math.max(1, Math.floor(Number(p.count) || 1)),
-      position: p.position || 'br',
-      duration: Number(p.duration) || 6000,
       test: p.test === true
     }
   }
@@ -901,8 +945,6 @@ function normalizeNotifPayload(payloadOrTitle, bodyArg, chatTypeArg, targetIdArg
     chatType: chatTypeArg === 'group' ? 'group' : 'user',
     targetId: targetIdArg,
     count: 1,
-    position: 'br',
-    duration: 6000,
     test: false
   }
 }
@@ -989,10 +1031,14 @@ if (IS_NATIVE) {
     const extra = event?.notification?.extra || {}
     emit('notifClick', { chatType: extra.chatType, targetId: extra.targetId })
   })
-  // 应用退到后台/页面隐藏时触发数据落盘（对应桌面 close 拦截 flush）
+}
+// 网页端与安卓端统一：页面隐藏/离开/切后台时触发数据落盘（对应桌面 close 拦截 flush）
+if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') emit('flushBeforeClose')
   })
+}
+if (typeof window !== 'undefined') {
   window.addEventListener('pagehide', () => emit('flushBeforeClose'))
 }
 
@@ -1161,10 +1207,13 @@ window.api = {
       return { success: true, size: est.usage || 0 }
     } catch (e) { return { success: false, error: e.message } }
   },
-  clearCache: async () => {
+  clearCache: async (uid) => {
     // 网页版没有本地会话/消息缓存，清缓存 = 清掉 localStorage 里的偏好设置
     if (!IS_NATIVE) {
-      try { localStorage.removeItem(WEB_PREFS_KEY) } catch {}
+      try {
+        if (uid != null && uid !== '') localStorage.removeItem(webPrefsKey(uid))
+        localStorage.removeItem(WEB_PREFS_KEY)
+      } catch {}
       return { success: true }
     }
     try {

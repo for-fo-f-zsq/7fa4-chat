@@ -9,7 +9,6 @@ import {
   playNotificationSound,
 } from '../../utils/notify.js'
 import { getUsername, isUserHiddenBySetting } from '../../utils/users.js'
-import { showToast } from '../useToast.js'
 
 // 同一会话 4 秒内只弹一次，其余消息只累加计数，弹窗里以「(+N)」体现。
 const NOTIF_COOLDOWN_MS = 4000
@@ -137,73 +136,57 @@ export function useUnreadNotifications({ saveAll, getSetting } = {}) {
       const title = chatType === 'group' ? store.groups?.[targetId]?.name || '群聊' : senderName || '新消息'
       const subtitle = chatType === 'group' ? senderName : ''
 
-      // 3. 窗口状态：前台聚焦时走应用内轻提示，后台/失焦才走系统通知
+      // 3. 窗口状态：后台/失焦且开启系统通知时发 OS 原生通知；前台非当前会话仅播提示音与未读角标
       let state = { focused: false, visible: true }
       try {
         if (window.api?.getWindowState) state = (await window.api.getWindowState()) || state
       } catch {}
       const isForeground = !!state.focused && state.visible !== false
+      const wantDesktopNotif = !isForeground && s.notifDesktop !== false
+      const wantSound = s.notifSound !== false
+      if (!wantDesktopNotif && !wantSound) return
 
-      // 4. 前台聚焦
-      if (isForeground) {
-        if (s.notifInApp !== false) {
-          const content = getNotifContent(raw, s)
-          // 隐私模式下连「谁发的」都不拼进正文：弹窗/轻提示只留会话名 + 已脱敏文本
-          const body = chatType === 'group' && !s.notifPrivacy ? `${senderName}：${content}` : content
-          // key 让同一会话的轻提示互相替换而不是叠成一堆
-          showToast(body, {
-            type: 'info',
-            title,
-            icon: 'fas fa-comment-dots',
-            duration: 3600,
-            key: 'convo:' + convoKey,
-          })
-        }
-        return
-      }
-
-      // 5. 后台/失焦：notifDesktop 同时是 web/android 的总开关（默认开）
-      if (s.notifDesktop === false) return
-
-      // 6. 聚合：冷区内只累加计数，不弹
+      // 4. 聚合：冷区内只累加计数，不弹/不重复响铃
       const count = (notifPendingCount[convoKey] || 0) + 1
       notifPendingCount[convoKey] = count
       const now = Date.now()
       if (notifCooldown[convoKey] && now - notifCooldown[convoKey] < NOTIF_COOLDOWN_MS) return
       notifCooldown[convoKey] = now
 
-      // 7. 正文：隐私模式替换原文（且不再拼发送者名，避免「隐藏消息内容」仍暴露是谁发的）
-      const content = getNotifContent(raw, s)
-      const contentWithCount = count > 1 ? `${content} (+${count - 1})` : content
-      const body =
-        chatType === 'group' && !s.notifPrivacy ? `${senderName}：${contentWithCount}` : contentWithCount
-
-      const payload = buildNotificationPayload({
-        chatType,
-        targetId,
-        title,
-        subtitle,
-        body,
-        mention,
-        count,
-        setting: s,
-        timestamp: now,
-      })
-
       let ok = true
-      try {
-        if (!window.api?.notify) ok = false
-        else {
-          // 主进程/白名单可能在 resolve 里返回 { success:false }，web-api 则直接返回布尔 false：
-          // 两者都算没发出去，不能清聚合计数，否则被闸门拒掉的提醒会让「(+N)」凭空消失。
-          const res = await window.api.notify(payload)
-          ok = res !== false && res?.success !== false
+      if (wantDesktopNotif) {
+        // 5. 正文：隐私模式替换原文（且不再拼发送者名，避免「隐藏消息内容」仍暴露是谁发的）
+        const content = getNotifContent(raw, s)
+        const contentWithCount = count > 1 ? `${content} (+${count - 1})` : content
+        const body =
+          chatType === 'group' && !s.notifPrivacy ? `${senderName}：${contentWithCount}` : contentWithCount
+
+        const payload = buildNotificationPayload({
+          chatType,
+          targetId,
+          title,
+          subtitle,
+          body,
+          mention,
+          count,
+          setting: s,
+          timestamp: now,
+        })
+
+        try {
+          if (!window.api?.notify) ok = false
+          else {
+            // 主进程/白名单可能在 resolve 里返回 { success:false }，web-api 则直接返回布尔 false：
+            // 两者都算没发出去，不能清聚合计数，否则被闸门拒掉的提醒会让「(+N)」凭空消失。
+            const res = await window.api.notify(payload)
+            ok = res !== false && res?.success !== false
+          }
+        } catch {
+          ok = false
         }
-      } catch {
-        ok = false
       }
 
-      if (s.notifSound !== false) {
+      if (wantSound) {
         playNotificationSound(mention ? 'mention' : 'default', s.notifSoundVolume ?? 60)
       }
       if (ok) notifPendingCount[convoKey] = 0

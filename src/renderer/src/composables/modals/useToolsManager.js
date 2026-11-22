@@ -339,6 +339,7 @@ export function useToolsManager(onOpenTool) {
     }
     const meta = JSON.parse(JSON.stringify(card.raw || card))
     const name = meta.name || meta.id
+    if (busyMap.value[meta.id]) return
     busyMap.value[meta.id] = 'install'
     actionError.value = ''
     try {
@@ -359,6 +360,7 @@ export function useToolsManager(onOpenTool) {
       actionError.value = '当前客户端不支持卸载远端工具，请更新应用'
       return
     }
+    if (busyMap.value[card.id]) return
     const name = card.name || card.id
     const ok = await showConfirm({
       title: '卸载工具',
@@ -367,6 +369,7 @@ export function useToolsManager(onOpenTool) {
       danger: true,
     })
     if (!ok) return
+    if (busyMap.value[card.id]) return
     busyMap.value[card.id] = 'remove'
     actionError.value = ''
     try {
@@ -386,17 +389,28 @@ export function useToolsManager(onOpenTool) {
       actionError.value = '当前客户端不支持打开远端工具，请更新应用'
       return
     }
+    if (busyMap.value[card.id]) return
     busyMap.value[card.id] = 'open'
     actionError.value = ''
     try {
       const res = await api.getToolEntryUrl(card.id, card.entry)
       if (!res || !res.success || !res.url) throw new Error((res && res.error) || '无法获取工具入口地址')
-      onOpenTool({
-        remote: true,
+      const payload = {
         id: card.id,
         url: res.url,
         name: card.name || card.id,
         version: card.version || '',
+      }
+      if (typeof api.openToolWindow === 'function') {
+        const winRes = await api.openToolWindow(payload)
+        if (winRes && winRes.success === false) {
+          throw new Error(winRes.error || '无法打开工具窗口')
+        }
+        return
+      }
+      onOpenTool({
+        remote: true,
+        ...payload,
       })
     } catch (err) {
       actionError.value = `打开「${card.name || card.id}」失败：${formatError(err)}`
@@ -437,12 +451,16 @@ export function useToolsManager(onOpenTool) {
       actionError.value = '当前客户端不支持安装远端工具，请更新应用'
       return
     }
+    if (batchRunning.value) return
     const targets = batchTargets.value.slice()
     if (!targets.length) return
     batchRunning.value = true
     batchDone.value = 0
     batchTotal.value = targets.length
     actionError.value = ''
+    for (const card of targets) {
+      busyMap.value[card.id] = 'install'
+    }
     const failed = []
     for (const card of targets) {
       try {
@@ -452,6 +470,7 @@ export function useToolsManager(onOpenTool) {
       } catch (err) {
         failed.push(`${card.name || card.id}：${formatError(err)}`)
       } finally {
+        delete busyMap.value[card.id]
         delete progressMap.value[card.id]
         batchDone.value += 1
       }

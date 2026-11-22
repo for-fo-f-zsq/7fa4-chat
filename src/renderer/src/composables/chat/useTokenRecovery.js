@@ -1,5 +1,6 @@
 import { ref, watch, onUnmounted } from 'vue'
 import { store } from '../../store.js'
+import { normalizeFree } from '../../utils/chatSync.js'
 
 /**
  * 发言 Token 滑动窗口恢复倒计时统计。
@@ -16,10 +17,21 @@ export function useTokenRecovery() {
     const uid = store.self && store.self.uid
     const pending = []
     if (uid != null) {
-      for (const m of Object.values(store.messages)) {
+      const seenIds = new Set()
+      for (const m of Object.values(store.messages || {})) {
         if (!m || m.sender != uid) continue
+        if (normalizeFree(m.free ?? m.token_free)) continue
+        if (m.id != null) seenIds.add(String(m.id))
         const t = Number(m.send_time) * 1000
         if (!t || now - t > sec * 1000) continue
+        pending.push({ time: t, left: Math.max(0, (t + sec * 1000 - now) / 1000) })
+      }
+      for (const v of Array.isArray(store.ownVotes) ? store.ownVotes : []) {
+        if (!v || normalizeFree(v.free ?? v.token_free)) continue
+        if (v.id != null && seenIds.has(String(v.id))) continue
+        const t = Number(v.send_time) * 1000
+        if (!t || now - t > sec * 1000) continue
+        if (v.id != null) seenIds.add(String(v.id))
         pending.push({ time: t, left: Math.max(0, (t + sec * 1000 - now) / 1000) })
       }
       pending.sort((a, b) => a.time - b.time)

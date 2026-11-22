@@ -26,7 +26,55 @@ export function normalizeCustom(raw) {
   return out
 }
 
-/** 归一化投票元数据 {'<uid>':{n,t,ids}} */
+/** 归一化点选他人自拟选项的 UID 数组：[authorUid...] */
+export function normalizeCustomPick(raw) {
+  if (!Array.isArray(raw)) return []
+  const out = []
+  const seen = new Set()
+  for (const item of raw) {
+    const key = String(item == null ? '' : item).trim()
+    if (!key || seen.has(key)) continue
+    seen.add(key)
+    out.push(key)
+  }
+  return out.sort(compareIdStr)
+}
+
+/** 归一化「他人自拟选项投票」表：{ '<voterUid>': ['<authorUid>', ...] } */
+export function normalizeCustomVotes(raw) {
+  const out = {}
+  if (!raw || typeof raw !== 'object') return out
+  for (const uid of Object.keys(raw)) {
+    const key = String(uid == null ? '' : uid).trim()
+    if (!key) continue
+    const picks = normalizeCustomPick(raw[uid])
+    if (!picks.length) continue
+    out[key] = picks
+  }
+  return out
+}
+
+function compareIdStr(a, b) {
+  const sa = String(a ?? '')
+  const sb = String(b ?? '')
+  if (sa === sb) return 0
+  const na = Number(sa)
+  const nb = Number(sb)
+  if (sa !== '' && sb !== '' && Number.isFinite(na) && Number.isFinite(nb) && na !== nb) {
+    return na - nb
+  }
+  return sa < sb ? -1 : 1
+}
+
+/** 比较两条投票消息的先后序（按 (send_time, id) 升序：> 0 表示 A 更新，< 0 表示 A 更旧） */
+export function compareVoteOrder(tA, idA, tB, idB) {
+  const ta = Number(tA) || 0
+  const tb = Number(tB) || 0
+  if (ta !== tb) return ta - tb
+  return compareIdStr(idA, idB)
+}
+
+/** 归一化投票元数据 {'<uid>':{n,t,id,ids}} */
 export function normalizeVoteMeta(raw) {
   const out = {}
   if (!raw || typeof raw !== 'object') return out
@@ -35,9 +83,13 @@ export function normalizeVoteMeta(raw) {
     if (!key) continue
     const m = raw[uid] || {}
     const ids = Array.isArray(m.ids) ? [...new Set(m.ids.map(String))] : []
+    const fallbackId = ids.length
+      ? ids.reduce((best, cur) => (compareIdStr(cur, best) > 0 ? cur : best), ids[0])
+      : ''
     out[key] = {
       n: Math.max(1, Math.floor(Number(m.n) || 1)),
       t: Number(m.t) > 0 ? Number(m.t) : 0,
+      id: m.id != null && String(m.id) !== '' ? String(m.id) : fallbackId,
       ids,
     }
   }
@@ -58,16 +110,17 @@ export function normalizeInvalid(raw) {
 }
 
 /** 判定一次投票是否违规（纯函数） */
-export function judgeVote(def, pick, custom, sentAtSec, repeat) {
+export function judgeVote(def, pick, custom, sentAtSec, repeat, customPick) {
   const pickArr = Array.isArray(pick) ? pick : []
+  const customPickArr = normalizeCustomPick(customPick)
   const hasCustom = !!String(custom == null ? '' : custom).trim()
-  const total = pickArr.length + (hasCustom ? 1 : 0)
+  const total = pickArr.length + customPickArr.length + (hasCustom ? 1 : 0)
   if (repeat) return 'repeat'
   if (!def) return null
-  if (!hasCustom && total === 0) return null
+  if (total === 0) return null
   if (!def.multi && total > 1) return 'single-multi'
   if (def.multi && def.maxSelect > 0 && total > def.maxSelect) return 'overflow'
-  if (hasCustom && !def.allowCustom) return 'no-custom'
+  if ((hasCustom || customPickArr.length > 0) && !def.allowCustom) return 'no-custom'
   if (def.until && Number(sentAtSec) > 0 && Number(sentAtSec) > def.until) return 'expired'
   return null
 }
@@ -103,7 +156,7 @@ export function parsePoll(obj) {
   const multi = !!obj.multi
   let maxSelect = multi ? Math.floor(Number(obj.maxSelect) || 0) : 0
   if (!Number.isFinite(maxSelect) || maxSelect < 0) maxSelect = 0
-  if (maxSelect > opts.length) maxSelect = opts.length
+  if (!allowCustom && maxSelect > opts.length) maxSelect = opts.length
   return {
     q,
     opts,
@@ -113,6 +166,7 @@ export function parsePoll(obj) {
     allowCustom,
     votes: normalizeVotes(obj.votes, opts.length),
     custom: normalizeCustom(obj.custom),
+    customVotes: normalizeCustomVotes(obj.customVotes),
     voteMeta: normalizeVoteMeta(obj.voteMeta),
     invalid: normalizeInvalid(obj.invalid),
   }
@@ -126,14 +180,16 @@ export function parseVote(obj) {
   const raw = Array.isArray(obj.pick) ? obj.pick : []
   const pick = [...new Set(raw.map(Number).filter((n) => Number.isInteger(n) && n >= 0))]
   const custom = String(obj.custom == null ? '' : obj.custom).trim().slice(0, POLL_MAX_OPT_LEN)
-  if (!pick.length && !custom) return null
+  const customPick = normalizeCustomPick(obj.customPick)
+  if (!pick.length && !custom && !customPick.length) return null
   const out = { poll: String(poll), pick }
   if (custom) out.custom = custom
+  if (customPick.length) out.customPick = customPick
   return out
 }
 
 /** 构造 poll 消息内容 */
-export function makePollContent({ content, opts, multi, until, votes, maxSelect, allowCustom, custom, voteMeta, invalid }) {
+export function makePollContent({ content, opts, multi, until, votes, maxSelect, allowCustom, custom, customVotes, voteMeta, invalid }) {
   const cleanOpts = (opts || [])
     .map((o) => String(o == null ? '' : o).trim().slice(0, POLL_MAX_OPT_LEN))
     .filter(Boolean)
@@ -150,13 +206,15 @@ export function makePollContent({ content, opts, multi, until, votes, maxSelect,
   if (out.multi) {
     let ms = Math.floor(Number(maxSelect) || 0)
     if (ms > 0) {
-      if (ms > cleanOpts.length) ms = cleanOpts.length
+      if (!allowCustom && ms > cleanOpts.length) ms = cleanOpts.length
       out.maxSelect = ms
     }
   }
   if (allowCustom) out.allowCustom = true
   const cu = normalizeCustom(custom)
   if (Object.keys(cu).length) out.custom = cu
+  const cv = normalizeCustomVotes(customVotes)
+  if (Object.keys(cv).length) out.customVotes = cv
   const vm = normalizeVoteMeta(voteMeta)
   if (Object.keys(vm).length) out.voteMeta = vm
   const iv = normalizeInvalid(invalid)
@@ -174,13 +232,17 @@ export function mergeVoteIntoPoll(pollContent, pollId, voteObj, sender) {
   if (!uid) return null
   const pick = normalizeVotes({ [uid]: voteObj.pick }, def.opts.length)[uid]
   const custom = String(voteObj.custom == null ? '' : voteObj.custom).trim().slice(0, POLL_MAX_OPT_LEN)
-  if (!pick && !custom) return null
+  const customPick = normalizeCustomPick(voteObj.customPick)
+  if (!pick && !custom && !customPick.length) return null
   const votes = { ...(obj.votes || {}) }
   const customMap = { ...(obj.custom || {}) }
+  const customVotesMap = { ...(obj.customVotes || {}) }
   if (pick) votes[uid] = pick
   else delete votes[uid]
   if (custom) customMap[uid] = custom
   else delete customMap[uid]
+  if (customPick.length) customVotesMap[uid] = customPick
+  else delete customVotesMap[uid]
   return makePollContent({
     content: def.q,
     opts: def.opts,
@@ -190,13 +252,14 @@ export function mergeVoteIntoPoll(pollContent, pollId, voteObj, sender) {
     allowCustom: def.allowCustom,
     votes,
     custom: customMap,
+    customVotes: customVotesMap,
     voteMeta: obj.voteMeta,
     invalid: obj.invalid,
   })
 }
 
 /** 构造 vote 消息内容 */
-export function makeVoteContent(pollMsgId, pick, custom) {
+export function makeVoteContent(pollMsgId, pick, custom, customPick) {
   const out = {
     type: 'vote',
     poll: String(pollMsgId),
@@ -204,6 +267,8 @@ export function makeVoteContent(pollMsgId, pick, custom) {
   }
   const c = String(custom == null ? '' : custom).trim().slice(0, POLL_MAX_OPT_LEN)
   if (c) out.custom = c
+  const cp = normalizeCustomPick(customPick)
+  if (cp.length) out.customPick = cp
   return JSON.stringify(out)
 }
 
@@ -215,7 +280,7 @@ function orphanBucket(pollId) {
   const key = String(pollId)
   let b = orphanExtra.get(key)
   if (!b) {
-    b = { meta: {}, custom: {}, invalid: {} }
+    b = { meta: {}, custom: {}, customVotes: {}, invalid: {} }
     orphanExtra.set(key, b)
   }
   return b
@@ -227,27 +292,40 @@ export function mergeOrphanVote(pollId, voteObj, sender, msgId, sendTime) {
   if (!uid) return null
   const pick = normalizeVotes({ [uid]: voteObj && voteObj.pick }, Number.MAX_SAFE_INTEGER)[uid]
   const custom = String((voteObj && voteObj.custom) == null ? '' : voteObj && voteObj.custom).trim().slice(0, POLL_MAX_OPT_LEN)
-  if (!pick && !custom) return null
+  const customPick = normalizeCustomPick(voteObj && voteObj.customPick)
+  if (!pick && !custom && !customPick.length) return null
   const bucket = orphanBucket(key)
-  const meta = bucket.meta[uid] || { n: 0, t: 0, ids: [] }
+  const meta = bucket.meta[uid] || { n: 0, t: 0, id: '', ids: [] }
   const idStr = msgId == null ? '' : String(msgId)
   if (idStr && meta.ids.indexOf(idStr) !== -1) return orphanVotes.get(key) || {}
+  const sentAt = Number(sendTime) > 0 ? Number(sendTime) : 0
   const repeat = meta.n > 0
-  const reason = judgeVote(null, pick || [], custom, sendTime, repeat)
+  const isNewer = !repeat || compareVoteOrder(sentAt, idStr, meta.t, meta.id) > 0
   bucket.meta[uid] = {
     n: meta.n + 1,
-    t: Number(sendTime) > 0 ? Number(sendTime) : meta.t,
+    t: isNewer ? (sentAt || meta.t) : meta.t,
+    id: isNewer ? (idStr || meta.id) : meta.id,
     ids: idStr ? [...meta.ids, idStr] : meta.ids,
   }
-  if (reason) bucket.invalid[uid] = reason
-  if (custom) bucket.custom[uid] = custom
-  else delete bucket.custom[uid]
-  const prev = orphanVotes.get(key) || {}
-  const next = { ...prev }
-  if (pick) next[uid] = pick
-  else if (custom) next[uid] = []
-  orphanVotes.set(key, next)
-  return next
+  if (repeat) {
+    bucket.invalid[uid] = 'repeat'
+  } else if (isNewer) {
+    const reason = judgeVote(null, pick || [], custom, sentAt, false, customPick)
+    if (reason) bucket.invalid[uid] = reason
+  }
+  if (isNewer) {
+    if (custom) bucket.custom[uid] = custom
+    else delete bucket.custom[uid]
+    if (customPick.length) bucket.customVotes[uid] = customPick
+    else delete bucket.customVotes[uid]
+    const prev = orphanVotes.get(key) || {}
+    const next = { ...prev }
+    if (pick) next[uid] = pick
+    else if (custom || customPick.length) next[uid] = []
+    orphanVotes.set(key, next)
+    return next
+  }
+  return orphanVotes.get(key) || {}
 }
 
 export function getOrphanVotes(pollId) {
@@ -267,36 +345,70 @@ export function consumeOrphanPoll(pollId, content) {
   const hasOrphan = !!(orphan && Object.keys(orphan).length)
   const hasExtra = !!(
     bucket &&
-    (Object.keys(bucket.custom).length || Object.keys(bucket.invalid).length || Object.keys(bucket.meta).length)
+    (Object.keys(bucket.custom).length ||
+      Object.keys(bucket.customVotes).length ||
+      Object.keys(bucket.invalid).length ||
+      Object.keys(bucket.meta).length)
   )
   if (!hasOrphan && !hasExtra) return null
   let mergedContent = content
+  const initialObj = parseMsgContent(content)
+  const existingMeta = normalizeVoteMeta(initialObj && initialObj.voteMeta)
   const uids = new Set([
     ...Object.keys(orphan || {}),
     ...Object.keys((bucket && bucket.custom) || {}),
+    ...Object.keys((bucket && bucket.customVotes) || {}),
     ...Object.keys((bucket && bucket.meta) || {}),
   ])
+  const winningMeta = {}
+  const repeatedUids = new Set()
   for (const uid of uids) {
-    const pick = (orphan && orphan[uid]) || []
-    const custom = (bucket && bucket.custom && bucket.custom[uid]) || ''
-    const merged = mergeVoteIntoPoll(mergedContent, key, { poll: key, pick, custom }, uid)
-    if (merged) mergedContent = merged
+    const m = (bucket && bucket.meta && bucket.meta[uid]) || null
+    const em = existingMeta[uid] || null
+    const mergedIds = [...new Set([...(em ? em.ids : []), ...(m ? m.ids : [])])]
+    const totalN = mergedIds.length ? mergedIds.length : (em ? em.n : 0) + (m ? m.n : 0)
+    if (totalN > 1) repeatedUids.add(uid)
+    const takeOrphan = !em || (m && compareVoteOrder(m.t, m.id, em.t, em.id) > 0)
+    if (takeOrphan) {
+      const pick = (orphan && orphan[uid]) || []
+      const custom = (bucket && bucket.custom && bucket.custom[uid]) || ''
+      const customPick = (bucket && bucket.customVotes && bucket.customVotes[uid]) || []
+      const merged = mergeVoteIntoPoll(mergedContent, key, { poll: key, pick, custom, customPick }, uid)
+      if (merged) mergedContent = merged
+      winningMeta[uid] = {
+        n: Math.max(1, totalN || 1),
+        t: m ? m.t : 0,
+        id: m ? m.id : '',
+        ids: mergedIds,
+      }
+    } else {
+      winningMeta[uid] = {
+        n: Math.max(1, totalN || 1),
+        t: em.t,
+        id: em.id,
+        ids: mergedIds,
+      }
+    }
   }
   const finalObj = parseMsgContent(mergedContent)
   const defNow = parsePoll(finalObj)
   const vmeta = { ...(finalObj.voteMeta || {}) }
   const invalid = { ...(finalObj.invalid || {}) }
   for (const uid of uids) {
-    const m = (bucket && bucket.meta && bucket.meta[uid]) || null
-    if (m) vmeta[uid] = m
+    if (winningMeta[uid]) vmeta[uid] = winningMeta[uid]
+    if (repeatedUids.has(uid)) {
+      invalid[uid] = 'repeat'
+      continue
+    }
     const prev = (bucket && bucket.invalid && bucket.invalid[uid]) || null
     if (prev) invalid[uid] = prev
     const r2 = judgeVote(
       defNow,
       (orphan && orphan[uid]) || [],
       (bucket && bucket.custom && bucket.custom[uid]) || '',
-      m && m.t,
+      winningMeta[uid] && winningMeta[uid].t,
       false,
+      (bucket && bucket.customVotes && bucket.customVotes[uid]) || [],
     )
     if (r2 && r2 !== 'repeat' && !invalid[uid]) invalid[uid] = r2
   }
@@ -315,7 +427,7 @@ export function aggregatePoll(pollDef, pollId, selfUid) {
   const seen = new Set()
   const myPick = []
   const pid = String(pollId)
-  const me = selfUid == null ? null : String(selfUid)
+  const me = selfUid == null ? null : String(selfUid).trim()
 
   const orphanBucketForAgg = orphanExtra.get(pid)
   const invalidMap = { ...((pollDef && pollDef.invalid) || {}) }
@@ -352,25 +464,58 @@ export function aggregatePoll(pollDef, pollId, selfUid) {
   if (orphanBucketForAgg) {
     for (const u of Object.keys(orphanBucketForAgg.custom)) customMap[u] = orphanBucketForAgg.custom[u]
   }
-  const extraOptions = []
-  const extraIndex = new Map()
-  for (const uid of Object.keys(customMap)) {
-    const key = String(uid)
-    const text = String(customMap[uid] || '').trim()
-    if (!text || isInvalid(key)) continue
-    const seenKey = 'c:' + key + ':' + text
-    if (seen.has(seenKey)) continue
-    seen.add(seenKey)
-    let idx = extraIndex.get(text)
-    if (idx == null) {
-      idx = extraOptions.length
-      extraIndex.set(text, idx)
-      extraOptions.push({ label: text, count: 0, voters: [] })
-    }
-    extraOptions[idx].count++
-    if (extraOptions[idx].voters.indexOf(key) === -1) extraOptions[idx].voters.push(key)
+  const customVotesMap = { ...((pollDef && pollDef.customVotes) || {}) }
+  if (orphanBucketForAgg && orphanBucketForAgg.customVotes) {
+    for (const u of Object.keys(orphanBucketForAgg.customVotes)) customVotesMap[u] = orphanBucketForAgg.customVotes[u]
   }
 
+  const extraByAuthor = new Map()
+  const authorKeys = Object.keys(customMap)
+    .map((u) => String(u).trim())
+    .filter(Boolean)
+    .sort(compareIdStr)
+  for (const authorUid of authorKeys) {
+    const text = String(customMap[authorUid] || '').trim()
+    if (!text || isInvalid(authorUid)) continue
+    const entry = {
+      authorUid,
+      label: text,
+      count: 0,
+      voters: [],
+      mine: me != null && authorUid === me,
+    }
+    extraByAuthor.set(authorUid, entry)
+    const selfSeenKey = 'cv:' + authorUid + ':' + authorUid
+    if (!seen.has(selfSeenKey)) {
+      seen.add(selfSeenKey)
+      entry.count++
+      entry.voters.push(authorUid)
+    }
+  }
+
+  const myCustomPick = []
+  const voterKeys = Object.keys(customVotesMap)
+    .map((u) => String(u).trim())
+    .filter(Boolean)
+    .sort(compareIdStr)
+  for (const voterUid of voterKeys) {
+    if (isInvalid(voterUid)) continue
+    const pickedAuthors = normalizeCustomPick(customVotesMap[voterUid])
+    for (const targetAuthorUid of pickedAuthors) {
+      const entry = extraByAuthor.get(targetAuthorUid)
+      if (!entry) continue
+      const seenKey = 'cv:' + voterUid + ':' + targetAuthorUid
+      if (seen.has(seenKey)) continue
+      seen.add(seenKey)
+      entry.count++
+      if (entry.voters.indexOf(voterUid) === -1) entry.voters.push(voterUid)
+      if (me && voterUid === me && myCustomPick.indexOf(targetAuthorUid) === -1) {
+        myCustomPick.push(targetAuthorUid)
+      }
+    }
+  }
+
+  const extraOptions = [...extraByAuthor.values()]
   const myCustom = me != null && customMap[me] && !isInvalid(me) ? String(customMap[me]).trim() : null
   const total = counts.reduce((a, b) => a + b, 0) + extraOptions.reduce((a, o) => a + o.count, 0)
   const expired = !!(pollDef?.until && Date.now() / 1000 > pollDef.until)
@@ -387,6 +532,7 @@ export function aggregatePoll(pollDef, pollId, selfUid) {
     extraOptions,
     invalidVoters,
     myCustom,
+    myCustomPick: myCustomPick.sort(compareIdStr),
   }
 }
 

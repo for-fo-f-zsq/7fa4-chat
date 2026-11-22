@@ -1,10 +1,17 @@
-import { ref, reactive, nextTick } from 'vue'
+import { ref, reactive, nextTick, getCurrentInstance, onUnmounted } from 'vue'
 import { store } from '../../store.js'
 import { safeFetch, applyChatToStore, sendChatMessage } from '../../utils/chatSync.js'
 import { compressImage, compressBase64Image } from '../../utils/media.js'
 import { makeVoteContent } from '../../utils/poll.js'
 import { copyMsgContent, downloadMsgContent } from '../../utils/message.js'
 import { showToast } from '../useToast.js'
+import { recordOwnVote, schedulePersistSave } from './useChatPersistence.js'
+
+let activeToolImageHandler = null
+
+export function dispatchToolSendImage(payload) {
+  return activeToolImageHandler?.(payload)
+}
 
 function stripPollVotes(content) {
   if (!content || typeof content !== 'string' || content.trim()[0] !== '{') return content
@@ -15,6 +22,7 @@ function stripPollVotes(content) {
     delete obj.voteMeta
     delete obj.invalid
     delete obj.custom
+    delete obj.customVotes
     return JSON.stringify(obj)
   } catch {
     return content
@@ -75,6 +83,7 @@ export function useChatActions({
         setFooterError('')
         const { tokenInfo } = applyChatToStore(r, type, targetId)
         applyTokenInfo(tokenInfo)
+        schedulePersistSave()
       }
     } catch {
       setFooterError('转发失败')
@@ -107,6 +116,7 @@ export function useChatActions({
         setFooterError('')
         const { tokenInfo } = applyChatToStore(r, type, targetId)
         applyTokenInfo(tokenInfo)
+        schedulePersistSave()
         const targetName = type === 'group'
           ? (store.groups?.[targetId]?.name || '群聊')
           : (store.users?.[targetId]?.nickname || store.users?.[targetId]?.realname || '对方')
@@ -126,7 +136,18 @@ export function useChatActions({
     imageSendPending.value = null
   }
 
-  async function onImageToolSend({ data, base64, mime, name } = {}) {
+  async function onImageToolSend(payload = {}) {
+    const normalized = typeof payload === 'string' ? { dataUrl: payload } : (payload || {})
+    let { data, base64, mime, name, dataUrl } = normalized
+    if (!data && !base64 && typeof dataUrl === 'string') {
+      const m = dataUrl.match(/^data:([^;,]+);base64,(.*)$/)
+      if (m) {
+        mime = mime || m[1]
+        data = m[2]
+      } else {
+        data = dataUrl
+      }
+    }
     const imgData = data || base64
     if (!imgData) return
     const finalName = (name || 'image').replace(/\.[^.]+$/, mime === 'image/jpeg' ? '.jpg' : '.png')
@@ -166,6 +187,7 @@ export function useChatActions({
         setFooterError('')
         const { tokenInfo } = applyChatToStore(r, targetType, targetId)
         applyTokenInfo(tokenInfo)
+        schedulePersistSave()
       }
     } catch {
       setFooterError('发送失败')
@@ -184,6 +206,7 @@ export function useChatActions({
         setFooterError('')
         const { tokenInfo } = applyChatToStore(r, pageType, pageId)
         applyTokenInfo(tokenInfo)
+        schedulePersistSave()
       } else {
         setFooterError(r.err?.message || '拍一拍发送失败')
       }
@@ -194,18 +217,24 @@ export function useChatActions({
     if (f2) f2.sending = false
   }
 
-  async function onPollVote({ poll, pick, custom }) {
+  async function onPollVote({ poll, pick, custom, customPick }) {
     const footer = getInputFooter?.()
     if (footer?.sending) return
     if (footer) footer.sending = true
     const { pageType, pageId } = getPage()
-    const msgObj = JSON.parse(makeVoteContent(poll, pick, custom))
+    const msgObj = JSON.parse(makeVoteContent(poll, pick, custom, customPick))
     try {
       const r = await sendChatMessage({ type: pageType, targetId: pageId, msgObj })
       if (r.success) {
         setFooterError('')
-        const { tokenInfo } = applyChatToStore(r, pageType, pageId)
+        const { tokenInfo, free } = applyChatToStore(r, pageType, pageId)
         applyTokenInfo(tokenInfo)
+        const chat = r.chat || {}
+        recordOwnVote({
+          id: chat.id ?? `vote_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          send_time: Number(chat.send_time) || Math.floor(Date.now() / 1000),
+          free,
+        })
       } else {
         setFooterError(r.err?.message || '投票失败')
       }
@@ -214,6 +243,13 @@ export function useChatActions({
     }
     const f2 = getInputFooter?.()
     if (f2) f2.sending = false
+  }
+
+  activeToolImageHandler = onImageToolSend
+  if (getCurrentInstance()) {
+    onUnmounted(() => {
+      if (activeToolImageHandler === onImageToolSend) activeToolImageHandler = null
+    })
   }
 
   function batchForward() {

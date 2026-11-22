@@ -23,11 +23,11 @@
         :class="{
           'poll-opt--picked': row.picked,
           'poll-opt--extra': row.custom,
-          'poll-opt--disabled': !row.custom && !interactive,
-          'poll-opt--clickable': !row.custom && interactive,
+          'poll-opt--disabled': !interactive || (row.custom && !row.authorUid),
+          'poll-opt--clickable': interactive && (!row.custom || !!row.authorUid),
         }"
         :title="votersTitle(row.voters)"
-        @click.stop="!row.custom && toggle(row.index)"
+        @click.stop="onRowClick(row)"
       >
         <!-- 结果条：宽度按占比，外观由 UiProgress 提供 -->
         <UiProgress class="poll-opt-progress" size="xs" :value="row.pct" />
@@ -127,42 +127,51 @@ const committed = ref([])
 const localCustom = ref('')
 const committedCustom = ref('')
 const customDraft = ref('')
+/** 他人自拟选项（按创建者 UID）：本地乐观值 / 已确认值 */
+const localCustomPick = ref([])
+const committedCustomPick = ref([])
 /** 触达限选数时的瞬时提示（不打断操作，仅提示） */
 const limitHint = ref('')
 
-/** 两个下标数组是否等价（顺序无关） */
+/** 两个数组是否等价（顺序无关） */
 const samePick = (a, b) =>
   a.length === b.length && a.every((x) => b.includes(x))
 
 watch(
-  () => props.result.myPick,
-  (v) => {
-    const next = Array.isArray(v) ? [...v] : []
-    const nextCustom = props.result.myCustom == null ? '' : String(props.result.myCustom).trim()
-    // ⚠️⚠️ 内容未变（只是引用变了）必须直接返回，绝不能动 localPick / localCustom。
-    //   `result` 来自 MessageList 的 `pollMap` computed —— 会话里任何消息变动
-    //   （轮询刷新 / 收到新消息 / 别人投票）都会重算聚合，产出一个**新的 myPick 数组**，
-    //   引用必变、内容可能一模一样。deep watch 照样触发 → 若在这里无条件
-    //   `localPick = [...committed]`，用户刚勾的选项会被瞬间冲掉
-    //   （用户报障：「投票选了之后一秒就没了」，秒数与 onPollVote 的 1.2s 兜底复位吻合）。
-    //   ⚠️ 自拟文本同理：只比内容，草稿没提交前不能被刷新冲掉。
-    if (samePick(next, committed.value) && String(committedCustom.value || '') === nextCustom) return
+  () => props.result,
+  (res) => {
+    const next = Array.isArray(res?.myPick) ? [...res.myPick] : []
+    const nextCustom = res?.myCustom == null ? '' : String(res.myCustom).trim()
+    const nextCustomPick = Array.isArray(res?.myCustomPick) ? res.myCustomPick.map(String) : []
+    // ⚠️⚠️ 内容未变（只是引用变了）必须直接返回，绝不能动 localPick / localCustom / localCustomPick。
+    if (
+      samePick(next, committed.value) &&
+      String(committedCustom.value || '') === nextCustom &&
+      samePick(nextCustomPick, committedCustomPick.value)
+    ) return
     committed.value = next
     committedCustom.value = nextCustom
+    committedCustomPick.value = nextCustomPick
     // 提交中不覆盖：否则父层回写延迟会把用户刚点的选择冲掉
     if (!props.voting) {
       localPick.value = [...next]
       localCustom.value = nextCustom
       customDraft.value = nextCustom
+      localCustomPick.value = [...nextCustomPick]
     }
   },
   { immediate: true, deep: true }
 )
 
-/** 草稿 → 本地自拟值（裁长度、去首尾空格）；输入即清掉旧的限选提示 */
+/** 草稿 → 本地自拟值（裁长度、去首尾空格）；单选互斥清空已有勾选；输入即清掉旧的限选提示 */
 watch(customDraft, (v) => {
-  localCustom.value = String(v == null ? '' : v).trim().slice(0, POLL_MAX_OPT_LEN)
+  const next = String(v == null ? '' : v).trim().slice(0, POLL_MAX_OPT_LEN)
+  localCustom.value = next
   limitHint.value = ''
+  if (!props.poll.multi && next) {
+    localPick.value = []
+    localCustomPick.value = []
+  }
 })
 
 /**
@@ -180,15 +189,22 @@ const expiredNow = computed(() => {
 const isExpired = computed(() => !!(props.result.expired || expiredNow.value))
 
 const locked = computed(() => props.readonly || isExpired.value || props.voting)
-/** 与已提交状态有差异 = 有未提交的改动（内置勾选 或 自拟文本 任一变了都算） */
+/** 与已提交状态有差异 = 有未提交的改动（内置勾选 / 他人自拟勾选 / 自拟文本 任一变了都算） */
 const dirty = computed(() => {
   const a = [...localPick.value].sort().join(',')
   const b = [...committed.value].sort().join(',')
   if (a !== b) return true
+  const ca = [...localCustomPick.value].sort().join(',')
+  const cb = [...committedCustomPick.value].sort().join(',')
+  if (ca !== cb) return true
   return String(localCustom.value || '').trim() !== String(committedCustom.value || '').trim()
 })
-/** 已投票（一次性、不可改票，卡片只读）；⚠️ 纯自拟票内置 myPick 为空，须把自拟也算进已投 */
-const voted = computed(() => committed.value.length > 0 || !!String(committedCustom.value || '').trim())
+/** 已投票（一次性、不可改票，卡片只读）；⚠️ 纯自拟票或他人自拟票内置 myPick 为空，须一并算进已投 */
+const voted = computed(() =>
+  committed.value.length > 0 ||
+  !!String(committedCustom.value || '').trim() ||
+  committedCustomPick.value.length > 0
+)
 /** 选项区能否点击：未投票 且 未截止 且 非只读 且 非提交中 */
 const interactive = computed(() => !locked.value && !voted.value)
 
@@ -198,9 +214,11 @@ const maxSel = computed(() => {
   return (Number(props.result.maxSelect) || 0) || (Number(props.poll.maxSelect) || 0)
 })
 const limitTag = computed(() => (maxSel.value > 0 ? `最多选 ${maxSel.value} 项` : ''))
-/** 已选数量 = 内置勾选 + 自拟（自拟最多占 1 项） */
+/** 已选数量 = 内置勾选 + 他人自拟勾选 + 自拟文本（自拟文本最多占 1 项） */
 const selCount = computed(() =>
-  localPick.value.length + (String(localCustom.value || '').trim() ? 1 : 0))
+  localPick.value.length +
+  localCustomPick.value.length +
+  (String(localCustom.value || '').trim() ? 1 : 0))
 const overLimit = computed(() => maxSel.value > 0 && selCount.value > maxSel.value)
 
 /** 可提交 = 有改动 **且** 至少选了一项（勾选或自拟）**且** 未超限选数。
@@ -253,17 +271,51 @@ function toggle(i) {
       return
     }
     const max = maxSel.value
-    const cur = localPick.value.length + (String(localCustom.value || '').trim() ? 1 : 0)
     // 限选数：到顶就不再放行，给一条瞬时提示（不改任何已选项）
-    if (max > 0 && cur >= max) { limitHint.value = `最多只能选 ${max} 项`; return }
+    if (max > 0 && selCount.value >= max) { limitHint.value = `最多只能选 ${max} 项`; return }
     localPick.value = [...localPick.value, i]
     limitHint.value = ''
   } else {
-    // 单选：再点已选项 = 取消选择；选了内置项就丢弃自拟（单选互斥）
+    // 单选：再点已选项 = 取消选择；选了内置项就丢弃自拟与他人自拟（单选互斥）
     localPick.value = picked(i) ? [] : [i]
-    if (localPick.value.length) { localCustom.value = ''; customDraft.value = '' }
+    if (localPick.value.length) {
+      localCustom.value = ''
+      customDraft.value = ''
+      localCustomPick.value = []
+    }
     limitHint.value = ''
   }
+}
+
+/** 点选他人自拟选项行 */
+function toggleCustomOption(authorUid) {
+  if (!interactive.value || !authorUid) return
+  const key = String(authorUid)
+  if (props.poll.multi) {
+    if (localCustomPick.value.includes(key)) {
+      localCustomPick.value = localCustomPick.value.filter((x) => x !== key)
+      limitHint.value = ''
+      return
+    }
+    const max = maxSel.value
+    if (max > 0 && selCount.value >= max) { limitHint.value = `最多只能选 ${max} 项`; return }
+    localCustomPick.value = [...localCustomPick.value, key]
+    limitHint.value = ''
+  } else {
+    localCustomPick.value = localCustomPick.value.includes(key) ? [] : [key]
+    if (localCustomPick.value.length) {
+      localPick.value = []
+      localCustom.value = ''
+      customDraft.value = ''
+    }
+    limitHint.value = ''
+  }
+}
+
+function onRowClick(row) {
+  if (!interactive.value) return
+  if (row.custom) toggleCustomOption(row.authorUid)
+  else toggle(row.index)
 }
 
 /** 点「确认投票」才提交。已投票 / 截止 / 只读 / 提交中一律拒绝。 */
@@ -272,8 +324,8 @@ function submit() {
   if (!dirty.value) return
   if (overLimit.value) { limitHint.value = `多选最多只能选 ${maxSel.value} 项`; return }
   const custom = String(localCustom.value || '').trim()
-  if (!localPick.value.length && !custom) return // 一个都没选 = 撤票，不发空 vote
-  emit('vote', [...localPick.value], custom)
+  if (!localPick.value.length && !custom && !localCustomPick.value.length) return // 一个都没选 = 撤票，不发空 vote
+  emit('vote', [...localPick.value], custom, [...localCustomPick.value])
 }
 
 /** 选项占已投票总数的 0-100 数值；⚠️ 分母用 result.total（已含自拟票） */
@@ -298,16 +350,25 @@ const optionRows = computed(() => {
       custom: false,
     }
   })
-  const extra = extraOptions.value.map((o, j) => ({
-    key: `extra-${j}`,
-    index: -1,
-    label: o.label,
-    count: Number(o.count) || 0,
-    pct: pctOfCount(o.count),
-    voters: o.voters || [],
-    picked: isMyCustom(o.label),
-    custom: true,
-  }))
+  const extra = extraOptions.value.map((o, j) => {
+    const authorUid = o.authorUid != null ? String(o.authorUid).trim() : ''
+    const pickedByMe = !!(
+      o.mine ||
+      isMyCustom(o.label) ||
+      (authorUid && localCustomPick.value.includes(authorUid))
+    )
+    return {
+      key: authorUid ? `extra-${authorUid}` : `extra-${j}`,
+      index: -1,
+      authorUid,
+      label: o.label,
+      count: Number(o.count) || 0,
+      pct: pctOfCount(o.count),
+      voters: o.voters || [],
+      picked: pickedByMe,
+      custom: true,
+    }
+  })
   return [...builtin, ...extra]
 })
 
