@@ -790,6 +790,7 @@ export function usePollingSync({
             online: true,
             apiReachable: true,
             sessionValid: true,
+            lastSyncAt: Date.now(),
             lastError: '',
           }, { sample: true })
           for (const c of changes) {

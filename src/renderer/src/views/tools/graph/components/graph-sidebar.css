@@ -54,6 +54,7 @@
   min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  overflow-anchor: none;
   outline: none;
 }
 
@@ -221,17 +222,50 @@
   padding: var(--space-1) 0;
 }
 
-/* ---------- 算法分析结果 ---------- */
+/* ---------- 算法分析结果（固定外盒高度 + 内部滚动，避免结果/提示切换拉扯左侧栏滚动） ---------- */
 .graph-analysis {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   gap: var(--space-2);
+  height: 220px;
   min-width: 0;
   padding: var(--space-3);
   background: var(--surface-0);
   border: var(--border-width) solid var(--line-hairline);
   border-radius: var(--radius-lg);
   border-left: 3px solid var(--line-strong);
+  overflow: hidden;
+}
+
+.graph-analysis-head {
+  display: flex;
+  align-items: flex-start;
+  flex-shrink: 0;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.graph-analysis-body {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+  scrollbar-width: thin;
+}
+
+.graph-analysis-placeholder {
+  margin: auto 0;
+  padding: var(--space-2) 0;
+  font-size: var(--text-2xs);
+  line-height: var(--leading-relaxed);
+  color: var(--fg-subtle);
+  text-align: center;
 }
 
 .graph-analysis[data-status='ok'] {
@@ -248,13 +282,6 @@
 
 .graph-analysis[data-status='info'] {
   border-left-color: var(--brand);
-}
-
-.graph-analysis-head {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  min-width: 0;
 }
 
 .graph-analysis-badge {
@@ -383,6 +410,7 @@
 }
 
 .graph-analysis-meta {
+  flex-shrink: 0;
   margin: 0;
   padding-top: var(--space-1);
   border-top: var(--border-width) solid var(--line-hairline);

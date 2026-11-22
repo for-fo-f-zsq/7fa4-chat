@@ -192,22 +192,28 @@
             <span class="graph-analysis-summary">{{ analysis.summary || '暂无分析输出' }}</span>
           </header>
 
-          <div v-if="analysis.metrics.length" class="graph-metrics">
-            <div v-for="m in analysis.metrics" :key="m.label" class="graph-metric">
-              <span class="graph-metric__k">{{ m.label }}</span>
-              <span class="graph-metric__v">{{ m.value }}</span>
+          <div class="graph-analysis-body">
+            <div v-if="analysis.metrics.length" class="graph-metrics">
+              <div v-for="m in analysis.metrics" :key="m.label" class="graph-metric">
+                <span class="graph-metric__k">{{ m.label }}</span>
+                <span class="graph-metric__v">{{ m.value }}</span>
+              </div>
             </div>
-          </div>
 
-          <div v-for="(list, i) in analysis.lists" :key="list.label + i" class="graph-analysis-list">
-            <div class="graph-analysis-list__title">
-              <span>{{ list.label }}</span>
-              <span v-if="list.items.length" class="graph-analysis-list__count">{{ list.items.length }}</span>
+            <div v-for="(list, i) in analysis.lists" :key="list.label + i" class="graph-analysis-list">
+              <div class="graph-analysis-list__title">
+                <span>{{ list.label }}</span>
+                <span v-if="list.items.length" class="graph-analysis-list__count">{{ list.items.length }}</span>
+              </div>
+              <ul v-if="list.items.length" class="graph-analysis-list__items">
+                <li v-for="(item, j) in list.items" :key="j">{{ item }}</li>
+              </ul>
+              <p v-else class="graph-analysis-list__empty">无</p>
             </div>
-            <ul v-if="list.items.length" class="graph-analysis-list__items">
-              <li v-for="(item, j) in list.items" :key="j">{{ item }}</li>
-            </ul>
-            <p v-else class="graph-analysis-list__empty">无</p>
+
+            <p v-if="!analysis.metrics.length && !analysis.lists.length" class="graph-analysis-placeholder">
+              当前算法暂无可展示的明细，调整图结构或参数后将自动更新。
+            </p>
           </div>
 
           <p class="graph-analysis-meta">{{ info }}</p>

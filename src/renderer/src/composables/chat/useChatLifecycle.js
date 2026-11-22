@@ -1,5 +1,5 @@
 import { nextTick, onMounted, onUnmounted } from 'vue'
-import { store, updateConnStatus } from '../../store.js'
+import { store, updateConnStatus, flushConnStatusHistory } from '../../store.js'
 import { applyFontSize, ranklistOrder, safeFetch, usersJson } from '../../utils.js'
 import { showToast } from '../useToast.js'
 import { ALLOWED_THEME_VARS, isValidThemeVarValue } from '../modals/useThemeEditor.js'
@@ -152,7 +152,10 @@ export function useChatLifecycle({
         })
       }
       unsubscribeFlush = window.api.onAppFlushBeforeClose(async () => {
-        try { await persistence.flushData() } catch (e) { console.error('[flush] 退出落盘失败:', e) }
+        try {
+          flushConnStatusHistory()
+          await persistence.flushData()
+        } catch (e) { console.error('[flush] 退出落盘失败:', e) }
         finally { window.api.appFlushDone() }
       })
 

@@ -33,7 +33,7 @@ const outfile = path.join(os.tmpdir(), `data-sync-${process.pid}-${Date.now()}.m
 await esbuild.build({
   stdin: {
     contents: `
-      export { store } from './src/renderer/src/store.js'
+      export { store, updateConnStatus, getConnHourlySnapshot, resetConnStatusHistory } from './src/renderer/src/store.js'
       export * from './src/renderer/src/utils/chatSync.js'
       export * from './src/renderer/src/utils/poll.js'
       export * from './src/renderer/src/utils/notify.js'
@@ -376,14 +376,31 @@ function chk(name, cond, detail = '') {
   })
 
   const rc = await polling.reconnectNow()
-  chk('reconnectNow 更新 store.connStatus.state === ok 且记录 latencyMs 与历史状态',
+  const snap = m.getConnHourlySnapshot(24)
+  chk('reconnectNow 更新 store.connStatus.state === ok 且记录 latencyMs 与按小时统计状态',
     rc.ok &&
     m.store.connStatus.state === 'ok' &&
     typeof m.store.connStatus.latencyMs === 'number' &&
-    Array.isArray(m.store.connStatus.history) &&
-    m.store.connStatus.history.length >= 1 &&
+    Array.isArray(snap) &&
+    snap.length === 24 &&
+    snap.at(-1).totalMs > 0 &&
     Array.isArray(m.store.connStatus.events) &&
     m.store.connStatus.events.length >= 1)
+
+  // 验证按小时跨界累计与可用率计算 + 持久化恢复
+  m.resetConnStatusHistory()
+  const baseHour = Math.floor(Date.now() / 3600000) * 3600000
+  m.updateConnStatus({ state: 'ok', latencyMs: 40 }, { now: baseHour - 30 * 60 * 1000 })
+  m.updateConnStatus({ state: 'offline', lastError: '断网' }, { now: baseHour })
+  m.updateConnStatus({ state: 'ok', latencyMs: 60 }, { now: baseHour + 60 * 1000, maxStepMs: 3600 * 1000 })
+  const hourly = m.getConnHourlySnapshot(24, baseHour + 60 * 1000)
+  const prevHourBucket = hourly[hourly.length - 2]
+  const curHourBucket = hourly[hourly.length - 1]
+  chk('跨小时连接时长精确切分并计算可用率（前小时 100% / 当前小时 0%）',
+    prevHourBucket.okMs === 120 * 1000 &&
+    Math.round(prevHourBucket.uptimePct) === 100 &&
+    curHourBucket.downMs === 60 * 1000 &&
+    curHourBucket.uptimePct === 0)
   chk('target-times 携带 scope=""', fetchedUrls.some((u) => u.includes('/chat/target-times') && u.includes('scope=')))
 
   // 验证 fetchMessages 在 await notifyIncomingMessage 后实时重判 isCurrentConvo

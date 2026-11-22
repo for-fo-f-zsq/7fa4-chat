@@ -367,13 +367,13 @@
 
             <div class="settings-status-history">
               <div class="settings-status-history-head">
-                <span class="settings-status-history-title">近期状态记录</span>
+                <span class="settings-status-history-title">最近 24 小时状态（按小时 · 可用率）</span>
                 <span class="settings-status-history-meta u-tabular-nums">{{ statusUptimeSummary }}</span>
               </div>
               <div class="settings-status-bars" role="img" :aria-label="statusUptimeSummary">
                 <span
-                  v-for="(slot, idx) in statusTimelineSlots"
-                  :key="idx"
+                  v-for="slot in statusHourlySlots"
+                  :key="slot.hourTs"
                   class="settings-status-bar"
                   :class="`is-${slot.tone}`"
                   :title="slot.tooltip"
@@ -381,7 +381,13 @@
               </div>
               <div class="settings-status-axis">
                 <span>{{ statusAxisStart }}</span>
-                <span>现在</span>
+                <span class="settings-status-legend">
+                  <i class="is-success" aria-hidden="true"></i>正常≥99%
+                  <i class="is-warning" aria-hidden="true"></i>波动
+                  <i class="is-danger" aria-hidden="true"></i>异常
+                  <i class="is-empty" aria-hidden="true"></i>未运行
+                </span>
+                <span>当前</span>
               </div>
 
               <div v-if="statusRecentEvents.length" class="settings-status-events">
@@ -654,7 +660,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { UiAvatar, UiBadge, UiButton, UiDropdown, UiInput, UiSlider, UiSwitch, UiTabs } from '@/ui'
-import { store } from '@/store.js'
+import { getConnHourlySnapshot, store } from '@/store.js'
 import { THEMES } from '@/composables/constants.js'
 import {
   applyFontSize,
@@ -926,13 +932,37 @@ const cooldownText = computed(() => {
   return `静默重试冷却中（剩余 ${span}），点击「立即重连 / 刷新」可跳过等待`
 })
 
-const STATUS_SLOTS = 36
+const STATUS_HOURS = 24
 function formatClockTime(rawTs) {
   const ts = normalizeTsMs(rawTs)
   if (!ts) return ''
   const d = new Date(ts)
   const pad = (x) => String(x).padStart(2, '0')
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  const now = new Date(nowMs.value)
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  return sameDay ? hm : `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${hm}`
+}
+
+function formatHourRange(hourTs) {
+  const d0 = new Date(hourTs)
+  const d1 = new Date(hourTs + 3600 * 1000)
+  const pad = (x) => String(x).padStart(2, '0')
+  return `${pad(d0.getMonth() + 1)}-${pad(d0.getDate())} ${pad(d0.getHours())}:00–${pad(d1.getHours())}:00`
+}
+
+function formatDurationShort(ms) {
+  const sec = Math.max(0, Math.round(ms / 1000))
+  if (sec < 60) return `${sec} 秒`
+  const min = Math.floor(sec / 60)
+  const remSec = sec % 60
+  if (min < 60) return remSec > 0 ? `${min} 分 ${remSec} 秒` : `${min} 分钟`
+  const h = Math.floor(min / 60)
+  const remMin = min % 60
+  return remMin > 0 ? `${h} 小时 ${remMin} 分` : `${h} 小时`
 }
 
 function stateToneAndLabel(st) {
@@ -944,38 +974,55 @@ function stateToneAndLabel(st) {
   return { tone: 'neutral', label: '未记录' }
 }
 
-const statusTimelineSlots = computed(() => {
-  const hist = Array.isArray(conn.value.history) ? conn.value.history.slice(-STATUS_SLOTS) : []
-  const padCount = Math.max(0, STATUS_SLOTS - hist.length)
-  const slots = []
-  for (let i = 0; i < padCount; i++) {
-    slots.push({ tone: 'empty', tooltip: '暂无采样记录' })
-  }
-  for (const item of hist) {
-    const info = stateToneAndLabel(item.state)
-    const timeText = formatClockTime(item.ts)
-    const lat = Number.isFinite(Number(item.latencyMs)) ? ` · ${Math.round(item.latencyMs)} ms` : ''
-    const err = item.error ? ` · ${item.error}` : ''
-    slots.push({
-      tone: info.tone,
-      tooltip: `${timeText} · ${info.label}${lat}${err}`,
-    })
-  }
-  return slots
+const statusHourlySlots = computed(() => {
+  const buckets = getConnHourlySnapshot(STATUS_HOURS, nowMs.value)
+  return buckets.map((b) => {
+    const range = formatHourRange(b.hourTs)
+    if (b.totalMs <= 0) {
+      return {
+        hourTs: b.hourTs,
+        tone: 'empty',
+        tooltip: `${range} · 无运行记录`,
+      }
+    }
+    const pct = b.uptimePct ?? 0
+    const pctText = pct >= 99.95 ? '100%' : `${pct.toFixed(1)}%`
+    let tone = 'success'
+    if (pct < 90) tone = 'danger'
+    else if (pct < 99) tone = 'warning'
+
+    const parts = [`正常 ${formatDurationShort(b.okMs)}`]
+    if (b.degradedMs >= 1000) parts.push(`波动 ${formatDurationShort(b.degradedMs)}`)
+    if (b.downMs >= 1000) parts.push(`断线 ${formatDurationShort(b.downMs)}`)
+    const lat = b.avgLatencyMs != null ? ` · 均延 ${b.avgLatencyMs} ms` : ''
+    return {
+      hourTs: b.hourTs,
+      tone,
+      tooltip: `${range} · 可用率 ${pctText}（${parts.join(' / ')}）${lat}`,
+    }
+  })
 })
 
 const statusUptimeSummary = computed(() => {
-  const hist = Array.isArray(conn.value.history) ? conn.value.history : []
-  if (!hist.length) return isLoggedIn.value ? '等待首次采样…' : '未登录'
-  const okCount = hist.filter((x) => x.state === 'ok').length
-  const pct = Math.round((okCount / hist.length) * 100)
-  return `最近 ${hist.length} 次采样 · 可用率 ${pct}%`
+  const buckets = getConnHourlySnapshot(STATUS_HOURS, nowMs.value)
+  let okMs = 0
+  let totalMs = 0
+  for (const b of buckets) {
+    okMs += b.okMs
+    totalMs += b.totalMs
+  }
+  if (totalMs <= 0) return isLoggedIn.value ? '刚开始统计…' : '未登录'
+  const pct = Math.min(100, (okMs / totalMs) * 100)
+  const pctText = pct >= 99.95 ? '100%' : `${pct.toFixed(1)}%`
+  return `可用率 ${pctText} · 已监测 ${formatDurationShort(totalMs)}`
 })
 
 const statusAxisStart = computed(() => {
-  const hist = Array.isArray(conn.value.history) ? conn.value.history.slice(-STATUS_SLOTS) : []
-  if (!hist.length) return '更早'
-  return formatClockTime(hist[0].ts) || '更早'
+  const buckets = getConnHourlySnapshot(STATUS_HOURS, nowMs.value)
+  if (!buckets.length) return '24 小时前'
+  const d = new Date(buckets[0].hourTs)
+  const pad = (x) => String(x).padStart(2, '0')
+  return `${pad(d.getHours())}:00`
 })
 
 const statusRecentEvents = computed(() => {

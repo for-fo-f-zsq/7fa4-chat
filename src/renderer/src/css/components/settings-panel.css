@@ -558,14 +558,14 @@
 
 .settings-status-bars {
   display: grid;
-  grid-template-columns: repeat(36, minmax(0, 1fr));
-  gap: 3px;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  gap: 4px;
   align-items: stretch;
-  height: 22px;
+  height: 24px;
 }
 
 .settings-status-bar {
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--line-hairline);
   transition: transform var(--motion-dur-fast) var(--motion-ease-standard);
 }
@@ -575,7 +575,7 @@
 }
 
 .settings-status-bar.is-empty {
-  opacity: 0.45;
+  opacity: 0.4;
 }
 
 .settings-status-bar.is-success {
@@ -597,9 +597,43 @@
 .settings-status-axis {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
   margin-top: 6px;
   font-size: var(--text-xs);
   color: var(--fg-subtle);
+}
+
+.settings-status-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-status-legend i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  margin-right: 3px;
+  background: var(--line-hairline);
+}
+
+.settings-status-legend i.is-success {
+  background: var(--status-success);
+}
+
+.settings-status-legend i.is-warning {
+  background: var(--status-warning);
+}
+
+.settings-status-legend i.is-danger {
+  background: var(--status-danger);
+}
+
+.settings-status-legend i.is-empty {
+  opacity: 0.5;
 }
 
 .settings-status-events {
