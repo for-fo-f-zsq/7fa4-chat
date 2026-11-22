@@ -51,6 +51,30 @@ export function getNoticeJumpHref(jumpUrl) {
   return resolveNoticeJumpUrl(jumpUrl, getNoticeOriginBase())
 }
 
+function readSiteNoticeTheme() {
+  if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') {
+    return { isDark: false }
+  }
+  const cs = getComputedStyle(document.documentElement)
+  const get = (name) => cs.getPropertyValue(name).trim()
+  const isDark = cs.colorScheme === 'dark'
+  return {
+    isDark,
+    bg: get('--bg-settings-info') || get('--bg-app'),
+    border: get('--border-light'),
+    fg: get('--text-primary'),
+    fgMuted: get('--text-secondary'),
+    accent: get('--accent'),
+    accentHover: get('--accent-hover'),
+    accentSoft: get('--accent-light'),
+    accentLine: get('--accent-outline'),
+    onAccent: get('--text-on-accent'),
+    link: get('--text-link'),
+    secBg: get('--bg-input'),
+    secHover: get('--bg-input-focus') || get('--bg-sidebar-hover'),
+  }
+}
+
 async function requestNoticeMutation(url) {
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null
   const timer = ctrl ? setTimeout(() => ctrl.abort(), 10000) : null
@@ -117,34 +141,48 @@ export async function fetchNotices({ silent = true } = {}) {
   return fetchInflight
 }
 
-export async function confirmNoticed(id) {
+async function setNoticeField(id, field) {
   const nid = Number(id)
   if (!Number.isInteger(nid) || nid === 0) return { success: false, message: '无效的通知编号' }
+  if (field !== 'checked' && field !== 'noticed') return { success: false, message: '无效操作' }
+
   const target = Array.isArray(store.notices) ? store.notices.find((n) => n.id === nid) : null
 
   if (nid < 0 || target?._isTest) {
-    store.notices = (store.notices || []).filter((n) => n.id !== nid)
+    if (field === 'noticed') {
+      store.notices = (store.notices || []).filter((n) => n.id !== nid)
+    } else if (target) {
+      target.checked = true
+    }
     noticeState.error = ''
     return { success: true }
   }
 
-  const key = `noticed:${nid}`
+  const key = `${field}:${nid}`
   if (noticeState.pendingActionIds[key]) return { success: false, busy: true }
 
-  const url = buildNoticeUpdateUrl(nid, 'noticed', '1')
+  const url = buildNoticeUpdateUrl(nid, field, '1')
   noticeState.pendingActionIds[key] = true
   noticeState.error = ''
   try {
     const res = await requestNoticeMutation(url)
     if (!res.success) {
-      noticeState.error = res.message || '确认通知失败'
+      noticeState.error = res.message || '更新通知状态失败'
       return res
     }
-    if (target) target.noticed = true
+    if (target) target[field] = true
     return { success: true }
   } finally {
     delete noticeState.pendingActionIds[key]
   }
+}
+
+export function markNoticed(id) {
+  return setNoticeField(id, 'noticed')
+}
+
+export function confirmChecked(id) {
+  return setNoticeField(id, 'checked')
 }
 
 export function sendTestSiteNotice() {
@@ -154,7 +192,7 @@ export function sendTestSiteNotice() {
     id: -testNoticeSeq,
     user_id: store.self?.uid || 0,
     date: Math.floor(Date.now() / 1000),
-    notice_text: '这是一条站点测试通知：有未读通知时将在右下角强制显示，不定时关闭，请手动点击「已读 / 确认」。',
+    notice_text: '这是一条站点测试通知：可分别点击「确认」(checked) 或「已读」(noticed)，弹窗不定时关闭。',
     jump_url: '',
     checked: false,
     noticed: false,
@@ -182,6 +220,8 @@ export function bindDesktopSiteNoticeBridge() {
   if (!hasDesktopSiteNoticeWindow()) return () => {}
 
   const payload = computed(() => {
+    void store.setting?.theme
+    void store.setting?.customVars
     const unNoticed = (store.notices || []).filter((n) => !n.noticed)
     const cur = unNoticed[0] || null
     if (!cur || (!store.logined && !cur._isTest)) return null
@@ -191,12 +231,15 @@ export function bindDesktopSiteNoticeBridge() {
         relTimeText: cur.date ? gettime1(cur.date) : '',
         fullTimeText: cur.date ? gettime2(cur.date) : '',
         isTest: Boolean(cur._isTest),
+        checked: Boolean(cur.checked),
         segments: parseNoticeTextSegments(cur.notice_text, getNoticeOriginBase()).map((s) => ({ ...s })),
         jumpHref: resolveNoticeJumpUrl(cur.jump_url, getNoticeOriginBase()),
       },
       totalPending: unNoticed.length,
       error: String(noticeState.error || ''),
-      pending: Boolean(noticeState.pendingActionIds[`noticed:${cur.id}`]),
+      checkPending: Boolean(noticeState.pendingActionIds[`checked:${cur.id}`]),
+      readPending: Boolean(noticeState.pendingActionIds[`noticed:${cur.id}`]),
+      theme: readSiteNoticeTheme(),
     }
   })
 
@@ -205,19 +248,21 @@ export function bindDesktopSiteNoticeBridge() {
     (next) => {
       try { window.api.syncSiteNotice(next) } catch {}
     },
-    { immediate: true },
+    { immediate: true, flush: 'post' },
   )
 
-  const offConfirm =
-    typeof window.api.onSiteNoticeConfirm === 'function'
-      ? window.api.onSiteNoticeConfirm((id) => {
-          confirmNoticed(id)
+  const offAction =
+    typeof window.api.onSiteNoticeAction === 'function'
+      ? window.api.onSiteNoticeAction((act) => {
+          if (!act || typeof act !== 'object') return
+          if (act.type === 'checked') confirmChecked(act.id)
+          else if (act.type === 'noticed') markNoticed(act.id)
         })
       : () => {}
 
   return () => {
     stopWatch()
-    offConfirm()
+    offAction()
     try { window.api.syncSiteNotice(null) } catch {}
   }
 }
@@ -226,7 +271,7 @@ export function useNotices() {
   const notices = computed(() => store.notices || [])
   const unNoticedList = computed(() => notices.value.filter((n) => !n.noticed))
   const currentPopupNotice = computed(() => unNoticedList.value[0] || null)
-  const isPending = (id) => Boolean(noticeState.pendingActionIds[`noticed:${id}`])
+  const isPending = (id, field = 'noticed') => Boolean(noticeState.pendingActionIds[`${field}:${id}`])
 
   return {
     noticeState,
@@ -234,7 +279,8 @@ export function useNotices() {
     unNoticedList,
     currentPopupNotice,
     isPending,
-    confirmNoticed,
+    markNoticed,
+    confirmChecked,
     sendTestSiteNotice,
     openNoticeJumpUrl,
     formatNoticeSegments,

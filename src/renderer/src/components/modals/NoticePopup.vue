@@ -50,7 +50,7 @@
         </div>
 
         <div class="notice-popup-footer">
-          <span class="notice-popup-hint">不定时关闭，请手动确认</span>
+          <span class="notice-popup-hint">不定时关闭</span>
           <div class="notice-popup-btns">
             <UiButton
               v-if="jumpHref"
@@ -63,12 +63,22 @@
             </UiButton>
             <UiButton
               size="sm"
+              variant="secondary"
+              icon="fas fa-check-double"
+              :disabled="currentPopupNotice.checked"
+              :loading="isPending(currentPopupNotice.id, 'checked')"
+              @click="onCheck"
+            >
+              {{ currentPopupNotice.checked ? '已确认' : '确认' }}
+            </UiButton>
+            <UiButton
+              size="sm"
               variant="primary"
               icon="fas fa-check"
-              :loading="isPending(currentPopupNotice.id)"
-              @click="onConfirm"
+              :loading="isPending(currentPopupNotice.id, 'noticed')"
+              @click="onRead"
             >
-              已读 / 确认
+              已读
             </UiButton>
           </div>
         </div>
@@ -93,7 +103,8 @@ const {
   unNoticedList,
   currentPopupNotice,
   isPending,
-  confirmNoticed,
+  markNoticed,
+  confirmChecked,
   openNoticeJumpUrl,
   formatNoticeSegments,
   getNoticeJumpHref,
@@ -115,10 +126,16 @@ const fullTimeText = computed(() =>
   currentPopupNotice.value?.date ? gettime2(currentPopupNotice.value.date) : '',
 )
 
-async function onConfirm() {
+async function onCheck() {
   const cur = currentPopupNotice.value
   if (!cur) return
-  await confirmNoticed(cur.id)
+  await confirmChecked(cur.id)
+}
+
+async function onRead() {
+  const cur = currentPopupNotice.value
+  if (!cur) return
+  await markNoticed(cur.id)
 }
 </script>
 

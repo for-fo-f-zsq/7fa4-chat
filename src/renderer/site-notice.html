@@ -4,6 +4,50 @@
 <meta charset="UTF-8">
 <title>站点通知</title>
 <style>
+  :root {
+    --sn-bg: #FBFCFE;
+    --sn-border: #DBE1E8;
+    --sn-fg: #24324A;
+    --sn-fg-muted: #5F7089;
+    --sn-accent: #7C9CD0;
+    --sn-accent-hover: #7292C8;
+    --sn-accent-soft: rgba(124, 156, 208, 0.14);
+    --sn-accent-line: rgba(124, 156, 208, 0.38);
+    --sn-on-accent: #1F2C42;
+    --sn-link: #4B73A6;
+    --sn-sec-bg: #F2F5F9;
+    --sn-sec-hover: #E8EDF3;
+    --sn-warn-bg: rgba(245, 158, 11, 0.14);
+    --sn-warn-fg: #9A6200;
+    --sn-warn-line: rgba(245, 158, 11, 0.35);
+    --sn-err-bg: rgba(220, 38, 38, 0.10);
+    --sn-err-fg: #A35E56;
+    --sn-err-line: rgba(220, 38, 38, 0.28);
+    --sn-scroll: rgba(36, 50, 74, 0.22);
+    --sn-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+  }
+  :root[data-dark="1"] {
+    --sn-bg: #141F34;
+    --sn-border: #24324C;
+    --sn-fg: #E6ECF5;
+    --sn-fg-muted: #A9B8CE;
+    --sn-accent: #7C9CC4;
+    --sn-accent-hover: #8CAAD0;
+    --sn-accent-soft: rgba(124, 156, 196, 0.18);
+    --sn-accent-line: rgba(124, 156, 196, 0.38);
+    --sn-on-accent: #101A2B;
+    --sn-link: #8FB3DC;
+    --sn-sec-bg: #1A2740;
+    --sn-sec-hover: #223250;
+    --sn-warn-bg: rgba(245, 158, 11, 0.20);
+    --sn-warn-fg: #FCD34D;
+    --sn-warn-line: rgba(245, 158, 11, 0.38);
+    --sn-err-bg: rgba(239, 68, 68, 0.16);
+    --sn-err-fg: #FCA5A5;
+    --sn-err-line: rgba(239, 68, 68, 0.35);
+    --sn-scroll: rgba(230, 236, 245, 0.24);
+    --sn-shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
+  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
     width: 100%;
@@ -19,11 +63,10 @@
     gap: 10px;
     padding: 14px 16px;
     border-radius: 14px;
-    background: rgba(24, 28, 36, 0.94);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    border: 1px solid rgba(96, 165, 250, 0.35);
-    color: #F3F6FC;
+    background: var(--sn-bg);
+    border: 1px solid var(--sn-accent-line, var(--sn-border));
+    box-shadow: var(--sn-shadow);
+    color: var(--sn-fg);
   }
   .head {
     display: flex;
@@ -35,8 +78,8 @@
     width: 26px;
     height: 26px;
     border-radius: 8px;
-    background: rgba(59, 130, 246, 0.22);
-    color: #7DB5FF;
+    background: var(--sn-accent-soft);
+    color: var(--sn-link);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -54,12 +97,12 @@
   .title {
     font-size: 14px;
     font-weight: 600;
-    color: #FFFFFF;
+    color: var(--sn-fg);
     white-space: nowrap;
   }
   .time {
     font-size: 11px;
-    color: #9CA6B8;
+    color: var(--sn-fg-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -75,20 +118,20 @@
     font-weight: 600;
     padding: 2px 7px;
     border-radius: 999px;
-    background: rgba(59, 130, 246, 0.22);
-    color: #93C5FD;
-    border: 1px solid rgba(96, 165, 250, 0.35);
+    background: var(--sn-accent-soft);
+    color: var(--sn-link);
+    border: 1px solid var(--sn-accent-line);
     white-space: nowrap;
   }
   .badge.warn {
-    background: rgba(245, 158, 11, 0.2);
-    color: #FCD34D;
-    border-color: rgba(245, 158, 11, 0.38);
+    background: var(--sn-warn-bg);
+    color: var(--sn-warn-fg);
+    border-color: var(--sn-warn-line);
   }
   .body {
     font-size: 13px;
     line-height: 1.55;
-    color: #E8EEF8;
+    color: var(--sn-fg);
     white-space: pre-wrap;
     word-break: break-word;
     max-height: 220px;
@@ -97,11 +140,11 @@
   }
   .body::-webkit-scrollbar { width: 5px; }
   .body::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.22);
+    background: var(--sn-scroll);
     border-radius: 999px;
   }
   .body a {
-    color: #7DB5FF;
+    color: var(--sn-link);
     text-decoration: underline;
     text-underline-offset: 2px;
     cursor: pointer;
@@ -109,9 +152,9 @@
   .error {
     display: none;
     font-size: 11.5px;
-    color: #FCA5A5;
-    background: rgba(239, 68, 68, 0.16);
-    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: var(--sn-err-fg);
+    background: var(--sn-err-bg);
+    border: 1px solid var(--sn-err-line);
     border-radius: 6px;
     padding: 5px 8px;
   }
@@ -125,37 +168,40 @@
   }
   .hint {
     font-size: 11px;
-    color: #9CA6B8;
+    color: var(--sn-fg-muted);
+    white-space: nowrap;
   }
   .actions {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     margin-left: auto;
   }
   button {
-    border: none;
+    border: 1px solid transparent;
     border-radius: 8px;
-    padding: 6px 12px;
-    font-size: 12.5px;
+    padding: 6px 11px;
+    font-size: 12px;
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
+    white-space: nowrap;
     transition: background-color 0.14s ease, opacity 0.14s ease, transform 0.1s ease;
   }
   button:active:not(:disabled) { transform: scale(0.97); }
-  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  button:disabled { opacity: 0.58; cursor: not-allowed; }
   .btn-secondary {
-    background: rgba(255, 255, 255, 0.1);
-    color: #E8EEF8;
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: var(--sn-sec-bg);
+    color: var(--sn-fg);
+    border-color: var(--sn-border);
   }
-  .btn-secondary:hover:not(:disabled) { background: rgba(255, 255, 255, 0.18); }
+  .btn-secondary:hover:not(:disabled) { background: var(--sn-sec-hover); }
   .btn-primary {
-    background: #3B82F6;
-    color: #FFFFFF;
+    background: var(--sn-accent);
+    color: var(--sn-on-accent);
+    border-color: var(--sn-accent-line);
   }
-  .btn-primary:hover:not(:disabled) { background: #2563EB; }
+  .btn-primary:hover:not(:disabled) { background: var(--sn-accent-hover); }
 </style>
 </head>
 <body>
@@ -174,10 +220,11 @@
     <div id="body" class="body"></div>
     <div id="error" class="error"></div>
     <div class="footer">
-      <span class="hint">不定时关闭，请手动确认</span>
+      <span class="hint">不定时关闭</span>
       <div class="actions">
         <button id="jump-btn" type="button" class="btn-secondary" style="display: none;">查看页面</button>
-        <button id="confirm-btn" type="button" class="btn-primary">已读 / 确认</button>
+        <button id="check-btn" type="button" class="btn-secondary">确认</button>
+        <button id="read-btn" type="button" class="btn-primary">已读</button>
       </div>
     </div>
   </div>
@@ -190,7 +237,8 @@
     const bodyEl = document.getElementById('body');
     const errorEl = document.getElementById('error');
     const jumpBtn = document.getElementById('jump-btn');
-    const confirmBtn = document.getElementById('confirm-btn');
+    const checkBtn = document.getElementById('check-btn');
+    const readBtn = document.getElementById('read-btn');
 
     let currentNotice = null;
     let lastReportedHeight = 0;
@@ -201,6 +249,29 @@
       if (h > 0 && h !== lastReportedHeight) {
         lastReportedHeight = h;
         window.siteNotice.resize(h);
+      }
+    }
+
+    function applyTheme(theme) {
+      if (!theme || typeof theme !== 'object') return;
+      const doc = document.documentElement;
+      doc.setAttribute('data-dark', theme.isDark ? '1' : '0');
+      const map = {
+        '--sn-bg': theme.bg,
+        '--sn-border': theme.border,
+        '--sn-fg': theme.fg,
+        '--sn-fg-muted': theme.fgMuted,
+        '--sn-accent': theme.accent,
+        '--sn-accent-hover': theme.accentHover,
+        '--sn-accent-soft': theme.accentSoft,
+        '--sn-accent-line': theme.accentLine,
+        '--sn-on-accent': theme.onAccent,
+        '--sn-link': theme.link,
+        '--sn-sec-bg': theme.secBg,
+        '--sn-sec-hover': theme.secHover,
+      };
+      for (const k of Object.keys(map)) {
+        if (map[k]) doc.style.setProperty(k, map[k]);
       }
     }
 
@@ -227,6 +298,7 @@
 
     function applyState(payload) {
       const data = payload || {};
+      if (data.theme) applyTheme(data.theme);
       const notice = data.notice || null;
       currentNotice = notice;
       if (!notice) return;
@@ -244,12 +316,7 @@
       }
 
       renderBody(notice.segments);
-
-      if (notice.jumpHref) {
-        jumpBtn.style.display = '';
-      } else {
-        jumpBtn.style.display = 'none';
-      }
+      jumpBtn.style.display = notice.jumpHref ? '' : 'none';
 
       if (data.error) {
         errorEl.textContent = String(data.error);
@@ -259,9 +326,14 @@
         errorEl.classList.remove('show');
       }
 
-      const pending = Boolean(data.pending);
-      confirmBtn.disabled = pending;
-      confirmBtn.textContent = pending ? '确认中…' : '已读 / 确认';
+      const checkedDone = Boolean(notice.checked);
+      const checkPending = Boolean(data.checkPending);
+      checkBtn.disabled = checkedDone || checkPending;
+      checkBtn.textContent = checkPending ? '确认中…' : (checkedDone ? '已确认' : '确认');
+
+      const readPending = Boolean(data.readPending);
+      readBtn.disabled = readPending;
+      readBtn.textContent = readPending ? '处理中…' : '已读';
 
       requestAnimationFrame(reportSize);
     }
@@ -271,9 +343,14 @@
       window.siteNotice.openJump(currentNotice.jumpHref);
     });
 
-    confirmBtn.addEventListener('click', function () {
+    checkBtn.addEventListener('click', function () {
       if (!currentNotice || !window.siteNotice) return;
-      window.siteNotice.confirm(currentNotice.id);
+      window.siteNotice.confirmCheck(currentNotice.id);
+    });
+
+    readBtn.addEventListener('click', function () {
+      if (!currentNotice || !window.siteNotice) return;
+      window.siteNotice.markRead(currentNotice.id);
     });
 
     if (typeof ResizeObserver === 'function') {

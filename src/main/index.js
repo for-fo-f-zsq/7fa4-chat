@@ -1226,9 +1226,9 @@ ipcMain.on('site-notice-resize', (event, raw) => {
 ipcMain.on('site-notice-cmd', (event, payload) => {
     if (!isAllowedSender(event, 'site-notice')) return;
     if (!payload || typeof payload !== 'object') return;
-    if (payload.type === 'confirm') {
+    if (payload.type === 'noticed' || payload.type === 'checked') {
         if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('site-notice-confirm', payload.id);
+            mainWindow.webContents.send('site-notice-action', { type: payload.type, id: payload.id });
         }
         return;
     }

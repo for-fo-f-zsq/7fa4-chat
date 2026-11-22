@@ -207,7 +207,7 @@
           <section class="p-panel-section">
             <h3 class="p-panel-section__title">站点通知</h3>
             <p class="settings-section-desc">
-              自动轮询 OJ 站点未读通知。收到未读通知时将在右下角强制弹出，不设定时自动关闭，必须手动点击「已读 / 确认」。
+              自动轮询 OJ 站点未读通知。收到未读通知时将在屏幕右下角强制置顶弹出，不设定时自动关闭，可分别手动点击「确认」或「已读」。
             </p>
 
             <SettingRow
@@ -219,7 +219,7 @@
 
             <SettingRow
               label="发送测试通知"
-              description="立即在右下角弹出一条测试站点通知，用于验证强提示弹窗与手动「已读 / 确认」交互"
+              description="立即在屏幕右下角弹出一条测试站点通知，用于验证强提示弹窗与「确认」/「已读」交互"
               clickable
               @activate="onSendSiteTestNotice"
             >
