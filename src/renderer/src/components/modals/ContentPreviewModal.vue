@@ -5,9 +5,15 @@
       :shown="shown"
       :downloading="downloading"
       :show-edit="showEdit"
+      :can-prev="canPrev"
+      :can-next="canNext"
+      :gallery-current="galleryCurrent"
+      :gallery-total="galleryTotal"
       @request-close="requestClose"
       @download="onDownloadClick"
       @edit="emit('edit')"
+      @prev="emit('prev')"
+      @next="emit('next')"
     />
   </Transition>
   <UiModal v-else v-model:open="open" size="lg" :aria-label="title || '内容预览'" @closed="emit('close')">
@@ -54,9 +60,13 @@ const props = defineProps({
   showEdit: { type: Boolean, default: true },
   remoteSrc: { type: String, default: '' },
   downloadName: { type: String, default: '' },
+  canPrev: { type: Boolean, default: false },
+  canNext: { type: Boolean, default: false },
+  galleryCurrent: { type: Number, default: 0 },
+  galleryTotal: { type: Number, default: 0 },
 })
 
-const emit = defineEmits(['close', 'copy', 'forward', 'download', 'edit'])
+const emit = defineEmits(['close', 'copy', 'forward', 'download', 'edit', 'prev', 'next'])
 
 const shown = ref(true)
 const open = ref(false)

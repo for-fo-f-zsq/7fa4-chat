@@ -92,11 +92,17 @@
     :rawContent="previewData.rawContent"
     :showActions="previewData.showActions"
     :showEdit="previewData.type === 'image' && !isWeb"
+    :canPrev="previewData.galleryIndex > 0"
+    :canNext="previewData.galleryIndex >= 0 && previewData.galleryIndex < (previewData.gallery?.length || 0) - 1"
+    :galleryCurrent="previewData.galleryIndex >= 0 ? previewData.galleryIndex + 1 : 0"
+    :galleryTotal="previewData.gallery?.length || 0"
     @close="previewData.show = false"
     @copy="emit('previewCopy')"
     @forward="emit('previewForward')"
     @download="emit('previewDownload')"
     @edit="emit('previewEdit')"
+    @prev="emit('previewStep', -1)"
+    @next="emit('previewStep', 1)"
   />
 </template>
 
@@ -145,6 +151,7 @@ const emit = defineEmits([
   'previewForward',
   'previewDownload',
   'previewEdit',
+  'previewStep',
 ])
 
 const isWeb = isWebBrowser()

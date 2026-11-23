@@ -682,36 +682,38 @@
   background: var(--status-danger);
 }
 
-/* 状态异常按每 10% 异常率分 10 档深浅渐变（1: 90–99% 浅橙黄 → 10: 0–10% 最深红） */
-.settings-status-bar.is-anomaly-1 .settings-status-bar-fill {
-  background: color-mix(in srgb, var(--status-warning) 80%, var(--surface-card));
+/* 80%+ 为纯绿到浅绿（is-green-1 → is-green-2） */
+.settings-status-bar.is-green-1 .settings-status-bar-fill {
+  background: color-mix(in srgb, var(--status-success) 78%, var(--surface-card));
 }
-.settings-status-bar.is-anomaly-2 .settings-status-bar-fill {
-  background: color-mix(in srgb, var(--status-danger) 15%, var(--status-warning));
+.settings-status-bar.is-green-2 .settings-status-bar-fill {
+  background: color-mix(in srgb, var(--status-success) 48%, var(--surface-card));
 }
-.settings-status-bar.is-anomaly-3 .settings-status-bar-fill {
-  background: color-mix(in srgb, var(--status-danger) 28%, var(--status-warning));
+
+/* 0–80% 按每 10% 从很浅红 (is-red-1: 70–80%) 到深红 (is-red-8: 0–10%) */
+.settings-status-bar.is-red-1 .settings-status-bar-fill {
+  background: color-mix(in srgb, var(--status-danger) 22%, var(--surface-card));
 }
-.settings-status-bar.is-anomaly-4 .settings-status-bar-fill {
-  background: color-mix(in srgb, var(--status-danger) 42%, var(--status-warning));
+.settings-status-bar.is-red-2 .settings-status-bar-fill {
+  background: color-mix(in srgb, var(--status-danger) 34%, var(--surface-card));
 }
-.settings-status-bar.is-anomaly-5 .settings-status-bar-fill {
-  background: color-mix(in srgb, var(--status-danger) 56%, var(--status-warning));
+.settings-status-bar.is-red-3 .settings-status-bar-fill {
+  background: color-mix(in srgb, var(--status-danger) 48%, var(--surface-card));
 }
-.settings-status-bar.is-anomaly-6 .settings-status-bar-fill {
-  background: color-mix(in srgb, var(--status-danger) 70%, var(--status-warning));
+.settings-status-bar.is-red-4 .settings-status-bar-fill {
+  background: color-mix(in srgb, var(--status-danger) 62%, var(--surface-card));
 }
-.settings-status-bar.is-anomaly-7 .settings-status-bar-fill {
-  background: color-mix(in srgb, var(--status-danger) 82%, var(--status-warning));
+.settings-status-bar.is-red-5 .settings-status-bar-fill {
+  background: color-mix(in srgb, var(--status-danger) 76%, var(--surface-card));
 }
-.settings-status-bar.is-anomaly-8 .settings-status-bar-fill {
-  background: color-mix(in srgb, var(--status-danger) 92%, var(--status-warning));
+.settings-status-bar.is-red-6 .settings-status-bar-fill {
+  background: color-mix(in srgb, var(--status-danger) 90%, var(--surface-card));
 }
-.settings-status-bar.is-anomaly-9 .settings-status-bar-fill {
-  background: color-mix(in srgb, var(--status-danger) 92%, var(--fg));
+.settings-status-bar.is-red-7 .settings-status-bar-fill {
+  background: color-mix(in srgb, var(--status-danger) 84%, var(--fg));
 }
-.settings-status-bar.is-anomaly-10 .settings-status-bar-fill {
-  background: color-mix(in srgb, var(--status-danger) 76%, var(--fg));
+.settings-status-bar.is-red-8 .settings-status-bar-fill {
+  background: color-mix(in srgb, var(--status-danger) 68%, var(--fg));
 }
 
 .settings-status-axis {

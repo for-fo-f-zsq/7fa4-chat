@@ -84,6 +84,27 @@
   --ibtn-active-bg: color-mix(in srgb, var(--status-danger) 48%, transparent);
 }
 
+.preview-nav.ui-icon-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: var(--z-raised);
+  --ibtn-size: 40px;
+  --ibtn-bg: var(--surface-overlay-pill);
+  border: var(--border-width) solid var(--overlay-border);
+  box-shadow: var(--elev-pill);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+}
+
+.preview-nav--prev {
+  left: var(--space-4);
+}
+
+.preview-nav--next {
+  right: var(--space-4);
+}
+
 .preview-header {
   display: flex;
   flex: 1;

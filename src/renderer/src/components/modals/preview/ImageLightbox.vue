@@ -21,7 +21,33 @@
         @dblclick="toggleZoom"
       />
     </div>
+    <UiIconButton
+      v-if="galleryTotal > 1"
+      class="preview-nav preview-nav--prev"
+      variant="overlay"
+      round
+      icon="fas fa-chevron-left"
+      aria-label="上一张"
+      title="上一张 (←)"
+      :disabled="!canPrev"
+      @click="emit('prev')"
+    />
+    <UiIconButton
+      v-if="galleryTotal > 1"
+      class="preview-nav preview-nav--next"
+      variant="overlay"
+      round
+      icon="fas fa-chevron-right"
+      aria-label="下一张"
+      title="下一张 (→)"
+      :disabled="!canNext"
+      @click="emit('next')"
+    />
     <div class="image-toolbar motion-fade-up-in">
+      <template v-if="galleryTotal > 1">
+        <span class="image-zoom-label u-tabular-nums">{{ galleryCurrent }} / {{ galleryTotal }}</span>
+        <span class="image-toolbar-sep" aria-hidden="true"></span>
+      </template>
       <UiIconButton variant="overlay" round icon="fas fa-search-minus" aria-label="缩小" title="缩小" :disabled="scale <= MIN_SCALE" @click="zoomStep(-0.25)" />
       <span class="image-zoom-label u-tabular-nums">{{ Math.round(scale * 100) }}%</span>
       <UiIconButton variant="overlay" round icon="fas fa-search-plus" aria-label="放大" title="放大" :disabled="scale >= MAX_SCALE" @click="zoomStep(0.25)" />
@@ -58,9 +84,13 @@ const props = defineProps({
   shown: { type: Boolean, default: true },
   downloading: { type: Boolean, default: false },
   showEdit: { type: Boolean, default: true },
+  canPrev: { type: Boolean, default: false },
+  canNext: { type: Boolean, default: false },
+  galleryCurrent: { type: Number, default: 0 },
+  galleryTotal: { type: Number, default: 0 },
 })
 
-const emit = defineEmits(['requestClose', 'download', 'edit'])
+const emit = defineEmits(['requestClose', 'download', 'edit', 'prev', 'next'])
 
 const MIN_SCALE = 0.25
 const MAX_SCALE = 8
@@ -156,6 +186,18 @@ function onKeydown(e) {
     e.preventDefault()
     e.stopPropagation()
     emit('requestClose')
+    return
+  }
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault()
+    e.stopPropagation()
+    if (props.canPrev) emit('prev')
+    return
+  }
+  if (e.key === 'ArrowRight') {
+    e.preventDefault()
+    e.stopPropagation()
+    if (props.canNext) emit('next')
     return
   }
   if (e.key !== 'Tab' || !overlayEl.value) return

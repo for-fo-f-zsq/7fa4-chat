@@ -155,6 +155,7 @@
     @previewForward="onPreviewForward"
     @previewDownload="onPreviewDownload"
     @previewEdit="onPreviewEdit"
+    @previewStep="onPreviewStep"
   />
 </template>
 
@@ -217,7 +218,7 @@ const { groupActionProgress, muteModalVisible, onMuteMinutesConfirm, submitGroup
 const {
   forwardModalVisible, forwardMsgContent, imageSendPending, previewData,
   startForward, onForwardConfirm, closeForwardModal, onImageToolSend, onDropFile,
-  sendPat, onPollVote, batchForward, onOpenPreview, onPreviewCopy, onPreviewForward, onPreviewDownload, onPreviewEdit,
+  sendPat, onPollVote, batchForward, onOpenPreview, onPreviewStep, onPreviewCopy, onPreviewForward, onPreviewDownload, onPreviewEdit,
 } = chatActions
 
 const hasDesktopNoticeWindow = hasDesktopSiteNoticeWindow()

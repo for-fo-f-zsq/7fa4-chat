@@ -418,7 +418,7 @@
                     :key="slot.hourTs"
                     type="button"
                     class="settings-status-bar"
-                    :class="[`is-${slot.tone}`, slot.anomalyTier ? `is-anomaly-${slot.anomalyTier}` : '', { 'is-hovered': hoveredHourTs === slot.hourTs }]"
+                    :class="[`is-${slot.tone}`, slot.gradeClass || '', { 'is-hovered': hoveredHourTs === slot.hourTs }]"
                     :aria-label="slot.tooltip"
                     @mouseenter="onHoverSlot(slot.hourTs, idx)"
                     @focus="onHoverSlot(slot.hourTs, idx)"
@@ -1077,10 +1077,17 @@ const statusHourlySlots = computed(() => {
     const pct = b.uptimePct ?? 0
     const pctText = pct >= 99.95 ? '100%' : `${pct.toFixed(1)}%`
     let tone = 'success'
-    let anomalyTier = 0
-    if (pct < 99) {
-      anomalyTier = Math.min(10, Math.max(1, Math.ceil((100 - pct) / 10)))
-      tone = pct < 90 ? 'danger' : 'warning'
+    let gradeClass = ''
+    if (pct >= 99.95) {
+      tone = 'success'
+    } else if (pct >= 80) {
+      tone = 'success'
+      gradeClass = pct >= 90 ? 'is-green-1' : 'is-green-2'
+    } else {
+      tone = 'danger'
+      // 0–80% 按每 10% 分 8 档：70–80% 为很浅红 (is-red-1) → 0–10% 为深红 (is-red-8)
+      const redTier = Math.min(8, Math.max(1, 8 - Math.floor(Math.max(0, pct) / 10)))
+      gradeClass = `is-red-${redTier}`
     }
 
     const parts = [`正常 ${formatDurationShort(b.okMs)}`]
@@ -1090,7 +1097,7 @@ const statusHourlySlots = computed(() => {
     return {
       hourTs: b.hourTs,
       tone,
-      anomalyTier,
+      gradeClass,
       tooltip: `${range} · 可用率 ${pctText}（${parts.join(' / ')}）${lat}`,
     }
   })

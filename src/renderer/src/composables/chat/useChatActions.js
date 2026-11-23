@@ -54,6 +54,8 @@ export function useChatActions({
     showActions: false,
     mediaData: '',
     mediaMime: '',
+    gallery: [],
+    galleryIndex: -1,
   })
 
   function setFooterError(msg) {
@@ -277,7 +279,23 @@ export function useChatActions({
     previewData.showActions = false
     previewData.mediaData = data.mediaData || ''
     previewData.mediaMime = data.mediaMime || ''
+    previewData.gallery = Array.isArray(data.gallery) ? data.gallery : []
+    previewData.galleryIndex = Number.isInteger(data.galleryIndex) ? data.galleryIndex : -1
     previewData.show = true
+  }
+
+  function onPreviewStep(delta) {
+    const list = previewData.gallery
+    if (!Array.isArray(list) || list.length <= 1) return
+    const nextIdx = previewData.galleryIndex + delta
+    if (nextIdx < 0 || nextIdx >= list.length) return
+    const item = list[nextIdx]
+    if (!item) return
+    previewData.galleryIndex = nextIdx
+    previewData.title = item.title || '图片'
+    previewData.src = item.src || ''
+    previewData.mediaData = item.mediaData || ''
+    previewData.mediaMime = item.mediaMime || ''
   }
 
   function onPreviewCopy() {
@@ -410,6 +428,7 @@ export function useChatActions({
     onPollVote,
     batchForward,
     onOpenPreview,
+    onPreviewStep,
     onPreviewCopy,
     onPreviewForward,
     onPreviewDownload,

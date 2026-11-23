@@ -206,6 +206,8 @@ export function useMessageActions({
         text: '',
         mediaData: obj.data || '',
         mediaMime: obj.mime || '',
+        gallery: Array.isArray(obj.gallery) ? obj.gallery : [],
+        galleryIndex: Number.isInteger(obj.galleryIndex) ? obj.galleryIndex : -1,
       })
       return
     }
@@ -298,7 +300,29 @@ export function useMessageActions({
       e.preventDefault()
       e.stopPropagation()
       const src = imgEl.src
-      openPreview({ type: 'image', src, name: '图片', data: src.startsWith('blob:') ? '' : imgEl.dataset.media, mime: imgEl.dataset.mime })
+      const chatImgs = messageAreaEl?.value
+        ? Array.from(messageAreaEl.value.querySelectorAll('.chat-image'))
+        : [imgEl]
+      const gallery = chatImgs.map((el) => {
+        const elSrc = el.src
+        return {
+          type: 'image',
+          title: '图片',
+          src: elSrc,
+          mediaData: elSrc.startsWith('blob:') ? '' : (el.dataset.media || ''),
+          mediaMime: el.dataset.mime || '',
+        }
+      })
+      const galleryIndex = Math.max(0, chatImgs.indexOf(imgEl))
+      openPreview({
+        type: 'image',
+        src,
+        name: '图片',
+        data: src.startsWith('blob:') ? '' : imgEl.dataset.media,
+        mime: imgEl.dataset.mime,
+        gallery,
+        galleryIndex,
+      })
       return
     }
     const stickerEl = e.target.closest('.sticker-msg img')
