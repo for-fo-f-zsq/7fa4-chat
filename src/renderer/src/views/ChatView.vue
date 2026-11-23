@@ -118,7 +118,7 @@
             @settingChange="onSettingChange"
             @openShortcutModal="shortcutModal = true"
           />
-          <AboutPanel v-if="pageType === 'about'" :version="version" @back="backToChatList" />
+          <AboutPanel v-if="pageType === 'about'" :version="version" />
           <UpdatePanel v-if="pageType === 'update'" :version="version" @back="backToChatList" />
           <DonatePanel v-if="pageType === 'donate'" @back="backToChatList" />
         </div>

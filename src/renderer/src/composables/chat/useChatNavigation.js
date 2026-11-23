@@ -33,7 +33,7 @@ export function useChatNavigation({
     if (!isNarrowLayout.value) return true
     if (isChatPage.value && pageId.value) return false
     if (navPageType.value === 'tools') return currentTool.value === 'list'
-    if (navPageType.value === 'settings') return true
+    if (navPageType.value === 'settings' || navPageType.value === 'about') return true
     return navPageType.value === 'chat'
   })
 

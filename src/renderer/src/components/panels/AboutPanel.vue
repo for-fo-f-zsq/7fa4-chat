@@ -1,5 +1,5 @@
 ﻿<template>
-  <PanelShell title="关于" icon="fas fa-circle-info" :backable="true" @back="emit('back')">
+  <PanelShell title="关于" icon="fas fa-circle-info">
     <UiCard class="about-card about-hero" size="lg">
       <div class="about-hero-top">
         <div class="about-logo-wrap">
@@ -127,7 +127,6 @@ import PanelShell from '@/components/common/PanelShell.vue'
 
 const iconUrl = assetUrl('icon.png')
 const props = defineProps({ version: { type: String, default: '' } })
-const emit = defineEmits(['back'])
 
 const version = ref(props.version || '')
 const aiPopoverOpen = ref(false)

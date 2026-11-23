@@ -5,7 +5,7 @@
         <div class="announcement-welcome-inner">
           <div class="announcement-badge">
             <i class="fas fa-star" aria-hidden="true"></i>
-            <span>体验完善 · 强提示与分析增强</span>
+            <span>体验打磨 · 预览切换与工具升级</span>
           </div>
 
           <div class="announcement-logo-stage">
@@ -15,8 +15,8 @@
             </div>
           </div>
 
-          <h1 class="announcement-version u-tabular-nums">V{{ appVersion || '4.0.1' }}</h1>
-          <p class="announcement-tagline">站点强制通知、点权图论算法、分时段可用率监控与消息轮询全面加固</p>
+          <h1 class="announcement-version u-tabular-nums">V{{ appVersion || '4.0.2' }}</h1>
+          <p class="announcement-tagline">图片预览左右切换、图论全主题高对比渲染、画图像素落笔与启动首爬全面修复</p>
 
           <div class="announcement-pillars motion-stagger">
             <div v-for="pillar in PILLARS" :key="pillar.label" class="announcement-pillar">
@@ -57,7 +57,7 @@
       <div v-else-if="page === 2" key="changelog" class="announcement-page announcement-page--changelog">
         <div class="announcement-head">
           <h2><i class="fas fa-file-alt" aria-hidden="true"></i> 完整更新日志</h2>
-          <p class="announcement-head-sub">V{{ appVersion || '4.0.1' }} 及历代版本变更详情</p>
+          <p class="announcement-head-sub">V{{ appVersion || '4.0.2' }} 及历代版本变更详情</p>
         </div>
         <div class="announcement-changelog">
           <ChangelogViewer :auto-load="true" :prefer-local="true" :fallback-markdown="bundledChangelog" />
@@ -119,48 +119,48 @@ import SponsorTable from '@/components/common/SponsorTable.vue'
 import StepDots from '@/components/common/StepDots.vue'
 
 const PILLARS = [
-  { icon: 'fas fa-bell', label: '站点强制通知', sub: '屏幕右下角强置顶 · 确认/已读' },
-  { icon: 'fas fa-project-diagram', label: '点权图论算法', sub: '树形独立集 · DAG 最长权路' },
-  { icon: 'fas fa-heartbeat', label: '分时段连接监控', sub: '72 小时可用率 · 即时悬浮明细' },
-  { icon: 'fas fa-shield-alt', label: '同步与持久化加固', sub: '基线修复 · 主题实时适配' },
+  { icon: 'fas fa-images', label: '图片预览切换', sub: '左右按钮 · 键盘快捷键' },
+  { icon: 'fas fa-project-diagram', label: '图论对比度与向心力', sub: '全主题适配 · 稳态布局' },
+  { icon: 'fas fa-paint-brush', label: '画图与工具窗升级', sub: '文字像素落笔 · 独立防丢提示' },
+  { icon: 'fas fa-shield-alt', label: '启动与断线修复', sub: '首爬遮罩 · 可用率分级配色' },
 ]
 
 const HIGHLIGHTS = [
   {
-    icon: 'fas fa-bell',
-    tag: '站点通知',
-    title: '屏幕右下角强制置顶通知弹窗',
-    desc: '每轮自动拉取 OJ 系统通知，桌面端以无边框屏幕右下角 screen-saver 级置顶窗弹出并跟随当前浅/深主题，支持分别「确认」或「已读」关闭与设置页测试。',
+    icon: 'fas fa-images',
+    tag: '图片预览',
+    title: '支持同会话图片左右切换',
+    desc: '打开图片预览自动采集当前会话图片列表，支持左右悬浮按钮与方向键切换并显示页码，修复切换跳动与旋转动画异常。',
   },
   {
     icon: 'fas fa-project-diagram',
     tag: '图论工具',
-    title: '新增点权图论分析与稳定侧栏',
-    desc: '扩展树形 DP 最大点权独立集、子树点权和、DAG 最长权路与 Tarjan 缩点路径及加权重心统计，锁定分析面板高度彻底消除左侧栏滚动抖动。',
+    title: '质心向心力与全主题高对比渲染',
+    desc: '物理引擎加入质心向心引力防止非连通分量无限远离，节点边框与边线改用主题前景色动态混色，浅/深及自定义主题均清晰锐利。',
+  },
+  {
+    icon: 'fas fa-paint-brush',
+    tag: '画图与工具',
+    title: '画图文字像素落笔与独立窗口提示',
+    desc: '画图文字确认后直接栅格化落笔，支持橡皮擦与马赛克擦除；独立工具窗各窗口独立计算未保存状态并在关闭时提示。',
   },
   {
     icon: 'fas fa-chart-bar',
     tag: '连接状态',
-    title: '72 小时分时段可用率统计',
-    desc: '持久化记录各小时在线/异常/离线时长与可用率，悬停时段条即时查看明细且不再闪烁，接口延迟节流为 10 秒刷新。',
+    title: '可用率 10% 分级配色与断线计时修复',
+    desc: '时段条按 100% 纯绿、80%+ 绿至浅绿、0–80% 每 10% 浅红至深红着色，修复重连尝试时断线计时清零与已关闭提示复弹。',
   },
   {
-    icon: 'fas fa-sync-alt',
-    tag: '消息同步',
-    title: '修复重复轮询与初始全量同步',
-    desc: '补齐桌面端首次同步的 target-times 基线播种，彻底消除空闲状态下重复请求 /chat/chat；升级全库同步与 SQLite FULL/TRUNCATE 退出落盘。',
+    icon: 'fas fa-camera',
+    tag: '系统相机',
+    title: '桌面端调用系统相机与首次爬取修复',
+    desc: '桌面端拍照改用系统相机应用；修复有本地缓存时提前进入界面与完整爬取期间误发通知的问题。',
   },
   {
-    icon: 'fas fa-window-restore',
-    tag: '工具与交互',
-    title: '图片预览互通与导航栏精修',
-    desc: '恢复图片预览「用图片编辑器打开」跨窗编辑后回传发送；默认开启开机自启动，「关于」移至侧栏第 4 项（Ctrl+4）并修复 Windows 开发态图标。',
-  },
-  {
-    icon: 'fas fa-rocket',
-    tag: '发布工程',
-    title: '官网自动部署自愈与包校验加固',
-    desc: '优化服务器自动构建检测与 GitLab 发布上传顺序，降低网页端升级遗漏或上传竞争风险。',
+    icon: 'fas fa-sliders-h',
+    tag: '体验精简',
+    title: '设置与通知文案精简',
+    desc: '统一窄屏「关于」页导航栏显示逻辑并移除多余返回按钮，精简设置说明与站点通知弹窗中的冗余提示文案。',
   },
 ]
 
