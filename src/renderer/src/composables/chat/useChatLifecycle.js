@@ -81,6 +81,7 @@ export function useChatLifecycle({
   }
 
   onMounted(async () => {
+    let pollingStarted = false
     store.initializing = true
     try {
       setting.value = (await window.api.loadSetting()) || {}
@@ -167,73 +168,71 @@ export function useChatLifecycle({
         return
       }
 
-      // 离线/冷启动先加载本地缓存并立即解锁主界面，再异步后台联网同步（断网不覆写已有本地会话）
       await persistence.loadData()
       notifications.updateBadgeCount()
-      store.initializing = false
       nextTick(() => messageListRef.value?.scrollToBottomInstant({ respectUser: true }))
-      bindGlobalListeners()
 
-      ;(async () => {
-        let initialInfo = null
-        try {
-          const t0 = Date.now()
-          const infoRes = await safeFetch('/chat/info')
-          initialInfo = await infoRes.json()
-          const latencyMs = Date.now() - t0
-          if (unmounted) return
-          if (initialInfo && initialInfo._html) {
-            store.netError = true
-            updateConnStatus({
-              apiReachable: true,
-              sessionValid: false,
-              latencyMs,
-              state: 'reconnecting',
-              lastError: '登录会话已失效',
-            }, { sample: 'force' })
-            if (isWeb) { banners.gotoLogin(); return }
-          } else if (initialInfo && initialInfo.success) {
-            Object.assign(store.self, {
-              uid: initialInfo.user.id,
-              username: initialInfo.user.uid,
-              nickname: initialInfo.user.nickname,
-              realname: initialInfo.user.real_name,
-            })
-            await persistence.loadData()
-            updateConnStatus({
-              online: true,
-              apiReachable: true,
-              sessionValid: true,
-              latencyMs,
-              lastInfoAt: Date.now(),
-              state: 'ok',
-              lastError: '',
-            }, { sample: 'force', forceEvent: true, title: '首次连接成功' })
-          } else {
-            store.netError = true
-            updateConnStatus({
-              apiReachable: !initialInfo?._netError,
-              online: navigator.onLine,
-              state: navigator.onLine ? 'reconnecting' : 'offline',
-              lastError: initialInfo?.err?.message || '连接服务器失败',
-            }, { sample: 'force' })
-          }
-          notifications.updateBadgeCount()
-        } catch (e) {
+      let initialInfo = null
+      try {
+        const t0 = Date.now()
+        const infoRes = await safeFetch('/chat/info')
+        initialInfo = await infoRes.json()
+        const latencyMs = Date.now() - t0
+        if (unmounted) return
+        if (initialInfo && initialInfo._html) {
           store.netError = true
           updateConnStatus({
-            apiReachable: false,
+            apiReachable: true,
+            sessionValid: false,
+            latencyMs,
+            state: 'reconnecting',
+            lastError: '登录会话已失效',
+          }, { sample: 'force' })
+          if (isWeb) { banners.gotoLogin(); return }
+        } else if (initialInfo && initialInfo.success) {
+          Object.assign(store.self, {
+            uid: initialInfo.user.id,
+            username: initialInfo.user.uid,
+            nickname: initialInfo.user.nickname,
+            realname: initialInfo.user.real_name,
+          })
+          await persistence.loadData()
+          updateConnStatus({
+            online: true,
+            apiReachable: true,
+            sessionValid: true,
+            latencyMs,
+            lastInfoAt: Date.now(),
+            state: 'ok',
+            lastError: '',
+          }, { sample: 'force', forceEvent: true, title: '首次连接成功' })
+        } else {
+          store.netError = true
+          updateConnStatus({
+            apiReachable: !initialInfo?._netError,
             online: navigator.onLine,
             state: navigator.onLine ? 'reconnecting' : 'offline',
-            lastError: (e && e.message) || '网络错误',
+            lastError: initialInfo?.err?.message || '连接服务器失败',
           }, { sample: 'force' })
         }
-        if (store.logined && !unmounted) {
-          polling.startInfoLoop(initialInfo)
-        }
-      })()
+        notifications.updateBadgeCount()
+        nextTick(() => messageListRef.value?.scrollToBottomInstant({ respectUser: true }))
+      } catch (e) {
+        store.netError = true
+        updateConnStatus({
+          apiReachable: false,
+          online: navigator.onLine,
+          state: navigator.onLine ? 'reconnecting' : 'offline',
+          lastError: (e && e.message) || '网络错误',
+        }, { sample: 'force' })
+      }
+      if (store.logined && !unmounted) {
+        pollingStarted = true
+        polling.startInfoLoop(initialInfo)
+      }
+      bindGlobalListeners()
     } finally {
-      store.initializing = false
+      if (!pollingStarted) store.initializing = false
     }
   })
 
