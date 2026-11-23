@@ -532,6 +532,17 @@ console.log('10. 验证保守物理引擎与保辛积分...')
   assert(finalStats.kineticEnergy < 1e-4, `开启阻力后动能应衰减趋近于 0，实际 ${finalStats.kineticEnergy}`)
   const finalDist = Math.hypot(springNodes[1].x - springNodes[0].x, springNodes[1].y - springNodes[0].y)
   assert(Math.abs(finalDist - 160) < 0.1, `纯弹簧平衡距离应收敛至单边配置原长 L_e=160，实际 ${finalDist}`)
+
+  // 10.5 质心向心引力：两个非连通分量受斥力也不会无限远离，应收敛至有界距离
+  const disconnNodes = [
+    { id: 1, x: -40, y: 0, vx: 0, vy: 0 },
+    { id: 2, x: 40, y: 0, vx: 0, vy: 0 }
+  ]
+  for (let step = 0; step < 300; step++) {
+    stepVelocityVerlet(disconnNodes, [], DEFAULT_PHYSICS_PARAMS)
+  }
+  const sep = Math.hypot(disconnNodes[1].x - disconnNodes[0].x, disconnNodes[1].y - disconnNodes[0].y)
+  assert(sep > 80 && sep < 500, `非连通节点在向心力与斥力平衡下应保持有限距离，实际 ${sep}`)
 }
 console.log('✓ 保守物理引擎与保辛积分验证通过')
 

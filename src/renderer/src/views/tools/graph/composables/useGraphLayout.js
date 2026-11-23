@@ -25,6 +25,7 @@ export function useGraphLayout({
   const restLength = ref(DEFAULT_PHYSICS_PARAMS.restLength)
   const damping = ref(DEFAULT_PHYSICS_PARAMS.damping)
   const dt = ref(DEFAULT_PHYSICS_PARAMS.dt)
+  const gravity = ref(DEFAULT_PHYSICS_PARAMS.gravity)
   const autoCenter = ref(false)
   const treeMode = ref(false)
   const view = reactive({ x: 0, y: 0, scale: 1 })
@@ -49,7 +50,8 @@ export function useGraphLayout({
       damping: damping.value,
       dt: dt.value,
       softening: DEFAULT_PHYSICS_PARAMS.softening,
-      repulsionScale: DEFAULT_PHYSICS_PARAMS.repulsionScale
+      repulsionScale: DEFAULT_PHYSICS_PARAMS.repulsionScale,
+      gravity: gravity.value
     }
   }
 

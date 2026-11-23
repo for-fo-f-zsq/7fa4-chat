@@ -165,7 +165,7 @@
 
             <SettingRow
               label="新消息提醒"
-              description="桌面端：窗口未聚焦或最小化时发送系统原生通知；安卓端：退到后台时发系统通知；网页端：需要浏览器通知权限"
+              description="窗口未聚焦或最小化时发送系统原生通知；网页端需开启浏览器通知权限"
             >
               <UiSwitch
                 :model-value="setting.notifDesktop !== false"
@@ -279,7 +279,7 @@
             <SettingRow
               v-if="isElectron"
               label="未读角标"
-              description="任务栏 / 托盘图标上显示未读消息总数（仅桌面端）"
+              description="任务栏 / 托盘图标上显示未读消息总数"
             >
               <UiSwitch
                 :model-value="setting.notifBadge !== false"
@@ -418,7 +418,7 @@
                     :key="slot.hourTs"
                     type="button"
                     class="settings-status-bar"
-                    :class="[`is-${slot.tone}`, { 'is-hovered': hoveredHourTs === slot.hourTs }]"
+                    :class="[`is-${slot.tone}`, slot.anomalyTier ? `is-anomaly-${slot.anomalyTier}` : '', { 'is-hovered': hoveredHourTs === slot.hourTs }]"
                     :aria-label="slot.tooltip"
                     @mouseenter="onHoverSlot(slot.hourTs, idx)"
                     @focus="onHoverSlot(slot.hourTs, idx)"
@@ -620,7 +620,7 @@
         <template v-else-if="activeCategory === 'desktop' && isElectron">
           <section class="p-panel-section">
             <h3 class="p-panel-section__title">窗口与更新</h3>
-            <p class="settings-section-desc">开机启动、关闭窗口后是否留在托盘，以及新版本如何获取（仅桌面端生效）。</p>
+            <p class="settings-section-desc">开机启动、关闭窗口后是否留在托盘，以及新版本如何获取。</p>
 
             <SettingRow
               v-if="isElectron"
@@ -637,7 +637,7 @@
             <SettingRow
               v-if="isElectron"
               label="保持后台运行"
-              description="关闭主窗口后隐藏到系统托盘并继续接收消息；需要彻底退出时用托盘菜单的「退出」（仅桌面端）"
+              description="关闭主窗口后隐藏到系统托盘并继续接收消息；需要彻底退出时用托盘菜单的「退出」"
             >
               <UiSwitch
                 :model-value="setting.minimizeToTray !== false"
@@ -649,7 +649,7 @@
             <SettingRow
               v-if="isElectron"
               label="自动更新"
-              description="启动后自动检查并下载新版本（仅桌面端）"
+              description="启动后自动检查并下载新版本"
             >
               <UiSwitch
                 :model-value="setting.autoUpdate !== false"
@@ -1077,8 +1077,11 @@ const statusHourlySlots = computed(() => {
     const pct = b.uptimePct ?? 0
     const pctText = pct >= 99.95 ? '100%' : `${pct.toFixed(1)}%`
     let tone = 'success'
-    if (pct < 90) tone = 'danger'
-    else if (pct < 99) tone = 'warning'
+    let anomalyTier = 0
+    if (pct < 99) {
+      anomalyTier = Math.min(10, Math.max(1, Math.ceil((100 - pct) / 10)))
+      tone = pct < 90 ? 'danger' : 'warning'
+    }
 
     const parts = [`正常 ${formatDurationShort(b.okMs)}`]
     if (b.degradedMs >= 1000) parts.push(`波动 ${formatDurationShort(b.degradedMs)}`)
@@ -1087,6 +1090,7 @@ const statusHourlySlots = computed(() => {
     return {
       hourTs: b.hourTs,
       tone,
+      anomalyTier,
       tooltip: `${range} · 可用率 ${pctText}（${parts.join(' / ')}）${lat}`,
     }
   })

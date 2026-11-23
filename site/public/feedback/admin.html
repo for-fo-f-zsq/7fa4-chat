@@ -701,9 +701,9 @@
   var memoTimer = null;
   var memoLoaded = false;
 
-  // 站点可能被反代挂在子路径下（例如 /7fa4-chat/feedback/admin），
+  // 站点可能被反代挂在子路径下（例如 /7fa4-chat/admin），
   // 前缀只存在于浏览器侧，必须由页面自己算出来再拼接口地址。
-  var BASE = location.pathname.replace(/\/feedback\/admin\/?$/, '');
+  var BASE = location.pathname.replace(/\/admin\/?$/, '');
 
   var brandIcon = $('brandIcon');
   var loginIcon = $('loginIcon');

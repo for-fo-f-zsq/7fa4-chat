@@ -15,7 +15,7 @@
  *   POST /api/feedback/admin/memo            保存管理员个人备忘录（需 cookie）
  *   GET  /api/feedback/admin/attachment/:id/:file   查看截图（需 cookie）
  *   GET  /feedback                           提交页
- *   GET  /feedback/admin                     管理页
+ *   GET  /admin                              管理页
  *
  * 存储：data/feedback/items.json + data/feedback/attachments/<id>/*
  *       data/feedback/admin-memo.json（独立于反馈条目）
@@ -636,7 +636,7 @@ async function handle(req, res, pathname) {
     await servePage(res, 'index.html');
     return true;
   }
-  if (pathname === '/feedback/admin' || pathname === '/feedback/admin/') {
+  if (pathname === '/admin' || pathname === '/admin/') {
     await servePage(res, 'admin.html');
     return true;
   }

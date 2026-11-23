@@ -24,17 +24,24 @@ export function useNetworkBanners() {
   })
 
   watch(
-    () => store.netError,
-    (v, old) => {
-      if (v && !old) {
-        netDownAt.value = Date.now()
-        netBannerMuted.value = false
+    [() => store.netError, () => store.connStatus?.state || 'ok'],
+    ([netErr, connState]) => {
+      if (netErr) {
+        if (!netDownAt.value) {
+          netDownAt.value = Date.now()
+          netBannerMuted.value = false
+        }
+        if (!downTicker) downTicker = setInterval(() => { nowTick.value = Date.now() }, 1000)
+        return
       }
-      if (!v) netDownAt.value = 0
-      if (v && !downTicker) downTicker = setInterval(() => { nowTick.value = Date.now() }, 1000)
-      if (!v && downTicker) {
-        clearInterval(downTicker)
-        downTicker = null
+      // 重连探测期间 connStatus.state 仍处于 connecting/reconnecting，不应把已关闭的横幅重新弹出或将断线时长清零
+      if (connState === 'ok') {
+        netDownAt.value = 0
+        netBannerMuted.value = false
+        if (downTicker) {
+          clearInterval(downTicker)
+          downTicker = null
+        }
       }
     },
     { immediate: true },

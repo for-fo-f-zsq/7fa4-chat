@@ -19,7 +19,8 @@ export const DEFAULT_PHYSICS_PARAMS = Object.freeze({
   damping: 1.2,
   dt: 0.04,
   softening: 24,
-  repulsionScale: 220000
+  repulsionScale: 220000,
+  gravity: 0.08
 })
 
 export function nodeMass(node) {
@@ -44,14 +45,19 @@ export function edgeStiffness(edge, defaultStiffness = DEFAULT_PHYSICS_PARAMS.st
 }
 
 function resolveParams(params = {}) {
+  const repulsion = Math.max(0, Number(params.repulsion ?? DEFAULT_PHYSICS_PARAMS.repulsion) || 0)
+  const gravity = params.gravity !== undefined
+    ? Math.max(0, Number(params.gravity) || 0)
+    : (repulsion > 0 ? DEFAULT_PHYSICS_PARAMS.gravity : 0)
   return {
-    repulsion: Math.max(0, Number(params.repulsion ?? DEFAULT_PHYSICS_PARAMS.repulsion) || 0),
+    repulsion,
     stiffness: Math.max(0, Number(params.stiffness ?? DEFAULT_PHYSICS_PARAMS.stiffness) || 0),
     restLength: Math.max(1, Number(params.restLength ?? DEFAULT_PHYSICS_PARAMS.restLength) || DEFAULT_PHYSICS_PARAMS.restLength),
     damping: Math.max(0, Number(params.damping ?? DEFAULT_PHYSICS_PARAMS.damping) || 0),
     dt: Math.max(1e-4, Number(params.dt ?? DEFAULT_PHYSICS_PARAMS.dt) || DEFAULT_PHYSICS_PARAMS.dt),
     softening: Math.max(1e-3, Number(params.softening ?? DEFAULT_PHYSICS_PARAMS.softening) || DEFAULT_PHYSICS_PARAMS.softening),
-    repulsionScale: Math.max(0, Number(params.repulsionScale ?? DEFAULT_PHYSICS_PARAMS.repulsionScale) || DEFAULT_PHYSICS_PARAMS.repulsionScale)
+    repulsionScale: Math.max(0, Number(params.repulsionScale ?? DEFAULT_PHYSICS_PARAMS.repulsionScale) || DEFAULT_PHYSICS_PARAMS.repulsionScale),
+    gravity
   }
 }
 
@@ -110,6 +116,28 @@ export function computeConservativeForces(nodes, edges, params = {}) {
     fy[ia] += fsy
     fx[ib] -= fsx
     fy[ib] -= fsy
+  }
+
+  // 质心向心引力（严格内力，满足牛顿第三定律与动量/能量守恒，防止非连通块无限远离）
+  if (p.gravity > 0 && nCount > 1) {
+    let totalMass = 0
+    let comX = 0
+    let comY = 0
+    for (let i = 0; i < nCount; i++) {
+      const m = nodeMass(nodes[i])
+      totalMass += m
+      comX += m * nodes[i].x
+      comY += m * nodes[i].y
+    }
+    if (totalMass > 0) {
+      comX /= totalMass
+      comY /= totalMass
+      for (let i = 0; i < nCount; i++) {
+        const m = nodeMass(nodes[i])
+        fx[i] -= p.gravity * m * (nodes[i].x - comX)
+        fy[i] -= p.gravity * m * (nodes[i].y - comY)
+      }
+    }
   }
 
   return { fx, fy }
@@ -256,15 +284,26 @@ export function computePhysicsState(nodes, edges, params = {}) {
     springEnergy += 0.5 * ke * diff * diff
   }
 
-  const potentialEnergy = repulsionEnergy + springEnergy
+  const centerOfMass = totalMass > 0 ? { x: comX / totalMass, y: comY / totalMass } : { x: 0, y: 0 }
+  let gravityEnergy = 0
+  if (p.gravity > 0 && nCount > 1) {
+    for (let i = 0; i < nCount; i++) {
+      const n = nodes[i]
+      const m = nodeMass(n)
+      const dx = n.x - centerOfMass.x
+      const dy = n.y - centerOfMass.y
+      gravityEnergy += 0.5 * p.gravity * m * (dx * dx + dy * dy)
+    }
+  }
+  const potentialEnergy = repulsionEnergy + springEnergy + gravityEnergy
   const totalEnergy = kineticEnergy + potentialEnergy
   const momentumNorm = Math.hypot(px, py)
-  const centerOfMass = totalMass > 0 ? { x: comX / totalMass, y: comY / totalMass } : { x: 0, y: 0 }
 
   return {
     kineticEnergy,
     springEnergy,
     repulsionEnergy,
+    gravityEnergy,
     potentialEnergy,
     totalEnergy,
     momentum: { px, py, norm: momentumNorm },

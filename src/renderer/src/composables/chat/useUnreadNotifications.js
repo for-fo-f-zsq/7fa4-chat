@@ -104,6 +104,7 @@ export function useUnreadNotifications({ saveAll, getSetting } = {}) {
 
   async function notifyIncomingMessage({ chatType, targetId, senderId, msgContent, setting, isCurrentPage }) {
     try {
+      if (store.initializing) return
       syncNotifOwner()
       const s = setting || currentSetting()
       const prefix = ownerPrefix()

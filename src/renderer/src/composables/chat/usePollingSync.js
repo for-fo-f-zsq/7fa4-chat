@@ -368,14 +368,16 @@ export function usePollingSync({
           markMsgDirty(persistKind, targetConvoId)
           hasNew = true
           if (ing.kind === 'vote') continue
-          await notifications.notifyIncomingMessage({
-            chatType: persistKind,
-            targetId: targetConvoId,
-            senderId: c.sender_id,
-            msgContent,
-            setting: getSetting(),
-            isCurrentPage: isCurrentPageBefore,
-          })
+          if (!store.initializing) {
+            await notifications.notifyIncomingMessage({
+              chatType: persistKind,
+              targetId: targetConvoId,
+              senderId: c.sender_id,
+              msgContent,
+              setting: getSetting(),
+              isCurrentPage: isCurrentPageBefore,
+            })
+          }
           // await 期间用户可能已切入或切出该会话，必须实时重判是否标未读
           const isCurrentPageNow = isCurrentConvo(persistKind, targetConvoId)
           if (isCurrentPageNow) {

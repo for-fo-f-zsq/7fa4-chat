@@ -149,10 +149,11 @@ export function useImageCanvas({ dialog, dirty, currentName, saving }) {
     if (target) applyRestoredSnapshot(target)
   }
 
-  // 3. 文字图层管理模块
+  // 3. 文字图层管理模块（确认后直接光栅化落入 editCanvas 像素层）
   const text = useImageText({
     color,
     zoomScale,
+    getEditCtx: () => editCtx,
     pushStrokeSnapshot,
     render,
     dirty

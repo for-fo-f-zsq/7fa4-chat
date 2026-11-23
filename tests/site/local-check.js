@@ -252,10 +252,10 @@ function check(name, ok, extra) {
     const fbPage = await get(SITE_PORT, '/feedback/');
     check('/feedback/ 反馈页 200', fbPage.status === 200 && /意见反馈/.test(fbPage.body.toString()));
 
-    const fbAdminPage = await get(SITE_PORT, '/feedback/admin');
+    const fbAdminPage = await get(SITE_PORT, '/admin');
     const fbAdminHtml = fbAdminPage.body.toString();
     check(
-      '/feedback/admin 管理页包含删除与个人备忘录',
+      '/admin 管理页包含删除与个人备忘录',
       fbAdminPage.status === 200 && /个人备忘录/.test(fbAdminHtml) && /data-delete/.test(fbAdminHtml)
     );
 

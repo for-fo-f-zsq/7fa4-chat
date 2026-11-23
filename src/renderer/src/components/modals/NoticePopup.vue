@@ -50,7 +50,6 @@
         </div>
 
         <div class="notice-popup-footer">
-          <span class="notice-popup-hint">不定时关闭</span>
           <div class="notice-popup-btns">
             <UiButton
               v-if="jumpHref"
