@@ -87,7 +87,7 @@
 .preview-nav.ui-icon-btn {
   position: absolute;
   top: 50%;
-  transform: translateY(-50%);
+  translate: 0 -50%;
   z-index: var(--z-raised);
   --ibtn-size: 40px;
   --ibtn-bg: var(--surface-overlay-pill);
