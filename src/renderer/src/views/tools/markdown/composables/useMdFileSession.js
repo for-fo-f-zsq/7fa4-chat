@@ -13,7 +13,7 @@ const esc = (s) =>
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
   )
 
-export function useMdFileSession({ content, loadDocument, onDirtyChange }) {
+export function useMdFileSession({ content, loadDocument }) {
   const dialog = useDialog()
   const toast = useToast()
 
@@ -30,8 +30,7 @@ export function useMdFileSession({ content, loadDocument, onDirtyChange }) {
     saveBase64File
   } = useToolFile({
     defaultName: '',
-    dirtyRef: dirty,
-    onDirtyChange
+    dirtyRef: dirty
   })
 
   // 打开 / 拖入都会整体替换正文：未保存时必须先问一句，否则本次编辑直接蒸发。

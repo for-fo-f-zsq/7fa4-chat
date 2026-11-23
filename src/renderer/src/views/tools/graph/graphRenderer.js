@@ -1,6 +1,20 @@
 import * as algos from './graphAlgos.js'
 import { NODE_R, GRAPH_PALETTE, GRAPH_PALETTE_LIGHT, GRAPH_PALETTE_DARK } from './graphConstants.js'
 
+let _colorProbeCtx = null
+function mixThemeColor(fg, bg, fgPct, fallback) {
+  const expr = `color-mix(in srgb, ${fg} ${fgPct}%, ${bg})`
+  if (typeof document !== 'undefined') {
+    _colorProbeCtx ||= document.createElement('canvas').getContext('2d')
+    if (_colorProbeCtx) {
+      _colorProbeCtx.fillStyle = '#010203'
+      _colorProbeCtx.fillStyle = expr
+      if (_colorProbeCtx.fillStyle !== '#010203') return _colorProbeCtx.fillStyle
+    }
+  }
+  return fallback
+}
+
 /** 读取主题语义 CSS 令牌，供 Canvas2D 渲染与 PNG 导出使用 */
 export function readGraphTheme(target) {
   const cs = getComputedStyle(document.documentElement)
@@ -14,14 +28,15 @@ export function readGraphTheme(target) {
   target.bg = v('--surface-0', isDark ? '#141619' : '#ffffff')
   target.nodeFill = v('--surface-raised', isDark ? '#23272e' : '#f2f3f5')
   target.nodeFillHalo = isDark ? 'rgba(35, 39, 46, 0.92)' : 'rgba(255, 255, 255, 0.92)'
-  target.nodeStroke = v('--line-strong', isDark ? '#474d58' : '#8a8f99')
   target.text = v('--fg', isDark ? '#f0f2f5' : '#1f2329')
+  // 使用 --fg 与 --surface-0 混色保证所有主题下节点边框与边线清晰可见（--line-strong 在多数主题中偏浅）
+  target.nodeStroke = mixThemeColor(target.text, target.bg, 68, isDark ? '#9ea5b3' : '#525866')
   target.accent = v('--brand', '#3c8ce7')
-  target.edge = v('--line-strong', isDark ? '#4b5260' : '#8a8f99')
+  target.edge = mixThemeColor(target.text, target.bg, 56, isDark ? '#858d9c' : '#646b7a')
   target.danger = v('--status-danger', isDark ? '#f87171' : '#e5484d')
   target.success = v('--status-success', isDark ? '#4ade80' : '#16a34a')
   target.weightColor = v('--status-warning', isDark ? '#fbbf24' : '#d97706')
-  target.gridDot = isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.11)'
+  target.gridDot = isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(0, 0, 0, 0.13)'
 }
 
 export function createEmptyHighlight() {
@@ -554,7 +569,7 @@ function drawEdges(ctx, { nodes, edges, byId, theme, interaction, hl, treeEdgeSe
     if (!g) continue
     const { a, b, cx, cy } = g
     let color = theme.edge
-    let lw = 1.5
+    let lw = 1.8
     let dash = null
     let extraLabel = null
     if (interaction.hoverEdge === e || interaction.selected === e) {
@@ -664,7 +679,7 @@ function drawNodes(ctx, { nodes, edges, theme, interaction, hl, highlight }) {
     const isNeighbor = focus && adj.has(n.id)
     let fill = theme.nodeFill
     let stroke = theme.nodeStroke
-    let lw = 1.5
+    let lw = 1.8
     let hex = false
     let sub = null
     const pc = hl.compColors.get(n.id)

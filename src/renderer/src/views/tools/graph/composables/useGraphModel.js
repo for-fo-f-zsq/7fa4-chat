@@ -14,7 +14,6 @@ const GRAPH_FILE_VERSION = 2
 export function useGraphModel({
   dialog,
   toast,
-  onDirtyChange,
   getCanvasSize,
   onResetLayout,
   onInvalidate,
@@ -58,8 +57,7 @@ export function useGraphModel({
     setSavedMeta,
     saveBase64File
   } = useToolFile({
-    defaultName: 'graph.json',
-    onDirtyChange
+    defaultName: 'graph.json'
   })
 
   function byId(id) {

@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue'
+import { computed, onScopeDispose, ref } from 'vue'
 import { saveToolFile, textToBase64, toolSaveState } from '../../../utils.js'
 import { useDialog } from '../../../composables/useDialog.js'
 import { useToast } from '../../../composables/useToast.js'
@@ -18,8 +18,7 @@ export { textToBase64 }
  */
 export function useToolFile({
   defaultName = '',
-  dirtyRef = null,
-  onDirtyChange = null
+  dirtyRef = null
 } = {}) {
   const dialog = useDialog()
   const toast = useToast()
@@ -33,8 +32,14 @@ export function useToolFile({
 
   let suppressDirty = false
 
-  if (onDirtyChange) {
-    watch(dirty, (v) => onDirtyChange(v))
+  if (typeof window !== 'undefined') {
+    const onBeforeUnload = (e) => {
+      if (!dirty.value) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    onScopeDispose(() => window.removeEventListener('beforeunload', onBeforeUnload))
   }
 
   const saveState = computed(() =>

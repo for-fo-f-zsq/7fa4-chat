@@ -517,6 +517,7 @@ console.log('10. 验证保守物理引擎与保辛积分...')
   const dampedParams = {
     ...DEFAULT_PHYSICS_PARAMS,
     repulsion: 0, // 纯单边胡克弹簧验证平衡原长
+    gravity: 0,
     damping: 1.8,
     dt: 0.04
   }

@@ -111,7 +111,7 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { useNarrow } from '../../../composables/useNarrow.js'
 import ToolWorkspaceShell from '../shared/ToolWorkspaceShell.vue'
 import MdWorkspaceHeader from './components/MdWorkspaceHeader.vue'
@@ -127,7 +127,7 @@ import { useMdFileSession } from './composables/useMdFileSession.js'
 import { useMdPreviewSync } from './composables/useMdPreviewSync.js'
 import { useMdFindReplace } from './composables/useMdFindReplace.js'
 
-const emit = defineEmits(['back', 'dirty-change'])
+const emit = defineEmits(['back'])
 const { isNarrow } = useNarrow()
 
 const taEl = ref(null)
@@ -250,8 +250,7 @@ const {
   exportHtml
 } = useMdFileSession({
   content,
-  loadDocument,
-  onDirtyChange: (v) => emit('dirty-change', v)
+  loadDocument
 })
 
 const {
@@ -326,10 +325,6 @@ const statsText = computed(() => {
   const lines = text.split('\n').length
   const formulas = (text.match(/\$\$[\s\S]*?\$\$|\$[^\$\n]+?\$/g) || []).length
   return `${lines} 行 · ${words} 字 · ${chars} 字符 · ${formulas} 公式`
-})
-
-onMounted(() => {
-  emit('dirty-change', false)
 })
 
 defineExpose({ save, openFile })

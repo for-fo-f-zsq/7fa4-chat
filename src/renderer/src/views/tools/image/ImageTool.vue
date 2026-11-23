@@ -152,7 +152,7 @@ import ImageHeaderBar from './components/ImageHeaderBar.vue'
 import ImageToolbar from './components/ImageToolbar.vue'
 import ImageCanvasStage from './components/ImageCanvasStage.vue'
 
-const emit = defineEmits(['back', 'dirty-change', 'sendImage'])
+const emit = defineEmits(['back', 'sendImage'])
 
 const dialog = useDialog()
 const toast = useToast()
@@ -170,8 +170,7 @@ const {
   saveBase64File
 } = useToolFile({
   defaultName: '未命名.png',
-  dirtyRef: dirty,
-  onDirtyChange: (v) => emit('dirty-change', v)
+  dirtyRef: dirty
 })
 
 const {
@@ -427,7 +426,6 @@ function onKeydown(e) {
 let unsubscribeOpenImage = null
 
 onMounted(() => {
-  emit('dirty-change', false)
   document.addEventListener('keydown', onKeydown)
   document.addEventListener('paste', onPaste)
   document.addEventListener('wheel', onWheel, { capture: true, passive: false })

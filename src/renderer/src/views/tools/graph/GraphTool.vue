@@ -105,7 +105,7 @@ import { useGraphLayout } from './composables/useGraphLayout.js'
 import { useGraphInteraction } from './composables/useGraphInteraction.js'
 import { useGraphCanvas } from './composables/useGraphCanvas.js'
 
-const emit = defineEmits(['back', 'dirty-change'])
+const emit = defineEmits(['back'])
 
 const { isNarrow } = useNarrow()
 const dialog = useDialog()
@@ -134,14 +134,12 @@ const canvas = useGraphCanvas({
     model.loadExample()
     model.setSuppressDirty(false)
     model.markClean()
-    emit('dirty-change', false)
   }
 })
 
 const model = useGraphModel({
   dialog,
   toast,
-  onDirtyChange: (v) => emit('dirty-change', v),
   getCanvasSize: canvas.getCanvasSize,
   onResetLayout: () => {
     layout.clearTreeState()

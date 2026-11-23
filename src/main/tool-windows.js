@@ -1,6 +1,6 @@
 'use strict';
 
-const { BrowserWindow } = require('electron');
+const { BrowserWindow, dialog } = require('electron');
 
 const TOOL_ID_RE = /^[a-z0-9][a-z0-9_-]*$/;
 
@@ -172,6 +172,18 @@ class ToolWindowManager {
       if (this.windows.get(id) === win) this.windows.delete(id);
       this.metaByWebContentsId.delete(wcId);
       this.pendingEventsByToolId.delete(id);
+    });
+
+    win.webContents.on('will-prevent-unload', (event) => {
+      const choice = dialog.showMessageBoxSync(win, {
+        type: 'question',
+        buttons: ['放弃并关闭', '取消'],
+        defaultId: 1,
+        cancelId: 1,
+        title: '未保存的更改',
+        message: '当前内容尚未保存，确定要关闭窗口吗？'
+      });
+      if (choice === 0) event.preventDefault();
     });
 
     win.webContents.on('did-finish-load', () => {

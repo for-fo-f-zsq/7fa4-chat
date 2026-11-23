@@ -14,7 +14,7 @@
         :src="src"
         alt="图片预览"
         class="preview-image-zoom"
-        :class="{ 'is-dragging': !!dragging }"
+        :class="{ 'is-dragging': !!dragging, 'is-switching': suppressTransition }"
         :style="imgStyle"
         draggable="false"
         @mousedown="onPanStart"
@@ -102,6 +102,7 @@ const overlayEl = ref(null)
 const stageEl = ref(null)
 const imgEl = ref(null)
 const dragging = ref(null)
+const suppressTransition = ref(false)
 let restoreEl = null
 
 const imgStyle = computed(() => ({
@@ -131,7 +132,7 @@ function zoomStep(delta) {
 }
 
 function rotateStep() {
-  rot.value = (rot.value + 90) % 360
+  rot.value += 90
   clampPan()
 }
 
@@ -231,9 +232,22 @@ function focusOnOpen() {
   })
 }
 
-watch(() => props.src, resetView)
+function resetViewInstant() {
+  suppressTransition.value = true
+  resetView()
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      suppressTransition.value = false
+    })
+  })
+}
+
+watch(() => props.src, resetViewInstant)
 watch(() => props.shown, (open) => {
-  if (open) focusOnOpen()
+  if (open) {
+    resetViewInstant()
+    focusOnOpen()
+  }
   else if (restoreEl && document.contains(restoreEl) && typeof restoreEl.focus === 'function') {
     restoreEl.focus({ preventScroll: true })
     restoreEl = null

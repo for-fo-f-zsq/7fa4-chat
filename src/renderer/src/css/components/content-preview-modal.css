@@ -42,6 +42,10 @@
   transition: none;
 }
 
+.preview-image-zoom.is-switching {
+  transition: none;
+}
+
 .image-toolbar {
   position: absolute;
   inset-inline: 0;
