@@ -27,6 +27,7 @@ const DEFAULT_REF = 'master';
 const DEFAULT_PACKAGE = '7FA4-Chat';
 const FILE_EXTS = ['.exe', '.zip', '.appimage', '.deb', '.dmg', '.yml', '.apk'];
 const REQUEST_TIMEOUT_MS = 60_000;
+const REQUEST_ATTEMPTS = 4;
 const UPLOAD_MAX_TIME_SEC = 1800;
 const UPLOAD_ATTEMPTS = 4;
 
@@ -154,29 +155,43 @@ function collectReleaseUploads({ version, distDir, changelogFile, releaseBodyFil
 
 async function request(apiBase, token, method, path, { body, headers, auth = true, skipBody = false } = {}) {
   const url = path.startsWith('http') ? path : `${apiBase}${path}`;
-  const reqHeaders = { ...(headers || {}) };
+  const reqHeaders = { Connection: 'close', ...(headers || {}) };
   if (auth && token) reqHeaders['PRIVATE-TOKEN'] = token;
-  let res;
-  try {
-    res = await fetch(url, {
-      method,
-      body,
-      headers: reqHeaders,
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-  } catch (e) {
-    throw new Error(`${method} ${url} 请求异常: ${e.cause?.code || e.message}`);
+
+  for (let attempt = 1; attempt <= REQUEST_ATTEMPTS; attempt++) {
+    let res;
+    try {
+      res = await fetch(url, {
+        method,
+        body,
+        headers: reqHeaders,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+      if ((res.status === 502 || res.status === 503 || res.status === 504) && attempt < REQUEST_ATTEMPTS) {
+        await res.body?.cancel().catch(() => {});
+        await sleep(1500 * (2 ** (attempt - 1)));
+        continue;
+      }
+      if (skipBody) {
+        await res.body?.cancel().catch(() => {});
+        return { status: res.status, headers: res.headers, text: '', data: null };
+      }
+      const text = await res.text();
+      let data = null;
+      if (text) {
+        try { data = JSON.parse(text); } catch { data = text; }
+      }
+      return { status: res.status, headers: res.headers, text, data };
+    } catch (e) {
+      const code = e.cause?.code || e.code || e.name || e.message;
+      if (attempt < REQUEST_ATTEMPTS) {
+        warn(`${method} ${url} 第 ${attempt}/${REQUEST_ATTEMPTS} 次异常 (${code})，重试中…`);
+        await sleep(1500 * (2 ** (attempt - 1)));
+        continue;
+      }
+      throw new Error(`${method} ${url} 请求异常: ${code}`);
+    }
   }
-  if (skipBody) {
-    await res.body?.cancel().catch(() => {});
-    return { status: res.status, headers: res.headers, text: '', data: null };
-  }
-  const text = await res.text();
-  let data = null;
-  if (text) {
-    try { data = JSON.parse(text); } catch { data = text; }
-  }
-  return { status: res.status, headers: res.headers, text, data };
 }
 
 async function paginate(apiBase, token, pathPrefix) {
