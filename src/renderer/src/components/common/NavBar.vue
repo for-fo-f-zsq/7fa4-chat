@@ -148,7 +148,7 @@ const props = defineProps({
 const emit = defineEmits(['switch', 'user-action'])
 
 const userMenu = ref(false)
-const fxOff = computed(() => (store.setting?.effectLevel || 'fancy') === 'performance')
+const fxOff = computed(() => (store.setting?.effectLevel || 'efficiency') === 'performance')
 
 const chatUnread = computed(() =>
   Object.values(props.users || {}).some((u) => u.unread > 0 && !isUserHiddenBySetting(u)) ||

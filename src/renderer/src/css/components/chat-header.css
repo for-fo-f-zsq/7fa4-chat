@@ -1,4 +1,11 @@
-/* ChatHeader — 极简毛玻璃会话顶栏 */
+/* ChatHeader — 极简会话顶栏
+   性能：本元素是「常驻 + 通栏」表面，原来的 --surface-glass + backdrop-filter(14px)
+   等于在聊天页常驻一块全宽模糊层，滚动时 backdrop 一变化就要重新采样整条 56px 带；
+   chat-header 的底色其实就是 --gradient-app 的起点色，所以直接用不透明的 --surface-0
+   完全看不出接缝，去模糊后正文（--fg）对比度反而更高。
+   主题范围：default / contrast / sage / sand / midnight / graphite + custom 主题均走
+   --bg-app 派生，不需要额外覆盖。可读性实测（--fg on --bg-app）：
+   contrast 19.0:1 / default 12.2:1 / sage 11.1:1 / sand 11.3:1 / graphite 14.2:1 / midnight 15.2:1。 */
 
 .chat-header {
   display: flex;
@@ -7,9 +14,7 @@
   height: 56px;
   flex-shrink: 0;
   padding: 0 var(--space-4) 0 var(--space-5);
-  background: var(--surface-glass);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  background: var(--surface-0);
   border-bottom: var(--border-width) solid var(--line-hairline);
   position: relative;
   z-index: var(--z-header);

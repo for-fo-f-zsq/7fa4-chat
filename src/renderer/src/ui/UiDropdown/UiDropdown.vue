@@ -152,6 +152,12 @@ const TYPEAHEAD_RESET = 500
 let listenersBound = false
 let typeBuffer = ''
 let typeTimer = 0
+// 面板尺寸（offsetWidth/offsetHeight）只在打开、选项集合变化、窗口缩放时才会变；
+// 滚动时每帧重新量一次是纯浪费（读 offset* 会强制同步布局）。缓存 + 脏标记。
+let metricsDirty = true
+let panelMetrics = { w: 0, h: 0 }
+// 滚动事件每帧最多排一次定位，位置没变则不写样式（否则每帧都会触发一次面板重渲染）。
+let rafId = 0
 
 const sizeClass = computed(() => (['sm', 'md', 'lg'].includes(props.size) ? props.size : 'md'))
 
@@ -194,13 +200,17 @@ function updatePosition() {
   const trigger = triggerRef.value
   const panel = panelRef.value
   if (!trigger || !panel) return
+  if (metricsDirty) {
+    panelMetrics = { w: panel.offsetWidth, h: panel.offsetHeight }
+    metricsDirty = false
+  }
   const rect = trigger.getBoundingClientRect()
   const vw = window.innerWidth
   const vh = window.innerHeight
   const maxW = Math.max(120, vw - GUTTER * 2)
   const minW = Math.max(rect.width, Number(props.minPanelWidth) || 0)
-  const width = props.autoWidth ? Math.min(Math.max(panel.offsetWidth, minW), maxW) : Math.min(minW, maxW)
-  const height = panel.offsetHeight
+  const width = props.autoWidth ? Math.min(Math.max(panelMetrics.w, minW), maxW) : Math.min(minW, maxW)
+  const height = panelMetrics.h
   const spaceBelow = vh - rect.bottom - GUTTER
   const openAbove = height > spaceBelow && rect.top > spaceBelow
   actualPlacement.value = openAbove ? 'top' : 'bottom'
@@ -216,7 +226,40 @@ function updatePosition() {
   } else {
     style.width = `${width}px`
   }
-  panelStyle.value = style
+  applyPanelStyle(style)
+}
+
+/** 位置/宽度与上次相同就不写 ref：避免滚动期间每帧都触发 panel 重渲染。 */
+function applyPanelStyle(next) {
+  const prev = panelStyle.value
+  const keys = Object.keys(next)
+  if (keys.length === Object.keys(prev).length) {
+    let same = true
+    for (const key of keys) {
+      if (prev[key] !== next[key]) { same = false; break }
+    }
+    if (same) return
+  }
+  panelStyle.value = next
+}
+
+function schedulePosition() {
+  if (rafId) return
+  rafId = requestAnimationFrame(() => {
+    rafId = 0
+    updatePosition()
+  })
+}
+
+function cancelScheduledPosition() {
+  if (!rafId) return
+  cancelAnimationFrame(rafId)
+  rafId = 0
+}
+
+function onWindowResize() {
+  metricsDirty = true
+  schedulePosition()
 }
 
 function activeFirstEnabled() {
@@ -230,6 +273,7 @@ function openMenu() {
   query.value = ''
   const selectedIndex = filteredOptions.value.findIndex((option) => isSelected(option) && !option.disabled)
   activeIndex.value = selectedIndex >= 0 ? selectedIndex : Math.max(0, filteredOptions.value.findIndex((o) => !o.disabled))
+  metricsDirty = true
   bindListeners()
   nextTick(() => {
     updatePosition()
@@ -382,21 +426,35 @@ function onDocumentMousedown(event) {
 function bindListeners() {
   if (listenersBound) return
   document.addEventListener('mousedown', onDocumentMousedown)
-  window.addEventListener('resize', updatePosition)
-  window.addEventListener('scroll', updatePosition, true)
+  window.addEventListener('resize', onWindowResize)
+  // passive + capture：滚动时只登记一帧，且不阻塞滚动
+  window.addEventListener('scroll', schedulePosition, { capture: true, passive: true })
   listenersBound = true
 }
 
 function unbindListeners() {
   if (!listenersBound) return
+  cancelScheduledPosition()
   document.removeEventListener('mousedown', onDocumentMousedown)
-  window.removeEventListener('resize', updatePosition)
-  window.removeEventListener('scroll', updatePosition, true)
+  window.removeEventListener('resize', onWindowResize)
+  window.removeEventListener('scroll', schedulePosition, true)
   listenersBound = false
 }
 
 watch(query, () => {
+  // 过滤结果变化会改变面板高度：下一次定位必须重新量尺寸
+  metricsDirty = true
   if (open.value) activeFirstEnabled()
+})
+
+watch(filteredOptions, () => {
+  metricsDirty = true
+  if (open.value) schedulePosition()
+})
+
+watch([() => props.autoWidth, () => props.minPanelWidth], () => {
+  metricsDirty = true
+  if (open.value) schedulePosition()
 })
 
 watch(

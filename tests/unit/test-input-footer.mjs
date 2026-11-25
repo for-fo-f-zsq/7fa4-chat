@@ -171,6 +171,16 @@ function fakeSize(el, scrollHeight, clientHeight) {
   Object.defineProperty(el, 'scrollHeight', { value: scrollHeight, configurable: true })
   Object.defineProperty(el, 'clientHeight', { value: clientHeight, configurable: true })
 }
+/**
+ * 预览默认收起；`v-if="previewVisible && inputText.trim()"` 只在展开时渲染 `.input-preview-content`
+ * （流畅度优化：预览收起时不再跑 markdown+KaTeX）。断言渲染/跟随滚动前必须先展开。
+ * 幂等：已展开则不再点，避免重复点击把面板关掉。
+ */
+function openPreview(g) {
+  const right = g.root.querySelector('.input-split-right')
+  if (right && right.style.display !== 'none') return
+  g.root.querySelector('.preview-btn')?.click()
+}
 
 // -- 1. 挂载与结构（左源码 / 分隔条 / 右预览）--
 const m = await mountFooter()
@@ -200,7 +210,9 @@ chk('提示：切换为 Ctrl+Enter 后文案随之变化',
 store.setting.shortcuts.sendMessage = 'enter'
 await flush()
 
-// -- 4. 输入 → 右侧实时渲染 --
+// -- 4. 输入 → 右侧实时渲染（预览收起时不解析，先展开）--
+openPreview(m)
+await flush()
 type(m.editor, '# 标题\n\n**粗体** 正文')
 await flush()
 const pv = m.root.querySelector('.input-preview-content')
@@ -210,7 +222,9 @@ chk('渲染：粗体渲染成 strong', !!pv?.querySelector('strong'))
 chk('渲染：源码不再以原文出现在预览里', !pv?.textContent.includes('**粗体**'), pv?.textContent)
 chk('渲染：有内容时空态提示消失', !m.root.querySelector('.input-preview-empty'))
 
-// -- 5. 渲染保留表情与图片档位（"渲染需要保留表情等等"）--
+// -- 5. 渲染保留表情与图片档位（"渲染需要保留表情等等"；预览保持展开）--
+openPreview(m)
+await flush()
 type(m.editor, '/wx 你好')
 await flush()
 chk('表情：预览里渲染出表情图', !!m.root.querySelector('.input-preview-content img.qqface'))
@@ -220,7 +234,9 @@ type(m.editor, '![图](https://x/a.png)')
 await flush()
 chk('图片：预览用消息档 chat-image', !!m.root.querySelector('.input-preview-content img.chat-image'))
 
-// -- 6. 双向跟随滚动（与「工具 → Markdown」共享 scroll-sync 引擎）--
+// -- 6. 双向跟随滚动（与「工具 → Markdown」共享 scroll-sync 引擎；预览展开时才同步）--
+openPreview(m)
+await flush()
 type(m.editor, Array.from({ length: 40 }, (_, i) => `第 ${i} 行`).join('\n'))
 await flush()
 const ta = m.editor

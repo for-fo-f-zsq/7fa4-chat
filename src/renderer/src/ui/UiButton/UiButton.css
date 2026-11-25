@@ -78,6 +78,18 @@
   box-shadow: var(--elev-brand);
 }
 
+/* 浅色模式主按钮：统一使用与「发送 / 打开」一致的浅色品牌底 + 品牌色文字 + 轻描边，
+   深色主题（midnight / graphite）与高对比度主题（contrast）保持各自实心对比度策略。 */
+html:not(.theme-midnight):not(.theme-graphite):not(.theme-contrast) .ui-btn--primary {
+  --btn-bg: var(--brand-soft);
+  --btn-fg: var(--brand);
+  --btn-border: var(--brand-line);
+  --btn-hover-bg: color-mix(in srgb, var(--brand-fill) 20%, transparent);
+  --btn-hover-fg: var(--brand-hover);
+  --btn-active-bg: color-mix(in srgb, var(--brand-fill) 28%, transparent);
+  box-shadow: none;
+}
+
 .ui-btn--secondary {
   --btn-bg: var(--surface-raised);
   --btn-fg: var(--fg);

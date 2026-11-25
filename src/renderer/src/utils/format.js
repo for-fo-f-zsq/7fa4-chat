@@ -26,21 +26,58 @@ export function unescapeHtml(s) {
 /**
  * 解析消息内容为 JSON 对象，失败返回 null。
  * 先按原样解析；仅失败时回退「先反转义再解析」。只认 JSON 对象，排除数字/null/布尔/数组。
+ *
+ * 性能：
+ * 1) 快速排除 —— JSON 对象必定以 `{` 开头，所以纯文本消息（绝大多数）连一次 JSON.parse
+ *    都不用尝试。历史实现是无条件两次 JSON.parse（第二次还要先跑 unescapeHtml 的 5 条
+ *    replace），几百条纯文本消息滚一遍就是几百次必然失败的异常抛出 + 字符串重写。
+ * 2) 可选缓存 —— 只有调用方显式传入 cacheKey（建议用 msg.id）时才读写缓存，并把返回对象
+ *    视为**只读共享对象**。不传 key 的老调用方每次拿到新对象，语义完全不变：像
+ *    chatSync.js 里 `mobj.voteMeta = …` 这种会原地改结果的地方必须继续不传 key。
  */
-export function parseMsgContent(content) {
+const MSG_JSON_CACHE = new Map()
+const MSG_JSON_CACHE_MAX = 400
+
+export function parseMsgContent(content, cacheKey) {
   if (!content) return null
   if (typeof content === 'object') return Array.isArray(content) ? null : content
   const raw = String(content)
+  // JSON 对象一定以 `{` 开头（允许前导空白）。首字符不是 `{` 且不是空白，
+  // 就不可能解析出对象 —— 直接返回 null，省掉两次必然失败的 JSON.parse。
+  const c0 = raw.charCodeAt(0)
+  if (c0 !== 123 /* { */) {
+    const isSpace = c0 === 32 || c0 === 10 || c0 === 9 || c0 === 13
+    if (!isSpace || raw.trimStart().charCodeAt(0) !== 123) return null
+  }
+
+  const key = cacheKey == null ? null : '#' + cacheKey
+  if (key !== null) {
+    const hit = MSG_JSON_CACHE.get(key)
+    // 缓存条目带原始串：同一个 id 的内容可能被改写（投票票数、编辑重发），
+    // 只有 raw 完全一致才认命中，绝不会把旧解析结果当新内容。
+    if (hit && hit.raw === raw) return hit.value
+  }
+
+  let result = null
   const asObject = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null)
   try {
     const v = JSON.parse(raw)
-    if (asObject(v)) return v
+    if (asObject(v)) result = v
   } catch {}
-  try {
-    const v = JSON.parse(unescapeHtml(raw))
-    if (asObject(v)) return v
-  } catch {}
-  return null
+  if (result === null) {
+    try {
+      const v = JSON.parse(unescapeHtml(raw))
+      if (asObject(v)) result = v
+    } catch {}
+  }
+
+  if (key !== null) {
+    if (MSG_JSON_CACHE.size >= MSG_JSON_CACHE_MAX) {
+      MSG_JSON_CACHE.delete(MSG_JSON_CACHE.keys().next().value)
+    }
+    MSG_JSON_CACHE.set(key, { raw, value: result })
+  }
+  return result
 }
 
 export function gettime1(date) {

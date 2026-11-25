@@ -106,7 +106,11 @@
   100% { opacity: 1; transform: translateY(0) }
 }
 
-/* 2.5 循环：加载/骨架/氛围光（品牌白名单，见 EXCEPTIONS.md W6） */
+/* 2.5 循环：加载/骨架/氛围光（品牌白名单，见 EXCEPTIONS.md W6）
+   预算规则：循环动画只允许动「合成器属性」= opacity / transform。
+   动 background-color、box-shadow、filter、backdrop-filter 的循环会每帧重绘（弱 GPU 上直接掉帧），
+   所以 pulse 只做透明度呼吸；原来 50% 处的 scale(0.96) 会让被动画的层每帧重新栅格化，
+   在常驻的未读红点/骨架屏上代价明显，已去掉（视觉语义仍是「这里的点在呼吸」）。 */
 @keyframes spin {
   100% { transform: rotate(360deg) }
 }
@@ -115,8 +119,8 @@
   50% { opacity: 0.9 }
 }
 @keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1) }
-  50% { opacity: 0.75; transform: scale(0.96) }
+  0%, 100% { opacity: 1 }
+  50% { opacity: 0.7 }
 }
 @keyframes breathe {
   0%, 100% { opacity: 0.55 }
@@ -171,14 +175,9 @@
   0%, 100% { opacity: 0.6 }
   50% { opacity: 1 }
 }
-@keyframes activeGlow {
-  from { box-shadow: var(--elev-brand); }
-  to { box-shadow: var(--elev-brand-hover); }
-}
-@keyframes downloadBreathe {
-  0%, 100% { box-shadow: var(--elev-brand); }
-  50% { box-shadow: var(--elev-brand-hover); }
-}
+/* 已删除 activeGlow / downloadBreathe：两者都是「循环动画 box-shadow」的品牌预设，
+   box-shadow 不在合成器属性白名单里，一旦 infinite 就是每秒 60 次大面积模糊重绘。
+   激活态/下载态一律用静态阴影（--elev-brand / --elev-brand-hover）表达。 */
 
 /* 2.8 迁移期兼容：legacy 代码引用了从未定义的旧名（原来是静默硬切），Phase 2 删除引用后删掉本块 */
 @keyframes ctxFade {
@@ -187,6 +186,11 @@
 }
 
 /* ---------- 3. Vue <Transition> 类组：每组都有 enter + leave 六态 ---------- */
+/* 过渡白名单（全站统一）：transition 只允许写 opacity / transform / background-color /
+   border-color / color / box-shadow-outside-scroll。禁止 transition: all。
+   will-change 只允许出现在 *-enter-active / *-leave-active 这类「只活一次」的类上
+   （类移除即释放合成层）；常驻元素、滚动容器、列表项一律禁写 will-change，
+   否则每个列表项常驻一张显存纹理，长列表直接爆显存并拖慢合成。 */
 /* 3.1 fade —— 纯透明度（提示条/内容替换） */
 .fade-enter-active { transition: opacity var(--motion-dur-base) var(--motion-ease-enter); }
 .fade-leave-active { transition: opacity var(--motion-dur-exit) var(--motion-ease-exit); }

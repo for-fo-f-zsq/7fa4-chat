@@ -46,9 +46,23 @@ CREATE TABLE IF NOT EXISTS kv (
 `
 
 // ---------- AES-256-GCM ----------
+// 密钥只与常量有关：缓存到模块级，避免每次 encryptText/decryptText 重复算一次 SHA-256。
+// （saveAll 里每条消息都会调 encryptText，旧实现等于每条记录多一次哈希。）
+let _aesKey = null
 function aesKey() {
-  return crypto.createHash('sha256').update(DATA_PASSPHRASE).digest()
+  if (!_aesKey) _aesKey = crypto.createHash('sha256').update(DATA_PASSPHRASE).digest()
+  return _aesKey
 }
+
+/** 内容指纹：用来判断「这条记录是否真的变了」，避免重复加密 + 重复写盘 */
+function fingerprint(text) {
+  return crypto.createHash('sha1').update(text).digest('base64')
+}
+
+// 记录指纹缓存的上限：超过就整体清空（下次退化为全量写一遍，不会丢数据）
+const SEEN_LIMIT = 120000
+// saveAll 超过这个耗时才打日志（避免每 10s 一条噪声，卡顿时又能留下证据）
+const SLOW_SAVE_MS = 40
 
 function encryptText(plain) {
   const key = aesKey()
@@ -67,7 +81,7 @@ function decryptText(payload) {
   return Buffer.concat([decipher.update(Buffer.from(p.data, 'base64')), decipher.final()]).toString('utf8')
 }
 
-const encryptJSON = (obj) => encryptText(JSON.stringify(obj))
+// 落盘一律用 encryptText(已序列化的 JSON)：写入前要先算内容指纹，避免重复序列化
 const decryptJSON = (payload) => JSON.parse(decryptText(payload))
 
 function normalizeFree(val) {
@@ -102,6 +116,17 @@ class UserStore {
   constructor(dbPath) {
     this.dbPath = dbPath
     this.db = null
+    // 已落库内容的指纹（内存）：convos/messages/prefs 的 key → sha1(明文 JSON)。
+    // 渲染层的 saveAll 是「全量快照」语义（每 10s + 每次收发消息），同一份内容会被反复送来；
+    // 这里命中指纹就直接跳过「AES 加密 + SQLite upsert」，把主进程的热路径压到最低。
+    this.seen = { convos: new Map(), msgs: new Map(), prefs: new Map() }
+  }
+
+  /** 指纹缓存超限就整体重置（只会让下一轮多做一次全量写，不影响正确性） */
+  _seenPut(kind, key, sig) {
+    const m = this.seen[kind]
+    if (m.size >= SEEN_LIMIT) m.clear()
+    m.set(key, sig)
   }
 
   init() {
@@ -120,7 +145,11 @@ class UserStore {
       }
     }
     try { this.db.exec('PRAGMA journal_mode=WAL') } catch {}
-    try { this.db.exec('PRAGMA synchronous=FULL') } catch {}
+    // synchronous=NORMAL：WAL 模式下 COMMIT 不再每次 fsync（只写 WAL 文件，由 checkpoint 落主库）。
+    // 进程崩溃（含 kill/断电重启前的进程内崩溃）仍保证已提交事务不丢；只有「操作系统崩溃/掉电」
+    // 才可能回滚最后几个提交。对聊天缓存这种可从服务端重新拉取的数据，这个取舍完全值得：
+    // 旧值 FULL 让每次 saveAll 的 COMMIT 都要等磁盘 fsync，机械盘/杀软实时扫描时主进程会卡住几十 ms。
+    try { this.db.exec('PRAGMA synchronous=NORMAL') } catch {}
     try { this.setKV(KEYVER_MARK, String(DATA_KEY_VER)) } catch {}
     return this
   }
@@ -173,17 +202,11 @@ class UserStore {
   /** convos: [{kind:'user'|'group', cid, meta(obj)}]（事务批量 upsert） */
   saveConvos(uid, convos) {
     if (!this.db || !convos || !convos.length) return { success: true, count: 0 }
-    try {
-      this.db.exec('BEGIN')
-      const stmt = this.db.prepare('INSERT OR REPLACE INTO convos (uid, kind, cid, meta, updated) VALUES (?,?,?,?,?)')
-      const now = Date.now()
-      for (const c of convos) stmt.run(uid, c.kind, c.cid, encryptJSON(c.meta), now)
-      this.db.exec('COMMIT')
-      return { success: true, count: convos.length }
-    } catch (e) {
-      try { this.db.exec('ROLLBACK') } catch {}
-      return { success: false, error: e.message }
-    }
+    let rows
+    try { rows = this._planConvos(uid, convos) } catch (e) { return { success: false, error: e.message } }
+    const r = this._writeRows(uid, { convoRows: rows })
+    if (!r.success) return r
+    return { success: true, count: convos.length, writes: r.writes }
   }
 
   loadConvos(uid) {
@@ -209,19 +232,101 @@ class UserStore {
   /** msgs: [{mid|id, send_time, ...}]，逐条加密，事务批量写 */
   saveMessages(uid, kind, cid, msgs) {
     if (!this.db || !msgs || !msgs.length) return { success: true, count: 0 }
-    try {
-      this.db.exec('BEGIN')
-      const stmt = this.db.prepare('INSERT OR REPLACE INTO messages (uid, kind, cid, mid, send_time, content) VALUES (?,?,?,?,?,?)')
+    let rows
+    try { rows = this._planMessages(uid, { [kind + ':' + cid]: msgs }) } catch (e) { return { success: false, error: e.message } }
+    const r = this._writeRows(uid, { msgRows: rows })
+    if (!r.success) return r
+    return { success: true, count: msgs.length, writes: r.writes }
+  }
+
+  // ---------- 增量写入的公共实现 ----------
+  /**
+   * 把渲染层送来的快照拆成「真正需要写库的行」：
+   * - 空数组 / 未变化的记录直接跳过（不做 AES、不做 SQLite 语句）；
+   * - 消息以 mid 为粒度判重，所以渲染层即使重发整会话 1000 条，也只有新消息/被编辑的消息会落盘。
+   */
+  _planConvos(uid, convos) {
+    const out = []
+    if (!Array.isArray(convos)) return out
+    for (const c of convos) {
+      if (!c || c.cid == null) continue
+      const kind = c.kind === 'group' ? 'group' : (c.kind === 'user' ? 'user' : null)
+      if (!kind) continue
+      const cid = Number(c.cid)
+      if (!Number.isFinite(cid)) continue
+      const json = JSON.stringify(c.meta)
+      const key = uid + '|' + kind + ':' + cid
+      const sig = fingerprint(json)
+      if (this.seen.convos.get(key) === sig) continue
+      out.push({ kind, cid, json, key, sig })
+    }
+    return out
+  }
+
+  /** messages: {'user:cid'|'group:cid': [msgs]} → 待写消息行 */
+  _planMessages(uid, messages) {
+    const out = []
+    if (!messages || typeof messages !== 'object') return out
+    for (const [convoKey, msgs] of Object.entries(messages)) {
+      if (!Array.isArray(msgs) || !msgs.length) continue
+      const sep = convoKey.indexOf(':')
+      if (sep <= 0) continue
+      const kind = convoKey.slice(0, sep)
+      const cid = Number(convoKey.slice(sep + 1))
+      if (kind !== 'user' && kind !== 'group') continue
+      if (!Number.isFinite(cid)) continue
       for (const m of msgs) {
         if (m == null) continue
         const mid = m.mid ?? m.id
-        if (mid == null) continue
+        if (mid == null || !Number.isFinite(Number(mid))) continue
         // 统一 id/mid 字段：渲染层传 {id,..}，迁移/备份传 {mid,..}
-        const rec = normalizeMessageForSave(m, mid)
-        stmt.run(uid, kind, cid, Number(mid), Number(m.send_time || 0), encryptJSON(rec))
+        const json = JSON.stringify(normalizeMessageForSave(m, Number(mid)))
+        const key = uid + '|' + kind + ':' + cid + ':' + Number(mid)
+        const sig = fingerprint(json)
+        if (this.seen.msgs.get(key) === sig) continue
+        out.push({ kind, cid, mid: Number(mid), sendTime: Number(m.send_time || 0), json, key, sig })
+      }
+    }
+    return out
+  }
+
+  _planPrefs(uid, prefs) {
+    const out = []
+    if (!prefs || typeof prefs !== 'object') return out
+    for (const [key, value] of Object.entries(prefs)) {
+      if (value === undefined) continue
+      const json = JSON.stringify(value)
+      const sig = fingerprint(json)
+      if (this.seen.prefs.get(uid + '|' + key) === sig) continue
+      out.push({ key, json, sig })
+    }
+    return out
+  }
+
+  /** 单事务写入已规划好的行；成功后才登记指纹（回滚时指纹不变，下一轮会重写） */
+  _writeRows(uid, { convoRows = [], msgRows = [], prefRows = [] } = {}) {
+    const total = convoRows.length + msgRows.length + prefRows.length
+    if (!total) return { success: true, writes: 0, skipped: true }
+    try {
+      this.db.exec('BEGIN')
+      if (convoRows.length) {
+        const stmt = this.db.prepare('INSERT OR REPLACE INTO convos (uid, kind, cid, meta, updated) VALUES (?,?,?,?,?)')
+        const now = Date.now()
+        for (const r of convoRows) stmt.run(uid, r.kind, r.cid, encryptText(r.json), now)
+      }
+      if (msgRows.length) {
+        const stmt = this.db.prepare('INSERT OR REPLACE INTO messages (uid, kind, cid, mid, send_time, content) VALUES (?,?,?,?,?,?)')
+        for (const r of msgRows) stmt.run(uid, r.kind, r.cid, r.mid, r.sendTime, encryptText(r.json))
+      }
+      if (prefRows.length) {
+        const stmt = this.db.prepare('INSERT OR REPLACE INTO prefs (uid, key, value) VALUES (?,?,?)')
+        for (const r of prefRows) stmt.run(uid, r.key, encryptText(r.json))
       }
       this.db.exec('COMMIT')
-      return { success: true, count: msgs.length }
+      for (const r of convoRows) this._seenPut('convos', r.key, r.sig)
+      for (const r of msgRows) this._seenPut('msgs', r.key, r.sig)
+      for (const r of prefRows) this._seenPut('prefs', uid + '|' + r.key, r.sig)
+      return { success: true, writes: total }
     } catch (e) {
       try { this.db.exec('ROLLBACK') } catch {}
       return { success: false, error: e.message }
@@ -232,45 +337,33 @@ class UserStore {
   /**
    * 一次性原子保存全部数据：会话元数据 + 偏好 + 待写消息（按会话）。
    * 单一事务：要么全部落库、要么全部失败，杜绝"会话 id 已存、消息内容未存"的分裂状态。
-   * messages 传 { 'user:cid'|'group:cid': [msgs] }，仅包含有变化的会话（脏区）。
+   * messages 传 { 'user:cid'|'group:cid': [msgs] }，仅包含有变化的会话（脏区）；
+   * 即使渲染层把整会话的消息都送来，这里也会按 mid + 内容指纹只写真正变化的那些条。
    * 消息按 mid 增量合并（INSERT OR REPLACE，不做会话级 DELETE）：
    * 渲染层内存仅为懒加载的部分历史时，也绝不会把库中已保存的完整历史覆盖清空。
+   *
+   * 返回值：{ success, writes, skipped?, ms }。writes=0 / skipped=true 表示「内容与库里一致，什么都没写」，
+   * 此时不会 BEGIN/COMMIT（渲染层 10s 定时保存的绝大多数轮次走这条路）。
    */
-  saveAll(uid, { convos, prefs, messages }) {
+  saveAll(uid, { convos, prefs, messages } = {}) {
     if (!this.db) return { success: false, error: 'db not ready' }
+    const t0 = Date.now()
+    let convoRows, msgRows, prefRows
+    // 规划阶段会 JSON.stringify（脏数据如 BigInt 会抛）：这里必须兜住，否则 async IPC 会变成 rejected Promise
     try {
-      this.db.exec('BEGIN')
-      if (Array.isArray(convos)) {
-        const stmt = this.db.prepare('INSERT OR REPLACE INTO convos (uid, kind, cid, meta, updated) VALUES (?,?,?,?,?)')
-        const now = Date.now()
-        for (const c of convos) stmt.run(uid, c.kind, c.cid, encryptJSON(c.meta), now)
-      }
-      if (messages && typeof messages === 'object') {
-        const insStmt = this.db.prepare('INSERT OR REPLACE INTO messages (uid, kind, cid, mid, send_time, content) VALUES (?,?,?,?,?,?)')
-        for (const [key, msgs] of Object.entries(messages)) {
-          const [kind, cid] = key.split(':')
-          if (!kind || cid == null || !Array.isArray(msgs)) continue
-          for (const m of msgs) {
-            if (m == null) continue
-            const mid = m.mid ?? m.id
-            if (mid == null) continue
-            insStmt.run(uid, kind, Number(cid), Number(mid), Number(m.send_time || 0), encryptJSON(normalizeMessageForSave(m, mid)))
-          }
-        }
-      }
-      if (prefs && typeof prefs === 'object') {
-        const stmt = this.db.prepare('INSERT OR REPLACE INTO prefs (uid, key, value) VALUES (?,?,?)')
-        for (const [key, value] of Object.entries(prefs)) {
-          if (value === undefined) continue
-          stmt.run(uid, key, encryptJSON(value))
-        }
-      }
-      this.db.exec('COMMIT')
-      return { success: true }
+      convoRows = this._planConvos(uid, convos)
+      msgRows = this._planMessages(uid, messages)
+      prefRows = this._planPrefs(uid, prefs)
     } catch (e) {
-      try { this.db.exec('ROLLBACK') } catch {}
       return { success: false, error: e.message }
     }
+    const r = this._writeRows(uid, { convoRows, msgRows, prefRows })
+    const ms = Date.now() - t0
+    if (!r.success) return r
+    if (ms >= SLOW_SAVE_MS) {
+      console.warn(`[Store] saveAll 偏慢 ${ms}ms（写 ${r.writes} 条：convos ${convoRows.length} / messages ${msgRows.length} / prefs ${prefRows.length}）`)
+    }
+    return { ...r, ms }
   }
 
   /** 加载某会话消息（send_time 降序，limit 条；before 为时间游标用于翻页） */
@@ -326,6 +419,8 @@ class UserStore {
           removed += Number(info.changes)
         }
         this.db.exec('COMMIT')
+        // 有行被删掉：消息指纹整体作废（数量很小，代价可忽略）
+        this.seen.msgs.clear()
       }
       return { success: true, removed }
     } catch (e) {
@@ -338,21 +433,10 @@ class UserStore {
   /** entries: {key: value(obj)}，事务批量 upsert */
   savePrefs(uid, entries) {
     if (!this.db || !entries) return { success: true }
-    try {
-      const keys = Object.keys(entries)
-      if (!keys.length) return { success: true }
-      this.db.exec('BEGIN')
-      const stmt = this.db.prepare('INSERT OR REPLACE INTO prefs (uid, key, value) VALUES (?,?,?)')
-      for (const k of keys) {
-        if (entries[k] === undefined) continue
-        stmt.run(uid, k, encryptJSON(entries[k]))
-      }
-      this.db.exec('COMMIT')
-      return { success: true }
-    } catch (e) {
-      try { this.db.exec('ROLLBACK') } catch {}
-      return { success: false, error: e.message }
-    }
+    let rows
+    try { rows = this._planPrefs(uid, entries) } catch (e) { return { success: false, error: e.message } }
+    const r = this._writeRows(uid, { prefRows: rows })
+    return r.success ? { success: true, writes: r.writes } : r
   }
 
   loadPrefs(uid) {
@@ -408,6 +492,7 @@ class UserStore {
     if (!this.db) return { success: false, error: 'db not ready' }
     try {
       const r = this.db.prepare('DELETE FROM messages').run()
+      this.seen.msgs.clear()
       return { success: true, removed: Number(r.changes) }
     } catch (e) {
       return { success: false, error: e.message }
@@ -419,6 +504,8 @@ class UserStore {
     if (!this.db) return { success: false, error: 'db not ready' }
     try {
       const r = this.db.prepare('DELETE FROM messages WHERE uid=?').run(uid)
+      // 该用户的消息指纹作废（按 uid 前缀清理，其他登录用户不受影响）
+      this.seen.msgs.clear()
       return { success: true, removed: Number(r.changes) }
     } catch (e) {
       return { success: false, error: e.message }

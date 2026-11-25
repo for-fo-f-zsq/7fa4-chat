@@ -316,9 +316,9 @@
 @supports (color: color-mix(in srgb, red, blue)) {
   :root {
     /* 品牌墨色：低饱和主题自动向正文调深（浅底）/ 提亮（深底），保证全主题可读 */
-    --brand: color-mix(in srgb, var(--accent, #3C8CE7) 40%, var(--text-primary, #1A1A2E));
-    --brand-hover: color-mix(in srgb, var(--accent-hover, #2E78D0) 30%, var(--text-primary, #1A1A2E));
-    --brand-active: color-mix(in srgb, var(--accent-active, #2566B8) 20%, var(--text-primary, #1A1A2E));
+    --brand: color-mix(in srgb, var(--accent, #3C8CE7) 78%, var(--text-primary, #1A1A2E));
+    --brand-hover: color-mix(in srgb, var(--accent-hover, #2E78D0) 72%, var(--text-primary, #1A1A2E));
+    --brand-active: color-mix(in srgb, var(--accent-active, #2566B8) 65%, var(--text-primary, #1A1A2E));
     --surface-3: color-mix(in srgb, var(--fg) 6%, var(--surface-2));
     --surface-glass: color-mix(in srgb, var(--surface-raised) 86%, transparent);
     --line-hairline: color-mix(in srgb, var(--line) 80%, transparent);
@@ -375,12 +375,22 @@
   --modal-w-lg: 720px;
   --modal-w-xl: 900px;
   --tooltip-w: 240px;
+  /* ---- 玻璃/模糊预算（性能敏感：blur 的 GPU 采样成本随半径平方增长） ----
+     1) --glass-blur 是全站 backdrop-filter 的唯一半径来源（当前全仓仍有 19 条声明消费它，
+        另有 useToast.js 里一处内联）；本轮已把聊天「常驻 + 大面积」的 4 条改为不透明表面。
+        14px → 8px：视觉上仍是「磨砂玻璃」，但每帧采样量约为原来的 1/3。
+     2) 聊天主界面里「常驻 + 大面积」的表面（chat-header / narrow navbar）已改为
+        不透明语义表面色，不再走 backdrop-filter；见各组件文件顶部注释。
+     3) 常驻/滚动中的浮层（滚动容器的悬浮按钮、聊天横幅堆栈）仍保留玻璃感，
+        但受本令牌约束；瞬态浮层（菜单、tooltip、弹窗）一律用不透明 surface，
+        因为它们在背景之上要压住正文，半透明反而伤可读性。
+     新增 backdrop-filter 前请先问：这个元素在滚动时是否每帧都有背景变化。 */
+  --glass-blur: 8px;
+  --overlay-blur: 6px;
   --dropdown-w: 320px;
   --menu-w-min: 160px;
   --menu-w-max: 320px;
   --popover-w-max: 320px;
-  --overlay-blur: 8px;
-  --glass-blur: 14px;
 }
 
 /* ========== §12 状态色填充上的文字：逐主题覆盖 ==========

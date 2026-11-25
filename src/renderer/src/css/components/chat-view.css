@@ -10,16 +10,30 @@
   background: var(--gradient-app);
 }
 
-/* 鼠标光晕（performance / reduced-motion 时关闭） */
+/* 鼠标光晕（performance / reduced-motion 时关闭）
+   性能：useAppEffects 在每次 mousemove（可达 100+Hz）里写 --mouse-x / --mouse-y。
+   原实现是「inset:0 铺满整个窗口 + radial-gradient 的圆心跟着变量动 + transition: background」：
+     a) 圆位置变化 = 整屏渐变重绘（背景不在合成器属性能管的范围）；
+     b) background 又挂了 380ms 过渡，指针一动过渡每次都重启 → 滚动/移动期间屏幕几乎每帧全量重绘；
+     c) 全屏 z-index: var(--z-max) 的独立层还要参与每帧合成。
+   现在改为「固定 320×320 的小精灵 + 只动 transform」：渐变是静态纹理，圆心靠 translate3d 平移，
+   全程走合成器（不重绘、不重排），一帧的代价从「整屏模糊渐变」降到「一个 320² 图层的平移」；
+   transition 也从 background 换成 transform（合成器属性），视觉上的拖尾手感不变。
+   变量缺失（尚未移动过鼠标）时 translate 落在视口外，首帧不会出现屏幕正中的幽灵光斑。 */
 .app::after {
   content: '';
   position: absolute;
-  inset: 0;
-  background: radial-gradient(160px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), var(--brand-glow), transparent 60%);
+  top: 0;
+  left: 0;
+  width: 320px;
+  height: 320px;
+  margin: -160px 0 0 -160px;
+  background: radial-gradient(160px circle at 50% 50%, var(--brand-glow), transparent 60%);
   pointer-events: none;
   z-index: var(--z-max);
   opacity: 0.7;
-  transition: background var(--motion-dur-emph) var(--motion-ease-out-expo);
+  transform: translate3d(var(--mouse-x, -50vw), var(--mouse-y, -50vh), 0);
+  transition: transform var(--motion-dur-base) var(--motion-ease-out-expo);
 }
 
 .app.no-mouse-gradient::after,
@@ -105,6 +119,9 @@ html.fx-lite .app::after {
   background: var(--gradient-app);
 }
 
+/* 会话区顶部的品牌氛围光。刻意保留：它是静态渐变（圆心、半径都不动），只在尺寸变化时
+   重绘一次，滚动期间零成本；真正贵的是「位置跟着指针/滚动变化」的渐变（见上面 .app::after）。
+   performance 档（html.fx-lite）下直接关掉。 */
 .chat-main::before {
   content: '';
   position: absolute;

@@ -89,6 +89,9 @@ const formatTag = computed(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  width: 100%;
+  min-width: 0;
   padding: 0;
   border-bottom: 0;
   background: transparent;
@@ -100,7 +103,12 @@ const formatTag = computed(() => {
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  flex: 1;
+  flex: 1 1 auto;
+}
+
+.img-header-left :deep(.tool-save-badge) {
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .img-header-icon {
@@ -113,6 +121,8 @@ const formatTag = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  flex: 0 1 240px;
   max-width: 240px;
   background: var(--surface-1);
   border: var(--border-width) solid var(--line-hairline);
@@ -165,5 +175,11 @@ const formatTag = computed(() => {
   align-items: center;
   gap: var(--space-1);
   flex-shrink: 0;
+}
+
+@media (max-width: 560px) {
+  .img-dim-badge {
+    display: none;
+  }
 }
 </style>

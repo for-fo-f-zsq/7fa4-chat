@@ -1133,8 +1133,8 @@ const hoveredSlotLeft = computed(() => {
 
 const hoveredSlotAlignClass = computed(() => {
   const idx = hoveredSlotIdx.value
-  if (idx >= 0 && idx <= 4) return 'is-align-left'
-  if (idx >= STATUS_HOURS - 5) return 'is-align-right'
+  if (idx >= 0 && idx <= 6) return 'is-align-left'
+  if (idx >= STATUS_HOURS - 7) return 'is-align-right'
   return ''
 })
 
@@ -1199,7 +1199,7 @@ const currentThemeColor = computed(() => {
 const apiUrlValue = computed(() =>
   (props.setting?.apiUrl || 'https://jx.7fa4.cn').replace(/^http:\/\//, 'https://')
 )
-const effectValue = computed(() => props.setting?.effectLevel || 'fancy')
+const effectValue = computed(() => props.setting?.effectLevel || 'efficiency')
 
 function selectApiUrl(value) {
   emit('settingChange', { apiUrl: value })

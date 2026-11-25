@@ -95,17 +95,27 @@ const avatarName = computed(() => (
     : (props.item.groupName || '群')
 ))
 
+// 最后一条消息的预览由 ConversationList 统一预计算（一次扫描、按会话缓存），
+// 这里直接读 item.lastText / lastSenderText / lastTime；字段缺失时才回退到自己扫描，
+// 保证组件单独使用（测试/其他页面）时行为不变。
 const previewText = computed(() => {
   if (props.draft) return props.draft
-  const last = getLastMessage(props.item.message_ids, props.messages)
-  if (props.item.type === 'group') {
-    return getLastMessageSender(props.item.message_ids, props.messages) + last
+  const it = props.item
+  if (typeof it.lastText === 'string') {
+    return it.type === 'group' ? (it.lastSenderText || '') + it.lastText : it.lastText
+  }
+  const last = getLastMessage(it.message_ids, props.messages)
+  if (it.type === 'group') {
+    return getLastMessageSender(it.message_ids, props.messages) + last
   }
   return last
 })
 
 const lastTimeText = computed(() => {
-  const t = Math.max(getLastMessageTime(props.item.message_ids, props.messages), props.item.lastSendTime || 0)
+  const it = props.item
+  const t = typeof it.lastTime === 'number'
+    ? Math.max(it.lastTime, it.lastSendTime || 0)
+    : Math.max(getLastMessageTime(it.message_ids, props.messages), it.lastSendTime || 0)
   return t ? gettime1(t) : ''
 })
 

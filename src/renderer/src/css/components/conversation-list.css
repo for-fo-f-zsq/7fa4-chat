@@ -17,6 +17,7 @@
   flex-shrink: 0;
   padding: 0 var(--space-4);
   background: var(--surface-0);
+  border-bottom: var(--border-width) solid var(--line-hairline);
 }
 
 .list-section .list-header h2 {
@@ -55,30 +56,50 @@
   flex: 1;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: var(--space-2);
+  padding: 0;
   scrollbar-width: thin;
 }
 
 .list-section .list-inner {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0;
 }
 
+/* 过渡白名单：hover 本身只改底色，所以这里不挂 box-shadow（原来把阴影过渡也列进来，
+   而 hover 根本不改阴影，纯属让浏览器在每次指针划过时多登记一个待观察属性）；
+   transform 仅服务 :active 的按压缩放，保持手感。 */
 .conversation-item {
   position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
+  padding: 12px 16px;
   margin: 0;
-  border-radius: var(--radius-lg);
+  border-radius: 0;
+  border-bottom: var(--border-width) solid var(--line-conversation);
   overflow: hidden;
   cursor: pointer;
   transition:
     background-color var(--motion-dur-fast) var(--motion-ease-standard),
-    box-shadow var(--motion-dur-fast) var(--motion-ease-standard),
     transform var(--motion-dur-fast) var(--motion-ease-out-expo);
+}
+
+.conversation-item::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  right: 50%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--brand), transparent);
+  transition: left 0.25s ease, right 0.25s ease;
+  pointer-events: none;
+}
+
+.conversation-item.exited::after,
+.conversation-item.blocked::after {
+  display: none;
 }
 
 .conversation-item::before {
@@ -106,6 +127,15 @@
 @media (hover: hover) {
   .conversation-item:hover {
     background: var(--surface-hover);
+  }
+
+  .conversation-item:hover .conv-name {
+    color: var(--brand);
+  }
+
+  .conversation-item:hover::after {
+    left: 10%;
+    right: 10%;
   }
 
   .conversation-item:hover::before {
@@ -143,15 +173,16 @@
 .conversation-item.active:hover {
   cursor: default;
   background: var(--surface-active);
+  box-shadow: none;
 }
 
 .conversation-item.active::before,
 .conversation-item.active:hover::before {
   opacity: 1;
   transform: scaleY(1);
-  top: 18%;
-  bottom: 18%;
-  background: var(--brand);
+  top: 15%;
+  bottom: 15%;
+  background: linear-gradient(180deg, transparent, var(--brand), transparent);
 }
 
 .conversation-item.exited::before,

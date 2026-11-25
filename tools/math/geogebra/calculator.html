@@ -13,15 +13,20 @@
   <div id="ggb-element"></div>
   <script src="deployggb.js"></script>
   <script>
+    var initVp = {
+      w: Math.max(320, Math.round(window.innerWidth || 800)),
+      h: Math.max(240, Math.round(window.innerHeight || 600))
+    };
     var params = {
       "appName": "geometry",
-      "width": 800,
-      "height": 600,
+      "width": initVp.w,
+      "height": initVp.h,
       "showToolBar": true,
       "showAlgebraInput": true,
       "showMenuBar": true,
       "showResetIcon": true,
       "enableRightClick": true,
+      "disableAutoScale": true,
       "language": "zh"
     };
     var applet = new GGBApplet(params, true);
@@ -29,6 +34,7 @@
     var lastW = 0;
     var lastH = 0;
     var resizeTimer = null;
+    var resizeRaf = 0;
 
     function getViewportSize() {
       var docEl = document.documentElement;
@@ -37,8 +43,8 @@
       return { w: Math.round(w), h: Math.round(h) };
     }
 
-    // 仅在视口真实宽高发生变化（或显式 force）时调用 ggb.setSize；
-    // 禁止在此处再次派发 window resize，以免造成递归事件风暴与点击代数区闪烁。
+    // 仅在窗口尺寸稳定后于 rAF 内调用一次 ggb.setSize；
+    // 禁止在拖动过程中高频调用或派发 window resize，以免 GWT 布局/画布状态错乱崩溃。
     function fillViewport(force) {
       try {
         if (!ggb || !ggb.setSize) return false;
@@ -48,6 +54,9 @@
         lastW = vp.w;
         lastH = vp.h;
         ggb.setSize(vp.w, vp.h);
+        if (typeof ggb.recalculateEnvironments === "function") {
+          try { ggb.recalculateEnvironments(); } catch (e) {}
+        }
         return true;
       } catch (e) { return false; }
     }
@@ -57,19 +66,17 @@
       if (vp.w <= 0 || vp.h <= 0) return;
       if (vp.w === lastW && vp.h === lastH) return;
       if (resizeTimer) clearTimeout(resizeTimer);
+      if (resizeRaf) { cancelAnimationFrame(resizeRaf); resizeRaf = 0; }
       resizeTimer = setTimeout(function () {
         resizeTimer = null;
-        fillViewport(false);
-      }, 60);
+        resizeRaf = requestAnimationFrame(function () {
+          resizeRaf = 0;
+          fillViewport(false);
+        });
+      }, 280);
     }
 
-    // 外层窗口或视口容器尺寸变化（不监听 #ggb-element 内部 DOM 变动，避免代数区交互触发重绘）
     window.addEventListener("resize", scheduleFillViewport);
-    if (typeof ResizeObserver !== "undefined" && document.documentElement) {
-      try {
-        new ResizeObserver(scheduleFillViewport).observe(document.documentElement);
-      } catch (e) { /* ignore */ }
-    }
 
     // 用外层 GeoGebra 容器实际尺寸判断是否已铺满视口（兼容代数区展开时 canvas 宽度小于视口的情况）
     function isFilled() {

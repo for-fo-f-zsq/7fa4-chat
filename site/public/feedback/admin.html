@@ -26,21 +26,15 @@
   if (meta) meta.setAttribute('content', theme === 'light' ? '#f6f7fb' : '#05060a');
 })();
 </script>
-<link id="faviconLink" rel="icon" type="image/png" href="../assets/icon.png" />
-<link id="tokensCss" rel="stylesheet" href="../tokens.css" />
+<link id="faviconLink" rel="icon" type="image/png" />
+<link id="tokensCss" rel="stylesheet" />
 <script>
 (function () {
-  var base = location.pathname.replace(/\/feedback\/admin\/?$/, '');
+  var base = location.pathname.replace(/\/(?:feedback\/)?admin(?:\.html)?\/?$/, '');
   var tok = document.getElementById('tokensCss');
   var fav = document.getElementById('faviconLink');
-  try {
-    if (tok && new URL(tok.getAttribute('href'), location.href).pathname !== base + '/tokens.css') {
-      tok.href = base + '/tokens.css';
-    }
-    if (fav && new URL(fav.getAttribute('href'), location.href).pathname !== base + '/assets/icon.png') {
-      fav.href = base + '/assets/icon.png';
-    }
-  } catch (e) {}
+  if (tok) tok.href = base + '/tokens.css';
+  if (fav) fav.href = base + '/assets/icon.png';
 })();
 </script>
 <style>
@@ -576,7 +570,7 @@
 <header class="topbar">
   <div class="topbar-inner">
     <a class="brand" href="../" data-nav="home">
-      <img class="brand-mark" id="brandIcon" src="../assets/icon.png" alt="7FA4 Chat" width="28" height="28" />
+      <img class="brand-mark" id="brandIcon" alt="7FA4 Chat" width="28" height="28" />
       <span class="brand-name">7FA4 <span class="brand-light">Chat</span></span>
       <span class="brand-tag">反馈管理</span>
     </a>
@@ -600,7 +594,7 @@
   <div class="wrap">
     <section class="glass-card adm-login" id="login" hidden>
       <div class="adm-login-head">
-        <img id="loginIcon" src="../assets/icon.png" alt="" width="34" height="34" />
+        <img id="loginIcon" alt="" width="34" height="34" />
         <h1>反馈管理</h1>
       </div>
       <p class="adm-login-sub">需要管理密码才能查看全部反馈与截图附件。</p>
@@ -703,7 +697,7 @@
 
   // 站点可能被反代挂在子路径下（例如 /7fa4-chat/admin），
   // 前缀只存在于浏览器侧，必须由页面自己算出来再拼接口地址。
-  var BASE = location.pathname.replace(/\/admin\/?$/, '');
+  var BASE = location.pathname.replace(/\/(?:feedback\/)?admin(?:\.html)?\/?$/, '');
 
   var brandIcon = $('brandIcon');
   var loginIcon = $('loginIcon');

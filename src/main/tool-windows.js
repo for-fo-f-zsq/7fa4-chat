@@ -129,8 +129,8 @@ class ToolWindowManager {
     const win = new BrowserWindow({
       width: 1024,
       height: 740,
-      minWidth: 640,
-      minHeight: 480,
+      minWidth: 340,
+      minHeight: 420,
       title: name,
       icon: iconPath,
       autoHideMenuBar: true,

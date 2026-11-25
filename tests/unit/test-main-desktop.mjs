@@ -20,8 +20,8 @@ async function test(name, fn) {
   }
 }
 
-// ===== 1. storage.js: WAL + synchronous=FULL + checkpoint + close + free/ownVotes =====
-await test('storage.js: synchronous=FULL, checkpoint(TRUNCATE), close(), free/token_free 与 ownVotes', async () => {
+// ===== 1. storage.js: WAL + synchronous=NORMAL + 指纹去重/增量 + checkpoint + close + free/ownVotes =====
+await test('storage.js: synchronous=NORMAL, 增量写入(指纹去重), checkpoint(TRUNCATE), close(), free/token_free 与 ownVotes', async () => {
   const { UserStore, normalizeFree } = require(path.join(ROOT, 'src/main/storage.js'))
   assert.equal(normalizeFree(true), true)
   assert.equal(normalizeFree(1), true)
@@ -35,11 +35,12 @@ await test('storage.js: synchronous=FULL, checkpoint(TRUNCATE), close(), free/to
   try {
     const store = new UserStore(dbPath).init()
     const syncMode = store.db.prepare('PRAGMA synchronous').get()
-    assert.equal(Number(syncMode.synchronous), 2, 'PRAGMA synchronous 应为 FULL (2)')
+    // WAL + NORMAL(1)：COMMIT 不再每次 fsync（主进程热路径），进程崩溃仍保证已提交事务
+    assert.equal(Number(syncMode.synchronous), 1, 'PRAGMA synchronous 应为 NORMAL (1)')
     const jMode = store.db.prepare('PRAGMA journal_mode').get()
     assert.equal(String(jMode.journal_mode).toLowerCase(), 'wal')
 
-    const r = store.saveAll(1001, {
+    const snapshot = () => ({
       convos: [{ kind: 'user', cid: 2, meta: { uid: 2, name: 'alice', message_ids: [10, 11, 12] } }],
       messages: {
         'user:2': [
@@ -54,7 +55,24 @@ await test('storage.js: synchronous=FULL, checkpoint(TRUNCATE), close(), free/to
         ignoredUndef: undefined,
       },
     })
+
+    const r = store.saveAll(1001, snapshot())
     assert.equal(r.success, true)
+    assert.equal(r.writes, 6, '首次写入：1 convo + 3 messages + 2 prefs')
+
+    // 重发完全相同的快照（渲染层 10s 定时保存的典型情况）→ 一条语句都不该执行、不该开事务
+    const again = store.saveAll(1001, snapshot())
+    assert.equal(again.success, true)
+    assert.equal(again.writes, 0, '内容未变化时应跳过全部语句')
+    assert.equal(again.skipped, true)
+
+    // 只改一条消息 + 新增一条消息 → 只写这 2 条（无论渲染层是否重发了整会话）
+    const edited = snapshot()
+    edited.messages['user:2'][1].content = 'b-edited'
+    edited.messages['user:2'].push({ id: 14, send_time: 400, content: 'e', token_free: null })
+    const inc = store.saveAll(1001, edited)
+    assert.equal(inc.success, true)
+    assert.equal(inc.writes, 2, '仅 1 条改动 + 1 条新增落盘')
 
     const ck = store.checkpoint()
     assert.equal(ck.success, true)
@@ -68,6 +86,8 @@ await test('storage.js: synchronous=FULL, checkpoint(TRUNCATE), close(), free/to
     assert.equal(byId[10].free, true)
     assert.equal(byId[11].free, true)
     assert.equal(byId[12].free, false)
+    assert.equal(byId[11].content, 'b-edited', '增量写入应覆盖被编辑的那一条')
+    assert.equal(byId[14].content, 'e', '增量写入应带上新增的那一条')
 
     const loadedPrefs = store.loadPrefs(1001)
     assert.equal(loadedPrefs.success, true)
@@ -92,7 +112,7 @@ await test('storage.js: synchronous=FULL, checkpoint(TRUNCATE), close(), free/to
     // 验证数据库文件可被 sqlite 直接打开
     const rawDb = new DatabaseSync(dbPath)
     const countRow = rawDb.prepare('SELECT COUNT(*) AS cnt FROM messages').get()
-    assert.equal(Number(countRow.cnt), 4)
+    assert.equal(Number(countRow.cnt), 5)
     rawDb.close()
   } finally {
     fs.rmSync(dir, { recursive: true, force: true })
@@ -248,10 +268,19 @@ await test('静态检查: 已删通知窗残留、preload 暴露与 electron.vit
     'sendToolImage',
     'requestToolUsers',
     'startFileDrag',
+    // 窗口状态推送（渲染层用它替代每条通知一次 getWindowState IPC）
+    'onWindowState',
+    'getCachedWindowState',
   ]) {
     assert.equal(preloadSrc.includes(apiName), true, `preload 缺少 ${apiName}`)
   }
   assert.equal(preloadSrc.includes('showMainWindow'), false)
+
+  // 桌面端独有开销：自动更新不再 30s 一次；主窗在 focus/blur/show/hide 时主动推 window-state
+  const mainSrc = fs.readFileSync(path.join(ROOT, 'src/main/index.js'), 'utf8')
+  assert.equal(mainSrc.includes('UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000'), true, '自动更新应为 4 小时周期')
+  assert.equal(mainSrc.includes('}, 30000)'), false, '不应保留 30s 的更新检查定时器')
+  assert.equal(mainSrc.includes("mainWindow.webContents.send('window-state'"), true, '主窗应推送 window-state')
 })
 
 // ===== 4. src/main/index.js 端到端 Mock 集成校验 =====
@@ -487,6 +516,26 @@ await test('main/index.js: 退出flush、原生通知、自启动、工具锁与
     assert.equal(allWindows.length, 1, '主窗口应已创建')
     const mainWin = allWindows[0]
     const mainEvent = { sender: mainWin.webContents, senderFrame: mainWin.webContents.mainFrame }
+
+    // 0) 主窗选项：后台节流保持默认、按主题给实色底（避免白底闪屏）
+    assert.equal(mainWin.opts.webPreferences.backgroundThrottling, undefined, '不应关闭 backgroundThrottling')
+    assert.equal(mainWin.opts.backgroundColor, '#F7F9FC', '主窗应有主题底色')
+
+    // 0.5) 窗口状态推送（preload 的 getCachedWindowState 数据源）
+    mainWin.focused = true
+    mainWin.emit('focus')
+    assert.deepEqual(mainWin.sentMessages.at(-1), {
+      ch: 'window-state',
+      args: [{ visible: true, focused: true, minimized: false }],
+    })
+    mainWin.visible = false
+    mainWin.emit('hide')
+    assert.deepEqual(mainWin.sentMessages.at(-1), {
+      ch: 'window-state',
+      args: [{ visible: false, focused: true, minimized: false }],
+    })
+    mainWin.visible = true
+    mainWin.emit('show')
 
     // 1) media 权限仅放行主窗
     assert.equal(typeof permissionHandler, 'function')

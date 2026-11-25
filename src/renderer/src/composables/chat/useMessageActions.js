@@ -1,4 +1,4 @@
-import { reactive, onUpdated, onUnmounted } from 'vue'
+import { reactive, onUnmounted } from 'vue'
 import { store } from '../../store.js'
 import {
   parseMsgContent,
@@ -50,6 +50,49 @@ export function handleFileDragStart(e) {
 }
 
 /**
+ * 给一块已经渲染好的 Markdown DOM（一条气泡的 .bubble-content）补上「复制代码」按钮。
+ *
+ * 为什么不再是 onUpdated 里的全列表扫描：
+ * 老实现挂在 useMessageActions 的 onUpdated 上，每次**任何**更新都对整片消息区跑
+ * `querySelectorAll('pre:not(.code-copy-injected)')`，然后在更新钩子里 insertBefore /
+ * appendChild 建节点 —— 这是「更新后写 DOM」，强制同步重排；写进去的新节点又会喂给
+ * useMessageScroll 的 MutationObserver/ResizeObserver，触发一次 layout 读，
+ * 形成「写→读→写」连锁，而且每次更新都要为几百个 <pre> 生成一次选择器匹配。
+ *
+ * 现在改成渲染侧钩子：MessageBubble 在 v-html 落地后（onMounted / displayHtml 变化后
+ * 的 post flush）对自己的根节点调一次，作用域从「整个消息区」缩到「这一条气泡」，
+ * 次数从「每次更新 × 全部代码块」降到「每块代码一次」，且只在有 pre 的气泡上发生。
+ * 保留 .code-copy-injected 幂等标记：同一个节点重复调用是零成本的。
+ *
+ * @param {Element|null} root 气泡内容根节点
+ */
+export function decorateCodeBlocks(root) {
+  if (!root || typeof root.querySelectorAll !== 'function') return
+  const pres = root.querySelectorAll('pre:not(.code-copy-injected)')
+  if (!pres.length) return
+  for (const pre of pres) {
+    pre.classList.add('code-copy-injected')
+    if (!pre.parentNode) continue
+    const wrap = document.createElement('div')
+    wrap.className = 'code-block-wrap'
+    pre.parentNode.insertBefore(wrap, pre)
+    wrap.appendChild(pre)
+    const btn = document.createElement('button')
+    btn.className = 'code-copy-btn'
+    btn.innerHTML = '<i class="fas fa-copy"></i> 复制'
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation()
+      const code = pre.querySelector('code')
+      const text = code ? code.textContent : pre.textContent
+      await window.api.clipboardWriteText(text)
+      btn.innerHTML = '<i class="fas fa-check"></i> 已复制'
+      setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i> 复制' }, 1500)
+    })
+    wrap.appendChild(btn)
+  }
+}
+
+/**
  * 消息右键菜单、多选、代码块复制按钮注入及点击事件代理（预览/链接/提及/引用）。
  */
 export function useMessageActions({
@@ -91,32 +134,14 @@ export function useMessageActions({
     if (uid != null) onSendPat(Number(uid))
   }
 
+  /**
+   * 保留这个名字做兼容：老调用点（或外部代码）仍可手动触发一次注入，
+   * 但现在只扫一遍、且不再挂在 onUpdated 上（见文件顶部 decorateCodeBlocks 注释）。
+   * 渲染路径由 MessageBubble 自己按气泡调用，不依赖消息区整片扫描。
+   */
   function injectCodeCopyButtons() {
-    const area = messageAreaEl.value
-    if (!area) return
-    const pres = area.querySelectorAll('pre:not(.code-copy-injected)')
-    for (const pre of pres) {
-      pre.classList.add('code-copy-injected')
-      const wrap = document.createElement('div')
-      wrap.className = 'code-block-wrap'
-      pre.parentNode.insertBefore(wrap, pre)
-      wrap.appendChild(pre)
-      const btn = document.createElement('button')
-      btn.className = 'code-copy-btn'
-      btn.innerHTML = '<i class="fas fa-copy"></i> 复制'
-      btn.addEventListener('click', async (e) => {
-        e.stopPropagation()
-        const code = pre.querySelector('code')
-        const text = code ? code.textContent : pre.textContent
-        await window.api.clipboardWriteText(text)
-        btn.innerHTML = '<i class="fas fa-check"></i> 已复制'
-        setTimeout(() => { btn.innerHTML = '<i class="fas fa-copy"></i> 复制' }, 1500)
-      })
-      wrap.appendChild(btn)
-    }
+    decorateCodeBlocks(messageAreaEl.value)
   }
-
-  onUpdated(injectCodeCopyButtons)
 
   function isPatMsg(msg) {
     const obj = parseMsgContent(msg.content)

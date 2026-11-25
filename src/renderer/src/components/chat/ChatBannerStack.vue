@@ -83,6 +83,14 @@ body.web .banner-stack {
   top: var(--space-2);
 }
 
+/* 性能：这是聊天页最后一块「常驻 + 浮在滚动内容之上」的玻璃。
+   它绝对定位在消息列表上方，列表每滚一帧它背后的 backdrop 都在变，blur 就得整块重新采样。
+   去玻璃 → 不透明 --surface-raised：它正是旧 --surface-glass 的底色来源（86% of surface-raised），
+   去掉透明度后色相零漂移，danger/warning 两个 12%/14% 混色结果与原来肉眼一致；
+   层间分离改由「28% 动作色描边（见上）+ --elev-2 投影」承担，不靠模糊。
+   对比度：横幅正文用 --status-danger-ink / --status-warning-ink（tokens.css §6/@supports 里
+   已按主题明暗自适应的墨色），落在「12–14% 状态色 + 不透明 raised 底」上，与原来的半透底
+   完全同源，因此 6 套主题都不需要新增覆盖。 */
 .banner-stack .network-banner.ui-banner {
   pointer-events: auto;
   width: fit-content;
@@ -95,19 +103,17 @@ body.web .banner-stack {
   justify-content: center;
   flex: 0 0 auto;
   font-size: var(--text-sm);
-  background: var(--surface-glass);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  background: var(--surface-raised);
 }
 
 .network-banner.ui-banner--danger {
   --banner-action-fg: var(--status-danger-ink);
-  background: color-mix(in srgb, var(--status-danger) 12%, var(--surface-glass));
+  background: color-mix(in srgb, var(--status-danger) 12%, var(--surface-raised));
 }
 
 .network-banner.ui-banner--warning {
   --banner-action-fg: var(--status-warning-ink);
-  background: color-mix(in srgb, var(--status-warning) 14%, var(--surface-glass));
+  background: color-mix(in srgb, var(--status-warning) 14%, var(--surface-raised));
 }
 
 .network-banner.ui-banner--danger :deep(.ui-banner-desc) {

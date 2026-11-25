@@ -78,6 +78,16 @@
   box-shadow: var(--elev-brand);
 }
 
+html:not(.theme-midnight):not(.theme-graphite):not(.theme-contrast) .ui-icon-btn--solid {
+  --ibtn-bg: var(--brand-soft);
+  --ibtn-fg: var(--brand);
+  --ibtn-border: var(--brand-line);
+  --ibtn-hover-bg: color-mix(in srgb, var(--brand-fill) 20%, transparent);
+  --ibtn-hover-fg: var(--brand-hover);
+  --ibtn-active-bg: color-mix(in srgb, var(--brand-fill) 28%, transparent);
+  box-shadow: none;
+}
+
 .ui-icon-btn--overlay {
   --ibtn-bg: transparent;
   --ibtn-fg: var(--on-overlay);

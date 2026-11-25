@@ -33,21 +33,25 @@ export function useChatLifecycle({
 
   function onOnline() {
     store.online = true
-    updateConnStatus({
-      online: true,
-      state: store.connStatus?.state === 'offline' ? 'reconnecting' : (store.connStatus?.state || 'ok'),
-    }, { sample: true, title: '网络已恢复' })
+    if (store.logined) {
+      updateConnStatus({
+        online: true,
+        state: store.connStatus?.state === 'offline' ? 'reconnecting' : (store.connStatus?.state || 'ok'),
+      }, { sample: true, title: '网络已恢复' })
+    }
     polling.wakePoll()
   }
 
   function onOffline() {
     store.online = false
-    updateConnStatus({
-      online: false,
-      apiReachable: false,
-      state: 'offline',
-      lastError: '本地网络已断开',
-    }, { sample: 'force', title: '本地网络已断开' })
+    if (store.logined) {
+      updateConnStatus({
+        online: false,
+        apiReachable: false,
+        state: 'offline',
+        lastError: '本地网络已断开',
+      }, { sample: 'force', title: '本地网络已断开' })
+    }
   }
 
   /** 三端 save-setting 的返回口径不同（桌面裸布尔 / web {success} / 抛异常），统一成一句结论 */
@@ -88,10 +92,12 @@ export function useChatLifecycle({
       store.setting = setting.value
       if (setting.value.fontSize) applyFontSize(setting.value.fontSize)
       store.online = navigator.onLine
-      updateConnStatus({
-        online: store.online,
-        state: store.online ? 'connecting' : 'offline',
-      }, { sample: true, title: store.online ? '应用启动，准备连接' : '应用启动（当前离线）' })
+      if (store.logined) {
+        updateConnStatus({
+          online: store.online,
+          state: store.online ? 'connecting' : 'offline',
+        }, { sample: true, title: store.online ? '应用启动，准备连接' : '应用启动（当前离线）' })
+      }
       try { version.value = await window.api.getVersion() } catch {}
 
       const root = document.documentElement
@@ -106,7 +112,9 @@ export function useChatLifecycle({
         }
       }
 
-      autoSaveTimer = setInterval(() => persistence.saveAll(), 10000)
+      // 定时兜底落盘：真正的写入已经改成「只发脏数据、没脏数据不发 IPC」，
+      // 加上 scheduleSave 的 1.5s 防抖与退出前的 onAppFlushBeforeClose，30s 一次足够。
+      autoSaveTimer = setInterval(() => persistence.saveAll(), 30000)
       unsubscribeNotifClick = window.api.onNotifClick((data) => {
         if (data && data.chatType && data.targetId) {
           const type = data.chatType === 'group' ? 'group' : 'user'

@@ -5,9 +5,10 @@
   flex-direction: column;
   gap: var(--space-2);
   max-height: 420px;
-  padding: var(--space-2) var(--space-4) var(--space-3);
+  padding: 10px var(--space-4) 12px;
   overflow: visible;
-  background: transparent;
+  background: var(--surface-0);
+  border-top: var(--border-width) solid var(--line-hairline);
   transition: background-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
 
@@ -38,22 +39,36 @@
 }
 
 /* ---------- 统一编辑器卡片 ---------- */
+/* 性能：卡片是全宽常驻元素。原来 focus-within 会把 box-shadow 从 --elev-1 过渡到
+   --focus-halo + --elev-1（180ms），等于每次点进输入框都在「整张卡片 + 20px 光晕」
+   范围内重绘 11 帧模糊阴影 —— 点击卡顿的可感知来源之一。
+   现在焦点反馈改成 inset 1px 品牌环（只重绘边框内沿，不向外扩散、不产生模糊层），
+   且不再把 box-shadow 放进 transition 白名单：状态变化瞬时生效，零动画帧。 */
+.input-footer .composer-top-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
 .input-footer .composer-card {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   background: var(--surface-card);
   border: var(--border-width) solid var(--line);
-  border-radius: var(--radius-2xl);
-  box-shadow: var(--elev-1);
+  border-radius: var(--radius-base);
+  box-shadow: none;
   transition:
     background-color var(--motion-dur-base) var(--motion-ease-standard),
-    border-color var(--motion-dur-base) var(--motion-ease-standard),
-    box-shadow var(--motion-dur-base) var(--motion-ease-out-expo);
+    border-color var(--motion-dur-base) var(--motion-ease-standard);
 }
 
 .input-footer .composer-card:focus-within {
+  background: var(--surface-card);
   border-color: var(--brand);
-  box-shadow: var(--focus-halo), var(--elev-1);
+  box-shadow: inset 0 0 0 var(--border-width) var(--brand);
 }
 
 .input-footer .input-split,
@@ -68,15 +83,14 @@
   min-height: 38px;
   max-height: 168px;
   border: none;
-  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  border-radius: var(--radius-base);
   overflow: hidden;
   background: transparent;
 }
 
 .input-footer .composer-card.has-preview .input-split {
-  min-height: 132px;
+  min-height: 108px;
   max-height: 210px;
-  border-bottom: var(--border-width) solid var(--line-hairline);
 }
 
 .input-footer .input-split-left {
@@ -241,7 +255,7 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-2);
-  padding: var(--space-1) var(--space-2) var(--space-2);
+  padding: 2px 0 0;
   font-size: var(--text-xs);
 }
 
@@ -282,9 +296,10 @@
 }
 
 .input-footer .send-btn.ui-btn {
-  --btn-h: 28px;
-  --btn-px: var(--space-3);
-  --btn-fs: var(--text-xs);
+  --btn-h: 38px;
+  --btn-px: var(--space-4);
+  --btn-fs: var(--text-sm);
+  --btn-radius: var(--radius-base);
   flex-shrink: 0;
   font-weight: var(--weight-semibold);
 }
@@ -338,15 +353,16 @@
   color: var(--brand);
 }
 
+/* Token 气泡：瞬态浮层，改不透明 --surface-raised。
+   它浮在输入区之上、内容密集且字号小（--text-xs），原来 86% 半透明 + 14px 模糊既贵又让
+   次级数字发糊；不透明之后 6 套主题下都是「深/浅底 + --fg 文字」的标准对比。 */
 .input-footer .token-tooltip {
   position: absolute;
   right: 0;
   bottom: calc(100% + var(--space-2));
   min-width: 156px;
   padding: var(--space-2) 0;
-  background: var(--surface-glass);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  background: var(--surface-raised);
   border: var(--border-width) solid var(--line-hairline);
   border-radius: var(--radius-xl);
   box-shadow: var(--elev-2);
@@ -411,6 +427,9 @@
   padding: var(--space-1) 0;
 }
 
+/* hover 只改「底色 + 边框色」这两件合成器不碰的便宜事；
+   原来还顺带把 box-shadow 从 elev-bubble 过渡到 elev-1，属于纯颜色/底色变化却拖动模糊阴影，
+   每个待发送文件点一下就要重绘一次，已从 transition 白名单和 hover 态里去掉。 */
 .input-footer .pending-file-item {
   display: flex;
   align-items: center;
@@ -425,14 +444,12 @@
   cursor: pointer;
   transition:
     background-color var(--motion-dur-fast) var(--motion-ease-standard),
-    border-color var(--motion-dur-fast) var(--motion-ease-standard),
-    box-shadow var(--motion-dur-fast) var(--motion-ease-standard);
+    border-color var(--motion-dur-fast) var(--motion-ease-standard);
 }
 
 .input-footer .pending-file-item:hover {
   background: var(--surface-hover);
   border-color: var(--brand-line);
-  box-shadow: var(--elev-1);
 }
 
 .input-footer .pending-file-thumb,
@@ -491,15 +508,14 @@
 }
 
 /* ---------- @ 提及弹窗 ---------- */
+/* @ 提及弹窗：同样改不透明（详见 token-tooltip 注释）；弹出瞬间不触发背景模糊采样 */
 .input-footer .mention-popup {
   position: fixed;
   min-width: var(--menu-w-min);
   max-height: 200px;
   padding: var(--space-1);
   overflow-y: auto;
-  background: var(--surface-glass);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  background: var(--surface-raised);
   border: var(--border-width) solid var(--line-hairline);
   border-radius: var(--radius-xl);
   box-shadow: var(--elev-2);

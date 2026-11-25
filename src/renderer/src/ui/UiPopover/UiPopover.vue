@@ -58,6 +58,10 @@ const HOVER_CLOSE_DELAY = 120
 
 let hoverTimer = 0
 let bound = false
+// 滚动是每秒几十次的事件源：原来每个 scroll 事件都会「读锚点 rect + 读面板尺寸 + 写内联样式」，
+// 写样式又会触发一次渲染，于是滚动期间形成 读→写→读 的强制布局连锁。
+// 现在：scroll/resize 只登记一帧，最多每帧排一次；算出来的位置与上次相同就完全不写。
+let rafId = 0
 
 function setOpen(value) {
   if (props.disabled) return
@@ -163,10 +167,38 @@ function updatePosition() {
   }
 
   actualPlacement.value = align === 'center' ? side : `${side}-${align}`
-  panelStyle.value = {
+  applyPanelStyle({
     top: `${clamp(top, GUTTER, Math.max(GUTTER, vh - height - GUTTER))}px`,
     left: `${clamp(left, GUTTER, Math.max(GUTTER, vw - width - GUTTER))}px`
+  })
+}
+
+/** 位置没变就不写样式：滚动别的容器（capture 会收到事件）时不再触发面板重渲染。 */
+function applyPanelStyle(next) {
+  const prev = panelStyle.value
+  const keys = Object.keys(next)
+  if (keys.length === Object.keys(prev).length) {
+    let same = true
+    for (const key of keys) {
+      if (prev[key] !== next[key]) { same = false; break }
+    }
+    if (same) return
   }
+  panelStyle.value = next
+}
+
+function schedulePosition() {
+  if (rafId) return
+  rafId = requestAnimationFrame(() => {
+    rafId = 0
+    updatePosition()
+  })
+}
+
+function cancelScheduledPosition() {
+  if (!rafId) return
+  cancelAnimationFrame(rafId)
+  rafId = 0
 }
 
 function onDocumentMousedown(event) {
@@ -193,17 +225,19 @@ function bind() {
   if (bound) return
   document.addEventListener('mousedown', onDocumentMousedown)
   document.addEventListener('keydown', onDocumentKeydown)
-  window.addEventListener('resize', updatePosition)
-  window.addEventListener('scroll', updatePosition, true)
+  window.addEventListener('resize', schedulePosition)
+  // passive + capture：滚动期间不再执行默认的滚动同步取消逻辑，也不阻塞滚动线程
+  window.addEventListener('scroll', schedulePosition, { capture: true, passive: true })
   bound = true
 }
 
 function unbind() {
   if (!bound) return
+  cancelScheduledPosition()
   document.removeEventListener('mousedown', onDocumentMousedown)
   document.removeEventListener('keydown', onDocumentKeydown)
-  window.removeEventListener('resize', updatePosition)
-  window.removeEventListener('scroll', updatePosition, true)
+  window.removeEventListener('resize', schedulePosition)
+  window.removeEventListener('scroll', schedulePosition, true)
   bound = false
 }
 

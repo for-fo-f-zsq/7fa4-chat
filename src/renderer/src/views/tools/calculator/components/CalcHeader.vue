@@ -1,5 +1,5 @@
 <template>
-  <div class="calc-header-bar">
+  <div class="calc-header-bar" :class="{ 'is-narrow': narrow }">
     <div class="calc-header-left">
       <i class="fas fa-calculator calc-header-icon" aria-hidden="true"></i>
       <span class="calc-header-title">计算器</span>
@@ -60,9 +60,24 @@ defineEmits(['update:mode', 'update:angleUnit', 'toggleHistory'])
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   width: 100%;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
   min-width: 0;
+}
+
+.calc-header-bar.is-narrow .calc-header-center {
+  order: 3;
+  flex: 1 0 100%;
+  justify-content: flex-start;
+}
+
+@media (max-width: 560px) {
+  .calc-header-center {
+    order: 3;
+    flex: 1 0 100%;
+    justify-content: flex-start;
+  }
 }
 
 .calc-header-left {

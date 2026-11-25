@@ -11,7 +11,7 @@
   height: var(--avatar-size);
   border-radius: 50%;
   background: var(--avatar-bg);
-  color: var(--on-brand);
+  color: var(--avatar-tint-text, var(--fg));
   font-family: var(--font-sans);
   font-weight: var(--weight-medium);
   line-height: 1;

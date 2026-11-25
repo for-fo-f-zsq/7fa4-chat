@@ -5,7 +5,7 @@
         <i class="tool-card-icon" :class="toolIcon(card)"></i>
       </div>
       <UiBadge class="tool-card-status" size="sm" :variant="statusVariant">
-        {{ statusText(card.state) }}
+        {{ card.busy === 'install' && !card.progress ? '安装中' : statusText(card.state) }}
       </UiBadge>
     </div>
 

@@ -1,7 +1,7 @@
 /* NavBar — 左侧纤细导航轨 / 窄屏毛玻璃底部 TabBar */
 
 .navbar {
-  width: 60px;
+  width: 54px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -12,6 +12,19 @@
   border-right: var(--border-width) solid var(--line-hairline);
   position: relative;
   z-index: var(--z-raised);
+}
+
+.navbar:not(.narrow)::after {
+  content: '';
+  position: absolute;
+  top: 5%;
+  right: -1px;
+  bottom: 5%;
+  width: 2px;
+  background: linear-gradient(180deg, transparent, var(--brand-gradient), var(--brand), var(--brand-gradient), transparent);
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .nav-logo {
@@ -72,9 +85,9 @@
   font-weight: var(--weight-regular);
   line-height: 1;
   letter-spacing: var(--tracking-wide);
-  transition:
-    color var(--motion-dur-fast) var(--motion-ease-standard),
-    font-weight var(--motion-dur-fast) var(--motion-ease-standard);
+  /* 只过渡颜色：font-weight 过渡会让标签文字每帧重新排版/重排字形（可变字体之外还会硬跳），
+     激活态的加粗改为瞬时切换，视觉上更稳也更省 */
+  transition: color var(--motion-dur-fast) var(--motion-ease-standard);
 }
 
 .navbar .nav-icon::before {
@@ -99,6 +112,7 @@
 .navbar .nav-icon.is-active::before {
   opacity: 1;
   transform: translateY(-50%) scaleY(1);
+  background: linear-gradient(180deg, transparent, var(--brand), transparent);
 }
 
 .navbar .nav-icon.is-active {
@@ -106,17 +120,11 @@
   --ibtn-fg: var(--brand);
   --ibtn-hover-bg: var(--surface-active);
   --ibtn-hover-fg: var(--brand);
-  box-shadow: var(--elev-brand);
-  animation: activeGlow var(--motion-loop-pulse) var(--motion-ease-standard) infinite alternate;
-}
-
-@keyframes activeGlow {
-  from {
-    box-shadow: var(--elev-brand);
-  }
-  to {
-    box-shadow: var(--elev-brand-hover);
-  }
+  /* 原来这里跑 activeGlow（box-shadow 无限循环）：导航栏在聊天页常驻，等于每秒 60 次
+     在 44×44 的圆角块上重绘两层模糊阴影，弱 GPU 上会持续占用合成线程。
+     激活态本身已经由「品牌色图标 + surface-active 底 + 左侧指示条」三重表达，
+     阴影只需静态给出层次，故改为定值，动画删除。 */
+  box-shadow: var(--elev-brand), inset 0 1px 0 var(--line-3d-light);
 }
 
 .navbar .nav-icon.is-active .nav-icon-label {
@@ -181,9 +189,7 @@
 }
 
 .nav-user {
-  transition:
-    transform var(--motion-dur-base) var(--motion-ease-spring),
-    box-shadow var(--motion-dur-fast) var(--motion-ease-standard);
+  transition: transform var(--motion-dur-base) var(--motion-ease-spring);
 }
 
 @media (hover: hover) {
@@ -221,7 +227,11 @@
   box-shadow: 0 0 0 2px var(--surface-1);
 }
 
-/* 窄屏底部导航栏 */
+/* 窄屏底部导航栏
+   性能：通栏常驻表面，去玻璃改不透明 --surface-0（窄屏下它就是页面最底层的底色），
+   不再常驻一块通栏模糊层。可读性实测（--fg 图标/标签 = --text-sidebar on --bg-app）：
+   contrast 10.0:1 / default 6.1:1 / graphite 10.6:1 / midnight 10.0:1 / sage 6.6:1 / sand 7.1:1，
+   全部 ≥AA 小字 4.5:1，不依赖背景模糊也不会出现「字糊在底色上」。 */
 .navbar.narrow {
   width: 100%;
   height: 58px;
@@ -229,9 +239,7 @@
   padding: 0 var(--space-3);
   gap: var(--space-2);
   order: 99;
-  background: var(--surface-glass);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  background: var(--surface-0);
   border-right: none;
   border-top: var(--border-width) solid var(--line-hairline);
   box-shadow: none;
@@ -243,7 +251,6 @@
 
 .navbar.narrow .nav-icon.is-active {
   box-shadow: none;
-  animation: none;
 }
 
 .navbar.narrow .nav-icon.is-active::before {

@@ -1,9 +1,15 @@
+/* PanelShell — 通用面板外壳（设置 / 工具 / 关于等页面共用）
+   视觉预算审计（本次流畅度优化）：本文件本来就没有 backdrop-filter / filter / box-shadow
+   动画，唯一的「大面积」是 --gradient-panel 线性渐变底色；它是静态背景，滚动容器的背景层
+   不随内容滚动逐帧重绘，所以保留（换纯色会削掉所有面板的层次感，收益几乎为零）。 */
 .panel-shell {
   flex: 1;
   min-width: 0;
   min-height: 0;
   height: 100%;
   overflow-y: auto;
+  /* 内层滚动容器：到边缘时不再把滚动链传给外层 shell，避免一屏到底后整页跟着抖 */
+  overscroll-behavior: contain;
   background: var(--gradient-panel);
   padding: var(--space-5) var(--space-6);
 }

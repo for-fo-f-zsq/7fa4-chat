@@ -92,6 +92,8 @@ import { computed, ref, watch, nextTick } from 'vue'
 import { store } from '../../store.js'
 import { UiEmptyState, UiIconButton, UiMenu, UiSearchInput } from '@/ui'
 import {
+  getLastMessage,
+  getLastMessageSender,
   getLastMessageTime,
   displayName,
   getConvoKey,
@@ -143,8 +145,8 @@ const activeType = computed(() => {
 })
 
 const hasUnread = computed(() => (
-  Object.values(props.users || {}).some((u) => u.unread > 0 && !isUserHiddenBySetting(u)) ||
-  Object.values(props.groups || {}).some((g) => g.unread > 0)
+  Object.values(props.users || {}).some((u) => !!u && typeof u === 'object' && u.unread > 0 && !isUserHiddenBySetting(u)) ||
+  Object.values(props.groups || {}).some((g) => !!g && typeof g === 'object' && g.unread > 0)
 ))
 
 function getDraft(type, id) {
@@ -153,18 +155,117 @@ function getDraft(type, id) {
 }
 
 const hiddenNonMutualCount = computed(() =>
-  Object.values(props.users || {}).filter((u) => isUserHiddenBySetting(u)).length
+  Object.values(props.users || {}).filter((u) => !!u && typeof u === 'object' && isUserHiddenBySetting(u)).length
 )
 
+// ========== 会话项构造：引用稳定化 ==========
+// 会话列表的瓶颈不是「算出列表」，而是「每次数据变动都让所有会话项换新 props」：
+// v-for 里的 ConversationItem 只要 props 变了就要重跑 render + 4 个 computed。
+// 所以这里对每个会话源对象做记忆化——照常算出候选 item，但逐字段比较后
+// 若无变化就返回上一次的对象，于是父组件重算不会把没变的会话项拖下水。
+const itemCache = new WeakMap()
+
+function sameShallow(a, b) {
+  const ka = Object.keys(a)
+  const kb = Object.keys(b)
+  if (ka.length !== kb.length) return false
+  for (const k of kb) {
+    if (!Object.is(a[k], b[k])) return false
+  }
+  return true
+}
+
+function memoItem(source, candidate) {
+  if (!source || typeof source !== 'object') return candidate
+  const prev = itemCache.get(source)
+  const item = prev && sameShallow(prev, candidate) ? prev : candidate
+  itemCache.set(source, item)
+  return item
+}
+
+// 最后一条消息摘要缓存：getLastMessage / getLastMessageTime / getLastMessageSender
+// 都是 O(会话消息数) 的全量扫描。以前每个会话项要扫 3 遍，且每次列表重算都重扫；
+// 这里按 message_ids 数组做记忆化，只在「会影响结果的那几个事实」变化时才重扫。
+//
+// 注意缓存键必须取「send_time 最大的那条」，不能取数组末位：三个 utils 的口径都是
+// 「send_time 最大」（见 utils/message.js:347-385），而 id 顺序与时间顺序可能分叉
+// （上滑补历史用 unshift、跨端重传/时钟偏移都可能让末位不是最新那条）。
+const EMPTY_SUMMARY = {
+  len: 0, lastId: null, lastMsg: undefined, senderUser: null, senderName: null,
+  time: 0, text: '', senderText: '',
+}
+const summaryCache = new WeakMap()
+
+function convoSummary(ids, messages) {
+  if (!Array.isArray(ids) || ids.length === 0) return EMPTY_SUMMARY
+  const len = ids.length
+  // 一次扫描拿到「时间最新」的那条（与 getLastMessage/Sender 的严格 > 口径一致）
+  // 以及最新的时间戳（getLastMessageTime 额外接受 msg.time 兜底）。
+  let newestId = null
+  let newestMsg = undefined
+  let newestSendTime = -1
+  let newestTime = 0
+  for (const id of ids) {
+    const m = messages[id]
+    if (!m) continue
+    const st = m.send_time || 0
+    if (st > newestSendTime) {
+      newestSendTime = st
+      newestId = id
+      newestMsg = m
+    }
+    const t = st || m.time || 0
+    if (t > newestTime) newestTime = t
+  }
+  const senderUid = newestMsg ? newestMsg.sender : null
+  const senderUser = senderUid == null ? null : (store.users?.[senderUid] || null)
+  // 用户对象是原地改字段的（备注/昵称随时可能变），只比对象引用会漏掉改名，故带上名字一起比。
+  const senderName = senderUser ? (senderUser.note || senderUser.nickname || senderUser.username || null) : null
+  const cached = summaryCache.get(ids)
+  if (cached
+    && cached.len === len
+    && cached.lastId === newestId
+    && cached.lastMsg === newestMsg
+    && cached.time === newestTime
+    && cached.senderUser === senderUser
+    && cached.senderName === senderName) return cached
+  const entry = {
+    len,
+    lastId: newestId,
+    lastMsg: newestMsg,
+    senderUser,
+    senderName,
+    time: getLastMessageTime(ids, messages),
+    text: getLastMessage(ids, messages),
+    senderText: getLastMessageSender(ids, messages),
+  }
+  summaryCache.set(ids, entry)
+  return entry
+}
+
+// 排序结果引用也要稳定：内容没变就返回旧数组，下游 filteredConversations 与
+// v-for 的 patch 才不会白跑一趟。
+let prevSorted = []
+let prevFiltered = []
+
 const sortedConversations = computed(() => {
-  const userItems = Object.values(props.users || {})
-    .filter((u) => u.show !== false && !isUserHiddenBySetting(u))
-    .map((u) => ({
+  const messages = props.messages
+  const items = []
+
+  for (const key in (props.users || {})) {
+    const u = props.users[key]
+    // typeof 守卫：历史脏数据（unread=true/1 之类）可能让某个键变成非对象，
+    // 后续 memoItem 的 WeakMap 会直接抛 TypeError 把整个列表 computed 打死。
+    if (!u || typeof u !== 'object' || u.show === false || isUserHiddenBySetting(u)) continue
+    const summary = convoSummary(u.message_ids, messages)
+    items.push(memoItem(u, {
       type: 'user',
       id: u.uid,
       key: `user_${u.uid}`,
       hidden: !!store.hiddenConvos?.[getConvoKey('user', u.uid)],
-      pinned: u.pinned,
+      // 归一成布尔：pinned 在 store 里只有「被置顶时为 true，否则根本没有该字段」，
+      // 直接拿去相减（true - undefined）会得到 NaN，比较器失效 → 置顶项不一定浮到最前。
+      pinned: u.pinned === true,
       unread: u.unread,
       message_ids: u.message_ids,
       watcher: u.watcher === true,
@@ -174,55 +275,92 @@ const sortedConversations = computed(() => {
       exited: false,
       blocked: false,
       lastSendTime: u.lastSendTime || 0,
-      _sortTime: Math.max(getLastMessageTime(u.message_ids, props.messages), u.lastSendTime || 0),
+      // 预计算好的最后一条消息摘要，ConversationItem 直接读，不再自己扫一遍
+      lastText: summary.text,
+      lastSenderText: '',
+      lastTime: summary.time,
+      _sortTime: Math.max(summary.time, u.lastSendTime || 0),
       _hasWatcher: u.watcher === true ? 1 : 0,
       _exited: 0,
     }))
+  }
 
-  const groupItems = Object.values(props.groups || {}).map((g) => ({
-    type: 'group',
-    id: g.gid,
-    key: `group_${g.gid}`,
-    hidden: !!store.hiddenConvos?.[getConvoKey('group', g.gid)],
-    pinned: g.pinned,
-    unread: g.unread,
-    message_ids: g.message_ids,
-    watcher: true,
-    displayName: null,
-    groupName: g.name,
-    mentioned: g.mentioned || false,
-    exited: g.exited || false,
-    blocked: g.blocked || false,
-    lastSendTime: g.lastSendTime || 0,
-    _sortTime: Math.max(getLastMessageTime(g.message_ids, props.messages), g.lastSendTime || 0),
-    _exited: g.exited ? 1 : 0,
-  }))
+  for (const key in (props.groups || {})) {
+    const g = props.groups[key]
+    if (!g || typeof g !== 'object') continue
+    const summary = convoSummary(g.message_ids, messages)
+    items.push(memoItem(g, {
+      type: 'group',
+      id: g.gid,
+      key: `group_${g.gid}`,
+      hidden: !!store.hiddenConvos?.[getConvoKey('group', g.gid)],
+      pinned: g.pinned === true,
+      unread: g.unread,
+      message_ids: g.message_ids,
+      watcher: true,
+      displayName: null,
+      groupName: g.name,
+      mentioned: g.mentioned || false,
+      exited: g.exited || false,
+      blocked: g.blocked || false,
+      lastSendTime: g.lastSendTime || 0,
+      lastText: summary.text,
+      lastSenderText: summary.senderText,
+      lastTime: summary.time,
+      _sortTime: Math.max(summary.time, g.lastSendTime || 0),
+      _hasWatcher: g.exited ? 0 : 1,
+      _exited: g.exited ? 1 : 0,
+    }))
+  }
 
-  return [...userItems, ...groupItems].sort((a, b) => {
+  items.sort((a, b) => {
     if (a.pinned !== b.pinned) return b.pinned - a.pinned
     if (a._exited !== b._exited) return a._exited - b._exited
-    if (a.type === 'user' && b.type === 'user' && a._hasWatcher !== b._hasWatcher) return b._hasWatcher - a._hasWatcher
+    if (a._hasWatcher !== b._hasWatcher) return b._hasWatcher - a._hasWatcher
     return b._sortTime - a._sortTime
   })
+
+  if (items.length === prevSorted.length) {
+    let same = true
+    for (let i = 0; i < items.length; i++) {
+      if (items[i] !== prevSorted[i]) { same = false; break }
+    }
+    if (same) return prevSorted
+  }
+  prevSorted = items
+  return items
 })
 
 const filteredConversations = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   const list = sortedConversations.value
-  if (!q) return list.filter((item) => !item.hidden)
-  return list.filter((item) => {
-    if (item.type === 'user') {
-      const u = props.users[item.id]
-      if (!u) return false
-      return (u.nickname || '').toLowerCase().includes(q) ||
-        (u.realname || '').toLowerCase().includes(q) ||
-        (u.username || '').toLowerCase().includes(q) ||
-        String(u.uid).includes(q)
+  let out
+  if (!q) {
+    out = list.filter((item) => !item.hidden)
+  } else {
+    out = list.filter((item) => {
+      if (item.type === 'user') {
+        const u = props.users[item.id]
+        if (!u) return false
+        return (u.nickname || '').toLowerCase().includes(q) ||
+          (u.realname || '').toLowerCase().includes(q) ||
+          (u.username || '').toLowerCase().includes(q) ||
+          String(u.uid).includes(q)
+      }
+      const g = props.groups[item.id]
+      if (!g) return false
+      return (g.name || '').toLowerCase().includes(q) || String(g.gid).includes(q)
+    })
+  }
+  if (out.length === prevFiltered.length) {
+    let same = true
+    for (let i = 0; i < out.length; i++) {
+      if (out[i] !== prevFiltered[i]) { same = false; break }
     }
-    const g = props.groups[item.id]
-    if (!g) return false
-    return (g.name || '').toLowerCase().includes(q) || String(g.gid).includes(q)
-  })
+    if (same) return prevFiltered
+  }
+  prevFiltered = out
+  return out
 })
 
 function onNewMenuSelect(key) {

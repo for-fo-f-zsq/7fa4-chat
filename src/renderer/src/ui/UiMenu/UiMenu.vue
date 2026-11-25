@@ -70,6 +70,11 @@ const GUTTER = 8
 let restoreEl = null
 let listenersBound = false
 let anchorPrevExpanded = null
+// 菜单尺寸只在打开、选项变化、窗口缩放时改变；滚动期间不必每帧读 offsetWidth/Height。
+let metricsDirty = true
+let menuMetrics = { w: 0, h: 0 }
+// 滚动/resize 每帧最多排一次定位，位置没变不写样式（否则每帧都触发菜单重渲染）。
+let rafId = 0
 
 const isOpen = computed(() => (props.open === null ? true : props.open))
 const isFloating = computed(() => Boolean(anchorEl.value) && isOpen.value)
@@ -121,9 +126,13 @@ function updatePosition() {
   const anchor = anchorEl.value
   const menu = menuRef.value
   if (!anchor || !menu) return
+  if (metricsDirty) {
+    menuMetrics = { w: menu.offsetWidth, h: menu.offsetHeight }
+    metricsDirty = false
+  }
   const rect = anchor.getBoundingClientRect()
-  const width = menu.offsetWidth
-  const height = menu.offsetHeight
+  const width = menuMetrics.w
+  const height = menuMetrics.h
   const vw = window.innerWidth
   const vh = window.innerHeight
   let placement = props.placement
@@ -141,7 +150,40 @@ function updatePosition() {
     left: `${clamp(left, GUTTER, vw - width - GUTTER)}px`
   }
   if (props.matchWidth) style.minWidth = `${rect.width}px`
-  menuStyle.value = style
+  applyMenuStyle(style)
+}
+
+/** 位置与上次相同时不写 ref：滚动别的容器不再带来多余的菜单重渲染。 */
+function applyMenuStyle(next) {
+  const prev = menuStyle.value
+  const keys = Object.keys(next)
+  if (keys.length === Object.keys(prev).length) {
+    let same = true
+    for (const key of keys) {
+      if (prev[key] !== next[key]) { same = false; break }
+    }
+    if (same) return
+  }
+  menuStyle.value = next
+}
+
+function schedulePosition() {
+  if (rafId) return
+  rafId = requestAnimationFrame(() => {
+    rafId = 0
+    updatePosition()
+  })
+}
+
+function cancelScheduledPosition() {
+  if (!rafId) return
+  cancelAnimationFrame(rafId)
+  rafId = 0
+}
+
+function onWindowResize() {
+  metricsDirty = true
+  schedulePosition()
 }
 
 function isSelectable(item) {
@@ -266,17 +308,19 @@ function bindListeners() {
   if (listenersBound) return
   document.addEventListener('mousedown', onDocumentMousedown)
   document.addEventListener('keydown', onDocumentKeydown)
-  window.addEventListener('resize', updatePosition)
-  window.addEventListener('scroll', updatePosition, true)
+  window.addEventListener('resize', onWindowResize)
+  // passive + capture：滚动只登记一帧，且不阻塞滚动
+  window.addEventListener('scroll', schedulePosition, { capture: true, passive: true })
   listenersBound = true
 }
 
 function unbindListeners() {
   if (!listenersBound) return
+  cancelScheduledPosition()
   document.removeEventListener('mousedown', onDocumentMousedown)
   document.removeEventListener('keydown', onDocumentKeydown)
-  window.removeEventListener('resize', updatePosition)
-  window.removeEventListener('scroll', updatePosition, true)
+  window.removeEventListener('resize', onWindowResize)
+  window.removeEventListener('scroll', schedulePosition, true)
   listenersBound = false
 }
 
@@ -285,6 +329,7 @@ watch(
   async (open) => {
     if (open) {
       resolveAnchor()
+      metricsDirty = true
       await nextTick()
       updatePosition()
       if (activeIndex.value < 0) activeIndex.value = Math.max(0, firstEnabledIndex())
@@ -310,6 +355,7 @@ watch(
 watch([() => props.anchor, () => props.placement, () => props.offset, () => props.matchWidth], async () => {
   if (!isOpen.value) return
   resolveAnchor()
+  metricsDirty = true
   await nextTick()
   updatePosition()
 })
@@ -317,6 +363,8 @@ watch([() => props.anchor, () => props.placement, () => props.offset, () => prop
 watch(
   () => props.items,
   () => {
+    metricsDirty = true
+    if (isOpen.value) schedulePosition()
     if (activeIndex.value >= props.items.length) activeIndex.value = Math.max(0, firstEnabledIndex())
   }
 )

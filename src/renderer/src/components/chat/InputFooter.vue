@@ -8,61 +8,74 @@
     <ReplyQuoteBar :replyTo="replyTo" @clear="replyTo = null" />
     <PendingAttachmentsBar :files="pendingFiles" @preview="previewPendingFile" @remove="removePendingFile" />
 
-    <div class="composer-card" :class="{ 'has-preview': previewOpen }">
-      <div
-        class="input-split"
-        :class="{ 'collapse-left': collapseSide === 'left', 'collapse-right': collapseSide === 'right', 'preview-collapsed': !previewOpen }"
-      >
+    <div class="composer-top-row">
+      <div class="composer-card" :class="{ 'has-preview': previewOpen }">
         <div
-          class="input-split-left"
-          v-show="collapseSide !== 'left'"
-          :style="splitLeftWidth && !collapseSide && previewOpen ? { width: splitLeftWidth + 'px', flex: 'none' } : {}"
+          class="input-split"
+          :class="{ 'collapse-left': collapseSide === 'left', 'collapse-right': collapseSide === 'right', 'preview-collapsed': !previewOpen }"
         >
-          <div class="textarea-wrap">
-            <textarea
-              class="input-editor"
-              ref="inputEl"
-              v-model="inputText"
-              rows="1"
-              spellcheck="false"
-              :disabled="sending || inputDisabled"
-              :placeholder="sendPlaceholder"
-              @keydown="onInputKeydown"
-              @input="onEditorInput"
-              @paste="onPaste"
-              @scroll="syncPreviewFromInput"
-            ></textarea>
-            <MentionPopup
-              :visible="mentionVisible"
-              :popupStyle="mentionPopupStyle"
-              :isGroup="pageType === 'group'"
-              :activeIndex="mentionIndex"
-              :candidates="mentionCandidates"
-              @selectAll="applyMentionAll"
-              @select="applyMention"
-            />
-          </div>
-        </div>
-        <div
-          class="input-split-divider"
-          v-show="previewOpen && !collapseSide"
-          title="拖动调整双栏宽度，拖到边缘继续拖可隐藏该侧"
-          @mousedown="onSplitDragStart"
-        ></div>
-        <div class="input-split-right" v-show="previewOpen && collapseSide !== 'right'">
-          <div class="input-preview-label">预览</div>
           <div
-            class="input-preview-content luogu-md"
-            ref="inputPreviewRef"
-            v-if="inputText.trim()"
-            v-html="renderMdPreview()"
-            @scroll="syncInputFromPreview"
+            class="input-split-left"
+            v-show="collapseSide !== 'left'"
+            :style="splitLeftWidth && !collapseSide && previewOpen ? { width: splitLeftWidth + 'px', flex: 'none' } : {}"
+          >
+            <div class="textarea-wrap">
+              <textarea
+                class="input-editor"
+                ref="inputEl"
+                v-model="inputText"
+                rows="1"
+                spellcheck="false"
+                :disabled="sending || inputDisabled"
+                :placeholder="sendPlaceholder"
+                @keydown="onInputKeydown"
+                @input="onEditorInput"
+                @paste="onPaste"
+                @scroll="syncPreviewFromInput"
+              ></textarea>
+              <MentionPopup
+                :visible="mentionVisible"
+                :popupStyle="mentionPopupStyle"
+                :isGroup="pageType === 'group'"
+                :activeIndex="mentionIndex"
+                :candidates="mentionCandidates"
+                @selectAll="applyMentionAll"
+                @select="applyMention"
+              />
+            </div>
+          </div>
+          <div
+            class="input-split-divider"
+            v-show="previewOpen && !collapseSide"
+            title="拖动调整双栏宽度，拖到边缘继续拖可隐藏该侧"
+            @mousedown="onSplitDragStart"
           ></div>
-          <div class="input-preview-empty" v-else>输入内容后在此预览</div>
+          <div class="input-split-right" v-show="previewOpen && collapseSide !== 'right'">
+            <div class="input-preview-label">预览</div>
+            <div
+              class="input-preview-content luogu-md"
+              ref="inputPreviewRef"
+              v-if="previewVisible && inputText.trim()"
+              v-html="mdPreviewHtml"
+              @scroll="syncInputFromPreview"
+            ></div>
+            <div class="input-preview-empty" v-else>输入内容后在此预览</div>
+          </div>
         </div>
       </div>
 
-      <div class="counter-line">
+      <UiButton
+        id="send"
+        class="send-btn"
+        variant="soft"
+        size="md"
+        icon="fas fa-paper-plane"
+        :disabled="sending || inputDisabled"
+        @click="sendMessage"
+      >发送</UiButton>
+    </div>
+
+    <div class="counter-line">
         <div class="input-actions">
           <UiSegmented
             class="fmt-toggle"
@@ -152,19 +165,8 @@
               </span>
             </Transition>
           </span>
-          <UiButton
-            id="send"
-            class="send-btn"
-            variant="primary"
-            size="sm"
-            pill
-            icon="fas fa-paper-plane"
-            :disabled="sending || inputDisabled"
-            @click="sendMessage"
-          >发送</UiButton>
         </div>
       </div>
-    </div>
 
     <EmojiPicker
       :visible="emojiVisible"
@@ -273,13 +275,6 @@ function insertAtCaret(text, caretDelta) {
   nextTick(() => ta.focus())
 }
 
-function renderMdPreview() {
-  if (msgFmt.value === 'txt') {
-    return inputText.value ? '<div class="plain-msg">' + esc(inputText.value) + '</div>' : ''
-  }
-  return renderMarkdownPreview(inputText.value)
-}
-
 const { clearCurrentDraft } = useInputDrafts({
   pageType: () => props.pageType,
   pageId: () => props.pageId,
@@ -292,16 +287,65 @@ const {
   syncPreviewFromInput, syncInputFromPreview, togglePreview, onSplitDragStart,
 } = useInputSplit({ inputEl, inputPreviewRef, inputText })
 
+/* 预览面板是否「可见」：收起 / 被拖到右缘折叠时都算不可见。
+   v-if 与 mdPreviewHtml 共用这一个判断，保证「不可见 = 不渲染 = 不解析」。 */
+const previewVisible = computed(() => previewOpen.value && collapseSide.value !== 'right')
+
+/* 预览 HTML：原来是模板里的函数调用 `renderMdPreview()`，每渲染一次就跑一遍
+   markdown + KaTeX。而输入框的重渲染远不止「文字变化」：表情面板开关、token 提示、
+   父组件任意更新都会让整个模板重新求值 → 白跑一次全量解析（长草稿 + 公式时是打字发涩的主因，
+   审计 #4）。改成 computed 后只有 inputText / msgFmt 变化才重算；
+   `previewVisible` 守卫让预览收起时连解析都不做。
+   msgFmt 必须留在依赖链里：切换「纯文本 / MD」时预览要跟着变。预览收起时本 computed
+   提前 return、不再读 msgFmt；重新展开时 previewVisible 变化会强制重算，依赖不会断。 */
+const mdPreviewHtml = computed(() => {
+  if (!previewVisible.value || !inputText.value.trim()) return ''
+  if (msgFmt.value === 'txt') {
+    return '<div class="plain-msg">' + esc(inputText.value) + '</div>'
+  }
+  return renderMarkdownPreview(inputText.value)
+})
+
+/* 编辑器自增高（审计 #11）。
+   原实现每次触发都是「写 height=auto → 读 scrollHeight → 写 height」，即两次强制同步布局；
+   而它每个键会被调用**两次**：onEditorInput 里同步一次，watch(inputText) 在 nextTick 里再一次
+   （同一次按键、同样的文字与宽度，纯重复）。
+   现在：① 用 (文字长度, 可用宽度) 作键，没变就直接返回 —— 顺带把上面那次重复吃掉；
+        ② 已经顶到 max-height 且内容只增不减时，clamp 后高度不可能变化，整段测量跳过
+           （长草稿从第 7 行起完全零成本）；
+        ③ 双栏预览打开时高度由 CSS（.has-preview）接管，不再测量。
+   语义不变：文本变短、窗口变窄、预览开关都会让缓存失效并重新测量。 */
+const GROW_MIN_H = 38
+const GROW_MAX_H = 168
+let growH = 0
+let growLen = -1
+let growWidth = -1
+
 function autoGrowEditor() {
   const ta = inputEl.value
   if (!ta) return
   if (previewOpen.value) {
-    ta.style.height = ''
+    if (ta.style.height) ta.style.height = ''
+    growH = 0
+    growLen = -1
+    growWidth = -1
+    return
+  }
+  const len = inputText.value.length
+  const width = ta.clientWidth
+  if (len === growLen && width === growWidth) return
+  if (growH >= GROW_MAX_H && len >= growLen) {
+    growLen = len
+    growWidth = width
     return
   }
   ta.style.height = 'auto'
-  const h = Math.min(Math.max(ta.scrollHeight || 0, 38), 168)
+  const raw = ta.scrollHeight || 0
+  const h = Math.min(Math.max(raw, GROW_MIN_H), GROW_MAX_H)
   ta.style.height = h + 'px'
+  growH = h
+  growLen = len
+  growWidth = width
 }
 
 watch([inputText, previewOpen], () => nextTick(autoGrowEditor))

@@ -22,7 +22,7 @@
 .nav-user-initial-lg {
   font-size: var(--text-2xl);
   font-weight: var(--weight-bold);
-  color: var(--on-brand);
+  color: var(--avatar-tint-text, var(--fg));
 }
 
 .nav-user-fallback {

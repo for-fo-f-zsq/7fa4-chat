@@ -20,6 +20,10 @@ const NOTIF_COOLDOWN_MS = 4000
 export function useUnreadNotifications({ saveAll, getSetting } = {}) {
   const notifCooldown = {}
   const notifPendingCount = {}
+  // 托盘/Dock 角标是跨进程 IPC（Electron: setBadgeCount → 主进程 → 系统），
+  // 而 updateBadgeCount 会在每次 fetchMessages 之后被调用（一轮同步里好几次）。
+  // 记住上一次真正下发的数字：没变就不再打穿进程边界，也不再重复置 0。
+  let lastBadgeValue = null
   // 冷却表与聚合计数必须按账号划分：否则 A 账号的 4s 冷却会压掉 B 账号同号会话的提醒，
   // 已弹出的卡片点一下还会把点击事件发给新账号（跳到别人的会话）。
   let notifOwnerUid = null
@@ -44,18 +48,26 @@ export function useUnreadNotifications({ saveAll, getSetting } = {}) {
     return s || store.setting || {}
   }
 
-  function updateBadgeCount() {
+  function updateBadgeCount(force = false) {
+    const enabled = currentSetting().notifBadge !== false
+    // 关掉角标时不需要遍历任何会话：只需要保证「上一次发过的非 0 数字被清零」。
+    if (!enabled) {
+      if (force || lastBadgeValue !== 0) {
+        lastBadgeValue = 0
+        if (window.api?.setBadgeCount) window.api.setBadgeCount(0)
+      }
+      return 0
+    }
     let total = 0
     for (const u of Object.values(store.users)) {
       if (!isUserHiddenBySetting(u)) total += (u.unread || 0)
     }
     for (const g of Object.values(store.groups)) total += (g.unread || 0)
-    if (currentSetting().notifBadge === false) {
-      // 关掉角标后必须显式清零：否则关设置的一刻会留下上次的旧数字。
-      if (window.api?.setBadgeCount) window.api.setBadgeCount(0)
-      return
-    }
+    // 数字没变（绝大多数轮询都是这种情况）就完全不写 IPC。
+    if (!force && total === lastBadgeValue) return total
+    lastBadgeValue = total
     if (window.api?.setBadgeCount) window.api.setBadgeCount(total)
+    return total
   }
 
   function markAllRead() {
@@ -102,6 +114,52 @@ export function useUnreadNotifications({ saveAll, getSetting } = {}) {
     for (const k of Object.keys(notifCooldown)) delete notifCooldown[k]
   }
 
+  // ---- 窗口前后台状态 ----
+  // 以前每条通知都要 `await window.api.getWindowState()` 跨一次进程边界（Electron 下是 IPC 往返）。
+  // 现在：主进程一旦推送窗口状态（window.api.onWindowState），就以推送值为主并本地缓存，
+  // 通知路径上不再有任何 IPC；推送通道尚未落地时保持原行为（一条通知一次读取），
+  // 语义与之前完全一致（也是唯一被 data-sync 用例固定下来的口径：读到的焦点状态即事实）。
+  let pushedWinState = null
+  let winStateBound = false
+  let winStateUnsub = null
+
+  function bindWindowState() {
+    if (winStateBound) return
+    winStateBound = true
+    try {
+      if (typeof window.api?.onWindowState === 'function') {
+        winStateUnsub = window.api.onWindowState((s) => {
+          if (!s || typeof s !== 'object') return
+          pushedWinState = { focused: !!s.focused, visible: s.visible !== false }
+        })
+      }
+    } catch {}
+  }
+
+  async function currentWindowState() {
+    bindWindowState()
+    if (pushedWinState) return pushedWinState
+    // preload 侧缓存（主进程 focus/blur/show/hide 主动推送）：同步、0 次 IPC。
+    // 还没收到过推送时返回 null，此时再回落到 invoke，保证首条通知也不会误判。
+    if (typeof window.api?.getCachedWindowState === 'function') {
+      try {
+        const c = window.api.getCachedWindowState()
+        if (c && typeof c === 'object') {
+          const st = { focused: !!c.focused, visible: c.visible !== false }
+          pushedWinState = st
+          return st
+        }
+      } catch {}
+    }
+    if (window.api?.getWindowState) {
+      try {
+        const s = await window.api.getWindowState()
+        if (s && typeof s === 'object') return { focused: !!s.focused, visible: s.visible !== false }
+      } catch {}
+    }
+    return { focused: false, visible: true }
+  }
+
   async function notifyIncomingMessage({ chatType, targetId, senderId, msgContent, setting, isCurrentPage }) {
     try {
       if (store.initializing) return
@@ -138,10 +196,7 @@ export function useUnreadNotifications({ saveAll, getSetting } = {}) {
       const subtitle = chatType === 'group' ? senderName : ''
 
       // 3. 窗口状态：后台/失焦且开启系统通知时发 OS 原生通知；前台非当前会话仅播提示音与未读角标
-      let state = { focused: false, visible: true }
-      try {
-        if (window.api?.getWindowState) state = (await window.api.getWindowState()) || state
-      } catch {}
+      const state = await currentWindowState()
       const isForeground = !!state.focused && state.visible !== false
       const wantDesktopNotif = !isForeground && s.notifDesktop !== false
       const wantSound = s.notifSound !== false

@@ -467,6 +467,15 @@ export function useToolsManager(onOpenTool) {
         const meta = JSON.parse(JSON.stringify(card.raw || card))
         const res = await api.installTool(meta)
         if (!res || !res.success) throw new Error((res && res.error) || '安装失败')
+        installedMap.value = {
+          ...installedMap.value,
+          [card.id]: {
+            version: card.version || '',
+            installedAt: new Date().toISOString(),
+            size: Number(card.size) || 0,
+          },
+        }
+        await refreshInstalled()
       } catch (err) {
         failed.push(`${card.name || card.id}：${formatError(err)}`)
       } finally {
@@ -475,7 +484,6 @@ export function useToolsManager(onOpenTool) {
         batchDone.value += 1
       }
     }
-    await refreshInstalled()
     batchRunning.value = false
     if (failed.length) actionError.value = `批量处理完成，${failed.length} 个失败 —— ${failed.join('；')}`
   }

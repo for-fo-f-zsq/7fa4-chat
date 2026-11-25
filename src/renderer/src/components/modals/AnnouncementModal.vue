@@ -5,7 +5,7 @@
         <div class="announcement-welcome-inner">
           <div class="announcement-badge">
             <i class="fas fa-star" aria-hidden="true"></i>
-            <span>体验打磨 · 预览切换与工具升级</span>
+            <span>流畅度深度优化 · 界面与工具打磨</span>
           </div>
 
           <div class="announcement-logo-stage">
@@ -15,8 +15,8 @@
             </div>
           </div>
 
-          <h1 class="announcement-version u-tabular-nums">V{{ appVersion || '4.0.2' }}</h1>
-          <p class="announcement-tagline">图片预览左右切换、图论全主题高对比渲染、画图像素落笔与启动首爬全面修复</p>
+          <h1 class="announcement-version u-tabular-nums">V{{ appVersion || '4.0.3' }}</h1>
+          <p class="announcement-tagline">桌面端流畅度大幅提升，默认主题、聊天布局与窄屏工具体验全面优化</p>
 
           <div class="announcement-pillars motion-stagger">
             <div v-for="pillar in PILLARS" :key="pillar.label" class="announcement-pillar">
@@ -57,7 +57,7 @@
       <div v-else-if="page === 2" key="changelog" class="announcement-page announcement-page--changelog">
         <div class="announcement-head">
           <h2><i class="fas fa-file-alt" aria-hidden="true"></i> 完整更新日志</h2>
-          <p class="announcement-head-sub">V{{ appVersion || '4.0.2' }} 及历代版本变更详情</p>
+          <p class="announcement-head-sub">V{{ appVersion || '4.0.3' }} 及历代版本变更详情</p>
         </div>
         <div class="announcement-changelog">
           <ChangelogViewer :auto-load="true" :prefer-local="true" :fallback-markdown="bundledChangelog" />
@@ -119,48 +119,42 @@ import SponsorTable from '@/components/common/SponsorTable.vue'
 import StepDots from '@/components/common/StepDots.vue'
 
 const PILLARS = [
-  { icon: 'fas fa-images', label: '图片预览切换', sub: '左右按钮 · 键盘快捷键' },
-  { icon: 'fas fa-project-diagram', label: '图论对比度与向心力', sub: '全主题适配 · 稳态布局' },
-  { icon: 'fas fa-paint-brush', label: '画图与工具窗升级', sub: '文字像素落笔 · 独立防丢提示' },
-  { icon: 'fas fa-shield-alt', label: '启动与断线修复', sub: '首爬遮罩 · 可用率分级配色' },
+  { icon: 'fas fa-tachometer-alt', label: '桌面端流畅提速', sub: '告别轮询与滚动卡顿' },
+  { icon: 'fas fa-palette', label: '主题与布局微调', sub: '观感更协调 · 浅色发送' },
+  { icon: 'fas fa-toolbox', label: '工具窄屏与体验', sub: '窄屏可用 · 下载即时刷新' },
+  { icon: 'fas fa-check-circle', label: '列表与状态修复', sub: '排序 · 加载 · 状态提示' },
 ]
 
 const HIGHLIGHTS = [
   {
-    icon: 'fas fa-images',
-    tag: '图片预览',
-    title: '支持同会话图片左右切换',
-    desc: '打开图片预览自动采集当前会话图片列表，支持左右悬浮按钮与方向键切换并显示页码，修复切换跳动与旋转动画异常。',
+    icon: 'fas fa-tachometer-alt',
+    tag: '流畅度',
+    title: '桌面端使用流畅度大幅提升',
+    desc: '显著改善轮询、滚动消息与切换会话时的卡顿问题。',
   },
   {
-    icon: 'fas fa-project-diagram',
-    tag: '图论工具',
-    title: '质心向心力与全主题高对比渲染',
-    desc: '物理引擎加入质心向心引力防止非连通分量无限远离，节点边框与边线改用主题前景色动态混色，浅/深及自定义主题均清晰锐利。',
+    icon: 'fas fa-palette',
+    tag: '界面微调',
+    title: '默认主题配色与聊天区布局优化',
+    desc: '微调默认主题配色深浅与饱和度，优化导航栏、会话列表与输入区布局。',
   },
   {
-    icon: 'fas fa-paint-brush',
-    tag: '画图与工具',
-    title: '画图文字像素落笔与独立窗口提示',
-    desc: '画图文字确认后直接栅格化落笔，支持橡皮擦与马赛克擦除；独立工具窗各窗口独立计算未保存状态并在关闭时提示。',
+    icon: 'fas fa-toolbox',
+    tag: '工具体验',
+    title: '工具支持窄屏使用与下载状态修复',
+    desc: '支持在窄窗口下使用工具，修复批量下载刷新不及时、GeoGebra 缩放异常及部分工具窄屏顶栏重叠。',
+  },
+  {
+    icon: 'fas fa-comments',
+    tag: '消息列表',
+    title: '修复会话排序、加载区分与历史翻页',
+    desc: '修复聊天列表排序的部分问题，区分加载中与无消息提示，修复网页端无滚动条时无法加载更多消息的 BUG。',
   },
   {
     icon: 'fas fa-chart-bar',
     tag: '连接状态',
-    title: '可用率 10% 分级配色与断线计时修复',
-    desc: '时段条按 100% 纯绿、80%+ 绿至浅绿、0–80% 每 10% 浅红至深红着色，修复重连尝试时断线计时清零与已关闭提示复弹。',
-  },
-  {
-    icon: 'fas fa-camera',
-    tag: '系统相机',
-    title: '桌面端调用系统相机与首次爬取修复',
-    desc: '桌面端拍照改用系统相机应用；修复有本地缓存时提前进入界面与完整爬取期间误发通知的问题。',
-  },
-  {
-    icon: 'fas fa-sliders-h',
-    tag: '体验精简',
-    title: '设置与通知文案精简',
-    desc: '统一窄屏「关于」页导航栏显示逻辑并移除多余返回按钮，精简设置说明与站点通知弹窗中的冗余提示文案。',
+    title: '修复 24 小时状态提示与未登录记录问题',
+    desc: '修复设置页最近 24 小时连接状态显示不全，以及未登录时误记连接状态的问题。',
   },
 ]
 

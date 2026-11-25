@@ -105,8 +105,15 @@ function getFileIconInfo(name) {
 
 const parseContentCache = new Map()
 const PARSE_CACHE_MAX = 300
+const PARSE_ID_CACHE_MAX = 240
+// 大消息（含 base64 媒体的 content 常达几十 ~ 上百 KB）的缓存表：键是 msg.id，
+// 条目里带原始串做精确校验，保证「同 id 内容被改写」时不会命中旧结果。
+const parseContentIdCache = new Map()
 const textKindCache = new Map()
 const TEXT_KIND_CACHE_MAX = 600
+// 超过这个长度的 content 不再参与「整串当 Map 键」的缓存（键本身就会长期占几十 KB），
+// 改由调用方传 msg.id 走 id 缓存。
+const PARSE_ID_THRESHOLD = 8192
 
 const SOLO_IMAGE_LINE_RE = /^!\[[^\]]*\]\(\s*([^\s)]+)(?:\s+"[^"]*")?\s*\)$/
 const SAFE_IMG_SRC_RE = /^(?:https?:\/\/|data:image\/|file:\/\/|\/|\.\/)/i
@@ -162,7 +169,7 @@ export function isTextLikeContent(raw) {
   return result
 }
 
-function _parseContentImpl(raw, senderId) {
+function _parseContentImpl(raw, senderId, mediaCacheKey) {
   const soloImages = parseSoloImages(raw)
   if (soloImages) {
     return soloImages
@@ -181,7 +188,7 @@ function _parseContentImpl(raw, senderId) {
     const isImage = /^image\//.test(obj.mime || '') || /\.(jpg|jpeg|png|gif|bmp|webp|ico)$/i.test(obj.name || '')
     let fileHtml = ''
     if (isImage) {
-      const src = mediaUrlFromData(obj.data || '', obj.mime || 'image/png')
+      const src = mediaUrlFromData(obj.data || '', obj.mime || 'image/png', mediaCacheKey)
       fileHtml = `<img class="chat-image" data-image-msg="1" src="${esc(src)}" data-media="${esc(src)}" data-mime="${esc(obj.mime || '')}">`
     } else {
       const fi = getFileIconInfo(obj.name || '')
@@ -200,7 +207,7 @@ function _parseContentImpl(raw, senderId) {
     return fileHtml
   }
   if (obj.type === 'sticker') {
-    const src = mediaUrlFromData(obj.data || '', obj.mime || 'image/png')
+    const src = mediaUrlFromData(obj.data || '', obj.mime || 'image/png', mediaCacheKey)
     return `<span class="sticker-msg"><img src="${esc(src)}" alt="${esc(obj.name || '')}" data-media="${esc(src)}" data-mime="${esc(obj.mime || '')}"></span>`
   }
   if (obj.type === 'emoji') {
@@ -276,8 +283,35 @@ function _parseContentImpl(raw, senderId) {
   return '<div class="unknown-msg">[不支持的消息类型：' + esc(obj && obj.type ? String(obj.type) : '?') + ']</div>'
 }
 
-export function parseContent(raw, senderId) {
+/**
+ * 消息内容 → 气泡 HTML。
+ *
+ * @param raw       原始 content
+ * @param senderId  发送者（拍拍乐等需要按发送者渲染）
+ * @param cacheId   可选，建议传 msg.id。传入后：
+ *                  - content 长度 > 8KB（含 base64 媒体的消息）走「按 id 缓存」，
+ *                    避免把几十 KB 的 base64 串本身当成 Map 键长期驻留；
+ *                  - 条目里同时保存原始串做精确校验，同 id 内容被改写（投票合并、
+ *                    补同步覆盖）时不会命中旧 HTML。
+ *                  不传则行为与以前完全一致（只按 raw+senderId 缓存）。
+ */
+export function parseContent(raw, senderId, cacheId) {
   if (!raw) return renderMarkdown(raw || '')
+  const big = raw.length > PARSE_ID_THRESHOLD
+  const useIdKey = big && cacheId != null && cacheId !== ''
+
+  if (useIdKey) {
+    const idKey = String(cacheId)
+    const hit = parseContentIdCache.get(idKey)
+    if (hit && hit.raw === raw && hit.senderId === senderId) return hit.html
+    const html = _parseContentImpl(raw, senderId, idKey)
+    if (parseContentIdCache.size >= PARSE_ID_CACHE_MAX) {
+      parseContentIdCache.delete(parseContentIdCache.keys().next().value)
+    }
+    parseContentIdCache.set(idKey, { raw, senderId, html })
+    return html
+  }
+
   const cacheKey = senderId != null ? raw + '\u0001' + senderId : raw
   const cached = parseContentCache.get(cacheKey)
   if (cached != null) return cached

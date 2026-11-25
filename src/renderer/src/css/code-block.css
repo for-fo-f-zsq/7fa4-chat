@@ -42,6 +42,10 @@
   box-sizing: border-box;
   max-width: 100%;
   overflow: hidden;
+  /* 代码块自带 overflow:hidden，本来就是一个独立裁剪盒。
+     显式 layout+paint 包含后，块内的滚动 / 高亮变化只会在块内失效，
+     不会把整条气泡（可能还有公式、长文本）拉进重排重绘。观感不变。 */
+  contain: layout paint;
 }
 
 /* 独立代码块外面还套了一层 .luogu-code-block-wrap（段落容器），去掉它在首尾
@@ -261,6 +265,29 @@ body.web .luogu-code-block-wrapper .luogu-code-copy-btn {
 
 .luogu-code-block-wrapper .code-copy-btn {
   display: none;
+}
+
+/* ---- 长代码块：只对「已展开」的气泡限高 + 块内纵向滚动 -------------------
+   单条消息里最大的绘制面积往往就是上千行的代码块：每一行都是一个 .code-line，
+   正文一长，滚动时整条气泡的绘制/合成成本就被它主导。限高能把绘制面积从
+   「整块」压到一屏以内。
+
+   为什么带 `.bubble:not(.collapsed)`（注意顺序：`.bubble` 是 `.luogu-md` 的**父级**，
+   结构是 .bubble > .bubble-content.luogu-md > …，写反了就 0 匹配）：
+   useMessageExpand 是靠 `bubble.scrollHeight` 判断「是否需要折叠」的，测量发生在
+   折叠态。如果折叠态也被限高，scrollHeight 会变小 → 原本超长可折叠的消息可能
+   直接不折叠（功能回归）。把限高限制在「已展开」态后：
+     · 折叠 / 测量阶段没有限高 → scrollHeight 与改动前完全一致，折叠判定不变；
+     · 用户点「展开」后代码块内部滚动，正文不会被上千行撑开。
+   - min(70vh, 620px)：正常长度的代码块完全不受影响；
+   - overscroll-behavior-y: auto（默认值，这里显式写出）：滚到块底部后滚轮继续
+     传递给外层消息列表（不要改成 contain）；overscroll-behavior-x: contain 保留
+     在上面基础规则里，横向滚到头不会带走整个列表。
+   Markdown 工具的全屏文档预览不带 .luogu-md，保持不限高。 */
+.bubble:not(.collapsed) .luogu-md .luogu-code-block-wrapper .luogu-code-pre {
+  max-height: min(70vh, 620px);
+  overflow-y: auto;
+  overscroll-behavior-y: auto;
 }
 
 /* ---- 窄屏：略收字号与内边距，保证一行能多放几个字符 ---- */

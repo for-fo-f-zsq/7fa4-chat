@@ -1,6 +1,6 @@
 import { reactive, computed } from 'vue'
 import md5 from 'md5'
-import { store, updateConnStatus, resetConnStatusHistory } from '../../store.js'
+import { store, updateConnStatus, resetConnStatusHistory, assignChanged, pickReusableObject, syncKeyedCollection } from '../../store.js'
 import { isWebBrowser } from '../../utils/env.js'
 import { safeFetch, tryLogin, markMsgDirty, ingestMessage } from '../../utils/chatSync.js'
 import { clearPendingVotes } from '../../utils/poll.js'
@@ -16,8 +16,38 @@ const INCR_MAX_PAGES = 4
 const TARGET_TIMES_BATCH = 200
 const AUTO_RELOGIN_COOLDOWN_MS = 10 * 60 * 1000
 const AUTO_RELOGIN_REJECT_COOLDOWN_MS = 30 * 60 * 1000
+// 页面不可见时把轮询间隔抬到至少 10s：后台标签/最小化窗口继续每秒打服务器既费电又费 CPU，
+// 而且返回前台时会立刻补一轮（visibilitychange → wakePoll），不会丢掉这段时间的消息。
+const HIDDEN_POLL_MS = 10 * 1000
 
 let activePollingApi = null
+
+/**
+ * 群成员列表浅比较：(/chat/info 每 2 轮就会来一次，成员没变时不能让群对象换引用)
+ */
+function sameMemberList(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
+  for (let i = 0; i < b.length; i++) {
+    const x = a[i]
+    const y = b[i]
+    if (!x || !y) return false
+    if (x.user_id !== y.user_id || x.type !== y.type || x.mute !== y.mute) return false
+  }
+  return true
+}
+
+/**
+ * 会话对象「无变化就复用旧引用」的补丁：
+ * next 里除 users（群成员数组）外都是标量，users 需要先按内容决定能否复用，
+ * 否则每次 /chat/info 都会因为新数组让所有群会话项重渲染。
+ */
+function reuseGroupObject(old, patch) {
+  if (!old) return patch
+  if (Array.isArray(patch.users) && sameMemberList(old.users, patch.users)) {
+    patch.users = old.users
+  }
+  return pickReusableObject(old, patch)
+}
 
 export function triggerReconnectNow() {
   return activePollingApi?.reconnectNow?.()
@@ -80,6 +110,7 @@ export function usePollingSync({
 
   function stopPolling() {
     infoLoopRunning = false
+    unbindVisibilityWake()
     wakePoll()
   }
 
@@ -113,12 +144,18 @@ export function usePollingSync({
 
   async function loadConversationLite(kind, id) {
     const end = Date.now()
-    if (kind === 'group') {
-      await fetchMessages('group', end, 30, false, id, 0, true)
-      return
+    const key = `${kind === 'group' ? 'group' : 'user'}:${id}`
+    store.loadingConvoKey = key
+    try {
+      if (kind === 'group') {
+        await fetchMessages('group', end, 30, false, id, 0, true)
+        return
+      }
+      await fetchMessages('user', end, 30, false, id, 0, true)
+      await fetchMessages('send_user', end, 30, false, id, 0, true)
+    } finally {
+      if (store.loadingConvoKey === key) store.loadingConvoKey = ''
     }
-    await fetchMessages('user', end, 30, false, id, 0, true)
-    await fetchMessages('send_user', end, 30, false, id, 0, true)
   }
 
   async function loadOlderOne(type, id, oldest) {
@@ -149,10 +186,31 @@ export function usePollingSync({
   }
 
   function pollSleep(ms) {
+    // 后台（最小化/切到别的窗口）时把间隔抬到 HIDDEN_POLL_MS，回到前台立刻补一轮。
+    const wait = (typeof document !== 'undefined' && document.hidden)
+      ? Math.max(ms, HIDDEN_POLL_MS)
+      : ms
     return new Promise((resolve) => {
-      const t = setTimeout(() => { wakePollFn = null; resolve() }, ms)
+      const t = setTimeout(() => { wakePollFn = null; resolve() }, wait)
       wakePollFn = () => { clearTimeout(t); wakePollFn = null; resolve() }
     })
+  }
+
+  // 页面重新可见时立刻唤醒轮询（配合上面的后台降频，回来时补一次而不是等满 10s）
+  let visibilityHandler = null
+
+  function bindVisibilityWake() {
+    if (visibilityHandler || typeof document === 'undefined') return
+    visibilityHandler = () => {
+      if (!document.hidden) wakePoll()
+    }
+    document.addEventListener('visibilitychange', visibilityHandler)
+  }
+
+  function unbindVisibilityWake() {
+    if (!visibilityHandler || typeof document === 'undefined') return
+    document.removeEventListener('visibilitychange', visibilityHandler)
+    visibilityHandler = null
   }
 
   async function tryAutoRelogin(manual = false) {
@@ -219,8 +277,11 @@ export function usePollingSync({
 
   async function update(result) {
     if (!result || !result.user) return
-    if (result.limit && typeof result.limit === 'object') store.tokenLimit = result.limit
-    Object.assign(store.self, {
+    if (result.limit && typeof result.limit === 'object') {
+      // 同值不换引用：token 面板/气泡不会因为每 2 轮的 /chat/info 重算一遍。
+      store.tokenLimit = pickReusableObject(store.tokenLimit, result.limit)
+    }
+    assignChanged(store.self, {
       ...result.user,
       uid: result.user.id,
       username: result.user.uid,
@@ -245,7 +306,8 @@ export function usePollingSync({
         const old = store.users[f.id]
         const isCur = isCurrentConvo('user', f.id)
         const pinned = !!(store.pinnedConvos?.[`user_${f.id}`] ?? (old ? old.pinned : false))
-        return [f.id, {
+        // 无变化的好友继续用原对象：会话列表的 props/shallowCompare 才不会集体失效。
+        return [f.id, pickReusableObject(old, {
           uid: f.id,
           realname: f.real_name,
           username: f.username,
@@ -261,19 +323,23 @@ export function usePollingSync({
           pinned,
           lastSendTime: old ? old.lastSendTime : 0,
           _fetchedAt: old ? old._fetchedAt : undefined,
-        }]
+        })]
       }))
-    const hiddenUsers = Object.fromEntries(
-      Object.entries(store.users).filter(([, u]) => u.show === false && !friendsMap[u.uid]),
-    )
-    store.users = { ...friendsMap, ...hiddenUsers }
+    const hiddenUsers = {}
+    for (const [key, u] of Object.entries(store.users)) {
+      // 与原实现一致：被设置隐藏、且不在好友列表里的会话仍然保留在 store 中。
+      if (u.show === false && !friendsMap[u.uid]) hiddenUsers[key] = u
+    }
+    // 原地增量同步：容器对象 identity 不变、未变化的会话保持原引用，
+    // 只有真正新增/变化的键才会触发会话列表与未读角标重算。
+    syncKeyedCollection(store.users, { ...friendsMap, ...hiddenUsers })
 
     const newGroupIds = new Set((result.groups || []).map((g) => g.id))
-    const newGroups = Object.fromEntries((result.groups || []).map((g) => {
+    const nextGroups = Object.fromEntries((result.groups || []).map((g) => {
       const old = store.groups[g.id]
       const isCur = isCurrentConvo('group', g.id)
       const pinned = !!(store.pinnedConvos?.[`group_${g.id}`] ?? (old ? old.pinned : false))
-      return [g.id, {
+      return [g.id, reuseGroupObject(old, {
         gid: g.id,
         name: g.title,
         mute: g.mute,
@@ -285,15 +351,16 @@ export function usePollingSync({
         exited: false,
         blocked: old ? old.blocked : false,
         lastSendTime: old ? old.lastSendTime : 0,
-      }]
+      })]
     }))
     for (const [gid, oldGroup] of Object.entries(store.groups)) {
       if (!newGroupIds.has(Number(gid))) {
-        oldGroup.exited = true
-        newGroups[gid] = oldGroup
+        // 已退出/被移除的群：沿用原对象，只补 exited 标记（同值不重复写）。
+        assignChanged(oldGroup, { exited: true })
+        nextGroups[gid] = oldGroup
       }
     }
-    for (const [gid, newGroup] of Object.entries(newGroups)) {
+    for (const [gid, newGroup] of Object.entries(nextGroups)) {
       if (newGroup.blocked && !newGroup.exited) {
         try {
           const r = await postGroup({ type: 'leave', group_id: Number(gid), target_id: 0 })
@@ -304,7 +371,7 @@ export function usePollingSync({
         }
       }
     }
-    store.groups = newGroups
+    syncKeyedCollection(store.groups, nextGroups)
   }
 
   async function fetchMessages(type, end, take = 10, allowPage = false, targetId = null, depth = 0, allowManual = false) {
@@ -700,6 +767,7 @@ export function usePollingSync({
     infoLoopRunning = true
     failCount = 0
     initialSynced = false
+    bindVisibilityWake()
 
     let r = prefetchedInfo
     try {

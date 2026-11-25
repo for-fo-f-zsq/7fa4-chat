@@ -33,6 +33,20 @@ function subscribeIpc(channel, callback) {
   return () => ipcRenderer.removeListener(channel, handler);
 }
 
+// 窗口状态缓存：主进程在 focus/blur/show/hide/minimize/restore 时主动推 'window-state'，
+// 这里留一份，渲染层读 getCachedWindowState() 就是纯内存读取（0 次 IPC 往返）。
+// 之前每条通知都要 await 一次 getWindowState() 才知道窗口是否在前台。
+let cachedWindowState = null;
+ipcRenderer.on('window-state', (event, state) => {
+  if (state && typeof state === 'object') cachedWindowState = { ...state };
+});
+// 首帧兜底：push 还没来之前先问一次（只在 preload 加载时发生一次，之后全靠推送）
+try {
+  ipcRenderer.invoke('get-window-state').then((state) => {
+    if (!cachedWindowState && state && typeof state === 'object') cachedWindowState = { ...state };
+  }).catch(() => {});
+} catch { /* 老版本主进程没有该 handler 时忽略 */ }
+
 contextBridge.exposeInMainWorld('api', {
   getVersion: () => ipcRenderer.invoke('get-version'),
   getPlatform: () => ipcRenderer.invoke('get-platform'),
@@ -50,6 +64,16 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('window-maximized', handler);
   },
   getWindowState: () => ipcRenderer.invoke('get-window-state'),
+  // 主进程推送的窗口状态（focus/blur/show/hide/minimize/restore）：
+  //   onWindowState(cb) → 退订函数；cb 收到 { visible, focused, minimized }
+  //   getCachedWindowState() → 最近一次状态（同步、0 IPC），还没收到过时为 null
+  onWindowState: (callback) => {
+    if (typeof callback !== 'function') return () => {};
+    const handler = (event, state) => callback(state);
+    ipcRenderer.on('window-state', handler);
+    return () => ipcRenderer.removeListener('window-state', handler);
+  },
+  getCachedWindowState: () => (cachedWindowState ? { ...cachedWindowState } : null),
   clipboardWriteText: (text) => ipcRenderer.invoke('clipboard-write-text', text),
   // --- 文件操作 (base64) ---
   selectFile: () => ipcRenderer.invoke('select-file'),

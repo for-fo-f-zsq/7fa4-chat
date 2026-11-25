@@ -465,6 +465,21 @@ async function loadRenderer(win, candidates) {
     return false;
 }
 
+// 主窗背景色：与渲染层各主题的 --bg-app 对齐（customVars 自定义主题解析不了，落回 default）。
+// 只影响「内容还没画出来」的那几帧，不影响任何可见配色。
+const WINDOW_BG_BY_THEME = {
+    default: '#F7F9FC',
+    contrast: '#FCFCFD',
+    sand: '#F7F2EA',
+    sage: '#F1F5EF',
+    graphite: '#16181C',
+    midnight: '#0F1626'
+};
+function windowBackgroundColor() {
+    const theme = (cachedSetting && cachedSetting.theme) || 'default';
+    return WINDOW_BG_BY_THEME[theme] || WINDOW_BG_BY_THEME.default;
+}
+
 function createWindow() {
     const iconPath = getWindowIconPath();
     const startHidden = isAutostartLaunch && minimizeToTray !== false;
@@ -474,12 +489,20 @@ function createWindow() {
         frame: false,
         show: !startHidden,
         icon: iconPath,
+        // 无边框窗默认白底：加载/缩放/resize 时会先画一层白再画内容（深色主题下尤其刺眼），
+        // 而且每次 resize 多一轮全窗重绘。这里按当前主题给一个实色底，首帧就是主题色。
+        backgroundColor: windowBackgroundColor(),
         webPreferences: {
             preload: path.join(__dirname, '../preload/index.js'),
             contextIsolation: true,
             nodeIntegration: false,
-            webSecurity: true,
-            backgroundThrottling: false
+            webSecurity: true
+            // backgroundThrottling 用默认值（true）。
+            // 旧实现显式关掉它，副作用被低估了：这个选项同时影响 Page Visibility API ——
+            // 关掉之后 document.hidden 在窗口最小化/被遮挡时不会变 true，于是渲染层为此写的
+            // 优化全部成了死代码（usePollingSync.js:182-208 的后台降频+回唤醒、
+            // useAppEffects.js:342 的粒子暂停都在等 visibilitychange）。
+            // 现在恢复默认：窗口不可见时粒子/动效真正停下、轮询降频到 10s，回到前台立刻补一轮。
         }
     });
     if (process.platform === 'win32' && iconPath && typeof mainWindow.setIcon === 'function') {
@@ -578,6 +601,25 @@ function createWindow() {
         }, 100);
     });
     mainWindow.webContents.once('did-finish-load', sendMaximizedState);
+
+    // --- 窗口状态推送（focused/visible/minimized）---
+    // 渲染层原来每条通知都要 await 一次 getWindowState() IPC 才知道窗口是不是前台
+    // （useUnreadNotifications.js:155；启动批量同步时会连成一串 IPC）。
+    // 这里改成主进程在窗口状态变化时主动推，preload 缓存一份，渲染层读本地缓存即可（0 IPC）。
+    const sendWindowState = () => {
+        if (!mainWindow || mainWindow.isDestroyed()) return;
+        try {
+            mainWindow.webContents.send('window-state', {
+                visible: mainWindow.isVisible(),
+                focused: mainWindow.isFocused(),
+                minimized: mainWindow.isMinimized()
+            });
+        } catch { /* 窗口正在销毁 */ }
+    };
+    for (const ev of ['focus', 'blur', 'show', 'hide', 'minimize', 'restore']) {
+        mainWindow.on(ev, sendWindowState);
+    }
+    mainWindow.webContents.once('did-finish-load', sendWindowState);
 
     mainWindow.on('closed', () => {
         mainWindow = null;
@@ -873,6 +915,10 @@ handleMainIpc('save-setting', async (event, data) => {
     const result = await saveSettingToFile(data);
     if (data && data.minimizeToTray !== undefined && data.minimizeToTray !== oldMinimizeToTray) {
         minimizeToTray = data.minimizeToTray;
+    }
+    // 主题变了：同步主窗底色，避免深色主题下 resize/缩放的闪白（见 createWindow 里的 backgroundColor）
+    if (data && data.theme !== undefined && mainWindow && !mainWindow.isDestroyed()) {
+        try { mainWindow.setBackgroundColor(windowBackgroundColor()); } catch {}
     }
     if (data && data.launchAtStartup !== undefined && (data.launchAtStartup !== false) !== oldLaunchAtStartup) {
         await applyLaunchAtStartup(data.launchAtStartup !== false);
@@ -2270,7 +2316,12 @@ handleMainIpc('tools-get-entry-url', (event, id, entry) => getToolEntryUrl(id, e
 let updateDownloaded = false;
 let autoUpdateEnabled = false;
 let updateCheckTimer = null;
+let updatePingTimer = null;
 let isDownloading = false;
+// 定时检查更新：4 小时一次（旧值 30 秒，属于纯噪声；手动检查走 check-for-update IPC 不受影响）
+const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
+// 启动后多久做第一次自动检查（避开首屏；用户手动点「检查更新」不受此延迟影响）
+const UPDATE_FIRST_CHECK_DELAY_MS = 30 * 1000;
 
 // electron-updater 的更新源固定指向 GitLab 项目 886 的 latest/ 包目录。
 // GitLab 侧每次发版只保留最新一版包（见 .github/workflows/release.yml）。
@@ -2373,12 +2424,20 @@ function initAutoUpdater() {
         }
     });
 
-    // 启动时检查一次
-    autoUpdater.checkForUpdates().catch(err => {
-        console.error('[Updater] 检查更新失败:', err.message);
-    });
+    // 启动后延迟检查一次（避开首屏加载），之后交给 startUpdateCheckTimer 的长周期定时器。
+    // 旧实现是「启动立即查 + 每 30 秒一次」：每次 checkForUpdates 都要走一次网络请求
+    // 外加 electron-updater 自己的缓存/日志磁盘写，对一天开 10 小时的客户端纯属噪声。
+    if (updatePingTimer) clearTimeout(updatePingTimer);
+    updatePingTimer = setTimeout(() => {
+        updatePingTimer = null;
+        if (!updateDownloaded && autoUpdateEnabled) {
+            autoUpdater.checkForUpdates().catch(err => {
+                console.error('[Updater] 检查更新失败:', err.message);
+            });
+        }
+    }, UPDATE_FIRST_CHECK_DELAY_MS);
+    if (typeof updatePingTimer.unref === 'function') updatePingTimer.unref();
 
-    // 定时检查更新（每 30 秒）
     startUpdateCheckTimer();
 }
 
@@ -2391,7 +2450,9 @@ function startUpdateCheckTimer() {
                 console.error('[Updater] 定时检查更新失败:', err.message);
             });
         }
-    }, 30000);
+    }, UPDATE_CHECK_INTERVAL_MS);
+    // 定时器不应该拖住进程退出
+    if (typeof updateCheckTimer.unref === 'function') updateCheckTimer.unref();
 }
 
 function stopUpdateCheckTimer() {
@@ -2581,17 +2642,26 @@ function getUsersDbPath() {
     return path.join(app.getAppPath(), 'src/renderer/public/users.7c');
 }
 
+// users.7c 是静态资源（262KB，随客户端分发）：解密一次缓存住，避免每次调用都读文件 + 解密 + 解析。
+// 旧实现在 App.vue 首屏期间同步做一遍，属于启动期的串行重活。
+let usersDbPromise = null;
 handleMainIpc('load-users-db', async () => {
-    try {
-        const payload = JSON.parse(await fs.readFile(getUsersDbPath(), 'utf8'));
-        const key = crypto.createHash('sha256').update(USERS_DB_PASSPHRASE).digest();
-        const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(payload.iv, 'base64'));
-        decipher.setAuthTag(Buffer.from(payload.tag, 'base64'));
-        const dec = Buffer.concat([decipher.update(Buffer.from(payload.data, 'base64')), decipher.final()]);
-        return { success: true, data: JSON.parse(dec.toString('utf8')) };
-    } catch (e) {
-        return { success: false, error: e.message || '加载用户数据库失败' };
-    }
+    if (usersDbPromise) return usersDbPromise;
+    usersDbPromise = (async () => {
+        try {
+            const payload = JSON.parse(await fs.readFile(getUsersDbPath(), 'utf8'));
+            const key = crypto.createHash('sha256').update(USERS_DB_PASSPHRASE).digest();
+            const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(payload.iv, 'base64'));
+            decipher.setAuthTag(Buffer.from(payload.tag, 'base64'));
+            const dec = Buffer.concat([decipher.update(Buffer.from(payload.data, 'base64')), decipher.final()]);
+            return { success: true, data: JSON.parse(dec.toString('utf8')) };
+        } catch (e) {
+            // 失败不缓存（下次还给它一次机会）
+            usersDbPromise = null;
+            return { success: false, error: e.message || '加载用户数据库失败' };
+        }
+    })();
+    return usersDbPromise;
 });
 
 // ========== 退出登录 ==========

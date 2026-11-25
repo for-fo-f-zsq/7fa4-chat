@@ -73,7 +73,43 @@ export function useChatNavigation({
   })
 
   function closeSearch() { searchVisible.value = false }
-  function toggleSearch() { searchVisible.value = !searchVisible.value }
+
+  /**
+   * 搜索面板打开时，把当前会话剩下的本地历史分页补进内存。
+   * 原因：会话内/全局搜索都是**纯内存**过滤（useMessageSearch 直接遍历 store.messages），
+   * 首屏只加载 50 条后，若不补拉，「打开会话直接搜」会比以前（1000 条）少搜到很多旧消息。
+   * 不在会话打开时做这件事——那正是要消掉的「点会话卡一下」；
+   * 放到空闲时段、按 200 条一页、切会话/关面板即停。
+   */
+  let hydrateSeq = 0
+
+  async function hydrateCurrentConvo() {
+    const seq = ++hydrateSeq
+    const kind = convoKindOf(pageType.value)
+    const cid = pageId.value
+    if (cid == null) return
+    const { persistence } = getDeps()
+    if (!persistence?.loadOlderFromStore) return
+    const idle = () => new Promise((resolve) => {
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(() => resolve(), { timeout: 1500 })
+      else setTimeout(resolve, 120)
+    })
+    let guard = 0
+    while (guard++ < 40) {
+      if (seq !== hydrateSeq) return
+      if (convoKindOf(pageType.value) !== kind || String(pageId.value) !== String(cid)) return
+      if (!hasUnloadedLocal(kind, cid)) return
+      await idle()
+      if (seq !== hydrateSeq) return
+      const r = await persistence.loadOlderFromStore(kind, cid, 200)
+      if (!r || !r.loaded) return
+    }
+  }
+
+  function toggleSearch() {
+    searchVisible.value = !searchVisible.value
+    if (searchVisible.value) hydrateCurrentConvo()
+  }
 
   function clearFooterTransient() {
     if (!inputFooterRef.value) return
@@ -198,6 +234,92 @@ export function useChatNavigation({
     messageListRef.value?.scrollToBottomInstant({ respectUser: true })
   }
 
+  // ===== 本地历史翻页（桌面端）=====
+  // 首次打开会话只从本地库取最新 ENSURE_LIMIT 条，更早的历史按页补拉：
+  // storeLoadMessages 支持 send_time 游标（before），但此前全仓没有调用者，
+  // 库里的旧消息永远进不了内存。这里把「上滑到底」和「搜索跳转旧消息」两条路接上。
+  let olderLoading = false
+
+  function convoKindOf(type) {
+    return type === 'group' ? 'group' : 'user'
+  }
+
+  function hasUnloadedLocal(kind, cid) {
+    const target = kind === 'group' ? store.groups?.[cid] : store.users?.[cid]
+    if (!target || !Array.isArray(target.message_ids)) return false
+    for (const mid of target.message_ids) {
+      if (!store.messages[mid]) return true
+    }
+    return false
+  }
+
+  /** 一直翻到「目标消息已进内存」或「库里没有了」为止（搜索跳转旧消息用） */
+  async function ensureMessageLoaded(kind, cid, msgId, maxPages = 40) {
+    const { persistence } = getDeps()
+    if (!persistence?.loadOlderFromStore) return !!store.messages[msgId]
+    let guard = 0
+    while (!store.messages[msgId] && hasUnloadedLocal(kind, cid) && guard++ < maxPages) {
+      const r = await persistence.loadOlderFromStore(kind, cid, 200)
+      if (!r || !r.loaded) break
+    }
+    return !!store.messages[msgId]
+  }
+
+  /** 把本地库里该会话剩下的历史全部拉进内存（搜索「加载全部」/ 跳转最旧消息用） */
+  async function ensureAllLocal(kind, cid, maxPages = 40) {
+    const { persistence } = getDeps()
+    if (!persistence?.loadOlderFromStore) return
+    let guard = 0
+    while (hasUnloadedLocal(kind, cid) && guard++ < maxPages) {
+      const r = await persistence.loadOlderFromStore(kind, cid, 500)
+      if (!r || !r.loaded) break
+    }
+  }
+
+  // 「取回 0 条」兜底：库里可能存在不在 message_ids 里的孤儿行，或 message_ids 被服务端
+  // 重建后变短，导致 before 游标不动、每次上滑都取回同一批（batch 里已存在 → loaded=0）。
+  // 第一次无进展先记一笔，下一次上滑直接把内存里的都算作可见并停手（不再打 IPC）。
+  const olderStall = new Set()
+
+  async function loadOlderPage(kind, forPage, height) {
+    if (olderLoading) return
+    const stallKey = kind + ':' + forPage
+    if (olderStall.has(stallKey)) {
+      const len = getCurrentMessagesLength()
+      if (len > 0) visibleCount.value = len
+      return
+    }
+    olderLoading = true
+    try {
+      const { persistence } = getDeps()
+      const r = await persistence?.loadOlderFromStore?.(kind, forPage, 50)
+      if (!r || !r.loaded) {
+        // 库里确实没有了，或本次一条都没新进内存 → 记为停摆，下次上滑不再请求
+        olderStall.add(stallKey)
+        if (!r || r.exhausted) {
+          const len = getCurrentMessagesLength()
+          if (len > 0) visibleCount.value = len
+        }
+        return
+      }
+      olderStall.delete(stallKey)
+      // 切了会话就丢弃这一页的滚动锚定（数据照常留在 store 里）
+      if (convoKindOf(pageType.value) !== kind || String(pageId.value) !== String(forPage)) return
+      visibleCount.value += r.loaded
+      const el = messageListRef.value?.messageAreaEl
+      if (!el) return
+      nextTick(() => {
+        // 与原有桌面端翻页同一口径：以插入前的高度为锚，保持当前视口内容不动
+        const target = el.scrollHeight - height
+        const nextTop = target > 0 ? target : 0
+        if (messageListRef.value?.setScrollTopProgrammatic) messageListRef.value.setScrollTopProgrammatic(nextTop)
+        else el.scrollTop = nextTop
+      })
+    } finally {
+      olderLoading = false
+    }
+  }
+
   function onMessageAreaScrollToTop(height, loadAll) {
     const totalLen = getCurrentMessagesLength()
     if (isWeb) {
@@ -234,8 +356,27 @@ export function useChatNavigation({
       }, () => { polling.webLoadingOlder.delete(key) })
       return
     }
-    if (loadAll) { visibleCount.value = totalLen; return }
-    if (visibleCount.value >= totalLen) return
+    if (loadAll) {
+      // 搜索跳转/「加载全部」：先把本地库里还没进内存的历史补齐，再一次性放出
+      const kind = convoKindOf(pageType.value)
+      const forPage = pageId.value
+      if (hasUnloadedLocal(kind, forPage)) {
+        ensureAllLocal(kind, forPage).then(() => {
+          if (convoKindOf(pageType.value) !== kind || String(pageId.value) !== String(forPage)) return
+          visibleCount.value = getCurrentMessagesLength()
+        })
+        return
+      }
+      visibleCount.value = totalLen
+      return
+    }
+    if (visibleCount.value >= totalLen) {
+      // 已加载的都放出来了，但库里还有更早的：按页补拉（防重入）
+      const kind = convoKindOf(pageType.value)
+      const forPage = pageId.value
+      if (hasUnloadedLocal(kind, forPage)) loadOlderPage(kind, forPage, height)
+      return
+    }
     visibleCount.value += 20
     const el = messageListRef.value?.messageAreaEl
     if (el) {
@@ -248,11 +389,31 @@ export function useChatNavigation({
     }
   }
 
+  /** 目标消息不在内存里（早于本地首屏窗口）时先补拉，再跳转 */
+  async function jumpWhenLoaded(msgId, kind, cid) {
+    if (msgId == null) return
+    const { persistence } = getDeps()
+    if (!store.messages[msgId]) {
+      try { await persistence?.ensureConvoMessages?.(kind, cid) } catch {}
+      if (!store.messages[msgId]) {
+        const ok = await ensureMessageLoaded(kind, cid, msgId)
+        if (!ok) return
+      }
+    }
+    if (convoKindOf(pageType.value) !== kind || String(pageId.value) !== String(cid)) return
+    pendingJumpMsgId = null
+    messageListRef.value?.jumpToMessage(msgId)
+  }
+
   function onSearchJump(data) {
     if (typeof data === 'object' && data.convoType) {
       clearConvoUnread(data.convoType, data.convoId)
       if (`${data.convoType}:${data.convoId}` === chatKey.value) {
-        messageListRef.value?.jumpToMessage(data.msgId)
+        if (data.msgId != null && !store.messages[data.msgId]) {
+          jumpWhenLoaded(data.msgId, convoKindOf(data.convoType), data.convoId)
+        } else {
+          messageListRef.value?.jumpToMessage(data.msgId)
+        }
         return
       }
       pageType.value = data.convoType
@@ -260,6 +421,10 @@ export function useChatNavigation({
       pendingJumpMsgId = data.msgId
       const { persistence, polling } = getDeps()
       persistence?.ensureConvoMessages?.(data.convoType, data.convoId)
+      // 目标消息可能比本地首屏窗口更早：补拉到位后再跳（若 onChatMainEnter 已跳空，这里兜底再跳一次）
+      if (data.msgId != null && !store.messages[data.msgId]) {
+        jumpWhenLoaded(data.msgId, convoKindOf(data.convoType), data.convoId)
+      }
       if (isWeb) {
         polling?.webExhausted?.delete((data.convoType === 'group' ? 'g:' : 'u:') + data.convoId)
         polling?.loadConversationLite?.(data.convoType, data.convoId)

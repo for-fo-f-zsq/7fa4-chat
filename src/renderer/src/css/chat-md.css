@@ -156,6 +156,31 @@
   vertical-align: middle;
 }
 
+/* 图片加载占位：MessageBubble 只对**独占一个块**、没有 width/height 且还没加载完的
+   图片临时挂上 .md-img-pending，load / error 后立即摘掉。
+   为什么限定「独占块」：行内小图（alt 小标、非 qqface 小表情、徽标）本来只有十几～几十
+   像素，给它们预留 96×88 的灰块会让图到位的瞬间反而「缩回去」，比不留更跳。
+   独占块的图片是从 0 高度长出来的，留一个小尺寸占位只会让下方内容少跳一次。
+   尺寸刻意压小（48×48 只作为下限），大图仍然是从小占位长到实际高度。 */
+.chat-md img.md-img-pending,
+.luogu-md img.md-img-pending {
+  min-width: 48px;
+  min-height: 48px;
+  border-radius: var(--radius-base);
+  background: var(--surface-2);
+}
+
+/* 代码块 / 表格：把布局与绘制的失效范围收敛到块内部。
+   两者本来就是 overflow-x: auto 的滚动容器（见上面 .chat-md pre / .chat-md table 的
+   overflow-x 声明，内容已按块裁剪），contain: layout paint 不改变观感，
+   但块内滚动 / 高亮变化就不会再触发整条气泡的重排与重绘。 */
+.chat-md pre,
+.luogu-md pre,
+.chat-md table,
+.luogu-md table {
+  contain: layout paint;
+}
+
 .chat-md .qqface,
 .luogu-md .qqface {
   display: inline-block;

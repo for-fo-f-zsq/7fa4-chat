@@ -24,14 +24,17 @@
   scrollbar-width: thin;
 }
 
-/* 悬浮回到底部按钮：紧凑 36px 毛玻璃胶囊 + 轻盈悬停与按压反馈 */
+/* 悬浮回到底部按钮：紧凑 36px 胶囊 + 轻盈悬停与按压反馈
+   注意：按钮常驻在滚动内容之上，原先的 backdrop-filter 会让「每一帧滚动」都重新对背后内容
+   做一次模糊采样与合成（弱 GPU 上是最贵的一项）。这里改用语义表面色 + 现有阴影，
+   观感差异仅在于背后文字不再透出模糊轮廓，但不透明度提高后对比度反而更稳。 */
 .message-list-shell .scroll-to-bottom-btn.ui-icon-btn {
   --ibtn-size: 36px;
   --ibtn-icon: var(--icon-sm);
-  --ibtn-bg: var(--surface-glass);
+  --ibtn-bg: var(--surface-raised);
   --ibtn-fg: var(--fg);
   --ibtn-border: var(--line);
-  --ibtn-hover-bg: var(--surface-raised);
+  --ibtn-hover-bg: var(--surface-hover);
   --ibtn-hover-fg: var(--brand);
   --ibtn-hover-border: var(--brand-line);
   --ibtn-active-bg: var(--surface-active);
@@ -39,8 +42,6 @@
   right: var(--space-5);
   bottom: var(--space-3);
   z-index: var(--z-float);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
   box-shadow: var(--elev-1);
   transition:
     transform var(--motion-spring-dur, 240ms) var(--motion-ease-spring),
@@ -62,11 +63,25 @@
 }
 
 /* ---------- 消息行 ---------- */
+/* 渲染隔离：每行独立承担内部布局，行内内容变化（图片解码、折叠/展开、公式重排）
+   不再向兄弟行传播 layout 失效，长列表滚动时省掉大量重复布局。
+   为什么不用 content-visibility: auto + contain-intrinsic-size：
+   - useMessageExpand 会遍历所有 .msg-row 读 .bubble.scrollHeight 判断是否折叠；
+     content-visibility 跳过的行没有布局盒，读数变 0，会把长消息误判为"不可折叠"并写进
+     measuredMsgIds 永久锁定（视觉回归）；
+   - 上滑翻页的锚定（useChatNavigation）依赖"插入前 scrollHeight"与插入后 rect 的差值，
+     被跳过行用的是 contain-intrinsic-size 估算高度，真实高度补齐时视口会跳。
+   所以这里只做 layout/style 隔离（不含 size/paint 包含），几何完全精确。
+   副作用（有意接受）：contain 会建立层叠上下文与包含块，行内元素无法再用 z-index 盖到相邻行
+   或列表外 UI 之上；将来若在行内加浮层（代码复制按钮、图片放大、tooltip），要么用非 z-index
+   的层叠手段，要么把浮层挂到 .message-list-shell 层级而不是 .msg-row 里。
+   同理不能换成 contain: paint —— 它会裁掉 .motion-highlight 高亮光圈与气泡的 elevation 投影。 */
 .msg-row {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
   max-width: 82%;
+  contain: layout style;
 }
 
 .msg-row.multi-select-active {
@@ -185,11 +200,13 @@
 }
 
 /* ---------- 媒体/表情/文件消息无边框直显 ----------
-   注意：:has() 内不能再嵌套 :has()，否则整条选择器被浏览器判为无效并整条丢弃
-   （气泡会退回带底色/描边/投影的默认样式）。所以「纯媒体」拆成同级并列项：
-   图片/贴纸/表情看 :has(:is(...))，文件看 :has(.file-msg) + :not(:has(.file-text-content))。 */
-.msg-row:has(:is(.chat-image[data-image-msg="1"], .sticker-msg, .emoji-msg)) .bubble,
-.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble {
+   原先用 :has() 从行内后代反查语义，样式计算对每一行都要向下匹配一遍后代；
+   MessageBubble 现在直接输出语义类（bubble-media-only / bubble-file-only /
+   bubble-has-image-msg / bubble-has-pat），这里改成类选择器：
+   滚动时的样式重算只做类名比对，没有后代匹配成本。
+   顺带消除「:has() 内嵌套 :has() 会让整条选择器被丢弃」这个隐患。 */
+.msg-row.bubble-media-only .bubble,
+.msg-row.bubble-file-only .bubble {
   padding: 0;
   background: transparent;
   border: none;
@@ -197,32 +214,33 @@
   box-shadow: none;
 }
 
-.msg-row:has(:is(.chat-image[data-image-msg="1"], .sticker-msg, .emoji-msg)) .bubble:hover,
-.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble:hover {
+.msg-row.bubble-media-only .bubble:hover,
+.msg-row.bubble-file-only .bubble:hover {
   box-shadow: none;
 }
 
-.msg-row:has(:is(.chat-image[data-image-msg="1"], .sticker-msg, .emoji-msg)) .bubble-content,
-.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content {
+.msg-row.bubble-media-only .bubble-content,
+.msg-row.bubble-file-only .bubble-content {
   font-size: 0;
   line-height: 0;
 }
 
-.msg-row:has(.emoji-msg):not(:has(.file-text-content)) .bubble-content .emoji-msg {
+/* 行内含 emoji-msg 时 media-only 必定成立，故与原 :has(.emoji-msg) 等价 */
+.msg-row.bubble-media-only .bubble-content .emoji-msg {
   font-size: 64px;
   line-height: 1.2;
 }
 
-.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content .file-msg {
+.msg-row.bubble-file-only .bubble-content .file-msg {
   font-size: var(--text-base);
   line-height: var(--leading-snug);
 }
 
-.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content .file-msg-name {
+.msg-row.bubble-file-only .bubble-content .file-msg-name {
   font-size: var(--text-base);
 }
 
-.msg-row:has(.file-msg):not(:has(.file-text-content)) .bubble-content .file-msg-size {
+.msg-row.bubble-file-only .bubble-content .file-msg-size {
   font-size: var(--text-sm);
 }
 
@@ -447,7 +465,7 @@
   background: var(--surface-code-inline-self);
 }
 
-.msg-row:has(.chat-image[data-image-msg="1"]) .bubble {
+.msg-row.bubble-has-image-msg .bubble {
   max-width: min(100%, var(--chat-image-max-w));
 }
 
@@ -504,19 +522,19 @@
   text-decoration: underline;
 }
 
-.message-area .msg-row:has(.pat-msg) {
+.message-area .msg-row.bubble-has-pat {
   flex-direction: row;
   align-self: center;
   justify-content: center;
   max-width: 100%;
 }
 
-.msg-row:has(.pat-msg) .msg-avatar,
-.msg-row:has(.pat-msg) .bubble-header {
+.msg-row.bubble-has-pat .msg-avatar,
+.msg-row.bubble-has-pat .bubble-header {
   display: none;
 }
 
-.message-area .msg-row:has(.pat-msg) .bubble {
+.message-area .msg-row.bubble-has-pat .bubble {
   padding: 0;
   background: transparent;
   border: none;
@@ -668,9 +686,8 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-2) var(--space-5);
-  background: var(--surface-glass);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  /* 多选条本身不覆盖滚动内容，模糊采样纯属浪费一个合成层；改用同系语义表面色 */
+  background: var(--surface-raised);
   border-bottom: var(--border-width) solid var(--line-hairline);
 }
 

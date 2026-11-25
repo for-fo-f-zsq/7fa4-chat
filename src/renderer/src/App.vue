@@ -110,6 +110,9 @@ onMounted(() => {
   height: 100%;
 }
 
+/* 启动遮罩：全屏常驻到首屏就绪，是全站面积最大的一块毛玻璃（整屏 blur），
+   而它底下压着的是尚未渲染完成的内容，模糊没有信息价值。改不透明 --surface-0：
+   启动期不再每帧对整屏做一次 blur 采样，视觉上仍是「干净的底色 + 卡片」。 */
 .init-loading {
   position: fixed;
   inset: 0;
@@ -117,9 +120,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--surface-glass);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
+  background: var(--surface-0);
 }
 
 .init-card {
