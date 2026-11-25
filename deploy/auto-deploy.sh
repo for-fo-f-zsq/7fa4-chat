@@ -4,6 +4,9 @@
 #   bash deploy/auto-deploy.sh [--force] [--dry-run]
 set -Eeuo pipefail
 
+# 规避 Linux 5.15 等内核下 libuv io_uring（iou-sqp）导致 npm ci 进入 D 状态卡死的问题
+export UV_USE_IO_URING="${UV_USE_IO_URING:-0}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 

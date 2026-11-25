@@ -10,6 +10,7 @@ Group=__USER__
 WorkingDirectory=__REPO_DIR__
 Environment=NODE_ENV=production
 Environment=NODE_BIN=__NODE_BIN__
+Environment=UV_USE_IO_URING=0
 EnvironmentFile=-/etc/7fa4-chat/site.env
 ExecStart=/bin/bash __REPO_DIR__/deploy/start-site.sh
 Restart=always

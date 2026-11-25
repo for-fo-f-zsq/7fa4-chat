@@ -8,6 +8,9 @@ Type=oneshot
 User=__USER__
 Group=__USER__
 WorkingDirectory=__REPO_DIR__
+Environment=UV_USE_IO_URING=0
+TimeoutStartSec=10min
+TimeoutStopSec=20s
 ExecStart=/bin/bash __REPO_DIR__/deploy/auto-deploy.sh
 StandardOutput=journal
 StandardError=journal
