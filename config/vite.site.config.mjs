@@ -2,7 +2,7 @@
  * 7FA4 Chat 官网主页构建配置（React 19 + Tailwind CSS v4 + Motion + Lenis + KaTeX）
  *
  * 源码目录：site/web-src/
- * 输出目录：site/public/（保留 feedback/、web/、assets/、tokens.css、404.html 等同目录资源）
+ * 输出目录：site/public/（保留 web/、assets/icon.png、favicon.ico 等同目录资源）
  */
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -35,10 +35,13 @@ export default defineConfig({
     cssCodeSplit: false,
     rollupOptions: {
       input: {
-        index: resolve(siteSrcRoot, 'index.html')
+        index: resolve(siteSrcRoot, 'index.html'),
+        feedback: resolve(siteSrcRoot, 'feedback/index.html'),
+        admin: resolve(siteSrcRoot, 'feedback/admin.html'),
+        notfound: resolve(siteSrcRoot, '404.html')
       },
       output: {
-        entryFileNames: 'app.js',
+        entryFileNames: (chunkInfo) => (chunkInfo.name === 'index' ? 'app.js' : 'assets/site-[name]-[hash].js'),
         chunkFileNames: 'assets/site-[name]-[hash].js',
         assetFileNames: (assetInfo) => {
           const names = assetInfo.names || (assetInfo.name ? [assetInfo.name] : []);

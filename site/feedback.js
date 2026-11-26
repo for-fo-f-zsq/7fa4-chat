@@ -596,10 +596,28 @@ async function adminApi(req, res, pathname) {
 
 /* ---------------------------------------------------------------- 页面 */
 
-async function servePage(res, file) {
+function rewriteAssetPrefix(html, pathname) {
+  const slashes = (String(pathname || '/').slice(1).match(/\//g) || []).length;
+  const targetPrefix = slashes > 0 ? '../'.repeat(slashes) : './';
+  return html.replace(
+    /((?:href|src)=["'])(?:\.\.\/|\.\/)+(?=(?:assets\/|style\.css|app\.js|favicon\.ico))/g,
+    `$1${targetPrefix}`
+  );
+}
+
+async function servePage(res, file, pathname) {
   try {
-    const buf = await fsp.readFile(path.join(PUBLIC_DIR, file));
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': buf.length, 'Cache-Control': 'no-cache' });
+    const raw = await fsp.readFile(path.join(PUBLIC_DIR, file), 'utf8');
+    const html = rewriteAssetPrefix(raw, pathname);
+    const buf = Buffer.from(html, 'utf8');
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Content-Length': buf.length,
+      'Cache-Control': 'no-cache',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+      'X-Frame-Options': 'SAMEORIGIN'
+    });
     res.end(buf);
   } catch (e) {
     sendFile(res, 404, 'Not Found', 'text/plain; charset=utf-8');
@@ -632,12 +650,18 @@ async function handle(req, res, pathname) {
     await adminApi(req, res, pathname);
     return true;
   }
-  if (pathname === '/feedback' || pathname === '/feedback/') {
-    await servePage(res, 'index.html');
+  if (pathname === '/feedback' || pathname === '/feedback/' || pathname === '/feedback/index.html') {
+    await servePage(res, 'index.html', pathname);
     return true;
   }
-  if (pathname === '/admin' || pathname === '/admin/') {
-    await servePage(res, 'admin.html');
+  if (
+    pathname === '/admin' ||
+    pathname === '/admin/' ||
+    pathname === '/feedback/admin' ||
+    pathname === '/feedback/admin/' ||
+    pathname === '/feedback/admin.html'
+  ) {
+    await servePage(res, 'admin.html', pathname);
     return true;
   }
   return false;

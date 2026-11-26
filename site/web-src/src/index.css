@@ -211,3 +211,64 @@ code, pre, .font-mono {
 .bento-katex .katex {
   font-size: 0.94em;
 }
+
+/* Native <dialog> lightbox: scroll containment + backdrop styling */
+dialog.site-dialog:modal {
+  overscroll-behavior: contain;
+  margin: auto;
+  max-width: min(92vw, 1180px);
+  max-height: 92dvh;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ink-primary);
+  overflow: visible;
+}
+
+dialog.site-dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: rgba(3, 4, 7, 0.86);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Accessible form validation after interaction (:user-invalid + fallback) */
+.site-field:is(:user-invalid, .user-invalid-fallback) {
+  border-color: rgba(248, 113, 113, 0.72);
+  background-color: rgba(127, 29, 29, 0.14);
+}
+
+.site-field:is(:user-invalid, .user-invalid-fallback):focus {
+  border-color: rgba(248, 113, 113, 0.9);
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.18);
+}
+
+.site-field:is(:user-invalid, .user-invalid-fallback) + .site-field-error {
+  display: flex;
+}
+
+.site-field-error {
+  display: none;
+}
+
+.visually-hidden:where(:not(:focus-within, :active)) {
+  position: absolute !important;
+  clip-path: inset(50%) !important;
+  overflow: hidden !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  white-space: nowrap !important;
+}
+
+@supports (field-sizing: content) {
+  .site-textarea-autosize {
+    field-sizing: content;
+    height: auto;
+    min-block-size: 6lh;
+    max-block-size: 16lh;
+  }
+}

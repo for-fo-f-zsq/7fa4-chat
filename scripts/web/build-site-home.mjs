@@ -36,10 +36,19 @@ if (r.error) {
 }
 if (r.status !== 0) process.exit(r.status ?? 1);
 
-const index = join(outDir, 'index.html');
-if (!existsSync(index)) {
-  console.error('[build-site-home] 产物缺失：' + index);
-  process.exit(1);
+const requiredOutputs = [
+  'index.html',
+  'feedback/index.html',
+  'feedback/admin.html',
+  '404.html'
+];
+for (const rel of requiredOutputs) {
+  const filePath = join(outDir, rel);
+  if (!existsSync(filePath)) {
+    console.error('[build-site-home] 产物缺失：' + filePath);
+    process.exit(1);
+  }
 }
 
-console.log('[build-site-home] 完成：' + outDir + ' (index.html ' + statSync(index).size + ' B)');
+const index = join(outDir, 'index.html');
+console.log('[build-site-home] 完成：' + outDir + ' (' + requiredOutputs.length + ' 页, index.html ' + statSync(index).size + ' B)');

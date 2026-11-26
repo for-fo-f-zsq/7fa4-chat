@@ -360,16 +360,26 @@ function sendText(res, status, text, contentType, extraHeaders) {
   res.end(body);
 }
 
+function rewriteAssetPrefix(html, pathname) {
+  const slashes = (String(pathname || '/').slice(1).match(/\//g) || []).length;
+  const targetPrefix = slashes > 0 ? '../'.repeat(slashes) : './';
+  return html.replace(
+    /((?:href|src)=["'])(?:\.\.\/|\.\/)+(?=(?:assets\/|style\.css|app\.js|favicon\.ico))/g,
+    `$1${targetPrefix}`
+  );
+}
+
 function sendNotFound(req, res, pathname) {
   const ext = path.extname(pathname || '').toLowerCase();
   const wantsHtml = req.method === 'GET' && (!ext || ext === '.html');
   if (wantsHtml) {
     const page404 = path.join(PUBLIC_DIR, '404.html');
-    fs.readFile(page404, (err, buf) => {
+    fs.readFile(page404, 'utf8', (err, raw) => {
       if (err) {
         sendText(res, 404, 'Not Found', 'text/plain; charset=utf-8');
         return;
       }
+      const buf = Buffer.from(rewriteAssetPrefix(raw, pathname), 'utf8');
       res.writeHead(404, {
         'Content-Type': 'text/html; charset=utf-8',
         'Content-Length': buf.length,

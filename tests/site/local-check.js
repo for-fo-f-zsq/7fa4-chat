@@ -250,14 +250,55 @@ function check(name, ok, extra) {
     check('/web 相对重定向到 web/ 并保留查询串', webRedirect.status === 308 && webRedirect.headers['location'] === 'web/?foo=1', String(webRedirect.headers['location']));
 
     const fbPage = await get(SITE_PORT, '/feedback/');
-    check('/feedback/ 反馈页 200', fbPage.status === 200 && /意见反馈/.test(fbPage.body.toString()));
+    const fbHtml = fbPage.body.toString();
+    const fbJsMatch = /src="([^"]*site-feedback-[^"]+\.js)"/.exec(fbHtml);
+    const fbCssMatch = /href="([^"]*style\.css)"/.exec(fbHtml);
+    const fbJsUrl = fbJsMatch ? new URL(fbJsMatch[1], `http://127.0.0.1:${SITE_PORT}/feedback/`).pathname : null;
+    const fbCssUrl = fbCssMatch ? new URL(fbCssMatch[1], `http://127.0.0.1:${SITE_PORT}/feedback/`).pathname : null;
+    const fbJsRes = fbJsUrl ? await get(SITE_PORT, fbJsUrl) : { status: 0, body: Buffer.alloc(0) };
+    const fbCssRes = fbCssUrl ? await get(SITE_PORT, fbCssUrl) : { status: 0 };
+    check(
+      '/feedback/ 反馈页及资源 200',
+      fbPage.status === 200 &&
+        /意见反馈/.test(fbHtml) &&
+        fbJsRes.status === 200 &&
+        fbCssRes.status === 200
+    );
+
+    const fbNoSlash = await get(SITE_PORT, '/feedback');
+    const fbNoSlashJsMatch = /src="([^"]*site-feedback-[^"]+\.js)"/.exec(fbNoSlash.body.toString());
+    const fbNoSlashJsUrl = fbNoSlashJsMatch
+      ? new URL(fbNoSlashJsMatch[1], `http://127.0.0.1:${SITE_PORT}/feedback`).pathname
+      : null;
+    const fbNoSlashJsRes = fbNoSlashJsUrl ? await get(SITE_PORT, fbNoSlashJsUrl) : { status: 0 };
+    check('/feedback 无尾斜杠资源解析 200', fbNoSlash.status === 200 && fbNoSlashJsRes.status === 200);
 
     const fbAdminPage = await get(SITE_PORT, '/admin');
     const fbAdminHtml = fbAdminPage.body.toString();
+    const admJsMatch = /src="([^"]*site-admin-[^"]+\.js)"/.exec(fbAdminHtml);
+    const admCssMatch = /href="([^"]*style\.css)"/.exec(fbAdminHtml);
+    const admJsUrl = admJsMatch ? new URL(admJsMatch[1], `http://127.0.0.1:${SITE_PORT}/admin`).pathname : null;
+    const admCssUrl = admCssMatch ? new URL(admCssMatch[1], `http://127.0.0.1:${SITE_PORT}/admin`).pathname : null;
+    const admJsRes = admJsUrl ? await get(SITE_PORT, admJsUrl) : { status: 0, body: Buffer.alloc(0) };
+    const admCssRes = admCssUrl ? await get(SITE_PORT, admCssUrl) : { status: 0 };
+    const admJsText = admJsRes.body.toString();
     check(
       '/admin 管理页包含删除与个人备忘录',
-      fbAdminPage.status === 200 && /个人备忘录/.test(fbAdminHtml) && /data-delete/.test(fbAdminHtml)
+      fbAdminPage.status === 200 &&
+        /反馈管理/.test(fbAdminHtml) &&
+        admJsRes.status === 200 &&
+        admCssRes.status === 200 &&
+        /个人备忘录/.test(admJsText) &&
+        /data-delete/.test(admJsText)
     );
+
+    const fbAdminSlash = await get(SITE_PORT, '/admin/');
+    const admSlashJsMatch = /src="([^"]*site-admin-[^"]+\.js)"/.exec(fbAdminSlash.body.toString());
+    const admSlashJsUrl = admSlashJsMatch
+      ? new URL(admSlashJsMatch[1], `http://127.0.0.1:${SITE_PORT}/admin/`).pathname
+      : null;
+    const admSlashJsRes = admSlashJsUrl ? await get(SITE_PORT, admSlashJsUrl) : { status: 0 };
+    check('/admin/ 尾斜杠资源解析 200', fbAdminSlash.status === 200 && admSlashJsRes.status === 200);
 
     // 反馈提交 + 管理员登录 + 删除(#17) + 独立备忘录(#28)
     const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
@@ -347,8 +388,23 @@ function check(name, ok, extra) {
         memoFileOnDisk.content === memoText
     );
 
-    const missing = await get(SITE_PORT, '/no-such-page');
-    check('未知页面 404', missing.status === 404, String(missing.status));
+    const missing = await get(SITE_PORT, '/no/such/deep/page');
+    const missingHtml = missing.body.toString();
+    const missingCssMatch = /href="([^"]*style\.css)"/.exec(missingHtml);
+    const missingJsMatch = /src="([^"]*site-notfound-[^"]+\.js)"/.exec(missingHtml);
+    const missingCssUrl = missingCssMatch
+      ? new URL(missingCssMatch[1], `http://127.0.0.1:${SITE_PORT}/no/such/deep/page`).pathname
+      : null;
+    const missingJsUrl = missingJsMatch
+      ? new URL(missingJsMatch[1], `http://127.0.0.1:${SITE_PORT}/no/such/deep/page`).pathname
+      : null;
+    const missingCssRes = missingCssUrl ? await get(SITE_PORT, missingCssUrl) : { status: 0 };
+    const missingJsRes = missingJsUrl ? await get(SITE_PORT, missingJsUrl) : { status: 0 };
+    check(
+      '未知页面 404 及深路径资源解析 200',
+      missing.status === 404 && /404/.test(missingHtml) && missingCssRes.status === 200 && missingJsRes.status === 200,
+      String(missing.status)
+    );
   } catch (e) {
     check('执行异常', false, e.message);
   } finally {
