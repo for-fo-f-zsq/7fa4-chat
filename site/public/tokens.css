@@ -17,24 +17,26 @@
     "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
 
-  --bg: #05060a;
-  --bg-soft: #080a11;
-  --panel: rgba(255, 255, 255, .045);
-  --panel-solid: #0d1019;
-  --line: rgba(255, 255, 255, .09);
+  --bg: #030407;
+  --bg-soft: #080b12;
+  --panel: rgba(255, 255, 255, .042);
+  --panel-solid: #0b0e17;
+  --line: rgba(255, 255, 255, .085);
   --line-strong: rgba(255, 255, 255, .16);
-  --ink: #f2f4f9;
-  --ink-soft: #c7ccda;
-  --muted: #8b93a7;
-  --faint: #5d6478;
+  --ink: #f4f6fb;
+  --ink-soft: #c5ccdb;
+  --muted: #8b95aa;
+  --faint: #5e677d;
 
   --accent: #6d8bff;
   --accent-2: #22d3ee;
   --accent-3: #a78bfa;
   --accent-warm: #f7a072;
-  --grad: linear-gradient(100deg, #8ea6ff 0%, #58e0f5 42%, #b79cff 100%);
+  --in-oklab: ;
+  --in-oklch: ;
+  --grad: linear-gradient(100deg, #8ea6ff 0%, #58e0f5 45%, #b79cff 100%);
   --grad-soft: linear-gradient(100deg, #9db1ff, #7ff0ff 55%, #c3b0ff);
-  --on-grad: #070a14;
+  --on-grad: #050811;
   --glow: 0 30px 90px -20px rgba(109, 139, 255, .55);
 
   /* 语义状态色（用于反馈页、管理后台、校验提示） */
@@ -54,7 +56,14 @@
 
   --wrap: 1160px;
   --ease: cubic-bezier(.22, .61, .36, 1);
-  --theme-color: #05060a;
+  --theme-color: #030407;
+}
+
+@supports (background: linear-gradient(in oklab, white, black)) {
+  :root {
+    --in-oklab: in oklab;
+    --in-oklch: in oklch;
+  }
 }
 
 /* ---------- 2. 浅色主题覆盖 ---------- */
@@ -394,10 +403,10 @@ ul { margin: 0; padding: 0; list-style: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: .01ms !important;
-    scroll-behavior: auto !important;
+  html {
+    scroll-behavior: auto;
+  }
+  .aurora span {
+    animation: none;
   }
 }

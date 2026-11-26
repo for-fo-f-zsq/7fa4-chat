@@ -1,0 +1,213 @@
+@import "tailwindcss";
+@import "katex/dist/katex.min.css";
+
+@theme {
+  --font-sans: "Space Grotesk Variable", "MiSans VF", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: "Space Grotesk Variable", "MiSans VF", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, Menlo, Consolas, monospace;
+}
+
+:root {
+  color-scheme: dark;
+  --in-oklab: ;
+  --in-oklch: ;
+
+  --bg-obsidian: #030407;
+  --bg-surface: #0b0e17;
+  --ink-primary: #f4f6fb;
+  --ink-secondary: #c5ccdb;
+  --ink-muted: #8b95aa;
+  --ink-faint: #5e677d;
+  --border-hairline: rgba(255, 255, 255, 0.085);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --accent-indigo: #6d8bff;
+  --accent-cyan: #22d3ee;
+  --accent-violet: #a78bfa;
+}
+
+@supports (background: linear-gradient(in oklab, white, black)) {
+  :root {
+    --in-oklab: in oklab;
+    --in-oklch: in oklch;
+  }
+}
+
+html {
+  scroll-padding-top: 96px;
+  font-family: var(--font-sans);
+  background-color: var(--bg-obsidian);
+  color: var(--ink-primary);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--bg-obsidian);
+  color: var(--ink-primary);
+  font-family: var(--font-sans);
+  overflow-x: clip;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+}
+
+code, pre, .font-mono {
+  font-family: var(--font-mono);
+}
+
+/* DeepSeek Harness-inspired Atmospheric Spotlight Beam + Full-Page Precision Grid */
+.atmos-beam {
+  background:
+    radial-gradient(ellipse 72% 58% at 72% 4%, rgba(92, 134, 255, 0.30), transparent 66%),
+    radial-gradient(ellipse 58% 50% at 20% 16%, rgba(34, 211, 238, 0.18), transparent 64%),
+    linear-gradient(128deg var(--in-oklab), rgba(142, 166, 255, 0.13) 0%, rgba(28, 66, 136, 0.20) 38%, transparent 74%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 65%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 65%, transparent 100%);
+}
+
+.atmos-grid-full {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    radial-gradient(circle at 1px 1px, rgba(125, 165, 255, 0.22) 1.2px, transparent 0);
+  background-size: 64px 64px, 64px 64px, 192px 192px;
+  mask-image: radial-gradient(ellipse 92% 85% at 50% 40%, #000 0%, rgba(0, 0, 0, 0.55) 70%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 92% 85% at 50% 40%, #000 0%, rgba(0, 0, 0, 0.55) 70%, transparent 100%);
+}
+
+/* Cursor-reactive Spotlight Surface */
+.spotlight-card {
+  background:
+    radial-gradient(320px circle at var(--mx, 50%) var(--my, 0%), rgba(109, 139, 255, 0.12), transparent 72%),
+    linear-gradient(180deg var(--in-oklab), rgba(255, 255, 255, 0.036), rgba(9, 12, 20, 0.88));
+}
+
+/* Native Popover + CSS Anchor Positioning (viewport-aware-dropdowns) */
+.dl-popover {
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  padding: 8px;
+  width: min(330px, calc(100vw - 32px));
+  background: #0d111d;
+  background-color: #0d111d;
+  color: var(--ink-primary);
+  box-shadow: 0 28px 64px -16px rgba(0, 0, 0, 0.98), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dl-popover {
+    transition: opacity 0.18s ease, transform 0.18s ease, display 0.18s, overlay 0.18s;
+    transition-behavior: allow-discrete;
+  }
+}
+
+.dl-popover:is(:popover-open, .\:popover-open) {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+@starting-style {
+  .dl-popover:is(:popover-open, .\:popover-open) {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+
+@supports (position-area: block-end) {
+  .dl-popover {
+    inset: auto;
+    margin: 8px 0 0;
+    position-area: block-end span-inline-start;
+    position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+  }
+}
+
+@supports not (position-area: block-end) {
+  .dl-popover {
+    position: fixed;
+    inset: auto 16px 16px 16px;
+    margin: auto;
+  }
+}
+
+/* Native <details> ::details-content Smooth Accordion */
+.accordion-item {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.accordion-item summary {
+  list-style: none;
+  cursor: pointer;
+}
+.accordion-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-item summary::before {
+  content: "";
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  background-color: var(--accent-cyan);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat center / contain;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat center / contain;
+  rotate: -90deg;
+}
+
+.faq-item[open] > summary::before {
+  rotate: 0deg;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .faq-item summary::before {
+    transition: rotate 0.2s cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+}
+
+.accordion-item::details-content {
+  interpolate-size: allow-keywords;
+  overflow: clip;
+  contain: layout;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.accordion-item:not([open])::details-content {
+  block-size: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .accordion-item::details-content {
+    transition: block-size 0.28s ease-in-out, content-visibility 0.28s ease-in-out, display 0.28s ease-in-out;
+    transition-behavior: allow-discrete;
+  }
+}
+
+/* Marquee Stream */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes vertical-marquee {
+    from { transform: translateY(0); }
+    to { transform: translateY(-50%); }
+  }
+  .animate-vertical-marquee {
+    animation: vertical-marquee 15s linear infinite;
+  }
+}
+
+.is-paused .animate-vertical-marquee {
+  animation-play-state: paused;
+}
+
+.katex-display {
+  margin: 0.35em 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.bento-katex .katex {
+  font-size: 0.94em;
+}

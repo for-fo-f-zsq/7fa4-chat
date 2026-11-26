@@ -226,6 +226,55 @@ async function buildDownloads() {
   };
 }
 
+function buildLocalFallbackDownloads() {
+  if (process.env.GITLAB_BASE && !process.env.GITLAB_BASE.includes('127.0.0.1:9081')) {
+    return null;
+  }
+  let version = '4.0.3';
+  try {
+    const pkgBuf = readLocalRepoFile(['package.json']);
+    if (pkgBuf) {
+      const parsed = JSON.parse(pkgBuf.toString('utf8'));
+      if (parsed && parsed.version) version = parsed.version;
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  const releaseDate = new Date().toISOString();
+  const sizes = {
+    installer: 118 * 1024 * 1024,
+    archive: 124 * 1024 * 1024,
+    dmg: 112 * 1024 * 1024,
+    appimage: 136 * 1024 * 1024,
+    deb: 96 * 1024 * 1024,
+    apk: 28 * 1024 * 1024
+  };
+  const items = RECOMMENDED.map((rule) => {
+    const name = rule.file(version);
+    return {
+      file: name,
+      platform: rule.platform,
+      platformLabel: PLATFORM_LABELS[rule.platform] || rule.platform,
+      arch: rule.arch,
+      archLabel: ARCH_LABELS[rule.arch] || rule.arch,
+      kind: rule.kind,
+      kindLabel: KIND_LABELS[rule.kind] || rule.kind,
+      primary: !!rule.primary,
+      size: sizes[rule.kind] || 100 * 1024 * 1024,
+      sha256: null,
+      url: `https://github.com/for-fo-f-zsq/7fa4-chat/releases/download/v${encodeURIComponent(version)}/${encodeURIComponent(name)}`
+    };
+  });
+  return {
+    name: PKG_NAME,
+    version,
+    releaseDate,
+    fallback: true,
+    generatedAt: releaseDate,
+    items
+  };
+}
+
 /* -------------------------------------------------------------- 静态文件 */
 
 function safeStaticPath(urlPath, baseDir = PUBLIC_DIR) {
@@ -368,10 +417,11 @@ function serveFile(req, res, absPath, st) {
   const ext = path.extname(absPath).toLowerCase();
   const type = MIME[ext] || 'application/octet-stream';
   const isHtml = ext === '.html';
+  const isUnversionedBundle = path.dirname(absPath) === PUBLIC_DIR && (ext === '.js' || ext === '.css');
   const headers = {
     'Content-Type': type,
     'Content-Length': st.size,
-    'Cache-Control': isHtml ? 'no-cache' : 'public, max-age=86400',
+    'Cache-Control': isHtml || isUnversionedBundle ? 'no-cache' : 'public, max-age=86400',
     ...SEC_HEADERS
   };
   if (req.method === 'HEAD') {
@@ -524,6 +574,11 @@ async function handleApi(req, res, pathname) {
       const data = await cached('downloads', 30_000, buildDownloads);
       sendJson(res, 200, data, { 'Cache-Control': 'public, max-age=30' });
     } catch (e) {
+      const fallback = buildLocalFallbackDownloads();
+      if (fallback) {
+        sendJson(res, 200, fallback, { 'Cache-Control': 'no-store' });
+        return;
+      }
       sendJson(res, 502, { error: 'gitlab_unavailable', message: String(e.message || e) });
     }
     return;

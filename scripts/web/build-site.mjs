@@ -22,7 +22,10 @@ function runNodeScript(relScript, args = []) {
   if (res.status !== 0) process.exit(res.status ?? 1);
 }
 
-console.log('[site:build] 1/1 构建网页端 SPA 并同步到 site/public/web/ ...');
+console.log('[site:build] 1/2 构建官网主页（React + Tailwind + Motion）...');
+runNodeScript('scripts/web/build-site-home.mjs');
+
+console.log('[site:build] 2/2 构建网页端 SPA 并同步到 site/public/web/ ...');
 runNodeScript('scripts/web/build-web-app.mjs', ['--copy-to-site']);
 
 console.log('[site:build] 全部网页产物构建完成');
