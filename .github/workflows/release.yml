@@ -73,7 +73,7 @@ jobs:
       - name: Run tests
         run: npm test
 
-  # ============ 构建：Windows / Linux / macOS 并行 ============
+  # ============ 构建：Windows (x64/arm64 拆分) / Linux / macOS 并行 ============
   build:
     needs: preflight
     timeout-minutes: 45
@@ -83,13 +83,24 @@ jobs:
         include:
           - os: windows-latest
             platform: win
-            artifact: dist-win
+            eb_args: --win --x64
+            artifact: dist-win-x64
+            win_arch: x64
+          - os: windows-latest
+            platform: win
+            eb_args: --win --arm64
+            artifact: dist-win-arm64
+            win_arch: arm64
           - os: ubuntu-latest
             platform: linux
+            eb_args: --linux
             artifact: dist-linux
+            win_arch: ''
           - os: macos-latest
             platform: mac
+            eb_args: --mac
             artifact: dist-mac
+            win_arch: ''
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -110,11 +121,28 @@ jobs:
           # renderer 依赖体积较大（Font Awesome / KaTeX / Prism / GeoGebra），默认 2GB 堆不够（mac/Linux runner 曾 OOM），放大堆上限
           NODE_OPTIONS: --max-old-space-size=8192
 
-      - name: Package (${{ matrix.platform }})
-        run: npx electron-builder --${{ matrix.platform }} --publish never
+      - name: Cache electron-builder binaries
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/eb-cache
+          key: eb-${{ runner.os }}-${{ matrix.win_arch || matrix.platform }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            eb-${{ runner.os }}-${{ matrix.win_arch || matrix.platform }}-
+            eb-${{ runner.os }}-
+
+      - name: Package (${{ matrix.artifact }})
+        run: npx electron-builder ${{ matrix.eb_args }} --publish never
         env:
           # 走直连拉取 electron / fpm / nsis 等二进制（GitHub runner 外网通畅）
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/eb-cache
+
+      - name: Rename Windows manifest for parallel merge
+        if: matrix.win_arch != ''
+        shell: bash
+        run: |
+          if [ -f build/latest.yml ]; then
+            mv build/latest.yml "build/latest-win-${{ matrix.win_arch }}.yml"
+          fi
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -184,6 +212,16 @@ jobs:
           echo "--- platforms ---"; ls "$ANDROID_HOME/platforms" || true
           echo "--- build-tools ---"; ls "$ANDROID_HOME/build-tools" || true
 
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/gradle/wrapper/gradle-wrapper.properties', 'android/build.gradle', 'android/app/build.gradle') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
       - name: Install dependencies
         run: npm ci
 
@@ -228,54 +266,19 @@ jobs:
           retention-days: 7
           path: android/app/build/outputs/apk/release/*.apk
 
-  # ============ 构建工具包（产物留档；发布由 tools.yml 独占负责）============
-  # 为什么这里不再发布：tools.yml 在 main 分支工具相关改动时已发布同一份产物，
-  # 两个工作流同时写 TOOLS/latest 会互相干扰（曾导致 v4.0.0 首发 release job 被阻塞）。
-  # 线上 TOOLS/latest/tools.json 的只读核对延后到 release job 末尾执行，避免和 tools.yml 竞态。
-  build-tools:
-    needs: preflight
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-
-      - name: Build tool packages
-        run: node scripts/tools/build-tools.mjs
-        env:
-          NODE_OPTIONS: --max-old-space-size=4096
-
-      # 命名避开 dist-*，避免被下方 release job 的 pattern: dist-* 混入客户端安装包目录
-      - name: Upload tools-dist artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tools-dist
-          if-no-files-found: error
-          retention-days: 7
-          path: dist-tools/
-
-  # ============ 发布：仅在 tag 推送时执行 ============
-  release:
+  # ============ 并行发布：GitHub Release + 自建 GitLab（仅在 tag 推送时执行）============
+  # GitHub Release (~16s) 与 GitLab 上传并发执行，互不阻塞。
+  # 工具包已由 tools.yml 独占构建与发布，此处不再重复运行 build-tools。
+  release-github:
     needs: [preflight, test, build, build-android]
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
     concurrency:
-      group: release-publish-${{ github.ref }}
+      group: release-github-${{ github.ref }}
       cancel-in-progress: false
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 30
     env:
       VERSION: ${{ needs.preflight.outputs.version }}
     steps:
@@ -301,13 +304,15 @@ jobs:
           merge-multiple: true
           path: dist
 
+      - name: Merge Windows manifests
+        run: node scripts/release/merge-win-yml.mjs --dir dist --version "$VERSION"
+
       - name: List collected files
         run: ls -la dist
 
       - name: Validate release upload plan (dry-run)
         run: node scripts/release/publish-gitlab.mjs --version "$VERSION"
 
-      # ---- GitHub：保留全部历史版本，先归档再写 GitLab ----
       - name: Create / update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -325,7 +330,44 @@ jobs:
             dist/*.yml
             dist/*.apk
 
-      # ---- 自建 GitLab：先传安装包→再传元数据→校验→再清理旧包与旧链接→重建 Release ----
+  release-gitlab:
+    needs: [preflight, test, build, build-android]
+    if: startsWith(github.ref, 'refs/tags/')
+    concurrency:
+      group: release-gitlab-${{ github.ref }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      VERSION: ${{ needs.preflight.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build release body (Markdown)
+        run: |
+          set -euo pipefail
+          node scripts/release/build-release-body.mjs "$VERSION" > release-body.md
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+
+      - name: Merge Windows manifests
+        run: node scripts/release/merge-win-yml.mjs --dir dist --version "$VERSION"
+
+      - name: Validate release upload plan (dry-run)
+        run: node scripts/release/publish-gitlab.mjs --version "$VERSION"
+
+      # ---- 自建 GitLab：先并发传安装包→再传元数据→校验→再清理旧包与旧链接→重建 Release ----
       # 逻辑已收敛至 scripts/release/publish-gitlab.mjs（复用 release-assets.mjs，支持本地 --dry-run 与单测）。
       - name: Publish to GitLab (only latest package + release)
         env:

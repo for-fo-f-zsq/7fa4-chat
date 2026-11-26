@@ -14,6 +14,7 @@ import {
   parseManifestVersion,
 } from '../../scripts/release/publish-gitlab.mjs';
 import { partitionToolUploads } from '../../scripts/tools/publish-tools.mjs';
+import { mergeWinManifests } from '../../scripts/release/merge-win-yml.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const results = [];
@@ -188,6 +189,54 @@ chk('partitionToolUploads 跳过 sha256 一致文件并保留 tools.json 压轴'
     && part.toUpload[1].flatName === 'tools.json',
   part.toUpload.map((x) => x.flatName).join(' -> '),
 );
+
+// 8. mergeWinManifests 合并 x64 / arm64 latest.yml 并删除临时分片文件
+const mergeTmp = mkdtempSync(join(tmpdir(), 'merge-yml-'));
+try {
+  writeFileSync(
+    join(mergeTmp, 'latest-win-x64.yml'),
+    [
+      'version: 4.0.3',
+      'files:',
+      '  - url: 7FA4-Chat-4.0.3-x64.exe',
+      '    sha512: aaa==',
+      '    size: 1001',
+      'path: 7FA4-Chat-4.0.3-x64.exe',
+      'sha512: aaa==',
+      "releaseDate: '2026-11-26T12:00:00.000Z'",
+      '',
+    ].join('\n'),
+  );
+  writeFileSync(
+    join(mergeTmp, 'latest-win-arm64.yml'),
+    [
+      'version: 4.0.3',
+      'files:',
+      '  - url: 7FA4-Chat-4.0.3-arm64.exe',
+      '    sha512: bbb==',
+      '    size: 1002',
+      'path: 7FA4-Chat-4.0.3-arm64.exe',
+      'sha512: bbb==',
+      "releaseDate: '2026-11-26T12:01:00.000Z'",
+      '',
+    ].join('\n'),
+  );
+  const mergedRes = mergeWinManifests({ dir: mergeTmp, expectedVersion: '4.0.3' });
+  const mergedDoc = yaml.load(readFileSync(join(mergeTmp, 'latest.yml'), 'utf8'));
+  chk('mergeWinManifests 正确合并 x64/arm64 并清理分片文件',
+    mergedRes.merged
+      && mergedDoc?.version === '4.0.3'
+      && Array.isArray(mergedDoc?.files)
+      && mergedDoc.files.length === 2
+      && mergedDoc.files[0].url === '7FA4-Chat-4.0.3-x64.exe'
+      && mergedDoc.files[1].url === '7FA4-Chat-4.0.3-arm64.exe'
+      && !existsSync(join(mergeTmp, 'latest-win-x64.yml'))
+      && !existsSync(join(mergeTmp, 'latest-win-arm64.yml')),
+    `files=${mergedDoc?.files?.length}`,
+  );
+} finally {
+  rmSync(mergeTmp, { recursive: true, force: true });
+}
 
 let failed = 0;
 for (const [name, ok, detail] of results) {

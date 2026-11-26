@@ -15,7 +15,7 @@
  *   node scripts/release/publish-gitlab.mjs                  # dry-run（默认）：校验本地目录并打印计划，不写远端
  *   node scripts/release/publish-gitlab.mjs --apply          # 真正发布（需要 GITLAB_TOKEN）
  */
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
@@ -30,6 +30,7 @@ const REQUEST_TIMEOUT_MS = 60_000;
 const REQUEST_ATTEMPTS = 4;
 const UPLOAD_MAX_TIME_SEC = 1800;
 const UPLOAD_ATTEMPTS = 4;
+const UPLOAD_CONCURRENCY = Math.max(1, Number(process.env.GITLAB_UPLOAD_CONCURRENCY || 3) || 3);
 
 const log = (msg) => console.log(`[gitlab] ${msg}`);
 const warn = (msg) => console.log(`::warning::[gitlab] ${String(msg).replace(/\r?\n/g, ' ')}`);
@@ -214,31 +215,57 @@ async function paginate(apiBase, token, pathPrefix) {
   return results;
 }
 
+function runCurlPut(args) {
+  return new Promise((resolvePromise) => {
+    const child = spawn('curl', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { if (stderr.length < 4096) stderr += chunk; });
+    child.on('error', (error) => resolvePromise({ error, stdout, stderr }));
+    child.on('close', (status) => resolvePromise({ error: null, status, stdout, stderr }));
+  });
+}
+
 async function uploadWithCurl(targetUrl, token, item) {
   const tmpDir = mkdtempSync(join(tmpdir(), 'gl-put-'));
   const respFile = join(tmpDir, 'resp.txt');
+  const sizeMb = (item.size / 1024 / 1024).toFixed(1);
   try {
     let lastErr = '';
     for (let attempt = 1; attempt <= UPLOAD_ATTEMPTS; attempt++) {
-      const res = spawnSync(
-        'curl',
-        [
-          '-sS', '-L', '-X', 'PUT', targetUrl,
+      log(`  开始上传 ${item.name}（${sizeMb} MB，尝试 ${attempt}/${UPLOAD_ATTEMPTS}）…`);
+      const startedAt = Date.now();
+      const heartbeat = setInterval(() => {
+        const elapsed = Math.round((Date.now() - startedAt) / 1000);
+        log(`  …仍在上传 ${item.name}（已耗时 ${elapsed}s）`);
+      }, 60_000);
+      heartbeat.unref?.();
+
+      let res;
+      try {
+        res = await runCurlPut([
+          '-sS', '-L', '--http1.1', '-X', 'PUT', targetUrl,
           '-H', `PRIVATE-TOKEN: ${token}`,
           '-H', 'content-type: application/octet-stream',
-          '--data-binary', `@${item.path}`,
+          '-H', 'Expect:',
+          '-T', item.path,
           '--connect-timeout', '30',
-          '--speed-limit', '1024',
-          '--speed-time', '180',
+          '--speed-limit', '10240',
+          '--speed-time', '120',
           '--max-time', String(UPLOAD_MAX_TIME_SEC),
           '-o', respFile,
-          '-w', '%{http_code}',
-        ],
-        { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 },
-      );
-      const code = Number(String(res.stdout || '').trim() || 0);
+          '-w', '%{http_code} %{speed_upload} %{time_total}',
+        ]);
+      } finally {
+        clearInterval(heartbeat);
+      }
+
+      const [codeStr = '0', speedStr = '0', timeStr = '0'] = String(res.stdout || '').trim().split(/\s+/);
+      const code = Number(codeStr || 0);
       if (!res.error && code >= 200 && code < 300) {
-        return code;
+        const mbps = (Number(speedStr) / 1024 / 1024).toFixed(2);
+        return { code, detail: `${mbps} MB/s, ${Number(timeStr).toFixed(1)}s` };
       }
       const bodySnippet = existsSync(respFile) ? readFileSync(respFile, 'utf8').trim().slice(0, 200) : '';
       lastErr = res.error
@@ -254,6 +281,19 @@ async function uploadWithCurl(targetUrl, token, item) {
   } finally {
     rmSync(tmpDir, { recursive: true, force: true });
   }
+}
+
+async function runWithConcurrency(items, concurrency, fn) {
+  let cursor = 0;
+  const workerCount = Math.min(concurrency, items.length);
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (cursor < items.length) {
+        const idx = cursor++;
+        await fn(items[idx]);
+      }
+    }),
+  );
 }
 
 async function verifyAnonymousDownloads(latestUrl, version, installers, metadata) {
@@ -326,11 +366,16 @@ async function main() {
   if (who.status !== 200) die(`GITLAB_TOKEN 校验失败: HTTP ${who.status} ${brief(who.data)}`);
   log(`Token 有效（用户：${who.data?.username || 'unknown'}）`);
 
-  // 1. 先上传（安装包优先，latest*.yml / CHANGELOG 最后切换）
-  for (const item of ordered) {
+  // 1. 先并发上传全部安装包（concurrency=3），再顺序上传元数据（latest*.yml / CHANGELOG 最后切换）
+  await runWithConcurrency(installers, UPLOAD_CONCURRENCY, async (item) => {
     const target = `${LATEST_URL}/${encodeURIComponent(item.name)}`;
-    const code = await uploadWithCurl(target, TOKEN, item);
-    log(`  上传 ${item.name}（${(item.size / 1024 / 1024).toFixed(1)} MB）-> HTTP ${code}`);
+    const { code, detail } = await uploadWithCurl(target, TOKEN, item);
+    log(`  上传 ${item.name}（${(item.size / 1024 / 1024).toFixed(1)} MB）-> HTTP ${code}（${detail}）`);
+  });
+  for (const item of metadata) {
+    const target = `${LATEST_URL}/${encodeURIComponent(item.name)}`;
+    const { code, detail } = await uploadWithCurl(target, TOKEN, item);
+    log(`  上传 ${item.name}（${(item.size / 1024 / 1024).toFixed(1)} MB）-> HTTP ${code}（${detail}）`);
   }
 
   // 2. 分页校验 latest 包内全部上传文件可见且大小一致
