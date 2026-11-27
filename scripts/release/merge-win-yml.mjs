@@ -10,7 +10,7 @@
  * 用法：
  *   node scripts/release/merge-win-yml.mjs [--dir dist] [--version 4.0.3]
  */
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -157,22 +157,61 @@ function mergeWinManifests({ dir = 'dist', expectedVersion = '' } = {}) {
   return { merged: true, outPath, version, fileCount: mergedFiles.length };
 }
 
+function collectArtifacts({ collectFrom, dir = 'dist' }) {
+  if (!existsSync(collectFrom)) {
+    throw new Error(`产物分片目录不存在: ${collectFrom}`);
+  }
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+
+  const owners = new Map();
+  let count = 0;
+
+  const walk = (srcDir, bucketName) => {
+    for (const entry of readdirSync(srcDir, { withFileTypes: true })) {
+      const full = join(srcDir, entry.name);
+      if (entry.isDirectory()) {
+        walk(full, bucketName || entry.name);
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      if (owners.has(entry.name)) {
+        throw new Error(
+          `发现跨构建作业产物文件名冲突: ${entry.name}（同时存在于 ${owners.get(entry.name)} 与 ${bucketName || srcDir}），已中止以防覆盖损坏`,
+        );
+      }
+      owners.set(entry.name, bucketName || srcDir);
+      copyFileSync(full, join(dir, entry.name));
+      count++;
+    }
+  };
+
+  walk(collectFrom, '');
+  return { collected: count };
+}
+
 function parseArgs(argv) {
   let dir = 'dist';
   let expectedVersion = '';
+  let collectFrom = '';
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--dir' && argv[i + 1]) dir = argv[++i];
     else if (argv[i] === '--version' && argv[i + 1]) expectedVersion = argv[++i];
+    else if (argv[i] === '--collect-from' && argv[i + 1]) collectFrom = argv[++i];
   }
-  return { dir, expectedVersion };
+  return { dir, expectedVersion, collectFrom };
 }
 
-export { mergeWinManifests, parseWinManifest };
+export { collectArtifacts, mergeWinManifests, parseWinManifest };
 
 const isEntry = process.argv[1]
   && resolve(fileURLToPath(import.meta.url)).toLowerCase() === resolve(process.argv[1]).toLowerCase();
 if (isEntry) {
   const opts = parseArgs(process.argv.slice(2));
+  if (opts.collectFrom) {
+    const col = collectArtifacts({ collectFrom: opts.collectFrom, dir: opts.dir });
+    console.log(`[merge-win-yml] 已收集 ${col.collected} 个构建产物至 ${opts.dir}（零文件名冲突）`);
+  }
   const res = mergeWinManifests(opts);
   if (res.merged) {
     console.log(`[merge-win-yml] 已合并生成 ${res.outPath} (version=${res.version}, files=${res.fileCount})`);

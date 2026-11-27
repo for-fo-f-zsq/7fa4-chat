@@ -83,12 +83,12 @@ jobs:
         include:
           - os: windows-latest
             platform: win
-            eb_args: --win --x64
+            eb_args: --win nsis:x64 zip:x64
             artifact: dist-win-x64
             win_arch: x64
           - os: windows-latest
             platform: win
-            eb_args: --win --arm64
+            eb_args: --win nsis:arm64 zip:arm64
             artifact: dist-win-arm64
             win_arch: arm64
           - os: ubuntu-latest
@@ -140,6 +140,12 @@ jobs:
         if: matrix.win_arch != ''
         shell: bash
         run: |
+          other=$([ "${{ matrix.win_arch }}" = "x64" ] && echo "arm64" || echo "x64")
+          if ls build/*-"${other}".* 1>/dev/null 2>&1; then
+            echo "::error::Windows ${{ matrix.win_arch }} job 不应产出 ${other} 产物"
+            ls -la build
+            exit 1
+          fi
           if [ -f build/latest.yml ]; then
             mv build/latest.yml "build/latest-win-${{ matrix.win_arch }}.yml"
           fi
@@ -301,11 +307,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: dist-*
-          merge-multiple: true
-          path: dist
+          merge-multiple: false
+          path: dist-parts
 
-      - name: Merge Windows manifests
-        run: node scripts/release/merge-win-yml.mjs --dir dist --version "$VERSION"
+      - name: Collect artifacts & merge Windows manifests
+        run: node scripts/release/merge-win-yml.mjs --collect-from dist-parts --dir dist --version "$VERSION"
 
       - name: List collected files
         run: ls -la dist
@@ -358,11 +364,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: dist-*
-          merge-multiple: true
-          path: dist
+          merge-multiple: false
+          path: dist-parts
 
-      - name: Merge Windows manifests
-        run: node scripts/release/merge-win-yml.mjs --dir dist --version "$VERSION"
+      - name: Collect artifacts & merge Windows manifests
+        run: node scripts/release/merge-win-yml.mjs --collect-from dist-parts --dir dist --version "$VERSION"
 
       - name: Validate release upload plan (dry-run)
         run: node scripts/release/publish-gitlab.mjs --version "$VERSION"

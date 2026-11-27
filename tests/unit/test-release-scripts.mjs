@@ -1,6 +1,7 @@
 // 发布与 CI 工作流脚本单元测试（纯本地，不触网）
 //   node tests/unit/test-release-scripts.mjs
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -14,7 +15,7 @@ import {
   parseManifestVersion,
 } from '../../scripts/release/publish-gitlab.mjs';
 import { partitionToolUploads } from '../../scripts/tools/publish-tools.mjs';
-import { mergeWinManifests } from '../../scripts/release/merge-win-yml.mjs';
+import { collectArtifacts, mergeWinManifests } from '../../scripts/release/merge-win-yml.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const results = [];
@@ -37,6 +38,17 @@ chk('release.yml: 包含 preflight 门禁并约束 build/build-android',
 );
 chk('release.yml: build-tools 不再阻塞 release',
   !releaseDoc.jobs?.release?.needs?.includes('build-tools'),
+);
+const buildInclude = releaseDoc.jobs?.build?.strategy?.matrix?.include || [];
+const winEntries = buildInclude.filter((item) => item.platform === 'win');
+chk('release.yml: Windows 并行 job 显式锁定单架构 target:arch（避免互建相同文件）',
+  winEntries.length === 2
+    && winEntries.every((item) => item.eb_args.includes(`:${item.win_arch}`)),
+);
+const ghDlStep = (releaseDoc.jobs?.['release-github']?.steps || []).find((s) => String(s.uses || '').includes('download-artifact'));
+const glDlStep = (releaseDoc.jobs?.['release-gitlab']?.steps || []).find((s) => String(s.uses || '').includes('download-artifact'));
+chk('release.yml: 发布阶段禁用 merge-multiple 静默覆盖，改走碰撞校验收集',
+  ghDlStep?.with?.['merge-multiple'] === false && glDlStep?.with?.['merge-multiple'] === false,
 );
 
 // 2. release-assets 筛选与排序
@@ -236,6 +248,97 @@ try {
   );
 } finally {
   rmSync(mergeTmp, { recursive: true, force: true });
+}
+
+// 9. collectArtifacts 碰撞拦截 + publish-gitlab sha512/size 强校验
+const guardTmp = mkdtempSync(join(tmpdir(), 'rel-guard-'));
+try {
+  const parts = join(guardTmp, 'parts');
+  const distOk = join(guardTmp, 'dist');
+  mkdirSync(join(parts, 'dist-win-x64'), { recursive: true });
+  mkdirSync(join(parts, 'dist-mac'), { recursive: true });
+  writeFileSync(join(parts, 'dist-win-x64', '7FA4-Chat-4.0.4-x64.exe'), 'win-binary-content');
+  writeFileSync(join(parts, 'dist-mac', '7FA4-Chat-4.0.4-x64-mac.zip'), 'mac-zip-content');
+  const colOk = collectArtifacts({ collectFrom: parts, dir: distOk });
+  chk('collectArtifacts 正常汇集无冲突产物', colOk.collected === 2 && existsSync(join(distOk, '7FA4-Chat-4.0.4-x64.exe')));
+
+  // 注入同名冲突文件
+  writeFileSync(join(parts, 'dist-mac', '7FA4-Chat-4.0.4-x64.exe'), 'oops-collision');
+  let collisionCaught = false;
+  try {
+    collectArtifacts({ collectFrom: parts, dir: distOk });
+  } catch (e) {
+    collisionCaught = String(e.message).includes('冲突');
+  }
+  chk('collectArtifacts 拦截跨 job 同名产物覆盖冲突', collisionCaught);
+
+  // manifest sha512 & size 校验
+  const exeBuf = readFileSync(join(distOk, '7FA4-Chat-4.0.4-x64.exe'));
+  const realSha = createHash('sha512').update(exeBuf).digest('base64');
+  const bodyFile = join(guardTmp, 'body.md');
+  writeFileSync(bodyFile, '## 4.0.4\n- fix\n');
+  const clFile = join(ROOT, 'CHANGELOG');
+
+  writeFileSync(
+    join(distOk, 'latest.yml'),
+    [
+      'version: 4.0.4',
+      'files:',
+      '  - url: 7FA4-Chat-4.0.4-x64.exe',
+      `    sha512: ${realSha}`,
+      `    size: ${exeBuf.length}`,
+      'path: 7FA4-Chat-4.0.4-x64.exe',
+      `sha512: ${realSha}`,
+      '',
+    ].join('\n'),
+  );
+  const verified = collectReleaseUploads({
+    version: '4.0.4',
+    distDir: distOk,
+    changelogFile: clFile,
+    releaseBodyFile: bodyFile,
+  });
+  chk('collectReleaseUploads 放行 size 与 sha512 完全一致的清单', verified.installers.length === 2);
+
+  writeFileSync(
+    join(distOk, 'latest.yml'),
+    [
+      'version: 4.0.4',
+      'files:',
+      '  - url: 7FA4-Chat-4.0.4-x64.exe',
+      '    sha512: wronghash==',
+      `    size: ${exeBuf.length}`,
+      '',
+    ].join('\n'),
+  );
+  let shaCaught = false;
+  try {
+    collectReleaseUploads({ version: '4.0.4', distDir: distOk, changelogFile: clFile, releaseBodyFile: bodyFile });
+  } catch (e) {
+    shaCaught = String(e.message).includes('sha512');
+  }
+  chk('collectReleaseUploads 拦截 sha512 不一致', shaCaught);
+
+  writeFileSync(
+    join(distOk, 'latest.yml'),
+    [
+      'version: 4.0.4',
+      'files:',
+      '  - url: 7FA4-Chat-4.0.4-x64.exe',
+      `    sha512: ${realSha}`,
+      '    size: 999999',
+      '',
+    ].join('\n'),
+  );
+  let sizeCaught = false;
+  try {
+    collectReleaseUploads({ version: '4.0.4', distDir: distOk, changelogFile: clFile, releaseBodyFile: bodyFile });
+  } catch (e) {
+    sizeCaught = String(e.message).includes('大小');
+  }
+  chk('collectReleaseUploads 拦截文件大小不一致', sizeCaught);
+} finally {
+  rmSync(guardTmp, { recursive: true, force: true });
 }
 
 let failed = 0;

@@ -169,6 +169,9 @@
           ]
         }
       ],
+      "artifactName": "7FA4-Chat-${version}-${arch}-mac.${ext}"
+    },
+    "dmg": {
       "artifactName": "7FA4-Chat-${version}-${arch}.${ext}"
     },
     "msi": {

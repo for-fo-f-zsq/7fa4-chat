@@ -16,11 +16,13 @@
  *   node scripts/release/publish-gitlab.mjs --apply          # 真正发布（需要 GITLAB_TOKEN）
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isLinkableAsset, sortAssetNames } from './release-assets.mjs';
+import { parseWinManifest } from './merge-win-yml.mjs';
 
 const DEFAULT_API = 'https://jx.7fa4.cn:9080/api/v4/projects/886';
 const DEFAULT_REF = 'master';
@@ -112,6 +114,68 @@ function parseArgs(argv) {
   return opts;
 }
 
+function sha512FileSync(filePath) {
+  const hash = createHash('sha512');
+  const buf = Buffer.allocUnsafe(1024 * 1024);
+  const fd = openSync(filePath, 'r');
+  try {
+    let bytesRead = 0;
+    while ((bytesRead = readSync(fd, buf, 0, buf.length, null)) > 0) {
+      hash.update(buf.subarray(0, bytesRead));
+    }
+  } finally {
+    closeSync(fd);
+  }
+  return hash.digest('base64');
+}
+
+function verifyManifestChecksums(distDir, metadata, installers) {
+  const installerByName = new Map(installers.map((it) => [it.name, it]));
+  const hashCache = new Map();
+  const getSha512 = (fileName, fullPath) => {
+    if (!hashCache.has(fileName)) {
+      hashCache.set(fileName, sha512FileSync(fullPath));
+    }
+    return hashCache.get(fileName);
+  };
+
+  for (const meta of metadata) {
+    if (!meta.name.toLowerCase().endsWith('.yml')) continue;
+    const raw = readFileSync(meta.path, 'utf8');
+    let parsed;
+    try {
+      parsed = parseWinManifest(raw, meta.name);
+    } catch {
+      continue;
+    }
+
+    const targets = [...(parsed.files || [])];
+    if (parsed.path && parsed.sha512) {
+      targets.push({ url: parsed.path, sha512: parsed.sha512 });
+    }
+
+    for (const entry of targets) {
+      const targetName = entry?.url;
+      if (!targetName) continue;
+      const diskItem = installerByName.get(targetName);
+      const fullPath = diskItem ? diskItem.path : join(distDir, targetName);
+      if (!existsSync(fullPath)) {
+        die(`${meta.name} 引用的安装包 ${targetName} 在 ${distDir} 中缺失`);
+      }
+      const actualSize = statSync(fullPath).size;
+      if (typeof entry.size === 'number' && entry.size !== actualSize) {
+        die(`${meta.name} 记录的 ${targetName} 大小 (${entry.size}) 与磁盘文件 (${actualSize}) 不一致，拒绝发布`);
+      }
+      if (entry.sha512) {
+        const actualSha512 = getSha512(targetName, fullPath);
+        if (actualSha512 !== entry.sha512) {
+          die(`${meta.name} 记录的 ${targetName} sha512 与磁盘文件不一致，拒绝发布`);
+        }
+      }
+    }
+  }
+}
+
 function collectReleaseUploads({ version, distDir, changelogFile, releaseBodyFile }) {
   if (!version) die('缺少 VERSION（应由 tag 去掉 v 或 --version 传入）');
   if (!existsSync(releaseBodyFile)) die(`Release 正文文件不存在: ${releaseBodyFile}`);
@@ -143,13 +207,15 @@ function collectReleaseUploads({ version, distDir, changelogFile, releaseBodyFil
   const { installers, metadata, ordered } = orderUploads(items);
   if (installers.length === 0) die(`${distDir} 下没有可上传的安装包文件`);
 
-  const latestYml = metadata.find((item) => item.name === 'latest.yml');
-  if (latestYml) {
-    const ymlVersion = parseManifestVersion(readFileSync(latestYml.path, 'utf8'));
+  for (const meta of metadata) {
+    if (!meta.name.toLowerCase().endsWith('.yml')) continue;
+    const ymlVersion = parseManifestVersion(readFileSync(meta.path, 'utf8'));
     if (ymlVersion && ymlVersion !== version) {
-      die(`latest.yml 版本 (${ymlVersion}) 与发布版本 (${version}) 不一致，拒绝上传`);
+      die(`${meta.name} 版本 (${ymlVersion}) 与发布版本 (${version}) 不一致，拒绝上传`);
     }
   }
+
+  verifyManifestChecksums(distDir, metadata, installers);
 
   return { releaseBody, installers, metadata, ordered };
 }
@@ -482,7 +548,7 @@ async function main() {
   log(`GitLab 发布完成：${created.data?.web_url || TAG}（资源链接 ${created.data?.assets?.links?.length || 0} 个）`);
 }
 
-export { isMetadataFile, orderUploads, parseManifestVersion, collectReleaseUploads };
+export { isMetadataFile, orderUploads, parseManifestVersion, collectReleaseUploads, verifyManifestChecksums };
 
 const isEntry = process.argv[1]
   && resolve(fileURLToPath(import.meta.url)).toLowerCase() === resolve(process.argv[1]).toLowerCase();
